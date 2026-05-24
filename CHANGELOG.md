@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.2.0 - 2026-05-23
+
+### Added
+- Promoted the node runtime alignment with shared bootstrap, VP, SMART, and activation contracts to the first minor release line.
+- Added live GW trace support, canonical host activation/controller binding flow coverage, and owner-vs-legal-representative documentation updates.
+
+### Changed
+- Aligned the shared dependency to `gdc-common-utils-ts@^1.5.0`.
+- Kept the neutral runtime naming (`ActorSession`, `RuntimeClient`, etc.) while preserving legacy aliases for migration.
+
+### Testing
+- `npm test` passes against the packaged `gdc-common-utils-ts` artifact, with live GW tests kept as explicit opt-in.
+
 ## 0.1.2 - 2026-05-21
 
 ### Added
