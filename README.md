@@ -110,6 +110,16 @@ The canonical API contract should live in JSDoc on exported code. The README is 
   - Freezes the draft into a transport-oriented outbox job.
 - [`updateOutboxJobStatus(...)`](../gdc-sdk-core-ts/src/communication-draft.ts)
   - Updates the outbox job status and transport result metadata.
+- [`groupConsentsForControllerView(...)`](../gdc-sdk-core-ts/src/consent-access.ts)
+  - Aggregates all active consent rules for one subject and groups them by actor-specific, organization, jurisdiction, and phone-extension target.
+- [`evaluateRequestedAccess(...)`](../gdc-sdk-core-ts/src/consent-access.ts)
+  - Evaluates effective permission coverage with first-tier precedence for concrete email matches, then organization and jurisdiction coverage.
+- [`getMissingPermissions(...)`](../gdc-sdk-core-ts/src/consent-access.ts)
+  - Extracts deterministic missing section/resource-type coverage for a SMART request.
+- [`buildPermissionRequestCommunication(...)`](../gdc-sdk-core-ts/src/consent-access.ts)
+  - Builds the canonical `Communication` payload used to request additional subject-controlled access.
+- [`buildPermissionRequestCommunicationLookupQuery(...)`](../gdc-sdk-core-ts/src/consent-access.ts)
+  - Builds a subject-scoped lookup query for recovering the permission request by `Communication.identifier`, `thid`, or `DocumentReference.contenthash`.
 - [`IOutboxRepository`](../gdc-sdk-core-ts/src/communication-outbox.ts)
 - [`OutboxRepositoryMemory`](../gdc-sdk-core-ts/src/communication-outbox.ts)
 - [`createHeartRateObservation(...)`](../gdc-sdk-core-ts/src/vital-signs.ts)

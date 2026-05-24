@@ -73,6 +73,29 @@ Reusable payload source of truth for the examples in this guide:
 - [../gdc-common-utils-ts/src/examples/api-flow-examples.ts](../gdc-common-utils-ts/src/examples/api-flow-examples.ts)
 - [tests/fixtures/ica-vp-minimal.json](tests/fixtures/ica-vp-minimal.json)
 
+## 2.A Consent access model used by the node SDK
+
+The node SDK consumes the shared consent-access model from:
+
+- `gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md`
+- `gdc-sdk-core-ts/src/consent-access.ts`
+
+Use it for:
+
+- controller view of all active permissions by actor target
+- evaluation of one SMART request against the aggregated consent set
+- extraction of missing sections/resource types
+- creation of a canonical permission-request `Communication`
+- recovery of that request by `Communication.identifier`, `thid`, or linked CID
+
+Precedence is:
+
+1. explicit deny for a concrete email
+2. explicit permit for a concrete email
+3. organization
+4. jurisdiction
+5. default deny
+
 CORE vs extension note:
 
 - individual/controller bootstrap examples are email-first in CORE

@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- Updated README and `SDK_INTEGRATION_101.md` to document the shared consent-access model, missing-permission evaluation flow, canonical permission-request `Communication`, and subject-scoped lookup by identifier, thread id, or linked CID.
+
+### Testing
+- `npm run type-check` passes after the consent-access documentation and re-export alignment.
+
 ## 0.2.0 - 2026-05-23
 
 ### Added
