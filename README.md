@@ -1,176 +1,253 @@
 # gdc-sdk-node-ts
 
-Target Node runtime package for the converged GDC SDK family.
+Node runtime package for consuming the shared GDC SDK contracts against real
+gateway backends.
 
-Key docs:
+Use this package when your backend needs to:
 
-- [CHANGELOG.md](CHANGELOG.md)
-- [SECURITY.md](SECURITY.md)
-- [TEST_CORE.md](TEST_CORE.md)
-- [SDK_INTEGRATION_101.md](SDK_INTEGRATION_101.md)
+- call GW APIs
+- submit/poll async operations
+- orchestrate onboarding, consent, communication, and search flows
+- consume the shared relationship invitation/acceptance contracts from
+  `gdc-sdk-core-ts`
 
-Current status:
+This package is for runtime execution. It is not the place where the canonical
+business contract is defined.
 
-- package created
-- build/test baseline created
-- migration target from `dataspace-client-sdk-node` completed for live runtime path
-- runtime contract skeleton declared
-- actor-scoped node session bridge implemented
-- first actor-scoped orchestration facades implemented on top of `GdcNodeRuntimeClient`
-- shared async submit/poll helpers implemented for converged Node orchestration
-- live GW E2E migrated here with `gdc-sdk-node-ts` runtime client only, with JSONL debug/HTTP trace artifacts under `test-results/`
+## Actor Split And Runtime Scope
 
-Not migrated yet:
+This package must be understandable from the same actor split used by the
+shared contracts:
 
-- full wallet/runtime adapter parity from legacy package
-- secure E2E script parity in this package
-- full live use-case parity matrix vs legacy suite
+- organization controller
+- organization employee / professional member
+- individual controller
+- individual member / self
+- related person
+- professional with consented access
 
-Live validation:
+The Node runtime layer is where those shared flows are executed against GW.
+That includes organization onboarding, employee creation, individual bootstrap,
+permission grants, `RelatedPerson` upserts, SMART token requests, and clinical
+data ingestion/search.
 
-- `npm run test:e2e:live-gw`
-- core coverage summary for memory/thesis justification: `TEST_CORE.md`
-- optional:
-  - `BASE_URL=http://127.0.0.1:8000`
-  - `RUN_LIVE_GW_E2E_IPS_INGESTION=1`
-  - `LIVE_GW_NODE_E2E_DEBUG=1`
-- artifacts:
-  - `test-results/live-gw-node-runtime-debug-*.jsonl`
-  - `test-results/live-gw-http-trace-*.jsonl`
+## Flow Families
 
-Runtime migration note:
+- organization activation and order/offer confirmation
+- employee creation and employee activation
+- individual organization start and order confirmation
+- related person upsert
+- professional access grant
+- invitation / OTP / relationship PIN runtime wiring
+- permission-request `Communication`
+- communication ingestion and search
+- SMART token retrieval
 
-- the live E2E in this package no longer imports `dataspace-client-sdk-node`
-- actor-scoped facades now run on the in-package `GdcNodeHttpClient`
-- remaining migration scope is parity hardening, not runtime ownership
-- this package now consumes the published `gdc-common-utils-ts` `^1.4.22` line; the sibling checkout is only needed for source browsing and optional local cross-repo work
+## Main Flows
 
-Role in the transition:
+### 1. Controller invites a related person or professional
 
-- `gdc-sdk-core-ts` will own shared actor/capability contracts
-- `gdc-sdk-node-ts` will own Node runtime adapters and backend-facing orchestration
-- `dataspace-client-sdk-node` is now the legacy source repo for migration, not the final name
+Typical backend sequence:
 
-Reusable payload source of truth:
+1. build shared invitation payload with `gdc-sdk-core-ts`
+2. send it through the node runtime client or your backend adapter
+3. persist or return the invitation state to portal/app
+
+What matters here:
+
+- this package executes the runtime call
+- `gdc-sdk-core-ts` defines the payload shape
+- callers should not hardcode route families in app code
+
+### 2. Invitee accepts the relationship
+
+Typical backend sequence:
+
+1. start OTP challenge
+2. confirm OTP
+3. set relationship PIN if required
+4. activate the relationship channel
+
+Shared contract builders come from `gdc-sdk-core-ts`; this package is where a
+Node backend wires them to real runtime operations.
+
+### 3. Consent-aware communication and search
+
+Use this package when your backend needs to:
+
+- ingest `Communication`
+- search clinical bundles
+- request SMART tokens
+- grant access
+- create or update `RelatedPerson`
+
+## What This Package Owns
+
+- Node runtime client
+- submit/poll orchestration
+- actor-scoped node sessions
+- backend-facing orchestration helpers
+
+## What This Package Does Not Own
+
+- the canonical invitation/OTP/PIN contract
+- UNID-specific reminder runtime semantics
+- frontend session UX
+
+Those belong to:
+
+- `gdc-sdk-core-ts` for shared contracts
+- runtime extensions such as UNID/UHC for product-specific behavior
+- `gdc-sdk-front-ts` for frontend-facing consumption
+
+## Minimal Examples
+
+### Use shared invitation contract from Node
+
+```ts
+import { createRelationshipChannelInvitationInput } from 'gdc-sdk-core-ts';
+import { EXAMPLE_RELATIONSHIP_PROFESSIONAL_INVITATION_INPUT } from 'gdc-common-utils-ts/examples/relationship-access';
+
+const invitation = createRelationshipChannelInvitationInput(
+  EXAMPLE_RELATIONSHIP_PROFESSIONAL_INVITATION_INPUT,
+);
+```
+
+### Request SMART token and search bundle
+
+```ts
+import { NodeHttpClient } from 'gdc-sdk-node-ts';
+import {
+  EXAMPLE_CONSENT_ACCESS_SUBJECT,
+} from 'gdc-common-utils-ts/examples/consent-access';
+import { SmartGatewayScopesFhirR4 } from 'gdc-common-utils-ts/constants/smart';
+
+const client = new NodeHttpClient({ baseUrl: process.env.BASE_URL! });
+
+const token = await client.requestSmartToken({
+  ctx,
+  actorDid: 'did:web:doctor.example.org:employee:001',
+  subjectDid: EXAMPLE_CONSENT_ACCESS_SUBJECT,
+  scopes: [SmartGatewayScopesFhirR4.ConsentCruds],
+  idToken: '...',
+});
+
+const result = await client.searchClinicalBundle(ctx, {
+  subject: EXAMPLE_CONSENT_ACCESS_SUBJECT,
+});
+```
+
+## Shared Contract Sources
+
+- [../gdc-sdk-core-ts/README.md](../gdc-sdk-core-ts/README.md)
+- [../gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md](../gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md)
+
+Reusable payload examples:
 
 - [../gdc-common-utils-ts/src/examples/organization-controller.ts](../gdc-common-utils-ts/src/examples/organization-controller.ts)
-  - `_activate`, legal order, employee creation, employee device activation
 - [../gdc-common-utils-ts/src/examples/individual-controller.ts](../gdc-common-utils-ts/src/examples/individual-controller.ts)
-  - individual bootstrap, consent, search, communication ingestion, digital twin
 - [../gdc-common-utils-ts/src/examples/professional.ts](../gdc-common-utils-ts/src/examples/professional.ts)
-  - SMART token and clinical access request examples
-  - reusable professional role/permission scenarios by section and expected FHIR types
-  - reusable consent-vs-smart matrices for actor targeting by email, organization, or jurisdiction
 - [../gdc-common-utils-ts/src/examples/shared.ts](../gdc-common-utils-ts/src/examples/shared.ts)
-  - shared route contexts and helper builders
 - [../gdc-common-utils-ts/src/examples/api-flow-examples.ts](../gdc-common-utils-ts/src/examples/api-flow-examples.ts)
-  - preferred compatibility aggregator when one import surface is needed without using the overloaded term `contract`
-- [tests/fixtures/ica-vp-minimal.json](tests/fixtures/ica-vp-minimal.json)
-  - minimal VP fixture used by live GW onboarding/smart flows
-
-CORE vs extension note:
-
-- shared CORE examples are email-first for individual/controller bootstrap
-- `subjectPhone`, `subjectGivenName`, and phone-first controller onboarding are compatibility or extension concerns, not required CORE GW contract fields
-- route `tenantId` examples use identifier-style values such as `acme-id`, not friendly alternate names
-- individual/family bootstrap uses `org.schema.Organization.owner.*` claims for the human owner/controller
-- legal organization activation uses `Person` representative semantics plus VC `memberOf` / `hasOccupation`
 
 ## API Index
 
-The canonical API contract should live in JSDoc on exported code. The README is the linked index.
+## Full Public Surface
 
-### Core document helpers re-exported from `gdc-sdk-core-ts`
+This package exports the full `gdc-sdk-core-ts` surface plus the Node runtime
+modules below.
 
-- [`createCommunicationResource(...)`](../gdc-sdk-core-ts/src/communication-resource-helpers.ts)
-  - Creates a minimal FHIR `Communication` resource.
-  - Main params: `subject`, `sender?`, `recipient?`, `sent?`, `status?`, `category?`, `noteText?`, `claims?`.
-- [`addFhirResourceToCommunication(...)`](../gdc-sdk-core-ts/src/communication-resource-helpers.ts)
-  - Attaches a FHIR resource to `Communication.payload`, optionally wrapped as `DocumentReference`.
-  - Main params: `communication`, `resource`, `noteText?`, `asDocumentReference?`, `attachmentTitle?`, `attachmentContentType?`, `documentDescription?`, `documentDate?`, `documentSubject?`.
-- [`addClaimsResourceToCommunication(...)`](../gdc-sdk-core-ts/src/communication-resource-helpers.ts)
-  - Attaches a claims-only pseudo-resource using `meta.claims`.
-  - Main params: `communication`, `resourceType`, `claims`, `options?`.
-- [`buildCommunicationBatchMessage(...)`](../gdc-sdk-core-ts/src/communication-resource-helpers.ts)
-  - Wraps a FHIR `Communication` into a GW-ready batch envelope.
-  - Main params: `communication`, `thid?`, `jti?`, `iss?`, `aud?`, `requestUrl?`, `entryType?`, `messageType?`, `fhirVersion?`.
-- [`createCommunicationFacade()`](../gdc-sdk-core-ts/src/communication-document-facade.ts)
-  - Creates the high-level document access facade.
-- [`getDocumentFromCommunication(...)`](../gdc-sdk-core-ts/src/communication-document-facade.ts)
-  - Resolves the first attached document and hides direct attachment vs `DocumentReference`.
-- [`createFhirDocumentFacade(...)`](../gdc-sdk-core-ts/src/communication-document-facade.ts)
-  - Exposes `getBundle()`, `getSections()`, `getResources(resourceType?)`, `getByDates(resourceType, start, end?)`, `getContainingTextOrDisplay(resourceType, text)`.
-- [`createCommunicationDraft(...)`](../gdc-sdk-core-ts/src/communication-draft.ts)
-  - Starts an in-memory communication draft.
-- [`addFhirResourceToDraft(...)`](../gdc-sdk-core-ts/src/communication-draft.ts)
-  - Appends a concrete FHIR resource to the draft.
-- [`addClaimsResourceToDraft(...)`](../gdc-sdk-core-ts/src/communication-draft.ts)
-  - Appends a claims-only pseudo-resource to the draft.
-- [`createOutboxJobFromDraft(...)`](../gdc-sdk-core-ts/src/communication-draft.ts)
-  - Freezes the draft into a transport-oriented outbox job.
-- [`updateOutboxJobStatus(...)`](../gdc-sdk-core-ts/src/communication-draft.ts)
-  - Updates the outbox job status and transport result metadata.
-- [`groupConsentsForControllerView(...)`](../gdc-sdk-core-ts/src/consent-access.ts)
-  - Aggregates all active consent rules for one subject and groups them by actor-specific, organization, jurisdiction, and phone-extension target.
-- [`evaluateRequestedAccess(...)`](../gdc-sdk-core-ts/src/consent-access.ts)
-  - Evaluates effective permission coverage with first-tier precedence for concrete email matches, then organization and jurisdiction coverage.
-- [`getMissingPermissions(...)`](../gdc-sdk-core-ts/src/consent-access.ts)
-  - Extracts deterministic missing section/resource-type coverage for a SMART request.
-- [`buildPermissionRequestCommunication(...)`](../gdc-sdk-core-ts/src/consent-access.ts)
-  - Builds the canonical `Communication` payload used to request additional subject-controlled access.
-- [`buildPermissionRequestCommunicationLookupQuery(...)`](../gdc-sdk-core-ts/src/consent-access.ts)
-  - Builds a subject-scoped lookup query for recovering the permission request by `Communication.identifier`, `thid`, or `DocumentReference.contenthash`.
-- [`IOutboxRepository`](../gdc-sdk-core-ts/src/communication-outbox.ts)
-- [`OutboxRepositoryMemory`](../gdc-sdk-core-ts/src/communication-outbox.ts)
-- [`createHeartRateObservation(...)`](../gdc-sdk-core-ts/src/vital-signs.ts)
-- [`createBodyTemperatureObservation(...)`](../gdc-sdk-core-ts/src/vital-signs.ts)
-- [`createBloodPressureObservation(...)`](../gdc-sdk-core-ts/src/vital-signs.ts)
+- [`src/runtime-contracts.ts`](src/runtime-contracts.ts)
+  - types/constants: `LegacyNodeSourcePackage`, `NodeRuntimeMode`, `NodeInteropMode`, `TenantContext`, `NodeOperatorContext`, `NodeFetchLike`, `NodeRuntimeConfig`, `NodePackageStatus`, `GDC_SDK_NODE_STATUS`
+- [`src/identity-bootstrap.ts`](src/identity-bootstrap.ts)
+  - function: `initializeCommunicationIdentityFromSeed(...)`
+- [`src/async-polling.ts`](src/async-polling.ts)
+  - types: `AcceptedPollResponse`
+  - function: `pollUntilCompleteWithMethod(...)`
+- [`src/poll-options.ts`](src/poll-options.ts)
+  - re-export: `resolvePollOptionsFromSeconds(...)`
+- [`src/host-onboarding.ts`](src/host-onboarding.ts)
+  - types: `HostRouteContext`, `LegalOrganizationOrderInput`
+  - function: `confirmLegalOrganizationOrderWithDeps(...)`
+- [`src/individual-start.ts`](src/individual-start.ts)
+  - types: `IndividualOrganizationBootstrapInput`, `OfferPreview`, `IndividualOrganizationStartResult`
+  - function: `startIndividualOrganizationWithDeps(...)`
+- [`src/individual-onboarding.ts`](src/individual-onboarding.ts)
+  - types: `RouteContext`, `IndividualOrganizationConfirmOrderInput`
+  - function: `confirmIndividualOrganizationOrderWithDeps(...)`
+- [`src/device-activation.ts`](src/device-activation.ts)
+  - types: `EmployeeDeviceActivationInput`, `EmployeeDeviceActivationRequestInput`, `EmployeeDeviceActivationResult`
+  - functions: `activateEmployeeDeviceWithActivationCodeWithDeps(...)`, `activateEmployeeDeviceWithActivationRequestWithDeps(...)`
+- [`src/smart-token.ts`](src/smart-token.ts)
+  - types: `SmartTokenRequestInput`, `SmartTokenExchangeResult`
+  - function: `requestSmartTokenWithDeps(...)`
+- [`src/resource-operations.ts`](src/resource-operations.ts)
+  - types: `OrganizationEmployeeCreationInput`, `IpsOrFhirImportInput`, `RelatedPersonUpsertInput`, `CommunicationIngestionInput`, `ClinicalDateRange`, `ClinicalBundleSearchInput`, `ConsentActorTargetInput`, `GrantProfessionalAccessInput`, `GrantProfessionalAccessResult`, `DigitalTwinGenerationInput`
+  - functions: `createOrganizationEmployeeWithDeps(...)`, `importIpsOrFhirAndUpdateIndexWithDeps(...)`, `upsertRelatedPersonAndPollWithDeps(...)`, `ingestCommunicationAndUpdateIndexWithDeps(...)`, `searchClinicalBundleWithDeps(...)`, `searchLatestIpsWithDeps(...)`, `grantProfessionalAccessWithDeps(...)`, `generateDigitalTwinFromSubjectDataWithDeps(...)`
+- [`src/session.ts`](src/session.ts)
+  - types: `NodeCapability`, `NodeActorSessionContext`, `ActorSessionContext`
+  - classes: `ActorSession`, `NodeActorSession`
+- [`src/node-runtime-client.ts`](src/node-runtime-client.ts)
+  - types: `HttpRuntimeClientOptions`, `NodeHttpClientOptions`
+  - classes: `HttpRuntimeClient`, `NodeHttpClient`
+- [`src/gdc-session-bridge.ts`](src/gdc-session-bridge.ts)
+  - functions: `createNodeActorSessionsFromFacades(...)`, `createNodeActorSessionFromFacade(...)`, `createNodeActorSessionsFromDescriptor(...)`, `createNodeActorSessionFromDescriptor(...)`, `createActorSessionsFromFacades(...)`, `createActorSessionFromFacade(...)`, `createActorSessionsFromDescriptor(...)`, `createActorSessionFromDescriptor(...)`
+- [`src/orchestration/client-port.ts`](src/orchestration/client-port.ts)
+  - types: `RuntimeClient`, `NodeRuntimeClient`
+  - functions: `requireClientMethod(...)`, `submitAndPollWithMethods(...)`, `canClientSubmitAndPoll(...)`, `submitAndPollWithClient(...)`
+- [`src/orchestration/host-onboarding-sdk.ts`](src/orchestration/host-onboarding-sdk.ts)
+  - class: `HostOnboardingSdk`
+- [`src/orchestration/organization-controller-sdk.ts`](src/orchestration/organization-controller-sdk.ts)
+  - class: `OrganizationControllerSdk`
+- [`src/orchestration/organization-employee-sdk.ts`](src/orchestration/organization-employee-sdk.ts)
+  - class: `OrganizationEmployeeSdk`
+- [`src/orchestration/individual-controller-sdk.ts`](src/orchestration/individual-controller-sdk.ts)
+  - class: `IndividualControllerSdk`
+- [`src/orchestration/individual-member-sdk.ts`](src/orchestration/individual-member-sdk.ts)
+  - class: `IndividualMemberSdk`
+- [`src/orchestration/personal-sdk.ts`](src/orchestration/personal-sdk.ts)
+  - class: `PersonalSdk`
+- [`src/orchestration/professional-sdk.ts`](src/orchestration/professional-sdk.ts)
+  - class: `ProfessionalSdk`
+- [`src/legacy-compat.ts`](src/legacy-compat.ts)
+  - compatibility aliases for simplified helpers, runtime classes, and legacy names such as `GdcNodeActorSession` and `GdcNodeHttpClient`
+
+### Re-exported shared helpers from `gdc-sdk-core-ts`
+
+- consent access helpers
+- relationship invitation/acceptance builders
+- communication/document builders
+- draft/outbox helpers
+- document facade helpers
+- vital-sign helpers
 
 ### Node runtime client
 
 - [`NodeHttpClient`](src/node-runtime-client.ts)
-  - Main runtime class for submit/poll orchestration against the GW.
 - [`NodeHttpClient.ingestCommunicationAndUpdateIndex(...)`](src/node-runtime-client.ts)
-  - Sends a `Communication` ingestion request and polls until indexed.
-  - Main params: `ctx`, `input.communicationPayload`, `input.pathFormatSegment?`, `input.autoConvertClaimsToFhirR4?`, `input.pollOptions?`.
 - [`NodeHttpClient.submitCommunicationAndPoll(...)`](src/node-runtime-client.ts)
-  - Alias of `ingestCommunicationAndUpdateIndex(...)`.
 - [`NodeHttpClient.searchClinicalBundle(...)`](src/node-runtime-client.ts)
-  - Executes clinical `Bundle/_search`.
-  - Main params: `ctx`, `input.subject`, `input.section?`, `input.date?`, `input.includedTypes?`, `input.code?`, `input.category?`, `input.author?`, `input.pollOptions?`.
 - [`NodeHttpClient.searchLatestIps(...)`](src/node-runtime-client.ts)
-  - Shortcut for latest IPS-oriented document search.
 - [`NodeHttpClient.grantProfessionalAccess(...)`](src/node-runtime-client.ts)
-  - Sends a consent-grant flow for a professional actor.
 - [`NodeHttpClient.requestSmartToken(...)`](src/node-runtime-client.ts)
-  - Requests SMART/OpenID token material through the GW.
-  - Main params: `input.actorDid`, `input.subjectDid`, `input.scopes`, `input.idToken`, optional `input.vpToken`, and optional route compatibility fields when the client was not initialized with a default `ctx`.
 
 ### Runtime configuration
 
 - [`NodeRuntimeConfig`](src/runtime-contracts.ts)
-  - Includes `interopMode?`, `persistencePolicy?`, and `outboxRepositoryFactory?` so node runtimes can declare `demo`/`compat`/`strict` mode and choose `memory` vs `server-remote` persistence explicitly.
 - [`initializeCommunicationIdentityFromSeed(...)`](src/identity-bootstrap.ts)
-  - Node SDK wrapper for the shared technical communication identity bootstrap helper from `gdc-common-utils-ts`.
 
 ### Low-level orchestration helpers
 
 - [`createOrganizationEmployeeWithDeps(...)`](src/resource-operations.ts)
-  - Creates an employee/person batch payload for CORE GW using canonical `org.schema.Person.*` claims.
 - [`importIpsOrFhirAndUpdateIndexWithDeps(...)`](src/resource-operations.ts)
 - [`upsertRelatedPersonAndPollWithDeps(...)`](src/resource-operations.ts)
-  - Creates or updates a `RelatedPerson` for family/caregiver roles outside employee/controller flows.
 - [`ingestCommunicationAndUpdateIndexWithDeps(...)`](src/resource-operations.ts)
 - [`searchClinicalBundleWithDeps(...)`](src/resource-operations.ts)
 - [`searchLatestIpsWithDeps(...)`](src/resource-operations.ts)
 - [`grantProfessionalAccessWithDeps(...)`](src/resource-operations.ts)
-  - Builds a consent grant where actor targeting should normally be passed as canonical `Consent.actor-identifier` input: a `did:web`, email, `tel:+...`, country code, or comma-separated list of those values.
 
-These functions are runtime-oriented building blocks. For application-level document handling, prefer the re-exported communication/document helpers from `gdc-sdk-core-ts`.
+## Documentation Rule
 
-### Documentation rule
-
-- JSDoc on exported code is canonical.
-- README entries should link to source and summarize the most important parameters.
-- If you add a public method/function, document it in JSDoc first and then add it here.
-- If a public payload shape is used in tests or docs, keep its reusable example in the relevant module under [`../gdc-common-utils-ts/src/examples/`](../gdc-common-utils-ts/src/examples/) and link that specific flow file from the relevant markdown section.
+- README explains backend-facing flows first.
+- Shared contract shapes must be documented in `gdc-sdk-core-ts`, not duplicated here.
+- Route details and GW-specific behavior belong in runtime docs and JSDoc, not in app-facing examples.
