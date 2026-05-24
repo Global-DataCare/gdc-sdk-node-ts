@@ -1,0 +1,49 @@
+{
+  "iss": "did:web:controller.example.org",
+  "sub": "did:web:controller.example.org",
+  "aud": "did:web:host.example.com",
+  "vp": {
+    "@context": [
+      "https://www.w3.org/ns/credentials/v2"
+    ],
+    "type": [
+      "VerifiablePresentation"
+    ],
+    "holder": "did:web:controller.example.org",
+    "verifiableCredential": [
+      {
+        "@context": [
+          "https://www.w3.org/ns/credentials/v2",
+          "https://schema.org"
+        ],
+        "credentialSubject": {
+          "@type": "Organization",
+          "address": {
+            "@type": "PostalAddress",
+            "addressCountry": "ES"
+          },
+          "id": "did:web:globaldatacare.es:health-care:organization:taxid:VATES-B00112233",
+          "legalName": "ORGANIZATION LEGAL NAME",
+          "taxID": "VATES-B00112233"
+        },
+        "id": "urn:globaldatacare:health-care:organization:vc:zKYrhQQducHobYkMWELfr6iKoHSzs1PyksMKH89pCu24TVHbd5igiCYJh59HqKBabtm3Ufp",
+        "issuer": "did:jwt:SW2oMXTepzmg54k9dsXayBJjQXdnSqqdnlDjpekhu1g",
+        "meta": {
+          "versionId": "zG9G8EnWDyrYK7i3ay3o5FJHvJRwhCRaaVKEaamu8REU3vbQH3roUWm1XS5LaQLnmDvzi"
+        },
+        "type": [
+          "VerifiableCredential",
+          "OrganizationCredential"
+        ],
+        "validFrom": "2026-03-12T20:14:44.000Z",
+        "proof": {
+          "type": "JsonWebSignature2020",
+          "created": "2026-03-12T20:14:44.000Z",
+          "proofPurpose": "assertionMethod",
+          "verificationMethod": "did:jwt:SW2oMXTepzmg54k9dsXayBJjQXdnSqqdnlDjpekhu1g#SW2oMXTepzmg54k9dsXayBJjQXdnSqqdnlDjpekhu1g",
+          "jws": "ey..."
+        }
+      }
+    ]
+  }
+}

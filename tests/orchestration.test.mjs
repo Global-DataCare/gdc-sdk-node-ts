@@ -1,0 +1,148 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import {
+  IndividualControllerSdk,
+  NodeActorSession,
+  PersonalSdk,
+  ProfessionalSdk,
+  submitAndPollWithMethods,
+  submitAndPollWithClient,
+} from '../dist/index.js';
+
+test('IndividualControllerSdk delegates to the runtime client', async () => {
+  const calls = [];
+  const client = {
+    startIndividualOrganization: async (...args) => { calls.push(['startIndividualOrganization', args]); return { ok: true }; },
+    confirmIndividualOrganizationOrder: async (...args) => { calls.push(['confirmIndividualOrganizationOrder', args]); return { ok: true }; },
+    grantProfessionalAccess: async (...args) => { calls.push(['grantProfessionalAccess', args]); return { ok: true }; },
+    requestSmartToken: async (...args) => { calls.push(['requestSmartToken', args]); return { ok: true }; },
+  };
+  const sdk = new IndividualControllerSdk(client);
+  await sdk.startIndividualOrganization({});
+  await sdk.confirmIndividualOrganizationOrder({});
+  await sdk.grantProfessionalAccess({});
+  await sdk.requestSmartToken({});
+  assert.equal(calls.length, 4);
+});
+
+test('ProfessionalSdk keeps role-scoped surface separation', () => {
+  assert.equal(typeof ProfessionalSdk.prototype.bootstrapIndividualOrganization, 'undefined');
+  assert.equal(typeof ProfessionalSdk.prototype.generateDigitalTwinFromSubjectData, 'undefined');
+});
+
+test('PersonalSdk delegates to the runtime client', async () => {
+  const calls = [];
+  const client = {
+    startIndividualOrganization: async (...args) => { calls.push(['startIndividualOrganization', args]); return { ok: true }; },
+    grantProfessionalAccess: async (...args) => { calls.push(['grantProfessionalAccess', args]); return { ok: true }; },
+    requestSmartToken: async (...args) => { calls.push(['requestSmartToken', args]); return { ok: true }; },
+  };
+  const sdk = new PersonalSdk(client);
+  await sdk.startIndividualOrganization({});
+  await sdk.grantProfessionalAccess({});
+  await sdk.requestSmartToken({});
+  assert.equal(calls.length, 3);
+});
+
+test('target node facades do not expose bootstrap helper shortcuts', () => {
+  assert.equal(typeof IndividualControllerSdk.prototype.bootstrapIndividualOrganization, 'undefined');
+  assert.equal(typeof PersonalSdk.prototype.bootstrapIndividualOrganization, 'undefined');
+});
+
+test('NodeActorSession refuses mismatched actor facade materialization', () => {
+  const session = new NodeActorSession({
+    actorKind: 'individual_member',
+    capabilities: [],
+  });
+
+  assert.throws(() => session.asOrganizationController(), /cannot be used as 'organization_controller'/);
+});
+
+test('IndividualControllerSdk throws when a delegated runtime method is missing', () => {
+  const sdk = new IndividualControllerSdk({});
+
+  assert.throws(() => sdk.requestSmartToken({ idToken: 'token', scopes: [] }), /does not implement 'requestSmartToken'/);
+});
+
+test('NodeActorSession materializes role-scoped facades from the runtime client', async () => {
+  const calls = [];
+  const client = {
+    createOrganizationEmployee: async (...args) => { calls.push(['createOrganizationEmployee', args]); return { ok: true }; },
+  };
+  const session = new NodeActorSession({
+    actorKind: 'organization_controller',
+    capabilities: ['organization.create_employee'],
+  }, client);
+  const sdk = session.asOrganizationController();
+  await sdk.createOrganizationEmployee({}, {});
+  assert.equal(calls.length, 1);
+});
+
+test('submitAndPollWithClient falls back to submitBatch plus pollUntilComplete', async () => {
+  const calls = [];
+  const result = await submitAndPollWithClient({
+    submitBatch: async (...args) => {
+      calls.push(['submitBatch', args]);
+      return { status: 202, location: '/job/1', body: { accepted: true } };
+    },
+    pollUntilComplete: async (...args) => {
+      calls.push(['pollUntilComplete', args]);
+      return { status: 200, body: { done: true }, attempts: 2 };
+    },
+  }, '/submit', '/poll', { thid: 'job-1', body: {} }, { timeoutMs: 1000 });
+
+  assert.deepEqual(result, {
+    submit: { status: 202, location: '/job/1', body: { accepted: true } },
+    poll: { status: 200, body: { done: true }, attempts: 2 },
+  });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0][0], 'submitBatch');
+  assert.equal(calls[1][0], 'pollUntilComplete');
+});
+
+test('submitAndPollWithClient uses a direct submitAndPoll implementation when available', async () => {
+  const calls = [];
+  const result = await submitAndPollWithClient({
+    submitAndPoll: async (...args) => {
+      calls.push(['submitAndPoll', args]);
+      return {
+        submit: { status: 202, location: '/job/2', body: { accepted: true } },
+        poll: { status: 200, body: { done: true }, attempts: 1 },
+      };
+    },
+    submitBatch: async () => {
+      throw new Error('fallback submitBatch should not be called');
+    },
+    pollUntilComplete: async () => {
+      throw new Error('fallback pollUntilComplete should not be called');
+    },
+  }, '/submit', '/poll', { thid: '  job-2  ', body: {} }, { timeoutMs: 1000 });
+
+  assert.deepEqual(result, {
+    submit: { status: 202, location: '/job/2', body: { accepted: true } },
+    poll: { status: 200, body: { done: true }, attempts: 1 },
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1][2].thid, 'job-2');
+});
+
+test('submitAndPollWithMethods rejects payloads without thid before submitting', async () => {
+  const calls = [];
+
+  await assert.rejects(
+    submitAndPollWithMethods({
+      submitBatch: async (...args) => {
+        calls.push(['submitBatch', args]);
+        return { status: 202, body: {} };
+      },
+      pollUntilComplete: async () => {
+        calls.push(['pollUntilComplete']);
+        return { status: 200, body: {}, attempts: 1 };
+      },
+    }, '/submit', '/poll', { body: {} }, { timeoutMs: 1000 }),
+    /requires payload\.thid\./,
+  );
+
+  assert.equal(calls.length, 0);
+});

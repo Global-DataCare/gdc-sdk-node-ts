@@ -1,0 +1,95 @@
+// Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
+
+import {
+  requireClientMethod,
+  submitAndPollWithClient,
+  type NodeRuntimeClient,
+  type PollOptions,
+  type SubmitAndPollResult,
+  type SubmitPayload,
+} from './client-port.js';
+import type { IndividualOrganizationConfirmOrderInput, RouteContext } from '../individual-onboarding.js';
+import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
+import type { CommunicationIngestionInput, DigitalTwinGenerationInput, GrantProfessionalAccessInput, GrantProfessionalAccessResult, IpsOrFhirImportInput, RelatedPersonUpsertInput } from '../resource-operations.js';
+import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
+
+/**
+ * Individual-controller oriented facade over a `NodeRuntimeClient`.
+ *
+ * It groups the most common individual subject flows: organization/index
+ * bootstrap, consent, IPS/FHIR ingestion, digital twin generation, and token requests.
+ */
+export class IndividualControllerSdk {
+  /**
+   * @param client Runtime client implementation used to submit and poll GW flows.
+   */
+  constructor(private readonly client: NodeRuntimeClient) {}
+
+  /**
+   * Starts the individual onboarding/bootstrap flow.
+   */
+  public startIndividualOrganization(input: IndividualOrganizationBootstrapInput): Promise<IndividualOrganizationStartResult> {
+    return requireClientMethod(this.client, 'startIndividualOrganization')(input);
+  }
+
+  /**
+   * Confirms the order returned by `startIndividualOrganization(...)`.
+   */
+  public confirmIndividualOrganizationOrder(input: IndividualOrganizationConfirmOrderInput): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'confirmIndividualOrganizationOrder')(input);
+  }
+
+  /**
+   * Grants access to a professional through a consent flow.
+   */
+  public grantProfessionalAccess(ctx: RouteContext, input: GrantProfessionalAccessInput): Promise<GrantProfessionalAccessResult> {
+    return requireClientMethod(this.client, 'grantProfessionalAccess')(ctx, input);
+  }
+
+  /**
+   * Imports a FHIR/IPS payload and waits until it is indexed.
+   */
+  public importIpsOrFhirAndUpdateIndex(ctx: RouteContext, input: IpsOrFhirImportInput): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'importIpsOrFhirAndUpdateIndex')(ctx, input);
+  }
+
+  /**
+   * Creates or updates a `RelatedPerson` for non-employee caregivers or family members.
+   */
+  public upsertRelatedPersonAndPoll(ctx: RouteContext, input: RelatedPersonUpsertInput): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'upsertRelatedPersonAndPoll')(ctx, input);
+  }
+
+  /**
+   * Ingests a FHIR `Communication` and waits for indexing.
+   */
+  public ingestCommunicationAndUpdateIndex(ctx: RouteContext, input: CommunicationIngestionInput): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /**
+   * Generates a digital twin projection from subject data.
+   */
+  public generateDigitalTwinFromSubjectData(ctx: RouteContext, input: DigitalTwinGenerationInput): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'generateDigitalTwinFromSubjectData')(ctx, input);
+  }
+
+  /**
+   * Requests a SMART/OpenID token for subsequent data access flows.
+   */
+  public requestSmartToken(input: SmartTokenRequestInput): Promise<SmartTokenExchangeResult> {
+    return requireClientMethod(this.client, 'requestSmartToken')(input);
+  }
+
+  /**
+   * Low-level escape hatch for direct submit/poll flows.
+   */
+  public submitAndPoll(
+    submitPath: string,
+    pollPath: string,
+    payload: SubmitPayload,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return submitAndPollWithClient(this.client, submitPath, pollPath, payload, pollOptions);
+  }
+}

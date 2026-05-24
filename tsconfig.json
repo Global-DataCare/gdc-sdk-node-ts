@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "node",
+    "declaration": true,
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "gdc-common-utils-ts": ["./node_modules/gdc-common-utils-ts/dist/index.d.ts"],
+      "gdc-common-utils-ts/constants": ["./node_modules/gdc-common-utils-ts/dist/constants/index.d.ts"],
+      "gdc-common-utils-ts/*": ["./node_modules/gdc-common-utils-ts/dist/*"]
+    },
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"]
+}
