@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.2.1] - 2026-05-24
 
 ### Changed
 - Updated README and `SDK_INTEGRATION_101.md` to document the shared consent-access model, missing-permission evaluation flow, canonical permission-request `Communication`, and subject-scoped lookup by identifier, thread id, or linked CID.
