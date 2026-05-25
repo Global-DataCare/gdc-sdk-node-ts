@@ -147,6 +147,15 @@ import {
   ResourceTypesFhirR4,
   SmartGatewayScopesFhirR4,
 } from 'gdc-common-utils-ts';
+
+import {
+  EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT,
+  EXAMPLE_HOST_ROUTE_CONTEXT,
+  EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_INPUT,
+  EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT,
+  EXAMPLE_TENANT_ROUTE_CONTEXT,
+  cloneExample,
+} from 'gdc-common-utils-ts/examples';
 ```
 
 ## 4. Bootstrap technical communication identity from seed
@@ -335,40 +344,26 @@ Main methods:
 
 ```ts
 const professionalSdk = new ProfessionalSdk(client);
+const hostCtx = cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT);
+const activationInput = cloneExample(EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT);
 
 const activation = await professionalSdk.activateOrganizationInGatewayFromIcaProof(
-  hostRouteContext,
-  {
-    vpToken: '<ica-proof-token>',
-    controller: {
-      did: 'did:web:people.acme.org:controllers:primary',
-      sameAs: 'mailto:controller@acme.org',
-      publicKeyJwk: {
-        kid: 'controller-es384-001',
-        kty: 'EC',
-        crv: 'P-384',
-        x: '<x>',
-        y: '<y>',
-        alg: 'ES384',
-        use: 'sig',
-      },
-      jwks: {
-        keys: [
-          {
-            kid: 'controller-didcomm-enc-001',
-            kty: 'EC',
-            crv: 'P-384',
-            x: '<enc-x>',
-            y: '<enc-y>',
-            use: 'enc',
-            purposes: ['didcomm-enc'],
-          },
-        ],
-      },
-    },
-  },
+  hostCtx,
+  activationInput,
 );
 ```
+
+Do not copy the raw object shape by hand into app code.
+
+Use the shared example as the readable baseline, then replace only the values
+your integration actually owns, for example:
+
+- `activationInput.vpToken`
+  comes from the ICA proof / trust bootstrap step
+- `activationInput.controller`
+  comes from the controller binding you already resolved or generated
+- `activationInput.additionalClaims`
+  comes from your organization registration form
 
 Practical rule:
 
@@ -475,17 +470,40 @@ Source payload reference:
 
 ### 8.1 Start individual organization/index bootstrap
 
+Important:
+
+- this is not the same flow as legal organization activation
+- today it uses a subject/family registration message submitted through tenant
+  `_batch` plus async poll
+- it is not an `individual _activate` flow
+- the second step is order confirmation with the returned `offerId`
+
 ```ts
-const serviceProviderDid = 'did:web:provider.example.org';
+const individualSdk = new IndividualControllerSdk(client);
+const tenantCtx = cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT);
+const startInput = cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT);
 
 const start = await individualSdk.startIndividualOrganization({
-  serviceProviderDid,
-  jurisdiction: 'ES',
-  sector: DataspaceSectors.HealthCare,
-  alternateName: 'Charly',
-  controllerEmail: 'parent@example.org',
+  ...tenantCtx,
+  ...startInput,
 });
 ```
+
+Use variables, not an inline JSON blob:
+
+- `tenantCtx`
+  is your selected GW tenant route context
+- `startInput.alternateName`
+  comes from the individual/family onboarding form
+- `startInput.controllerEmail`
+  comes from the human controller contact
+- `startInput.controllerTelephone`
+  is only for compatibility/extension flows, not the CORE default
+
+See the exact payload builder exercised in:
+
+- [tests/individual-start.test.mjs](./tests/individual-start.test.mjs)
+- [src/individual-start.ts](./src/individual-start.ts)
 
 For the individual indexing journey, this identifies the selected provider at
 business level. It is not a professional organization tax ID.
@@ -500,13 +518,24 @@ Important:
 ### 8.2 Confirm returned order
 
 ```ts
+const orderInput = cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_INPUT);
+
 const confirmation = await individualSdk.confirmIndividualOrganizationOrder({
-  serviceProviderDid,
-  jurisdiction: 'ES',
-  sector: DataspaceSectors.HealthCare,
+  ...tenantCtx,
+  ...orderInput,
   offerId: start.offerId,
 });
 ```
+
+Use this mental model:
+
+1. start individual registration in the hosted tenant via `_batch`
+2. receive `offerId`
+3. confirm the returned order in the same tenant route context
+
+The SDK hides the raw DidComm payload shape, but the current runtime contract
+is still a tenant-scoped async batch flow, not a legal-organization
+`_activate`.
 
 ### 8.3 Grant professional access with consent
 
