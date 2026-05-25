@@ -8,6 +8,35 @@ It is intentionally practical and conservative:
 - avoid promising discovery APIs that are still converging
 - explain how to compose documents and communications with the shared core helpers
 
+## Documentation Rules For This 101
+
+When adding or updating examples in this file:
+
+- start from semantic variables, not GW wire payloads
+- show where each variable comes from
+- prefer shared constants and helper builders over raw literals
+- use canonical names such as:
+  - `individualDidWeb`
+  - `emailProfessional`
+  - `emailControllerOrg`
+  - `emailControllerIndividual`
+  - `emailRelatedPerson`
+- treat old `EXAMPLE_*` aliases as compatibility only, not as the preferred
+  names for new teaching material
+
+In short:
+
+1. variable the integrator knows
+2. helper that normalizes it
+3. SDK method that executes it
+4. result used by the next step
+
+Not:
+
+1. nested GW JSON body
+2. unexplained fields
+3. caller hand-shaping transport claims
+
 ## 1. What package does what
 
 - `gdc-common-utils-ts`
