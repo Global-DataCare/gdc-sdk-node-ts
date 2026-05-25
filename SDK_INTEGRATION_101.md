@@ -136,6 +136,7 @@ import { CryptographyService } from 'gdc-common-utils-ts';
 import {
   ClaimsPersonSchemaorg,
   DataspaceSectors,
+  buildControllerBindingInput,
   buildOrganizationDidWeb,
   buildProfessionalDidWeb,
   buildIndividualDidWeb,
@@ -150,6 +151,10 @@ import {
 
 import {
   EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT,
+  EXAMPLE_CONTROLLER_DID,
+  EXAMPLE_CONTROLLER_PUBLIC_KEYS,
+  EXAMPLE_CONTROLLER_SAME_AS,
+  EXAMPLE_CONTROLLER_SIGN_KEY,
   EXAMPLE_HOST_ROUTE_CONTEXT,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_INPUT,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT,
@@ -345,24 +350,47 @@ Main methods:
 ```ts
 const professionalSdk = new ProfessionalSdk(client);
 const hostCtx = cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT);
-const activationInput = cloneExample(EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT);
+const vpToken = EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.vpToken;
+const controllerDid = EXAMPLE_CONTROLLER_DID;
+const controllerSameAs = EXAMPLE_CONTROLLER_SAME_AS;
+const publicSignKey = EXAMPLE_CONTROLLER_SIGN_KEY;
+const publicKeys = EXAMPLE_CONTROLLER_PUBLIC_KEYS;
+
+const controllerBinding = buildControllerBindingInput({
+  did: controllerDid,
+  sameAs: controllerSameAs,
+  publicSignKey,
+  publicKeys,
+});
 
 const activation = await professionalSdk.activateOrganizationInGatewayFromIcaProof(
   hostCtx,
-  activationInput,
+  {
+    vpToken,
+    controller: controllerBinding,
+    additionalClaims: EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.additionalClaims,
+  },
 );
 ```
 
-Do not copy the raw object shape by hand into app code.
+Do not teach this flow from the raw GW request body.
 
-Use the shared example as the readable baseline, then replace only the values
-your integration actually owns, for example:
+Teach it from variables the integrator already knows how to obtain:
 
-- `activationInput.vpToken`
+- `vpToken`
   comes from the ICA proof / trust bootstrap step
-- `activationInput.controller`
-  comes from the controller binding you already resolved or generated
-- `activationInput.additionalClaims`
+- `controllerDid`
+  is the public DID for the human controller
+- `controllerSameAs`
+  is the public alias, commonly a `mailto:`
+- `publicSignKey`
+  is the controller public signing key
+- `publicKeys`
+  is the auxiliary public key set, commonly DidComm encryption keys
+- `controllerBinding`
+  is built by the helper so the caller does not manually shape
+  `controller.publicKeyJwk` and `controller.jwks`
+- `additionalClaims`
   comes from your organization registration form
 
 Practical rule:
@@ -381,6 +409,11 @@ Source payload reference:
 - [../gdc-common-utils-ts/src/examples/organization-controller.ts](../gdc-common-utils-ts/src/examples/organization-controller.ts)
   - `EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT`
   - `EXAMPLE_GW_ORGANIZATION_ACTIVATE_PAYLOAD`
+- [../gdc-common-utils-ts/src/examples/shared.ts](../gdc-common-utils-ts/src/examples/shared.ts)
+  - `EXAMPLE_CONTROLLER_DID`
+  - `EXAMPLE_CONTROLLER_SAME_AS`
+  - `EXAMPLE_CONTROLLER_SIGN_KEY`
+  - `EXAMPLE_CONTROLLER_PUBLIC_KEYS`
 
 ### 7.2 Create a professional/employee under the organization
 
