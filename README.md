@@ -202,22 +202,24 @@ The backend should obtain those variables from:
 ```ts
 import { NodeHttpClient } from 'gdc-sdk-node-ts';
 import {
-  EXAMPLE_CONSENT_ACCESS_SUBJECT,
+  EXAMPLE_INDIVIDUAL_DID_WEB,
 } from 'gdc-common-utils-ts/examples/consent-access';
 import { SmartGatewayScopesFhirR4 } from 'gdc-common-utils-ts/constants/smart';
 
 const client = new NodeHttpClient({ baseUrl: process.env.BASE_URL! });
 
+const individualDidWeb = EXAMPLE_INDIVIDUAL_DID_WEB;
+
 const token = await client.requestSmartToken({
   ctx,
   actorDid: 'did:web:doctor.example.org:employee:001',
-  subjectDid: EXAMPLE_CONSENT_ACCESS_SUBJECT,
+  subjectDid: individualDidWeb,
   scopes: [SmartGatewayScopesFhirR4.ConsentCruds],
   idToken: '...',
 });
 
 const result = await client.searchClinicalBundle(ctx, {
-  subject: EXAMPLE_CONSENT_ACCESS_SUBJECT,
+  subject: individualDidWeb,
 });
 ```
 
