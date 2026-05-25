@@ -14,6 +14,48 @@ Use this package when your backend needs to:
 This package is for runtime execution. It is not the place where the canonical
 business contract is defined.
 
+## Start Here
+
+If you are integrating this package for the first time, open these in order:
+
+1. [SDK_INTEGRATION_101.md](./SDK_INTEGRATION_101.md)
+   Real backend setup, imports, `initializeCommunicationIdentityFromSeed(...)`,
+   `new NodeHttpClient(...)`, route context, facade selection, and live method
+   usage.
+2. [../gdc-sdk-core-ts/docs/SDK_FLOWS_101.md](../gdc-sdk-core-ts/docs/SDK_FLOWS_101.md)
+   Actor split and business-flow map across organization, individual,
+   permissions, invitation, import, and SMART flows.
+3. [../gdc-common-utils-ts/src/examples/](../gdc-common-utils-ts/src/examples/)
+   Shared payload values used by the docs and tests.
+
+If you need the shortest path:
+
+- backend technical identity:
+  [`initializeCommunicationIdentityFromSeed(...)`](./SDK_INTEGRATION_101.md)
+- runtime client:
+  [`NodeHttpClient`](src/node-runtime-client.ts)
+- step-by-step runtime usage:
+  [SDK_INTEGRATION_101.md](./SDK_INTEGRATION_101.md)
+
+## Executable Usage Examples
+
+Open these tests when you want to see exact method calls and exact inputs:
+
+- [tests/host-onboarding.test.mjs](tests/host-onboarding.test.mjs)
+  Organization activation and order confirmation.
+- [tests/individual-start.test.mjs](tests/individual-start.test.mjs)
+  Individual organization start flow.
+- [tests/individual-onboarding.test.mjs](tests/individual-onboarding.test.mjs)
+  Individual order/offer confirmation flow.
+- [tests/device-activation.test.mjs](tests/device-activation.test.mjs)
+  Employee activation code and activation request flows.
+- [tests/resource-operations.test.mjs](tests/resource-operations.test.mjs)
+  Related person upsert, communication ingestion, search, and access grants.
+- [tests/smart-token.test.mjs](tests/smart-token.test.mjs)
+  SMART token request flow.
+- [tests/live-gw-node-runtime.e2e.test.mjs](tests/live-gw-node-runtime.e2e.test.mjs)
+  End-to-end runtime wiring against a real GW environment.
+
 ## Actor Split And Runtime Scope
 
 This package must be understandable from the same actor split used by the
