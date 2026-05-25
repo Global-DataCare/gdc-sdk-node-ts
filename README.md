@@ -147,13 +147,43 @@ Those belong to:
 ### Use shared invitation contract from Node
 
 ```ts
-import { createRelationshipChannelInvitationInput } from 'gdc-sdk-core-ts';
-import { EXAMPLE_RELATIONSHIP_PROFESSIONAL_INVITATION_INPUT } from 'gdc-common-utils-ts/examples/relationship-access';
+import {
+  createRelationshipChannelInvitationInput,
+  type RelationshipChannelInvitationInput,
+} from 'gdc-sdk-core-ts';
 
-const invitation = createRelationshipChannelInvitationInput(
-  EXAMPLE_RELATIONSHIP_PROFESSIONAL_INVITATION_INPUT,
-);
+const tenantId = 'acme-id';
+const jurisdiction = 'ES';
+const sector = 'health-care';
+const subjectId = 'did:web:provider.example.org:individual:subject-001';
+const professionalEmail = 'doctor@example.org';
+
+const invitationInput: RelationshipChannelInvitationInput = {
+  tenantId,
+  jurisdiction,
+  sector,
+  subjectId,
+  subjectKind: 'person',
+  actorKind: 'professional',
+  actorIdentifier: professionalEmail,
+  actorRole: 'ISCO-08|2211',
+  deliveryChannel: 'email',
+  deliveryTarget: professionalEmail,
+  purpose: 'TREAT',
+  relationshipLabel: 'primary-physician',
+  phonePinOptional: false,
+};
+
+const invitation = createRelationshipChannelInvitationInput(invitationInput);
 ```
+
+The backend should obtain those variables from:
+
+- tenant route selection
+- target subject identifier
+- invited actor identity
+- selected enrollment channel
+- intended purpose/relationship label
 
 ### Request SMART token and search bundle
 
