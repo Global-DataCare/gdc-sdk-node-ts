@@ -149,14 +149,26 @@ Those belong to:
 ```ts
 import {
   createRelationshipChannelInvitationInput,
+  RelationshipAccessActorKinds,
+  RelationshipEnrollmentChannels,
   type RelationshipChannelInvitationInput,
 } from 'gdc-sdk-core-ts';
+import {
+  buildIndividualDidWeb,
+  HealthcareActorRoles,
+  HealthcareConsentPurposes,
+} from 'gdc-common-utils-ts';
 
 const tenantId = 'acme-id';
 const jurisdiction = 'ES';
 const sector = 'health-care';
-const subjectId = 'did:web:provider.example.org:individual:subject-001';
-const professionalEmail = 'doctor@example.org';
+const providerOrganizationDid = subjectProfile.organizationDid;
+const subjectLocalId = subjectProfile.subjectId;
+const subjectId = buildIndividualDidWeb({
+  organizationDidWeb: providerOrganizationDid,
+  subjectId: subjectLocalId,
+});
+const professionalEmail = invitedProfessional.email;
 
 const invitationInput: RelationshipChannelInvitationInput = {
   tenantId,
@@ -164,12 +176,12 @@ const invitationInput: RelationshipChannelInvitationInput = {
   sector,
   subjectId,
   subjectKind: 'person',
-  actorKind: 'professional',
+  actorKind: RelationshipAccessActorKinds.Professional,
   actorIdentifier: professionalEmail,
-  actorRole: 'ISCO-08|2211',
-  deliveryChannel: 'email',
+  actorRole: HealthcareActorRoles.Physician,
+  deliveryChannel: RelationshipEnrollmentChannels.Email,
   deliveryTarget: professionalEmail,
-  purpose: 'TREAT',
+  purpose: HealthcareConsentPurposes.Treatment,
   relationshipLabel: 'primary-physician',
   phonePinOptional: false,
 };
