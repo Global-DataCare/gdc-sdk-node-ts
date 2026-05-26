@@ -233,11 +233,18 @@ const controllerBinding = buildControllerBindingInput({
   publicKeys,
 });
 
-const activation = await professionalSdk.activateOrganizationInGatewayFromIcaProof(
+const organizationActivation = await professionalSdk.activateOrganizationInGatewayFromIcaProof(
   hostOperatorContext,
   {
     vpToken: '<ica-proof-token>',
     controller: controllerBinding,
+    service: {
+      url: 'https://operator.example.net/acme-id/cds-es/v1/health-care',
+      capabilities: [
+        ServiceCapability.IndexingProvider,
+        ServiceCapability.IndexingReader,
+      ],
+    },
     additionalClaims: {
       [ClaimsOrganizationSchemaorg.legalName]: 'ACME HEALTH SL',
       [ClaimsOrganizationSchemaorg.identifierType]: 'taxID',
@@ -248,11 +255,17 @@ const activation = await professionalSdk.activateOrganizationInGatewayFromIcaPro
       [ClaimsPersonSchemaorg.hasOccupationalRoleValue]: 'RESPRSN',
       [ClaimsServiceSchemaorg.category]: hostOperatorContext.sector,
       [ClaimsServiceSchemaorg.identifier]: 'did:web:public.acme.org',
-      [ClaimsServiceSchemaorg.url]: 'https://operator.example.net/acme/cds-es/v1/health-care',
     },
   },
 );
 ```
+
+Mandatory rule for this onboarding step:
+
+- legal-organization activation always declares `service.url`
+- legal-organization activation always declares `service.capabilities`
+- GW persists them in `org.schema.Service.serviceType` and uses them for DID
+  discovery and DCAT3 service offering publication
 
 What comes back:
 

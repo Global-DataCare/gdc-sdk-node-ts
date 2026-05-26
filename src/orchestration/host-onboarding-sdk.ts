@@ -1,9 +1,9 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
-import type { ControllerBindingInput } from 'gdc-common-utils-ts/models';
-
+// Always create JSDoc, do not use strings inline in keys nor values, use types instead, and reuse the data test examples.
 import {
   requireClientMethod,
   submitAndPollWithClient,
+  type NodeOrganizationActivationInput,
   type NodeRuntimeClient,
   type PollOptions,
   type SubmitAndPollResult,
@@ -14,9 +14,13 @@ import type { HostRouteContext, LegalOrganizationOrderInput } from '../host-onbo
 export class HostOnboardingSdk {
   constructor(private readonly client: NodeRuntimeClient) {}
 
+  /**
+   * Submits the legal organization activation proof and required declared
+   * service capabilities to GW CORE.
+   */
   public activateOrganizationInGatewayFromIcaProof(
     hostCtx: HostRouteContext,
-    input: { vpToken: string; controller?: ControllerBindingInput; additionalClaims?: Record<string, unknown> },
+    input: NodeOrganizationActivationInput,
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'activateOrganizationInGatewayFromIcaProof')(hostCtx, input, pollOptions);

@@ -47,6 +47,14 @@ Not:
 2. unexplained fields
 3. caller hand-shaping transport claims
 
+Legal-organization activation rule:
+
+- always declare `service.capabilities`
+- always declare `service.url`
+- treat those capabilities as mandatory business input for activation, DID
+  discovery, and DCAT3 publication
+- do not teach a legal-organization activation example without them
+
 ## 1. What package does what
 
 - `gdc-common-utils-ts`
@@ -105,11 +113,11 @@ For evaluations and demo environments, it is acceptable to start from:
 
 Reusable payload source of truth for the examples in this guide:
 
-- [gdc-common-utils-ts/src/examples/organization-controller.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/organization-controller.ts)
-- [gdc-common-utils-ts/src/examples/individual-controller.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/individual-controller.ts)
-- [gdc-common-utils-ts/src/examples/professional.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/professional.ts)
-- [gdc-common-utils-ts/src/examples/shared.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/shared.ts)
-- [gdc-common-utils-ts/src/examples/api-flow-examples.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/api-flow-examples.ts)
+- [gdc-common-utils-ts/src/examples/organization-controller.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/organization-controller.ts)
+- [gdc-common-utils-ts/src/examples/individual-controller.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/individual-controller.ts)
+- [gdc-common-utils-ts/src/examples/professional.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/professional.ts)
+- [gdc-common-utils-ts/src/examples/shared.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/shared.ts)
+- [gdc-common-utils-ts/src/examples/api-flow-examples.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/api-flow-examples.ts)
 - [tests/fixtures/ica-vp-minimal.json](tests/fixtures/ica-vp-minimal.json)
 
 ## 2.A Consent access model used by the node SDK
@@ -439,11 +447,19 @@ const controllerBinding = buildControllerBindingInput({
   publicKeys,
 });
 
-const activation = await professionalSdk.activateOrganizationInGatewayFromIcaProof(
+const organizationActivation = await professionalSdk.activateOrganizationInGatewayFromIcaProof(
   hostOperatorContext,
   {
     vpToken,
     controller: controllerBinding,
+    service: {
+      url: 'https://connector.example.net/acme-id/cds-es/v1/health-care',
+      capabilities: [
+        ServiceCapability.IndexingProvider,
+        ServiceCapability.IndexingReader,
+        ServiceCapability.DigitalTwinReader,
+      ],
+    },
     additionalClaims: {
       [ClaimsOrganizationSchemaorg.legalName]: 'ACME HEALTH SL',
       [ClaimsOrganizationSchemaorg.identifierType]: 'taxID',
@@ -454,11 +470,39 @@ const activation = await professionalSdk.activateOrganizationInGatewayFromIcaPro
       [ClaimsPersonSchemaorg.hasOccupationalRoleValue]: 'RESPRSN',
       [ClaimsServiceSchemaorg.category]: hostOperatorContext.sector,
       [ClaimsServiceSchemaorg.identifier]: 'did:web:public.acme.org',
-      [ClaimsServiceSchemaorg.url]: 'https://operator.example.net/acme/cds-es/v1/health-care',
     },
   },
 );
 ```
+
+Capability naming rule for this flow:
+
+- SDK input: `service.capabilities`
+- persisted claim in GW: `org.schema.Service.serviceType`
+- do not teach frontend/profile facets as if they were the same thing
+
+If you want a copy/paste builder style instead of a raw array, use the core
+organization activation builder:
+
+```ts
+const bootstrap = createBootstrapFacade();
+const organizationActivation = bootstrap.createOrganizationActivation({
+  vpToken,
+  controller: controllerBinding,
+});
+
+organizationActivation
+  .setServiceUrl('https://connector.example.net/acme-id/cds-es/v1/health-care')
+  .addServiceCapability(ServiceCapability.IndexingProvider)
+  .addServiceCapability(ServiceCapability.IndexingReader)
+  .addServiceCapability(ServiceCapability.DigitalTwinReader);
+```
+
+Practical rule:
+
+- use `createOrganizationActivation(...)` in new examples
+- keep `createOrganizationActivationDraft(...)` only as a compatibility alias
+- call the variable `organizationActivation`, not `draft`
 
 Do not teach this flow from the raw GW request body.
 
@@ -493,10 +537,10 @@ Current status:
 
 Source payload reference:
 
-- [gdc-common-utils-ts/src/examples/organization-controller.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/organization-controller.ts)
+- [gdc-common-utils-ts/src/examples/organization-controller.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/organization-controller.ts)
   - `EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT`
   - `EXAMPLE_GW_ORGANIZATION_ACTIVATE_PAYLOAD`
-- [gdc-common-utils-ts/src/examples/shared.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/shared.ts)
+- [gdc-common-utils-ts/src/examples/shared.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/shared.ts)
   - `EXAMPLE_CONTROLLER_DID`
   - `EXAMPLE_CONTROLLER_SAME_AS`
   - `EXAMPLE_CONTROLLER_SIGN_KEY`

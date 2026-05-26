@@ -1,10 +1,14 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
+// Always create JSDoc, do not use strings inline in keys nor values, use types instead, and reuse the data test examples.
 import fs from 'node:fs';
 import path from 'node:path';
-import type { ControllerBindingInput } from 'gdc-common-utils-ts/models';
-import type { AppInfo } from 'gdc-sdk-core-ts';
+import type {
+  AppInfo,
+  OrganizationActivationDraft,
+} from 'gdc-sdk-core-ts';
 import {
   buildAppHeaders,
+  createBootstrapFacade,
   resolveAppInfo,
   type ResolvedAppInfo,
 } from 'gdc-sdk-core-ts';
@@ -12,6 +16,7 @@ import {
 import { buildConsentClaimsSimpleWithCid } from 'gdc-common-utils-ts/utils/consent';
 import { pollUntilCompleteWithMethod } from './async-polling.js';
 import { confirmLegalOrganizationOrderWithDeps, type HostRouteContext } from './host-onboarding.js';
+import type { NodeOrganizationActivationInput } from './orchestration/client-port.js';
 import {
   confirmIndividualOrganizationOrderWithDeps,
   type IndividualOrganizationConfirmOrderInput,
@@ -44,6 +49,8 @@ import type {
   SubmitResponse,
 } from './orchestration/client-port.js';
 import { submitAndPollWithMethods } from './orchestration/client-port.js';
+
+const bootstrapFacade = createBootstrapFacade();
 
 export type HttpRuntimeClientOptions = {
   baseUrl: string;
@@ -167,10 +174,17 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    */
   public async activateOrganizationInGatewayFromIcaProof(
     hostCtx: HostRouteContext,
-    input: { vpToken: string; controller?: ControllerBindingInput; additionalClaims?: Record<string, unknown> },
+    input: NodeOrganizationActivationInput,
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
     const thid = `activate-org-${runtimeUuid()}`;
+    const activationDraft: OrganizationActivationDraft = bootstrapFacade.createOrganizationActivationDraft({
+      vpToken: input.vpToken,
+      controller: input.controller,
+      service: input.service,
+      additionalClaims: input.additionalClaims,
+    });
+    const serviceClaims = activationDraft.buildServiceClaims();
     const payload: SubmitPayload = {
       thid,
       iss: String(hostCtx.controllerDid || '').trim() || undefined,
@@ -184,6 +198,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
           meta: {
             claims: {
               '@context': 'org.schema',
+              ...serviceClaims,
               ...(input.additionalClaims || {}),
             },
           },
@@ -191,6 +206,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
             meta: {
               claims: {
                 '@context': 'org.schema',
+                ...serviceClaims,
                 ...(input.additionalClaims || {}),
               },
             },
