@@ -7,6 +7,8 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
+      "gdc-sdk-core-ts": ["./node_modules/gdc-sdk-core-ts/dist/index.d.ts"],
+      "gdc-sdk-core-ts/*": ["./node_modules/gdc-sdk-core-ts/dist/*"],
       "gdc-common-utils-ts": ["./node_modules/gdc-common-utils-ts/dist/index.d.ts"],
       "gdc-common-utils-ts/constants": ["./node_modules/gdc-common-utils-ts/dist/constants/index.d.ts"],
       "gdc-common-utils-ts/*": ["./node_modules/gdc-common-utils-ts/dist/*"]

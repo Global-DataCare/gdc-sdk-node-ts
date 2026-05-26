@@ -1,7 +1,9 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
+// Always create JSDoc, do not use strings inline in keys nor values, use types instead, and reuse the data test examples.
 import type { ControllerBindingInput } from 'gdc-common-utils-ts/models';
 import type {
   AsyncPollRequest,
+  OrganizationActivationServiceOptions,
   PollOptions,
   PollResult,
   SubmitAndPollResult,
@@ -33,6 +35,19 @@ import type {
 } from '../resource-operations.js';
 
 /**
+ * Shared node-runtime activation input.
+ *
+ * Keep this centralized in the node runtime until every consumer compiles
+ * against a published `gdc-sdk-core-ts` version that exports the same alias.
+ */
+export type NodeOrganizationActivationInput = {
+  vpToken: string;
+  controller?: ControllerBindingInput;
+  service?: OrganizationActivationServiceOptions;
+  additionalClaims?: Record<string, unknown>;
+};
+
+/**
  * Runtime-neutral actor/application client contract as exposed by the Node SDK.
  *
  * New code should prefer `RuntimeClient`.
@@ -42,7 +57,7 @@ import type {
 export type RuntimeClient = {
   activateOrganizationInGatewayFromIcaProof?: (
     hostCtx: HostRouteContext,
-    input: { vpToken: string; controller?: ControllerBindingInput; additionalClaims?: Record<string, unknown> },
+    input: NodeOrganizationActivationInput,
     pollOptions?: PollOptions,
   ) => Promise<SubmitAndPollResult>;
   confirmLegalOrganizationOrder?: (

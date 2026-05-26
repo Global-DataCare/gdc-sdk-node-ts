@@ -1,9 +1,9 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
-import type { ControllerBindingInput } from 'gdc-common-utils-ts/models';
-
+// Always create JSDoc, do not use strings inline in keys nor values, use types instead, and reuse the data test examples.
 import {
   requireClientMethod,
   submitAndPollWithClient,
+  type NodeOrganizationActivationInput,
   type NodeRuntimeClient,
   type PollOptions,
   type SubmitAndPollResult,
@@ -26,11 +26,13 @@ export class ProfessionalSdk {
   constructor(private readonly client: NodeRuntimeClient) {}
 
   /**
-   * Activates the legal organization in the gateway from an ICA-issued proof token.
+   * Activates the legal organization in the gateway from an ICA-issued proof
+   * token and the declared service capabilities that will be published through
+   * DID/DCAT discovery.
    */
   public activateOrganizationInGatewayFromIcaProof(
     hostCtx: HostRouteContext,
-    input: { vpToken: string; controller?: ControllerBindingInput; additionalClaims?: Record<string, unknown> },
+    input: NodeOrganizationActivationInput,
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'activateOrganizationInGatewayFromIcaProof')(hostCtx, input, pollOptions);

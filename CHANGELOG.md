@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1] - 2026-05-26
+
+### Changed
+- Updated the public host/professional activation surface so `activateOrganizationInGatewayFromIcaProof(...)` documents the typed `service` activation block instead of a reduced inline shape.
+- Aligned onboarding docs with the canonical activation naming and capability rules:
+  - `organizationActivation` as the example variable name
+  - legal-organization activation always includes `service.url` and `service.capabilities`
+- Updated dependency targets to `gdc-common-utils-ts@^1.7.0` and `gdc-sdk-core-ts@^0.3.2`.
+
+### Testing
+- `npm run build`
+- `npm test`
+
 ## [0.3.0] - 2026-05-25
 
 ### Changed
