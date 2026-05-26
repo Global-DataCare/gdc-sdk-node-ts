@@ -1,7 +1,7 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
 import type { NodeOperatorNetworkType } from 'gdc-common-utils-ts/constants/network';
-import type { DataPersistencePolicy } from '../../gdc-sdk-core-ts/dist/index.js';
+import type { DataPersistencePolicy } from 'gdc-sdk-core-ts';
 
 export type LegacyNodeSourcePackage = never;
 

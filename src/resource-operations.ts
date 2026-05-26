@@ -5,7 +5,7 @@ import type {
   BundleSearchQuery,
   CommunicationInput,
   DateRange,
-} from '../../gdc-sdk-core-ts/dist/index.js';
+} from 'gdc-sdk-core-ts';
 import type { SubmitAndPollResult } from './orchestration/client-port.js';
 import type { RouteContext } from './individual-onboarding.js';
 

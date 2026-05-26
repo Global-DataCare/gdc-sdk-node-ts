@@ -1,7 +1,7 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
 import {
-  initializeCommunicationIdentityFromSeed as initializeSharedCommunicationIdentityFromSeed,
+  initializeCommunicationIdentityFromSeed as initializeSharedCommunicationIdentity,
   type CommunicationIdentityBootstrapOptions,
   type CommunicationIdentityBootstrapResult,
 } from 'gdc-common-utils-ts/utils/communication-identity';
@@ -33,11 +33,16 @@ import {
  * @param options Stable seed/bootstrap options. See the shared
  * `CommunicationIdentityBootstrapOptions` JSDoc in `gdc-common-utils-ts`.
  */
-export async function initializeCommunicationIdentityFromSeed(
+export async function initializeCommunicationIdentity(
   options: CommunicationIdentityBootstrapOptions,
 ): Promise<CommunicationIdentityBootstrapResult> {
-  return initializeSharedCommunicationIdentityFromSeed(options);
+  return initializeSharedCommunicationIdentity(options);
 }
+
+/**
+ * @deprecated Use `initializeCommunicationIdentity(...)`.
+ */
+export const initializeCommunicationIdentityFromSeed = initializeCommunicationIdentity;
 
 export type {
   CommunicationIdentityBootstrapOptions as NodeSdkCommunicationIdentityBootstrapOptions,

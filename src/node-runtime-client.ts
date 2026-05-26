@@ -2,6 +2,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ControllerBindingInput } from 'gdc-common-utils-ts/models';
+import type { AppInfo } from 'gdc-sdk-core-ts';
+import {
+  buildAppHeaders,
+  resolveAppInfo,
+  type ResolvedAppInfo,
+} from 'gdc-sdk-core-ts';
 
 import { buildConsentClaimsSimpleWithCid } from 'gdc-common-utils-ts/utils/consent';
 import { pollUntilCompleteWithMethod } from './async-polling.js';
@@ -43,6 +49,14 @@ export type HttpRuntimeClientOptions = {
   baseUrl: string;
   bearerToken?: string;
   /**
+   * Host app identity required by GW CORE.
+   *
+   * `appId` is mandatory when you want the SDK to inject canonical `AppId` and
+   * `AppVersion` headers automatically. `appVersion` is optional and defaults
+   * to `v1.0`.
+   */
+  appInfo?: AppInfo;
+  /**
    * Optional default tenant route context reused by methods such as
    * `requestSmartToken(...)` when callers do not want to repeat
    * tenant/jurisdiction/sector on every call.
@@ -68,6 +82,7 @@ export type NodeHttpClientOptions = HttpRuntimeClientOptions;
 export class HttpRuntimeClient implements NodeRuntimeClient {
   private readonly baseUrl: string;
   private readonly bearerToken?: string;
+  private readonly resolvedAppInfo?: ResolvedAppInfo;
   private readonly ctx?: RouteContext;
   private readonly defaultHeaders: Record<string, string>;
   private readonly requestTimeoutMs: number;
@@ -78,6 +93,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * @param options.baseUrl Gateway base URL without trailing slash.
    * @param options.interopMode Optional runtime interoperability mode from the SDK config layer (`demo`, `compat`, `strict`).
    * @param options.bearerToken Optional bearer token reused for direct HTTP calls.
+   * @param options.appInfo Optional GW CORE app identity. When present, the
+   * client injects `AppId` and `AppVersion` into all outgoing requests.
    * @param options.ctx Optional default route context.
    * @param options.defaultHeaders Optional static headers appended to every request.
    * @param options.requestTimeoutMs Optional per-request timeout in milliseconds.
@@ -85,10 +102,29 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   constructor(options: HttpRuntimeClientOptions) {
     this.baseUrl = String(options.baseUrl || '').replace(/\/+$/, '');
     this.bearerToken = String(options.bearerToken || '').trim() || undefined;
+    this.resolvedAppInfo = options.appInfo ? resolveAppInfo(options.appInfo) : undefined;
     this.ctx = options.ctx;
-    this.defaultHeaders = options.defaultHeaders || {};
+    this.defaultHeaders = {
+      ...(this.resolvedAppInfo ? buildAppHeaders(this.resolvedAppInfo) : {}),
+      ...(options.defaultHeaders || {}),
+    };
     this.requestTimeoutMs = Math.max(1, Math.floor(options.requestTimeoutMs ?? 15_000));
     this.httpTraceFile = String(process.env.SDK_HTTP_TRACE_FILE || '').trim() || undefined;
+  }
+
+  /**
+   * Returns the canonical GW CORE app identity resolved by the Node client.
+   */
+  public getResolvedAppInfo(): ResolvedAppInfo | undefined {
+    return this.resolvedAppInfo ? { ...this.resolvedAppInfo } : undefined;
+  }
+
+  /**
+   * Returns the standard GW CORE headers currently injected by the Node client.
+   */
+  public getAppHeaders(): Record<'AppId' | 'AppVersion', string> | undefined {
+    if (!this.resolvedAppInfo) return undefined;
+    return buildAppHeaders(this.resolvedAppInfo);
   }
 
   /**

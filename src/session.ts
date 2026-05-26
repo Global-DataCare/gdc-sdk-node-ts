@@ -1,6 +1,6 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
-import type { ActorKind, Capability } from '../../gdc-sdk-core-ts/dist/index.js';
+import type { ActorKind, Capability } from 'gdc-sdk-core-ts';
 import { HostOnboardingSdk } from './orchestration/host-onboarding-sdk.js';
 import { IndividualControllerSdk } from './orchestration/individual-controller-sdk.js';
 import { IndividualMemberSdk } from './orchestration/individual-member-sdk.js';

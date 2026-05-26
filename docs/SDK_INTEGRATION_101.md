@@ -2,6 +2,13 @@
 
 This guide is for a backend developer who wants to integrate `gdc-sdk-node-ts` step by step for secure communications, onboarding, consent, IPS/FHIR ingestion, and document search.
 
+If you are new to the SDK and want the most didactic end-to-end entry point
+with a clean index and copy/paste snippets, start here first:
+
+- [SDK_END_TO_END_101.md](./SDK_END_TO_END_101.md)
+
+This file remains the runtime-oriented companion guide.
+
 It is intentionally practical and conservative:
 
 - show the current API that exists today
@@ -16,7 +23,10 @@ When adding or updating examples in this file:
 - show where each variable comes from
 - prefer shared constants and helper builders over raw literals
 - use canonical names such as:
-  - `individualDidWeb`
+  - `subjectDid`
+  - `professionalDid`
+  - `orgControllerDid`
+  - `individualControllerDid`
   - `emailProfessional`
   - `emailControllerOrg`
   - `emailControllerIndividual`
@@ -95,11 +105,11 @@ For evaluations and demo environments, it is acceptable to start from:
 
 Reusable payload source of truth for the examples in this guide:
 
-- [../gdc-common-utils-ts/src/examples/organization-controller.ts](../gdc-common-utils-ts/src/examples/organization-controller.ts)
-- [../gdc-common-utils-ts/src/examples/individual-controller.ts](../gdc-common-utils-ts/src/examples/individual-controller.ts)
-- [../gdc-common-utils-ts/src/examples/professional.ts](../gdc-common-utils-ts/src/examples/professional.ts)
-- [../gdc-common-utils-ts/src/examples/shared.ts](../gdc-common-utils-ts/src/examples/shared.ts)
-- [../gdc-common-utils-ts/src/examples/api-flow-examples.ts](../gdc-common-utils-ts/src/examples/api-flow-examples.ts)
+- [gdc-common-utils-ts/src/examples/organization-controller.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/organization-controller.ts)
+- [gdc-common-utils-ts/src/examples/individual-controller.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/individual-controller.ts)
+- [gdc-common-utils-ts/src/examples/professional.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/professional.ts)
+- [gdc-common-utils-ts/src/examples/shared.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/shared.ts)
+- [gdc-common-utils-ts/src/examples/api-flow-examples.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/api-flow-examples.ts)
 - [tests/fixtures/ica-vp-minimal.json](tests/fixtures/ica-vp-minimal.json)
 
 ## 2.A Consent access model used by the node SDK
@@ -156,14 +166,16 @@ import {
   createHeartRateObservation,
   createBloodPressureObservation,
   createBodyTemperatureObservation,
-  initializeCommunicationIdentityFromSeed,
+  initializeCommunicationIdentity,
   type TenantContext,
   type HostRouteContext,
 } from 'gdc-sdk-node-ts';
 
 import { CryptographyService } from 'gdc-common-utils-ts';
 import {
+  ClaimsOrganizationSchemaorg,
   ClaimsPersonSchemaorg,
+  ClaimsServiceSchemaorg,
   DataspaceSectors,
   buildControllerBindingInput,
   buildOrganizationDidWeb,
@@ -203,12 +215,12 @@ requests. This identity is for securing communications.
 ```ts
 const cryptography = new CryptographyService(cryptoHelper);
 
-const deviceIdentity = await initializeCommunicationIdentityFromSeed({
+const deviceIdentity = await initializeCommunicationIdentity({
   entityId: 'did:web:portal.example.org:acme',
   cryptography,
   includeVcSigningKey: true,
-  // Optional: explicit deterministic seed material instead of deriving from entityId.
-  // seedMaterial: crypto.randomBytes(32),
+  // Deterministic mode requires an explicit seed.
+  seedMaterial: crypto.randomBytes(32),
 });
 
 console.log(deviceIdentity.commSigningKeyPair.publicJWKey.kid);
@@ -220,7 +232,7 @@ console.log(deviceIdentity.headers.jweHeader);
 What you get:
 
 - communication signing key pair
-- encryption key pair
+- communication encryption key pair
 - optional VC signing key pair
 - JOSE header templates for:
   - `meta.jws.protected`
@@ -228,12 +240,42 @@ What you get:
 
 If you omit `seedMaterial`:
 
-- `mode = deterministic` derives seeds from `entityId`
-- `mode = random` lets the cryptography engine generate random seed material internally
+- the helper defaults to `mode = random`
+- `mode = deterministic` requires explicit `seedMaterial`
 
 In demo/plaintext mode, you can keep these as bootstrap metadata even if you are not yet signing or encrypting messages.
 
 ## 5. Create the node runtime client
+
+Before the first real GW call:
+
+- `appId` should always be set
+- `appVersion` is optional
+- if you omit `appVersion`, the SDK sends `v1.0`
+- if `appId` is a URL or domain, the SDK converts it to reverse-DNS
+
+Copy/paste example:
+
+```ts
+const client = new NodeHttpClient({
+  baseUrl: 'https://gw.example.org',
+  appInfo: {
+    appId: 'https://globaldatacare.es/backend',
+    appType: 'Organization',
+    sector: 'health-care',
+  },
+  ctx: tenantContext,
+  requestTimeoutMs: 15000,
+});
+
+console.log(client.getResolvedAppInfo());
+// {
+//   appId: 'es.globaldatacare',
+//   appVersion: 'v1.0',
+//   appType: 'Organization',
+//   sector: 'health-care'
+// }
+```
 
 ```ts
 const tenantContext: TenantContext = {
@@ -244,6 +286,12 @@ const tenantContext: TenantContext = {
 
 const client = new NodeHttpClient({
   baseUrl: 'https://gw.example.org',
+  appInfo: {
+    appId: 'portal.globaldatacare.es',
+    appVersion: 'v2.4.0',
+    appType: 'Organization',
+    sector: DataspaceSectors.HealthCare,
+  },
   ctx: tenantContext,
   requestTimeoutMs: 15000,
 });
@@ -258,11 +306,9 @@ const tenantContext: TenantContext = {
   sector: DataspaceSectors.HealthCare,
 };
 
-const hostRouteContext: HostRouteContext = {
+const hostOperatorContext: HostRouteContext = {
   jurisdiction: 'ES',
   sector: DataspaceSectors.HealthCare,
-  controllerDid: 'did:web:controller.example.org',
-  hostDid: 'did:web:host.example.org',
 };
 ```
 
@@ -330,7 +376,7 @@ Main methods:
 
 Reusable examples for different professional roles, sections, and FHIR data expectations live in:
 
-- [../gdc-common-utils-ts/src/examples/professional.ts](../gdc-common-utils-ts/src/examples/professional.ts)
+- [gdc-common-utils-ts/src/examples/professional.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/professional.ts)
 
 That file now includes scenarios such as:
 
@@ -378,26 +424,38 @@ Main methods:
 
 ```ts
 const professionalSdk = new ProfessionalSdk(client);
-const hostCtx = cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT);
+const hostOperatorContext = cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT);
 const vpToken = EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.vpToken;
-const controllerDid = EXAMPLE_CONTROLLER_DID;
+const orgControllerDid = EXAMPLE_CONTROLLER_DID;
 const controllerSameAs = EXAMPLE_CONTROLLER_SAME_AS;
+const emailControllerOrg = EXAMPLE_CONTROLLER_SAME_AS.replace(/^mailto:/, '');
 const publicSignKey = EXAMPLE_CONTROLLER_SIGN_KEY;
 const publicKeys = EXAMPLE_CONTROLLER_PUBLIC_KEYS;
 
 const controllerBinding = buildControllerBindingInput({
-  did: controllerDid,
+  did: orgControllerDid,
   sameAs: controllerSameAs,
   publicSignKey,
   publicKeys,
 });
 
 const activation = await professionalSdk.activateOrganizationInGatewayFromIcaProof(
-  hostCtx,
+  hostOperatorContext,
   {
     vpToken,
     controller: controllerBinding,
-    additionalClaims: EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.additionalClaims,
+    additionalClaims: {
+      [ClaimsOrganizationSchemaorg.legalName]: 'ACME HEALTH SL',
+      [ClaimsOrganizationSchemaorg.identifierType]: 'taxID',
+      [ClaimsOrganizationSchemaorg.identifierValue]: 'VATES-B00112233',
+      [ClaimsOrganizationSchemaorg.addressCountry]: hostOperatorContext.jurisdiction,
+      [ClaimsOrganizationSchemaorg.taxId]: 'VATES-B00112233',
+      [ClaimsPersonSchemaorg.email]: emailControllerOrg,
+      [ClaimsPersonSchemaorg.hasOccupationalRoleValue]: 'RESPRSN',
+      [ClaimsServiceSchemaorg.category]: hostOperatorContext.sector,
+      [ClaimsServiceSchemaorg.identifier]: 'did:web:public.acme.org',
+      [ClaimsServiceSchemaorg.url]: 'https://operator.example.net/acme/cds-es/v1/health-care',
+    },
   },
 );
 ```
@@ -408,7 +466,7 @@ Teach it from variables the integrator already knows how to obtain:
 
 - `vpToken`
   comes from the ICA proof / trust bootstrap step
-- `controllerDid`
+- `orgControllerDid`
   is the public DID for the human controller
 - `controllerSameAs`
   is the public alias, commonly a `mailto:`
@@ -420,7 +478,7 @@ Teach it from variables the integrator already knows how to obtain:
   is built by the helper so the caller does not manually shape
   `controller.publicKeyJwk` and `controller.jwks`
 - `additionalClaims`
-  comes from your organization registration form
+  should use shared `Claims*` constants instead of hardcoded string keys
 
 Practical rule:
 
@@ -435,10 +493,10 @@ Current status:
 
 Source payload reference:
 
-- [../gdc-common-utils-ts/src/examples/organization-controller.ts](../gdc-common-utils-ts/src/examples/organization-controller.ts)
+- [gdc-common-utils-ts/src/examples/organization-controller.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/organization-controller.ts)
   - `EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT`
   - `EXAMPLE_GW_ORGANIZATION_ACTIVATE_PAYLOAD`
-- [../gdc-common-utils-ts/src/examples/shared.ts](../gdc-common-utils-ts/src/examples/shared.ts)
+- [gdc-common-utils-ts/src/examples/shared.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/shared.ts)
   - `EXAMPLE_CONTROLLER_DID`
   - `EXAMPLE_CONTROLLER_SAME_AS`
   - `EXAMPLE_CONTROLLER_SIGN_KEY`
@@ -496,9 +554,8 @@ const token = await professionalSdk.requestSmartToken({
   scopes: [
     buildSmartCompositionReadScope({
       subjectDid,
-      sections: [HealthcareConsentActions.PatientSummaryDocument],
+      sections: HealthcareBasicSections.PatientSummaryDocument.claim,
     }),
-    SmartGatewayScopesFhirR4.ConsentCruds,
   ],
 });
 ```
@@ -521,9 +578,21 @@ So:
 - `tenantContext` = which GW tenant/operator route is issuing the token
 - `subjectDid` = which individual's data is being requested, and it already carries the provider lineage in its DID structure
 
+Minimal teaching rule:
+
+- start with the composition read scope only
+- add `SmartGatewayScopesFhirR4.ConsentCruds` only if the backend also needs
+  consent CRUD/search operations
+
+`SmartGatewayScopesFhirR4.ConsentCruds` currently resolves to:
+
+```ts
+'organization/Consent.cruds'
+```
+
 Source payload reference:
 
-- [../gdc-common-utils-ts/src/examples/professional.ts](../gdc-common-utils-ts/src/examples/professional.ts)
+- [gdc-common-utils-ts/src/examples/professional.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/professional.ts)
   - `EXAMPLE_TOKEN_EXCHANGE_SMART_INPUT`
   - `EXAMPLE_OPENID_SMART_TOKEN_INPUT`
   - `EXAMPLE_SMART_PRESENTATION_SUBMISSION`
@@ -721,6 +790,12 @@ At this point you have:
 - `job.envelope`
   - the GW-ready batch message
 
+And also:
+
+- no network call has happened yet
+- `createOutboxJobFromDraft(...)` only materializes the local outbox object
+- runtime submission starts in the next step
+
 ## 12. Send the communication and poll
 
 ```ts
@@ -803,5 +878,5 @@ For evaluators or demo users, keep it simple:
 ## 17. Where to look next
 
 - [README.md](README.md)
-- [../gdc-sdk-core-ts/README.md](../gdc-sdk-core-ts/README.md)
-- [../gdc-common-utils-ts/README.md](../gdc-common-utils-ts/README.md)
+- [gdc-sdk-core-ts/README.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/README.md)
+- [gdc-common-utils-ts/README.md](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/README.md)

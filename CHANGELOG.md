@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-05-25
+
+### Changed
+- Switched published runtime imports from workspace-relative `../../gdc-sdk-core-ts/dist/...` paths to the package import `gdc-sdk-core-ts`, so the npm artifact works outside the monorepo checkout.
+- Aligned shared dependencies to `gdc-common-utils-ts@^1.6.0` and `gdc-sdk-core-ts@^0.3.0`.
+- Kept the SDK documentation linked to the canonical shared lifecycle and `101` docs instead of package-local duplicated examples.
+
+### Testing
+- `npm run build` passes.
+- `npm test` passes.
+
 ## [0.2.1] - 2026-05-24
 
 ### Changed
