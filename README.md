@@ -18,24 +18,33 @@ business contract is defined.
 
 If you are integrating this package for the first time, open these in order:
 
-1. [SDK_INTEGRATION_101.md](./SDK_INTEGRATION_101.md)
-   Real backend setup, imports, `initializeCommunicationIdentityFromSeed(...)`,
+1. [docs/SDK_END_TO_END_101.md](./docs/SDK_END_TO_END_101.md)
+   Ordered onboarding guide with end-to-end journeys, copy/paste snippets, and
+   the recommended reading path for new backend integrators.
+2. [docs/SDK_INTEGRATION_101.md](./docs/SDK_INTEGRATION_101.md)
+   Real backend setup, imports, `initializeCommunicationIdentity(...)`,
    `new NodeHttpClient(...)`, route context, facade selection, and live method
    usage.
-2. [../gdc-sdk-core-ts/docs/SDK_FLOWS_101.md](../gdc-sdk-core-ts/docs/SDK_FLOWS_101.md)
+3. [gdc-sdk-core-ts/docs/SDK_FLOWS_101.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/SDK_FLOWS_101.md)
    Actor split and business-flow map across organization, individual,
    permissions, invitation, import, and SMART flows.
-3. [../gdc-common-utils-ts/src/examples/](../gdc-common-utils-ts/src/examples/)
+4. [gdc-common-utils-ts/src/examples/](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/tree/main/src/examples)
    Shared payload values used by the docs and tests.
+5. [gdc-common-utils-ts/docs/LIFECYCLE_101.md](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/docs/LIFECYCLE_101.md)
+   Canonical `enable/disable/delete` semantics and copy/paste placeholders.
 
 If you need the shortest path:
 
+- main onboarding guide:
+  [docs/SDK_END_TO_END_101.md](./docs/SDK_END_TO_END_101.md)
+- GW CORE app identity:
+  `appId` mandatory, `appVersion` optional with default `v1.0`
 - backend technical identity:
-  [`initializeCommunicationIdentityFromSeed(...)`](./SDK_INTEGRATION_101.md)
+  [`initializeCommunicationIdentity(...)`](./docs/SDK_INTEGRATION_101.md)
 - runtime client:
   [`NodeHttpClient`](src/node-runtime-client.ts)
 - step-by-step runtime usage:
-  [SDK_INTEGRATION_101.md](./SDK_INTEGRATION_101.md)
+  [docs/SDK_INTEGRATION_101.md](./docs/SDK_INTEGRATION_101.md)
 
 ## Executable Usage Examples
 
@@ -202,39 +211,51 @@ The backend should obtain those variables from:
 ```ts
 import { NodeHttpClient } from 'gdc-sdk-node-ts';
 import {
-  EXAMPLE_INDIVIDUAL_DID_WEB,
-} from 'gdc-common-utils-ts/examples/consent-access';
-import { SmartGatewayScopesFhirR4 } from 'gdc-common-utils-ts/constants/smart';
+  EXAMPLE_LATEST_IPS_SEARCH_INPUT,
+} from 'gdc-common-utils-ts/examples/individual-controller';
+import { HealthcareBasicSections } from 'gdc-common-utils-ts/constants/healthcare';
+import { buildSmartCompositionReadScope } from 'gdc-common-utils-ts/utils/smart-scope';
 
 const client = new NodeHttpClient({ baseUrl: process.env.BASE_URL! });
 
-const individualDidWeb = EXAMPLE_INDIVIDUAL_DID_WEB;
+const subjectDid = EXAMPLE_LATEST_IPS_SEARCH_INPUT.subject;
 
 const token = await client.requestSmartToken({
   ctx,
   actorDid: 'did:web:doctor.example.org:employee:001',
-  subjectDid: individualDidWeb,
-  scopes: [SmartGatewayScopesFhirR4.ConsentCruds],
+  subjectDid,
+  scopes: [
+    buildSmartCompositionReadScope({
+      subjectDid,
+      sections: HealthcareBasicSections.PatientSummaryDocument.claim,
+    }),
+  ],
   idToken: '...',
 });
 
 const result = await client.searchClinicalBundle(ctx, {
-  subject: individualDidWeb,
+  subject: subjectDid,
 });
 ```
 
+Teaching rule:
+
+- start with the composition read scope when the actor only needs subject-scoped read access
+- add `SmartGatewayScopesFhirR4.ConsentCruds` only if the backend also needs consent management operations
+
 ## Shared Contract Sources
 
-- [../gdc-sdk-core-ts/README.md](../gdc-sdk-core-ts/README.md)
-- [../gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md](../gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md)
+- [gdc-sdk-core-ts/README.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/README.md)
+- [gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/docs/CONSENT_ACCESS_101.md)
 
 Reusable payload examples:
 
-- [../gdc-common-utils-ts/src/examples/organization-controller.ts](../gdc-common-utils-ts/src/examples/organization-controller.ts)
-- [../gdc-common-utils-ts/src/examples/individual-controller.ts](../gdc-common-utils-ts/src/examples/individual-controller.ts)
-- [../gdc-common-utils-ts/src/examples/professional.ts](../gdc-common-utils-ts/src/examples/professional.ts)
-- [../gdc-common-utils-ts/src/examples/shared.ts](../gdc-common-utils-ts/src/examples/shared.ts)
-- [../gdc-common-utils-ts/src/examples/api-flow-examples.ts](../gdc-common-utils-ts/src/examples/api-flow-examples.ts)
+- [gdc-common-utils-ts/src/examples/organization-controller.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/organization-controller.ts)
+- [gdc-common-utils-ts/src/examples/individual-controller.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/individual-controller.ts)
+- [gdc-common-utils-ts/src/examples/professional.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/professional.ts)
+- [gdc-common-utils-ts/src/examples/shared.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/shared.ts)
+- [gdc-common-utils-ts/src/examples/lifecycle.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/lifecycle.ts)
+- [gdc-common-utils-ts/src/examples/api-flow-examples.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/api-flow-examples.ts)
 
 ## API Index
 
@@ -246,7 +267,7 @@ modules below.
 - [`src/runtime-contracts.ts`](src/runtime-contracts.ts)
   - types/constants: `LegacyNodeSourcePackage`, `NodeRuntimeMode`, `NodeInteropMode`, `TenantContext`, `NodeOperatorContext`, `NodeFetchLike`, `NodeRuntimeConfig`, `NodePackageStatus`, `GDC_SDK_NODE_STATUS`
 - [`src/identity-bootstrap.ts`](src/identity-bootstrap.ts)
-  - function: `initializeCommunicationIdentityFromSeed(...)`
+  - function: `initializeCommunicationIdentity(...)`
 - [`src/async-polling.ts`](src/async-polling.ts)
   - types: `AcceptedPollResponse`
   - function: `pollUntilCompleteWithMethod(...)`
@@ -320,7 +341,7 @@ modules below.
 ### Runtime configuration
 
 - [`NodeRuntimeConfig`](src/runtime-contracts.ts)
-- [`initializeCommunicationIdentityFromSeed(...)`](src/identity-bootstrap.ts)
+- [`initializeCommunicationIdentity(...)`](src/identity-bootstrap.ts)
 
 ### Low-level orchestration helpers
 

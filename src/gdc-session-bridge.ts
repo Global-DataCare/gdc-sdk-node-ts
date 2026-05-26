@@ -7,7 +7,7 @@ import {
   type ActorFacadeDescriptor,
   type ActorSessionDescriptor,
   type Capability,
-} from '../../gdc-sdk-core-ts/dist/index.js';
+} from 'gdc-sdk-core-ts';
 import { ActorSession, NodeActorSession, type NodeCapability } from './session.js';
 import type { RuntimeClient } from './orchestration/client-port.js';
 

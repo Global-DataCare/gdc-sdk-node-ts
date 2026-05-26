@@ -7,7 +7,7 @@ import type {
   SubmitAndPollResult,
   SubmitPayload,
   SubmitResponse,
-} from '../../../gdc-sdk-core-ts/dist/index.js';
+} from 'gdc-sdk-core-ts';
 export type {
   AsyncPollRequest,
   PollOptions,
@@ -15,7 +15,7 @@ export type {
   SubmitAndPollResult,
   SubmitPayload,
   SubmitResponse,
-} from '../../../gdc-sdk-core-ts/dist/index.js';
+} from 'gdc-sdk-core-ts';
 import type { EmployeeDeviceActivationResult, EmployeeDeviceActivationRequestInput } from '../device-activation.js';
 import type { HostRouteContext, LegalOrganizationOrderInput } from '../host-onboarding.js';
 import type { IndividualOrganizationConfirmOrderInput, RouteContext } from '../individual-onboarding.js';
