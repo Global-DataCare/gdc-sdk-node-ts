@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.2] - 2026-05-26
+
+### Changed
+- Reduced `docs/SDK_INTEGRATION_101.md` from a duplicated tutorial into a short runtime/API map that points beginners to `docs/SDK_END_TO_END_101.md` for the full copy/paste flow.
+- Kept the integration guide focused on:
+  - package/facade selection
+  - method-to-flow mapping
+  - shared builder references
+  - contract notes and discovery status
+
+### Testing
+- Doc-only change; no runtime surface change.
+
 ## [0.3.1] - 2026-05-26
 
 ### Changed
