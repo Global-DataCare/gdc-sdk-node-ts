@@ -245,7 +245,7 @@ What is still converging:
 
 - first-class ICA discovery APIs
 - first-class typed DCAT3 client helpers
-- a single beginner-friendly demo helper for fetching ICA proof automatically
+- a single demo helper for fetching ICA proof automatically
 
 ## Use This File For
 

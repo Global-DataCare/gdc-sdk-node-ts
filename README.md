@@ -41,6 +41,7 @@ If you need the shortest path:
   `appId` mandatory, `appVersion` optional with default `v1.0`
 - backend technical identity:
   [`initializeCommunicationIdentity(...)`](./docs/SDK_INTEGRATION_101.md)
+  for the technical channel/runtime identity, not the legal organization id
 - runtime client:
   [`NodeHttpClient`](src/node-runtime-client.ts)
 - step-by-step runtime usage:

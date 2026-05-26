@@ -155,11 +155,28 @@ import {
 
 This is the minimum runtime setup most backends need before calling any flow.
 
+There are two different initializations here:
+
+1. app/runtime identity for GW headers and policy
+2. technical communication identity for transport keys
+
+They are not the same thing.
+
+- `appId`
+  identifies the portal/backend application towards GW CORE
+- `entityId` in `initializeCommunicationIdentity(...)`
+  identifies the local technical communication profile or channel runtime that
+  owns the transport keys
+- controller/professional/subject DIDs
+  identify human/domain actors
+
+Do not teach `entityId` as if it were the organization id.
+
 ```ts
 const cryptography = new CryptographyService(cryptoHelper);
 
 const deviceIdentity = await initializeCommunicationIdentity({
-  entityId: 'did:web:portal.example.org:acme',
+  entityId: 'portal.example.org:acme-id:backend-runtime',
   cryptography,
   includeVcSigningKey: true,
   seedMaterial: crypto.randomBytes(32),
@@ -200,6 +217,22 @@ Important:
 - `controllerDid` and `hostDid` exist as optional route fields for some payloads,
   but they should not be introduced in the first example unless the flow really
   needs them
+
+### 5.1 Two deployment modes
+
+Simple / compatibility mode:
+
+- useful for local demos and incremental integration
+- may use plain JSON or legacy compatibility transport
+- FAPI and encrypted DIDComm are not the first concern
+
+Secure mode:
+
+- app identity still starts with `appId` / `appVersion`
+- technical communication identity uses `initializeCommunicationIdentity(...)`
+- transport uses FAPI and encrypted DIDComm
+- communication keys are the PQC-capable technical channel keys, not the human
+  controller keys
 
 ## 6. Journey A: Legal organization to professional access
 
