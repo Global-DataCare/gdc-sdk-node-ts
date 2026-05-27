@@ -165,6 +165,9 @@ What this bootstrap does today:
   needs signing/encryption keys for transport profiles
 - can optionally reuse an ICA-issued runtime/software `vp_token` as the default
   HTTP Bearer credential when the integration runs in demo/compat mode
+- current `gwtemplate-node-ts` demo/bootstrap deployments do not yet enforce
+  software/runtime registration, so `runtimeVpToken` may still be omitted or
+  left empty there
 
 What this bootstrap does not do today:
 
@@ -200,9 +203,49 @@ const deviceIdentity = await initializeCommunicationIdentity({
   seedMaterial: crypto.randomBytes(32),
 });
 
-// This proof token must already be issued/built by the ICA-side software/runtime
-// onboarding flow. The SDK does not fabricate that VC or VP for you here.
-const runtimeVpToken = process.env.GW_RUNTIME_VP_TOKEN!;
+const softwareRuntimeDid = process.env.SOFTWARE_RUNTIME_DID || '';
+const softwareRuntimeName = process.env.SOFTWARE_RUNTIME_NAME || '';
+const softwareRuntimeUrl = process.env.SOFTWARE_RUNTIME_URL || '';
+const participantDid = process.env.PARTICIPANT_DID || '';
+const icaDid = process.env.ICA_DID || '';
+const didWebPortalCommunicationSigningKeyId =
+  deviceIdentity.commSigningKeyPair.publicJWKey.kid || '';
+
+// Canonical ICA-side input artifact for a software/runtime trust flow:
+// an already-issued SoftwareApplication VC (JWT or JSON), not a locally
+// fabricated credential.
+//
+// Current gwtemplate demo/bootstrap deployments do not enforce
+// software/runtime registration yet, so demo integrations may leave this empty.
+const vcSoftwareRegisteredByICA = process.env.VC_SOFTWARE_REGISTERED || '';
+
+// If you need to mock the VC shape while ICA software registration is still
+// pending, keep it as an environment-driven JSON object like this.
+const softwareApplicationCredentialMock = vcSoftwareRegisteredByICA
+  ? JSON.parse(vcSoftwareRegisteredByICA)
+  : {
+      '@context': [
+        'https://www.w3.org/2018/credentials/v1',
+        'https://schema.org',
+      ],
+      type: ['VerifiableCredential', 'SoftwareApplicationCredential'],
+      issuer: icaDid,
+      credentialSubject: {
+        '@type': 'SoftwareApplication',
+        id: softwareRuntimeDid,
+        name: softwareRuntimeName,
+        url: softwareRuntimeUrl,
+        sameAs: participantDid,
+        material: didWebPortalCommunicationSigningKeyId,
+      },
+    };
+
+// If your integration already has a compact runtime VP/JWS proof built from
+// that ICA-issued VC, the Node client can reuse it in demo/compat mode.
+//
+// If gwtemplate does not enforce software/runtime registration yet, leaving
+// this empty is still valid for the current demo/bootstrap path.
+const runtimeVpToken = process.env.GW_RUNTIME_VP_TOKEN || '';
 
 const tenantContext: TenantContext = {
   tenantId: 'acme-id',
@@ -231,10 +274,18 @@ What each value means:
 
 - `deviceIdentity`
   technical communication identity for the backend/app profile
+- `vcSoftwareRegisteredByICA`
+  ICA-issued software/runtime VC kept by the integrator as the canonical input
+  artifact for future runtime-proof construction
+- `softwareApplicationCredentialMock`
+  environment-driven mock shape for the same VC when ICA software registration
+  is not implemented yet; it keeps the intended fields visible without
+  hardcoding deployment values
 - `runtimeVpToken`
-  compact VP/JWS proof for the software/runtime profile already issued/built by
-  the ICA-side flow; in current demo/compat wiring the Node client can reuse it
-  as the default HTTP Bearer credential
+  compact VP/JWS proof derived from the ICA-issued software/runtime VC when that
+  proof has already been assembled; in current demo/compat wiring the Node
+  client can reuse it as the default HTTP Bearer credential; in current
+  `gwtemplate-node-ts` demo flows it may still be empty or omitted
 - `tenantContext`
   tenant-scoped route context used by subject and organization runtime calls
 - `hostOnboardingRoute`
@@ -266,6 +317,8 @@ Important:
 - in the current `gdc-sdk-node-ts` demo/compat wiring, `runtimeVpToken` is
   reused as `Authorization: Bearer <runtimeVpToken>` when no explicit
   `bearerToken` is configured
+- if `runtimeVpToken` is omitted or is an empty string, the Node client skips
+  that fallback and does not inject an Authorization header from it
 - explicit `bearerToken` still wins if both values are provided
 - other deployments may front GW with API key, proxy auth, or another trusted
   backend token, so if you need custom auth headers use `defaultHeaders`
@@ -313,6 +366,9 @@ Current contract summary:
   auth configuration
 - `NodeHttpClient({ runtimeVpToken })` can already reuse that proof as the
   default HTTP Bearer credential in demo/compat integrations
+- `NodeHttpClient({ runtimeVpToken: '' })` is also valid for current
+  `gwtemplate-node-ts` demo/bootstrap integrations where software/runtime
+  registration is not enforced yet
 - `initializeCommunicationIdentity(...)` prepares the runtime communication keys
 - a future ICA-authorized software/runtime proof may be required in addition,
   with a finalized exchange/refresh contract that is not yet fully closed in
@@ -382,8 +438,8 @@ const organizationActivation = await professionalSdk.activateOrganizationInGatew
     service: {
       url: 'https://operator.example.net/acme-id/cds-es/v1/health-care',
       capabilities: [
-        ServiceCapability.IndexingProvider,
-        ServiceCapability.IndexingReader,
+        ServiceCapability.IndexProvider,
+        ServiceCapability.IndexReader,
       ],
     },
     additionalClaims: {

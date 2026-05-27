@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] - 2026-05-27
+
+### Changed
+- Updated shared dependency targets to:
+  - `gdc-common-utils-ts@^1.10.0`
+  - `gdc-sdk-core-ts@^0.5.1`
+- Clarified onboarding capability examples to use the clearer `IndexProvider`
+  / `IndexReader` naming.
+- Clarified runtime bootstrap documentation around mockable
+  `SoftwareApplication` VC input versus optional compact `runtimeVpToken`
+  reuse in demo/bootstrap mode.
+
+### Testing
+- `npm test`
+
 ## [0.3.3] - 2026-05-27
 
 ### Changed

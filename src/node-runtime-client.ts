@@ -71,6 +71,11 @@ export type HttpRuntimeClientOptions = {
    * This keeps the SDK wiring ready for a future ICA-authorized software
    * runtime contract without forcing callers to overload the semantic name
    * `bearerToken` in documentation or app code.
+   *
+   * Current `gwtemplate-node-ts` demo/bootstrap flows do not yet require a
+   * registered software/runtime proof for this path, so callers may omit this
+   * field or pass an empty string until the ICA runtime-registration contract
+   * is finalized.
    */
   runtimeVpToken?: string;
   /**
@@ -119,7 +124,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * @param options.baseUrl Gateway base URL without trailing slash.
    * @param options.interopMode Optional runtime interoperability mode from the SDK config layer (`demo`, `compat`, `strict`).
    * @param options.bearerToken Optional bearer token reused for direct HTTP calls.
-   * @param options.runtimeVpToken Optional ICA-issued runtime/software proof token reused as Bearer when `bearerToken` is not set.
+   * @param options.runtimeVpToken Optional ICA-issued runtime/software proof token reused as Bearer when `bearerToken` is not set. Current `gwtemplate-node-ts` demo/bootstrap flows may omit it or pass an empty string because software/runtime registration is not enforced there yet.
    * @param options.appInfo Optional GW CORE app identity. When present, the
    * client injects `AppId` and `AppVersion` into all outgoing requests.
    * @param options.ctx Optional default route context.
