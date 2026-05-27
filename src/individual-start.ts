@@ -5,6 +5,7 @@ import {
   ClaimsPersonSchemaorg,
   ClaimsServiceSchemaorg,
 } from 'gdc-common-utils-ts/constants';
+import { GwCoreLifecycleRequestType } from './constants/lifecycle.js';
 import { resolvePollOptionsFromSeconds } from './poll-options.js';
 import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
 import type { RouteContext } from './individual-onboarding.js';
@@ -156,7 +157,7 @@ export async function startIndividualOrganizationWithDeps(
     thid: `family-org-${createRuntimeUuid()}`,
     body: {
       data: [{
-        type: 'SubjectOrg-registration-form-v1.0',
+        type: GwCoreLifecycleRequestType.IndividualOrganizationRegistration,
         meta: { claims },
         resource: { meta: { claims } },
       }],

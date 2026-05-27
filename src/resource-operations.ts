@@ -6,6 +6,11 @@ import type {
   CommunicationInput,
   DateRange,
 } from 'gdc-sdk-core-ts';
+import {
+  GwCoreLifecycleRequestMethod,
+  GwCoreLifecycleRequestType,
+  GwCoreLifecycleTodo,
+} from './constants/lifecycle.js';
 import type { SubmitAndPollResult } from './orchestration/client-port.js';
 import type { RouteContext } from './individual-onboarding.js';
 
@@ -28,6 +33,65 @@ export type OrganizationEmployeeCreationInput = {
    * `Employee.*` claims.
    */
   employeeClaims: Record<string, unknown>;
+  dataType?: string;
+};
+
+/**
+ * Current GW CORE employee lifecycle locator payload.
+ *
+ * Current backend behavior:
+ * - disable is still `Employee/_batch` with entry `request.method = DELETE`
+ * - purge is `Employee/_purge` with entry `request.method = POST`
+ *
+ * This SDK intentionally models the deployed GW CORE contract. It does not
+ * synthesize the future normalized `_batch + PATCH` contract ahead of the backend.
+ */
+export type OrganizationEmployeeLifecycleInput = {
+  /**
+   * Canonical employee/person claims used by GW CORE to locate the employee.
+   */
+  employeeClaims: Record<string, unknown>;
+  /**
+   * Optional canonical resource id when already known by the caller.
+   */
+  resourceId?: string;
+  dataType?: string;
+};
+
+/**
+ * Current GW CORE individual/family lifecycle locator payload.
+ *
+ * Current backend behavior:
+ * - disable is `individual/org.schema/Organization/_disable`
+ * - purge is `individual/org.schema/Organization/_purge`
+ */
+export type IndividualOrganizationLifecycleInput = {
+  /**
+   * Canonical claims used by GW CORE to locate the hosted individual/family
+   * registration.
+   */
+  organizationClaims: Record<string, unknown>;
+  /**
+   * Optional canonical resource id when already known by the caller.
+   */
+  resourceId?: string;
+  dataType?: string;
+};
+
+/**
+ * Forward-looking locator payload for a future individual-member lifecycle contract.
+ *
+ * Current GW CORE does not yet expose a stable lifecycle contract for
+ * `RelatedPerson` / individual-member records. The Node SDK keeps this type so
+ * controller-only methods and TDD can be prepared without fabricating backend behavior.
+ */
+export type IndividualMemberLifecycleInput = {
+  /**
+   * Canonical claims expected to locate the member/caregiver relationship once
+   * GW CORE exposes the lifecycle contract.
+   */
+  memberClaims: Record<string, unknown>;
+  resourceId?: string;
   dataType?: string;
 };
 
@@ -146,24 +210,144 @@ export async function createOrganizationEmployeeWithDeps(
     ) => Promise<SubmitAndPollResult>;
   },
 ): Promise<SubmitAndPollResult> {
-  const payload = {
-    jti: `jti-${createRuntimeUuid()}`,
-    iss: routeCtx.tenantId,
-    aud: routeCtx.tenantId,
-    type: 'application/didcomm-plain+json',
-    thid: `employee-${createRuntimeUuid()}`,
-    body: {
-      data: [{
-        type: input.dataType || 'Employee-create-request-v1.0',
-        request: { method: 'POST' },
-        meta: { claims: input.employeeClaims || {} },
-        resource: { meta: { claims: input.employeeClaims || {} } },
-      }],
-    },
-  };
+  const payload = buildEmployeeLifecyclePayload({
+    routeCtx,
+    requestType: input.dataType || GwCoreLifecycleRequestType.EmployeeCreate,
+    requestMethod: GwCoreLifecycleRequestMethod.Post,
+    employeeClaims: input.employeeClaims,
+    thidPrefix: 'employee',
+  });
   return deps.submitAndPoll(
     deps.employeeBatchPath(routeCtx),
     deps.employeePollPath(routeCtx),
+    payload,
+    options,
+  );
+}
+
+export async function disableOrganizationEmployeeWithDeps(
+  routeCtx: RouteContext,
+  input: OrganizationEmployeeLifecycleInput,
+  options: { timeoutMs?: number; intervalMs?: number } | undefined,
+  deps: {
+    employeeBatchPath: (ctx: RouteContext) => string;
+    employeePollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  // TODO(gw-core-lifecycle-target-patch-employee-disable): switch this
+  // legacy DELETE-in-_batch flow to `_batch + PATCH` when GW CORE deploys it.
+  void GwCoreLifecycleTodo.EmployeeDisablePatchMigration;
+  const payload = buildEmployeeLifecyclePayload({
+    routeCtx,
+    requestType: input.dataType || GwCoreLifecycleRequestType.EmployeeDisable,
+    requestMethod: GwCoreLifecycleRequestMethod.Delete,
+    employeeClaims: input.employeeClaims,
+    resourceId: input.resourceId,
+    thidPrefix: 'employee-disable',
+  });
+  return deps.submitAndPoll(
+    deps.employeeBatchPath(routeCtx),
+    deps.employeePollPath(routeCtx),
+    payload,
+    options,
+  );
+}
+
+export async function purgeOrganizationEmployeeWithDeps(
+  routeCtx: RouteContext,
+  input: OrganizationEmployeeLifecycleInput,
+  options: { timeoutMs?: number; intervalMs?: number } | undefined,
+  deps: {
+    employeePurgePath: (ctx: RouteContext) => string;
+    employeePurgePollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  const payload = buildEmployeeLifecyclePayload({
+    routeCtx,
+    requestType: input.dataType || GwCoreLifecycleRequestType.EmployeePurge,
+    requestMethod: GwCoreLifecycleRequestMethod.Post,
+    employeeClaims: input.employeeClaims,
+    resourceId: input.resourceId,
+    thidPrefix: 'employee-purge',
+  });
+  return deps.submitAndPoll(
+    deps.employeePurgePath(routeCtx),
+    deps.employeePurgePollPath(routeCtx),
+    payload,
+    options,
+  );
+}
+
+export async function disableIndividualOrganizationWithDeps(
+  routeCtx: RouteContext,
+  input: IndividualOrganizationLifecycleInput,
+  options: { timeoutMs?: number; intervalMs?: number } | undefined,
+  deps: {
+    individualOrganizationDisablePath: (ctx: RouteContext) => string;
+    individualOrganizationDisablePollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  // TODO(gw-core-lifecycle-target-patch-individual-disable): migrate from
+  // explicit `_disable` to `_batch + PATCH` only after GW CORE supports it.
+  void GwCoreLifecycleTodo.IndividualDisablePatchMigration;
+  const payload = buildIndividualOrganizationLifecyclePayload({
+    routeCtx,
+    requestType: input.dataType || GwCoreLifecycleRequestType.IndividualOrganizationDisable,
+    organizationClaims: input.organizationClaims,
+    resourceId: input.resourceId,
+    thidPrefix: 'individual-organization-disable',
+  });
+  return deps.submitAndPoll(
+    deps.individualOrganizationDisablePath(routeCtx),
+    deps.individualOrganizationDisablePollPath(routeCtx),
+    payload,
+    options,
+  );
+}
+
+export async function purgeIndividualOrganizationWithDeps(
+  routeCtx: RouteContext,
+  input: IndividualOrganizationLifecycleInput,
+  options: { timeoutMs?: number; intervalMs?: number } | undefined,
+  deps: {
+    individualOrganizationPurgePath: (ctx: RouteContext) => string;
+    individualOrganizationPurgePollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  const payload = buildIndividualOrganizationLifecyclePayload({
+    routeCtx,
+    requestType: input.dataType || GwCoreLifecycleRequestType.IndividualOrganizationPurge,
+    organizationClaims: input.organizationClaims,
+    resourceId: input.resourceId,
+    thidPrefix: 'individual-organization-purge',
+  });
+  return deps.submitAndPoll(
+    deps.individualOrganizationPurgePath(routeCtx),
+    deps.individualOrganizationPurgePollPath(routeCtx),
     payload,
     options,
   );
@@ -423,6 +607,91 @@ function createRuntimeUuid(): string {
     return fromCrypto;
   }
   return `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function buildEmployeeLifecyclePayload(input: {
+  routeCtx: RouteContext;
+  requestType: string;
+  requestMethod: string;
+  employeeClaims: Record<string, unknown> | undefined;
+  resourceId?: string;
+  thidPrefix: string;
+}): {
+  jti: string;
+  iss: string;
+  aud: string;
+  type: string;
+  thid: string;
+  body: {
+    data: Array<{
+      type: string;
+      request: { method: string };
+      meta: { claims: Record<string, unknown> };
+      resource: { id?: string; meta: { claims: Record<string, unknown> } };
+    }>;
+  };
+} {
+  const claims = input.employeeClaims || {};
+  return {
+    jti: `jti-${createRuntimeUuid()}`,
+    iss: input.routeCtx.tenantId,
+    aud: input.routeCtx.tenantId,
+    type: 'application/didcomm-plain+json',
+    thid: `${input.thidPrefix}-${createRuntimeUuid()}`,
+    body: {
+      data: [{
+        type: input.requestType,
+        request: { method: input.requestMethod },
+        meta: { claims },
+        resource: {
+          ...(input.resourceId ? { id: input.resourceId } : {}),
+          meta: { claims },
+        },
+      }],
+    },
+  };
+}
+
+function buildIndividualOrganizationLifecyclePayload(input: {
+  routeCtx: RouteContext;
+  requestType: string;
+  organizationClaims: Record<string, unknown> | undefined;
+  resourceId?: string;
+  thidPrefix: string;
+}): {
+  jti: string;
+  iss: string;
+  aud: string;
+  type: string;
+  thid: string;
+  body: {
+    data: Array<{
+      type: string;
+      request: { method: string };
+      meta: { claims: Record<string, unknown> };
+      resource: { id?: string; meta: { claims: Record<string, unknown> } };
+    }>;
+  };
+} {
+  const claims = input.organizationClaims || {};
+  return {
+    jti: `jti-${createRuntimeUuid()}`,
+    iss: input.routeCtx.tenantId,
+    aud: input.routeCtx.tenantId,
+    type: 'application/didcomm-plain+json',
+    thid: `${input.thidPrefix}-${createRuntimeUuid()}`,
+    body: {
+      data: [{
+        type: input.requestType,
+        request: { method: GwCoreLifecycleRequestMethod.Post },
+        meta: { claims },
+        resource: {
+          ...(input.resourceId ? { id: input.resourceId } : {}),
+          meta: { claims },
+        },
+      }],
+    },
+  };
 }
 
 function buildBundleSearchQuery(input: ClinicalBundleSearchInput): string {

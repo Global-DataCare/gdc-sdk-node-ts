@@ -29,8 +29,11 @@ import type {
   DigitalTwinGenerationInput,
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
+  IndividualMemberLifecycleInput,
+  IndividualOrganizationLifecycleInput,
   IpsOrFhirImportInput,
   OrganizationEmployeeCreationInput,
+  OrganizationEmployeeLifecycleInput,
   RelatedPersonUpsertInput,
 } from '../resource-operations.js';
 
@@ -70,6 +73,26 @@ export type RuntimeClient = {
     input: OrganizationEmployeeCreationInput,
     pollOptions?: PollOptions,
   ) => Promise<SubmitAndPollResult>;
+  disableEmployee?: (
+    ctx: RouteContext,
+    input: OrganizationEmployeeLifecycleInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  purgeEmployee?: (
+    ctx: RouteContext,
+    input: OrganizationEmployeeLifecycleInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  disableOrganizationEmployee?: (
+    ctx: RouteContext,
+    input: OrganizationEmployeeLifecycleInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  purgeOrganizationEmployee?: (
+    ctx: RouteContext,
+    input: OrganizationEmployeeLifecycleInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
   activateEmployeeDeviceWithActivationRequest?: (
     input: EmployeeDeviceActivationRequestInput,
   ) => Promise<EmployeeDeviceActivationResult>;
@@ -81,6 +104,36 @@ export type RuntimeClient = {
   ) => Promise<IndividualOrganizationStartResult>;
   confirmIndividualOrganizationOrder?: (
     input: IndividualOrganizationConfirmOrderInput,
+  ) => Promise<SubmitAndPollResult>;
+  disableIndividual?: (
+    ctx: RouteContext,
+    input: IndividualOrganizationLifecycleInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  purgeIndividual?: (
+    ctx: RouteContext,
+    input: IndividualOrganizationLifecycleInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  disableIndividualMember?: (
+    ctx: RouteContext,
+    input: IndividualMemberLifecycleInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  purgeIndividualMember?: (
+    ctx: RouteContext,
+    input: IndividualMemberLifecycleInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  disableIndividualOrganization?: (
+    ctx: RouteContext,
+    input: IndividualOrganizationLifecycleInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  purgeIndividualOrganization?: (
+    ctx: RouteContext,
+    input: IndividualOrganizationLifecycleInput,
+    pollOptions?: PollOptions,
   ) => Promise<SubmitAndPollResult>;
   ingestCommunicationAndUpdateIndex?: (
     ctx: RouteContext,

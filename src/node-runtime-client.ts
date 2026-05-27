@@ -26,8 +26,12 @@ import { requestSmartTokenWithDeps, type SmartTokenRequestInput } from './smart-
 import { startIndividualOrganizationWithDeps, type IndividualOrganizationBootstrapInput, type IndividualOrganizationStartResult } from './individual-start.js';
 import {
   createOrganizationEmployeeWithDeps,
+  disableIndividualOrganizationWithDeps,
+  disableOrganizationEmployeeWithDeps,
   grantProfessionalAccessWithDeps,
   ingestCommunicationAndUpdateIndexWithDeps,
+  purgeIndividualOrganizationWithDeps,
+  purgeOrganizationEmployeeWithDeps,
   searchClinicalBundleWithDeps,
   searchLatestIpsWithDeps,
   upsertRelatedPersonAndPollWithDeps,
@@ -35,7 +39,10 @@ import {
   type ClinicalBundleSearchInput,
   type GrantProfessionalAccessInput,
   type GrantProfessionalAccessResult,
+  type IndividualMemberLifecycleInput,
+  type IndividualOrganizationLifecycleInput,
   type OrganizationEmployeeCreationInput,
+  type OrganizationEmployeeLifecycleInput,
   type RelatedPersonUpsertInput,
 } from './resource-operations.js';
 import type { LegalOrganizationOrderInput } from './host-onboarding.js';
@@ -49,6 +56,7 @@ import type {
   SubmitResponse,
 } from './orchestration/client-port.js';
 import { submitAndPollWithMethods } from './orchestration/client-port.js';
+import { GwCoreLifecycleAction } from './constants/lifecycle.js';
 
 const bootstrapFacade = createBootstrapFacade();
 
@@ -244,6 +252,64 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
+   * Disables an employee using the current GW CORE contract.
+   *
+   * Current live behavior still uses `Employee/_batch` with entry
+   * `request.method = DELETE`. This intentionally does not release licenses.
+   */
+  public async disableOrganizationEmployee(
+    ctx: RouteContext,
+    input: OrganizationEmployeeLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return disableOrganizationEmployeeWithDeps(ctx, input, pollOptions, {
+      employeeBatchPath: this.employeeBatchPath.bind(this),
+      employeePollPath: this.employeePollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
+   * Preferred public alias for employee disable in the current SDK surface.
+   */
+  public async disableEmployee(
+    ctx: RouteContext,
+    input: OrganizationEmployeeLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return this.disableOrganizationEmployee(ctx, input, pollOptions);
+  }
+
+  /**
+   * Purges an inactive employee using the current GW CORE explicit purge route.
+   *
+   * Purge preserves traceability and releases/disassociates licenses only after
+   * the employee is already inactive.
+   */
+  public async purgeOrganizationEmployee(
+    ctx: RouteContext,
+    input: OrganizationEmployeeLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return purgeOrganizationEmployeeWithDeps(ctx, input, pollOptions, {
+      employeePurgePath: this.employeePurgePath.bind(this),
+      employeePurgePollPath: this.employeePurgePollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
+   * Preferred public alias for employee purge in the current SDK surface.
+   */
+  public async purgeEmployee(
+    ctx: RouteContext,
+    input: OrganizationEmployeeLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return this.purgeOrganizationEmployee(ctx, input, pollOptions);
+  }
+
+  /**
    * Starts the onboarding flow for an individual-oriented tenant or index.
    */
   public async startIndividualOrganization(input: IndividualOrganizationBootstrapInput): Promise<IndividualOrganizationStartResult> {
@@ -251,8 +317,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return startIndividualOrganizationWithDeps({
       input,
       routeCtx,
-      individualFamilyOrganizationBatchPath: this.individualFamilyOrganizationBatchPath.bind(this),
-      individualFamilyOrganizationPollPath: this.individualFamilyOrganizationPollPath.bind(this),
+      individualFamilyOrganizationBatchPath: this.individualFamilyOrganizationTransactionPath.bind(this),
+      individualFamilyOrganizationPollPath: this.individualFamilyOrganizationTransactionPollPath.bind(this),
       submitAndPoll: this.submitAndPoll.bind(this),
       getOfferIdFromResponse: (result) => this.extractOfferId(result.poll.body),
       getOfferPreviewFromResponse: () => ({}),
@@ -271,6 +337,92 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       individualFamilyOrderPollPath: this.individualFamilyOrderPollPath.bind(this),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
+  }
+
+  /**
+   * Disables a hosted individual/family organization without releasing licenses.
+   *
+   * This follows the current explicit GW CORE `_disable` route rather than the
+   * future normalized `_batch + PATCH` target contract.
+   */
+  public async disableIndividualOrganization(
+    ctx: RouteContext,
+    input: IndividualOrganizationLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return disableIndividualOrganizationWithDeps(ctx, input, pollOptions, {
+      individualOrganizationDisablePath: this.individualFamilyOrganizationDisablePath.bind(this),
+      individualOrganizationDisablePollPath: this.individualFamilyOrganizationDisablePollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
+   * Preferred public alias for hosted individual/family disable.
+   */
+  public async disableIndividual(
+    ctx: RouteContext,
+    input: IndividualOrganizationLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return this.disableIndividualOrganization(ctx, input, pollOptions);
+  }
+
+  /**
+   * Purges an inactive hosted individual/family organization.
+   *
+   * Purge preserves the record for traceability and releases/disassociates
+   * licenses only after the registration is already inactive.
+   */
+  public async purgeIndividualOrganization(
+    ctx: RouteContext,
+    input: IndividualOrganizationLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return purgeIndividualOrganizationWithDeps(ctx, input, pollOptions, {
+      individualOrganizationPurgePath: this.individualFamilyOrganizationPurgePath.bind(this),
+      individualOrganizationPurgePollPath: this.individualFamilyOrganizationPurgePollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
+   * Preferred public alias for hosted individual/family purge.
+   */
+  public async purgeIndividual(
+    ctx: RouteContext,
+    input: IndividualOrganizationLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return this.purgeIndividualOrganization(ctx, input, pollOptions);
+  }
+
+  /**
+   * Placeholder for a future GW CORE member/caregiver lifecycle contract.
+   *
+   * Current GW CORE does not yet expose a stable lifecycle route for
+   * `RelatedPerson` / individual-member disable.
+   */
+  public async disableIndividualMember(
+    _ctx: RouteContext,
+    _input: IndividualMemberLifecycleInput,
+    _pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    throw new Error('disableIndividualMember is not supported by the current GW CORE contract. TODO(gw-core-lifecycle-target-member-disable).');
+  }
+
+  /**
+   * Placeholder for a future GW CORE member/caregiver lifecycle contract.
+   *
+   * Current GW CORE does not yet expose a stable lifecycle route for
+   * `RelatedPerson` / individual-member purge.
+   */
+  public async purgeIndividualMember(
+    _ctx: RouteContext,
+    _input: IndividualMemberLifecycleInput,
+    _pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    throw new Error('purgeIndividualMember is not supported by the current GW CORE contract. TODO(gw-core-lifecycle-target-member-purge).');
   }
 
   /**
@@ -558,10 +710,18 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public hostRegistryOrganizationActivatePollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', '_activate-response'); }
   public hostRegistryOrderBatchPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Order', '_batch'); }
   public hostRegistryOrderPollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Order', '_batch-response'); }
-  public employeeBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', '_batch'); }
-  public employeePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', '_batch-response'); }
-  public individualFamilyOrganizationBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', '_batch'); }
-  public individualFamilyOrganizationPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', '_batch-response'); }
+  public employeeBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', GwCoreLifecycleAction.Batch); }
+  public employeePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', GwCoreLifecycleAction.BatchResponse); }
+  public employeePurgePath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', GwCoreLifecycleAction.Purge); }
+  public employeePurgePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', `${GwCoreLifecycleAction.Purge}-response`); }
+  public individualFamilyOrganizationBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.Batch); }
+  public individualFamilyOrganizationPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.BatchResponse); }
+  public individualFamilyOrganizationTransactionPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.Transaction); }
+  public individualFamilyOrganizationTransactionPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.TransactionResponse); }
+  public individualFamilyOrganizationDisablePath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.Disable); }
+  public individualFamilyOrganizationDisablePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', `${GwCoreLifecycleAction.Disable}-response`); }
+  public individualFamilyOrganizationPurgePath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.Purge); }
+  public individualFamilyOrganizationPurgePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', `${GwCoreLifecycleAction.Purge}-response`); }
   public individualFamilyOrderBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Order', '_batch'); }
   public individualFamilyOrderPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Order', '_batch-response'); }
   public individualRelatedPersonBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'RelatedPerson', '_batch'); }

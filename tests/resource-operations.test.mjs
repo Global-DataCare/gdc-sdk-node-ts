@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  EXAMPLE_EMPLOYEE_DISABLE_MESSAGE,
+  EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE,
   EXAMPLE_CLINICAL_BUNDLE_SEARCH_INPUT,
   EXAMPLE_COMMUNICATION_INGESTION_PAYLOAD,
   EXAMPLE_CONSENT_GRANT_INPUT,
@@ -14,10 +16,14 @@ import {
 
 import {
   createOrganizationEmployeeWithDeps,
+  disableIndividualOrganizationWithDeps,
+  disableOrganizationEmployeeWithDeps,
   generateDigitalTwinFromSubjectDataWithDeps,
   grantProfessionalAccessWithDeps,
   importIpsOrFhirAndUpdateIndexWithDeps,
   ingestCommunicationAndUpdateIndexWithDeps,
+  purgeIndividualOrganizationWithDeps,
+  purgeOrganizationEmployeeWithDeps,
   searchClinicalBundleWithDeps,
   searchLatestIpsWithDeps,
   upsertRelatedPersonAndPollWithDeps,
@@ -41,6 +47,103 @@ test('createOrganizationEmployeeWithDeps builds employee batch payload', async (
   assert.equal(calls[0][0], '/employee/_batch');
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Person.email'], 'receptionist1@acme.org');
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Person.hasOccupation.identifier.value'], 'ISCO-08|4226');
+});
+
+test('disableOrganizationEmployeeWithDeps keeps the current GW CORE DELETE-in-batch contract', async () => {
+  const calls = [];
+  await disableOrganizationEmployeeWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      employeeClaims: cloneExample(EXAMPLE_EMPLOYEE_DISABLE_MESSAGE.claims),
+      resourceId: 'employee-to-disable',
+    },
+    { timeoutMs: 1000, intervalMs: 1 },
+    {
+      employeeBatchPath: () => '/employee/_batch',
+      employeePollPath: () => '/employee/_batch-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][0], '/employee/_batch');
+  assert.equal(calls[0][1], '/employee/_batch-response');
+  assert.equal(calls[0][2].body.data[0].request.method, 'DELETE');
+  assert.equal(calls[0][2].body.data[0].type, 'Employee-disable-request-v1.0');
+  assert.equal(calls[0][2].body.data[0].resource.id, 'employee-to-disable');
+});
+
+test('purgeOrganizationEmployeeWithDeps uses the explicit current purge route', async () => {
+  const calls = [];
+  await purgeOrganizationEmployeeWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      employeeClaims: cloneExample(EXAMPLE_EMPLOYEE_DISABLE_MESSAGE.claims),
+      resourceId: 'employee-to-purge',
+    },
+    { timeoutMs: 1000, intervalMs: 1 },
+    {
+      employeePurgePath: () => '/employee/_purge',
+      employeePurgePollPath: () => '/employee/_purge-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][0], '/employee/_purge');
+  assert.equal(calls[0][1], '/employee/_purge-response');
+  assert.equal(calls[0][2].body.data[0].request.method, 'POST');
+  assert.equal(calls[0][2].body.data[0].type, 'Employee-purge-request-v1.0');
+});
+
+test('disableIndividualOrganizationWithDeps uses the explicit current disable route', async () => {
+  const calls = [];
+  await disableIndividualOrganizationWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      organizationClaims: cloneExample(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims),
+      resourceId: 'individual-org-1',
+    },
+    { timeoutMs: 1000, intervalMs: 1 },
+    {
+      individualOrganizationDisablePath: () => '/individual/org.schema/Organization/_disable',
+      individualOrganizationDisablePollPath: () => '/individual/org.schema/Organization/_disable-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][0], '/individual/org.schema/Organization/_disable');
+  assert.equal(calls[0][1], '/individual/org.schema/Organization/_disable-response');
+  assert.equal(calls[0][2].body.data[0].request.method, 'POST');
+  assert.equal(calls[0][2].body.data[0].type, 'Family-disable-request-v1.0');
+  assert.equal(calls[0][2].body.data[0].resource.id, 'individual-org-1');
+});
+
+test('purgeIndividualOrganizationWithDeps uses the explicit current purge route', async () => {
+  const calls = [];
+  await purgeIndividualOrganizationWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      organizationClaims: cloneExample(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims),
+    },
+    { timeoutMs: 1000, intervalMs: 1 },
+    {
+      individualOrganizationPurgePath: () => '/individual/org.schema/Organization/_purge',
+      individualOrganizationPurgePollPath: () => '/individual/org.schema/Organization/_purge-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][0], '/individual/org.schema/Organization/_purge');
+  assert.equal(calls[0][1], '/individual/org.schema/Organization/_purge-response');
+  assert.equal(calls[0][2].body.data[0].request.method, 'POST');
+  assert.equal(calls[0][2].body.data[0].type, 'Family-purge-request-v1.0');
 });
 
 test('importIpsOrFhirAndUpdateIndexWithDeps rewrites api path family when needed', async () => {

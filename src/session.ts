@@ -1,6 +1,7 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
-import type { ActorKind, Capability } from 'gdc-sdk-core-ts';
+import { ActorKinds } from 'gdc-common-utils-ts/constants/actor-session';
+import type { ActorKind, Capability } from 'gdc-common-utils-ts/models/actor-session';
 import { HostOnboardingSdk } from './orchestration/host-onboarding-sdk.js';
 import { IndividualControllerSdk } from './orchestration/individual-controller-sdk.js';
 import { IndividualMemberSdk } from './orchestration/individual-member-sdk.js';
@@ -9,14 +10,7 @@ import { OrganizationEmployeeSdk } from './orchestration/organization-employee-s
 import { ProfessionalSdk } from './orchestration/professional-sdk.js';
 import type { RuntimeClient } from './orchestration/client-port.js';
 
-export type NodeCapability =
-  | Capability
-  | 'host.activate_organization'
-  | 'host.confirm_order'
-  | 'organization.activate_device'
-  | 'individual.ingest_communication'
-  | 'individual.upsert_related_person'
-  | 'token.request_smart';
+export type NodeCapability = Capability;
 
 export type NodeActorSessionContext = {
   actorKind: ActorKind;
@@ -65,32 +59,32 @@ export class ActorSession {
   }
 
   public asHostOnboarding(): HostOnboardingSdk {
-    this.assertActorKind('host_onboarding');
+    this.assertActorKind(ActorKinds.HostOnboarding);
     return new HostOnboardingSdk(this.requireClient());
   }
 
   public asOrganizationController(): OrganizationControllerSdk {
-    this.assertActorKind('organization_controller');
-    return new OrganizationControllerSdk(this.requireClient());
+    this.assertActorKind(ActorKinds.OrganizationController);
+    return new OrganizationControllerSdk(this.requireClient(), this.capabilities);
   }
 
   public asOrganizationEmployee(): OrganizationEmployeeSdk {
-    this.assertActorKind('organization_employee');
+    this.assertActorKind(ActorKinds.OrganizationEmployee);
     return new OrganizationEmployeeSdk(this.requireClient());
   }
 
   public asIndividualController(): IndividualControllerSdk {
-    this.assertActorKind('individual_controller');
-    return new IndividualControllerSdk(this.requireClient());
+    this.assertActorKind(ActorKinds.IndividualController);
+    return new IndividualControllerSdk(this.requireClient(), this.capabilities);
   }
 
   public asIndividualMember(): IndividualMemberSdk {
-    this.assertActorKind('individual_member');
+    this.assertActorKind(ActorKinds.IndividualMember);
     return new IndividualMemberSdk(this.requireClient());
   }
 
   public asProfessional(): ProfessionalSdk {
-    this.assertActorKind('professional');
+    this.assertActorKind(ActorKinds.Professional);
     return new ProfessionalSdk(this.requireClient());
   }
 

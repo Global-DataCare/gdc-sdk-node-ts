@@ -1,5 +1,6 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
+import { ActorCapabilities, ActorKinds } from 'gdc-common-utils-ts/constants/actor-session';
 import {
   requireClientMethod,
   submitAndPollWithClient,
@@ -8,9 +9,20 @@ import {
   type SubmitAndPollResult,
   type SubmitPayload,
 } from './client-port.js';
+import { assertFacadeCapability } from './capability-guard.js';
 import type { IndividualOrganizationConfirmOrderInput, RouteContext } from '../individual-onboarding.js';
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
-import type { CommunicationIngestionInput, DigitalTwinGenerationInput, GrantProfessionalAccessInput, GrantProfessionalAccessResult, IpsOrFhirImportInput, RelatedPersonUpsertInput } from '../resource-operations.js';
+import type { NodeCapability } from '../session.js';
+import type {
+  CommunicationIngestionInput,
+  DigitalTwinGenerationInput,
+  GrantProfessionalAccessInput,
+  GrantProfessionalAccessResult,
+  IndividualMemberLifecycleInput,
+  IndividualOrganizationLifecycleInput,
+  IpsOrFhirImportInput,
+  RelatedPersonUpsertInput,
+} from '../resource-operations.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 
 /**
@@ -23,12 +35,16 @@ export class IndividualControllerSdk {
   /**
    * @param client Runtime client implementation used to submit and poll GW flows.
    */
-  constructor(private readonly client: NodeRuntimeClient) {}
+  constructor(
+    private readonly client: NodeRuntimeClient,
+    private readonly capabilities?: readonly NodeCapability[],
+  ) {}
 
   /**
    * Starts the individual onboarding/bootstrap flow.
    */
   public startIndividualOrganization(input: IndividualOrganizationBootstrapInput): Promise<IndividualOrganizationStartResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualBootstrap, ActorKinds.IndividualController, 'startIndividualOrganization');
     return requireClientMethod(this.client, 'startIndividualOrganization')(input);
   }
 
@@ -37,6 +53,84 @@ export class IndividualControllerSdk {
    */
   public confirmIndividualOrganizationOrder(input: IndividualOrganizationConfirmOrderInput): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'confirmIndividualOrganizationOrder')(input);
+  }
+
+  /**
+   * Disables the hosted individual/family organization without freeing licenses.
+   */
+  public disableIndividualOrganization(
+    ctx: RouteContext,
+    input: IndividualOrganizationLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualDisable, ActorKinds.IndividualController, 'disableIndividualOrganization');
+    return requireClientMethod(this.client, 'disableIndividualOrganization')(ctx, input, pollOptions);
+  }
+
+  /**
+   * Preferred public alias for hosted individual/family disable.
+   */
+  public disableIndividual(
+    ctx: RouteContext,
+    input: IndividualOrganizationLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualDisable, ActorKinds.IndividualController, 'disableIndividual');
+    return requireClientMethod(this.client, 'disableIndividual')(ctx, input, pollOptions);
+  }
+
+  /**
+   * Purges an already inactive hosted individual/family organization.
+   */
+  public purgeIndividualOrganization(
+    ctx: RouteContext,
+    input: IndividualOrganizationLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualPurge, ActorKinds.IndividualController, 'purgeIndividualOrganization');
+    return requireClientMethod(this.client, 'purgeIndividualOrganization')(ctx, input, pollOptions);
+  }
+
+  /**
+   * Preferred public alias for hosted individual/family purge.
+   */
+  public purgeIndividual(
+    ctx: RouteContext,
+    input: IndividualOrganizationLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualPurge, ActorKinds.IndividualController, 'purgeIndividual');
+    return requireClientMethod(this.client, 'purgeIndividual')(ctx, input, pollOptions);
+  }
+
+  /**
+   * Controller-only placeholder for a future individual-member lifecycle flow.
+   *
+   * Current GW CORE still lacks the stable member disable route. The runtime
+   * client currently throws a not-supported error by design.
+   */
+  public disableIndividualMember(
+    ctx: RouteContext,
+    input: IndividualMemberLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualMemberDisable, ActorKinds.IndividualController, 'disableIndividualMember');
+    return requireClientMethod(this.client, 'disableIndividualMember')(ctx, input, pollOptions);
+  }
+
+  /**
+   * Controller-only placeholder for a future individual-member lifecycle flow.
+   *
+   * Current GW CORE still lacks the stable member purge route. The runtime
+   * client currently throws a not-supported error by design.
+   */
+  public purgeIndividualMember(
+    ctx: RouteContext,
+    input: IndividualMemberLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualMemberPurge, ActorKinds.IndividualController, 'purgeIndividualMember');
+    return requireClientMethod(this.client, 'purgeIndividualMember')(ctx, input, pollOptions);
   }
 
   /**

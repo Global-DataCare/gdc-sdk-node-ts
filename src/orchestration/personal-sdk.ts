@@ -10,7 +10,13 @@ import {
 } from './client-port.js';
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
 import type { RouteContext } from '../individual-onboarding.js';
-import type { CommunicationIngestionInput, DigitalTwinGenerationInput, GrantProfessionalAccessInput, GrantProfessionalAccessResult, IpsOrFhirImportInput } from '../resource-operations.js';
+import type {
+  CommunicationIngestionInput,
+  DigitalTwinGenerationInput,
+  GrantProfessionalAccessInput,
+  GrantProfessionalAccessResult,
+  IpsOrFhirImportInput,
+} from '../resource-operations.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 
 export class PersonalSdk {

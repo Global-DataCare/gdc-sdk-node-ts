@@ -14,7 +14,7 @@ import {
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
 
-import { NodeActorSession, NodeHttpClient } from '../dist/index.js';
+import { ActorCapabilities, ActorKinds, NodeActorSession, NodeHttpClient } from '../dist/index.js';
 import {
   buildUnsignedJwt,
   buildUnsignedVpJwt,
@@ -170,17 +170,17 @@ test('LIVE actor-scoped node runtime chain on GW', { skip: !RUN }, async () => {
   const runtimeClient = createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutMs: 10_000 });
 
   const hostSession = new NodeActorSession(
-    { actorKind: 'host_onboarding', capabilities: ['host.activate_organization', 'host.confirm_order'] },
+    { actorKind: ActorKinds.HostOnboarding, capabilities: [ActorCapabilities.HostActivateOrganization, ActorCapabilities.HostConfirmOrder] },
     runtimeClient,
   );
   const orgControllerSession = new NodeActorSession(
-    { actorKind: 'organization_controller', capabilities: ['organization.create_employee', 'token.request_smart'] },
+    { actorKind: ActorKinds.OrganizationController, capabilities: [ActorCapabilities.OrganizationCreateEmployee, ActorCapabilities.TokenRequestSmart] },
     runtimeClient,
   );
   const individualControllerSession = new NodeActorSession(
     {
-      actorKind: 'individual_controller',
-      capabilities: ['individual.start_organization', 'individual.grant_professional_access', 'token.request_smart'],
+      actorKind: ActorKinds.IndividualController,
+      capabilities: [ActorCapabilities.IndividualBootstrap, ActorCapabilities.ConsentGrantProfessionalAccess, ActorCapabilities.TokenRequestSmart],
     },
     runtimeClient,
   );
@@ -332,7 +332,7 @@ test('LIVE communication ingestion through individual controller facade persists
     bearerToken,
   });
   const individualControllerSession = new NodeActorSession(
-    { actorKind: 'individual_controller', capabilities: ['individual.ingest_communication'] },
+    { actorKind: ActorKinds.IndividualController, capabilities: [ActorCapabilities.IndividualIngestCommunication] },
     runtimeClient,
   );
 

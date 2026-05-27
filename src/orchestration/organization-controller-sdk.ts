@@ -1,5 +1,6 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
+import { ActorCapabilities, ActorKinds } from 'gdc-common-utils-ts/constants/actor-session';
 import {
   requireClientMethod,
   submitAndPollWithClient,
@@ -8,10 +9,18 @@ import {
   type SubmitAndPollResult,
   type SubmitPayload,
 } from './client-port.js';
+import { assertFacadeCapability } from './capability-guard.js';
 import type { RouteContext } from '../individual-onboarding.js';
 import type { EmployeeDeviceActivationResult, EmployeeDeviceActivationRequestInput } from '../device-activation.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
-import type { CommunicationIngestionInput, GrantProfessionalAccessInput, GrantProfessionalAccessResult, OrganizationEmployeeCreationInput } from '../resource-operations.js';
+import type { NodeCapability } from '../session.js';
+import type {
+  CommunicationIngestionInput,
+  GrantProfessionalAccessInput,
+  GrantProfessionalAccessResult,
+  OrganizationEmployeeCreationInput,
+  OrganizationEmployeeLifecycleInput,
+} from '../resource-operations.js';
 
 /**
  * Organization-controller oriented facade over a `NodeRuntimeClient`.
@@ -23,7 +32,10 @@ export class OrganizationControllerSdk {
   /**
    * @param client Runtime client implementation used to submit and poll GW flows.
    */
-  constructor(private readonly client: NodeRuntimeClient) {}
+  constructor(
+    private readonly client: NodeRuntimeClient,
+    private readonly capabilities?: readonly NodeCapability[],
+  ) {}
 
   /**
    * Creates an employee/professional under the current organization tenant.
@@ -33,7 +45,56 @@ export class OrganizationControllerSdk {
     input: OrganizationEmployeeCreationInput,
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationCreateEmployee, ActorKinds.OrganizationController, 'createOrganizationEmployee');
     return requireClientMethod(this.client, 'createOrganizationEmployee')(ctx, input, pollOptions);
+  }
+
+  /**
+   * Disables an employee using the current GW CORE lifecycle contract.
+   */
+  public disableOrganizationEmployee(
+    ctx: RouteContext,
+    input: OrganizationEmployeeLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationDisableEmployee, ActorKinds.OrganizationController, 'disableOrganizationEmployee');
+    return requireClientMethod(this.client, 'disableOrganizationEmployee')(ctx, input, pollOptions);
+  }
+
+  /**
+   * Preferred public alias for employee disable.
+   */
+  public disableEmployee(
+    ctx: RouteContext,
+    input: OrganizationEmployeeLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationDisableEmployee, ActorKinds.OrganizationController, 'disableEmployee');
+    return requireClientMethod(this.client, 'disableEmployee')(ctx, input, pollOptions);
+  }
+
+  /**
+   * Purges an already inactive employee and frees the associated license seat.
+   */
+  public purgeOrganizationEmployee(
+    ctx: RouteContext,
+    input: OrganizationEmployeeLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationPurgeEmployee, ActorKinds.OrganizationController, 'purgeOrganizationEmployee');
+    return requireClientMethod(this.client, 'purgeOrganizationEmployee')(ctx, input, pollOptions);
+  }
+
+  /**
+   * Preferred public alias for employee purge.
+   */
+  public purgeEmployee(
+    ctx: RouteContext,
+    input: OrganizationEmployeeLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationPurgeEmployee, ActorKinds.OrganizationController, 'purgeEmployee');
+    return requireClientMethod(this.client, 'purgeEmployee')(ctx, input, pollOptions);
   }
 
   /**

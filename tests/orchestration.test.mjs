@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  ActorCapabilities,
+  ActorKinds,
   IndividualControllerSdk,
   NodeActorSession,
   PersonalSdk,
@@ -15,20 +17,34 @@ test('IndividualControllerSdk delegates to the runtime client', async () => {
   const client = {
     startIndividualOrganization: async (...args) => { calls.push(['startIndividualOrganization', args]); return { ok: true }; },
     confirmIndividualOrganizationOrder: async (...args) => { calls.push(['confirmIndividualOrganizationOrder', args]); return { ok: true }; },
+    disableIndividual: async (...args) => { calls.push(['disableIndividual', args]); return { ok: true }; },
+    purgeIndividual: async (...args) => { calls.push(['purgeIndividual', args]); return { ok: true }; },
+    disableIndividualMember: async (...args) => { calls.push(['disableIndividualMember', args]); return { ok: true }; },
+    purgeIndividualMember: async (...args) => { calls.push(['purgeIndividualMember', args]); return { ok: true }; },
+    disableIndividualOrganization: async (...args) => { calls.push(['disableIndividualOrganization', args]); return { ok: true }; },
+    purgeIndividualOrganization: async (...args) => { calls.push(['purgeIndividualOrganization', args]); return { ok: true }; },
     grantProfessionalAccess: async (...args) => { calls.push(['grantProfessionalAccess', args]); return { ok: true }; },
     requestSmartToken: async (...args) => { calls.push(['requestSmartToken', args]); return { ok: true }; },
   };
   const sdk = new IndividualControllerSdk(client);
   await sdk.startIndividualOrganization({});
   await sdk.confirmIndividualOrganizationOrder({});
+  await sdk.disableIndividual({}, {});
+  await sdk.purgeIndividual({}, {});
+  await sdk.disableIndividualMember({}, {});
+  await sdk.purgeIndividualMember({}, {});
+  await sdk.disableIndividualOrganization({}, {});
+  await sdk.purgeIndividualOrganization({}, {});
   await sdk.grantProfessionalAccess({});
   await sdk.requestSmartToken({});
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 10);
 });
 
 test('ProfessionalSdk keeps role-scoped surface separation', () => {
   assert.equal(typeof ProfessionalSdk.prototype.bootstrapIndividualOrganization, 'undefined');
   assert.equal(typeof ProfessionalSdk.prototype.generateDigitalTwinFromSubjectData, 'undefined');
+  assert.equal(typeof ProfessionalSdk.prototype.disableEmployee, 'undefined');
+  assert.equal(typeof ProfessionalSdk.prototype.purgeEmployee, 'undefined');
 });
 
 test('PersonalSdk delegates to the runtime client', async () => {
@@ -48,15 +64,17 @@ test('PersonalSdk delegates to the runtime client', async () => {
 test('target node facades do not expose bootstrap helper shortcuts', () => {
   assert.equal(typeof IndividualControllerSdk.prototype.bootstrapIndividualOrganization, 'undefined');
   assert.equal(typeof PersonalSdk.prototype.bootstrapIndividualOrganization, 'undefined');
+  assert.equal(typeof PersonalSdk.prototype.disableIndividual, 'undefined');
+  assert.equal(typeof PersonalSdk.prototype.purgeIndividual, 'undefined');
 });
 
 test('NodeActorSession refuses mismatched actor facade materialization', () => {
   const session = new NodeActorSession({
-    actorKind: 'individual_member',
+    actorKind: ActorKinds.IndividualMember,
     capabilities: [],
   });
 
-  assert.throws(() => session.asOrganizationController(), /cannot be used as 'organization_controller'/);
+  assert.throws(() => session.asOrganizationController(), new RegExp(`cannot be used as '${ActorKinds.OrganizationController}'`));
 });
 
 test('IndividualControllerSdk throws when a delegated runtime method is missing', () => {
@@ -69,14 +87,51 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   const calls = [];
   const client = {
     createOrganizationEmployee: async (...args) => { calls.push(['createOrganizationEmployee', args]); return { ok: true }; },
+    disableEmployee: async (...args) => { calls.push(['disableEmployee', args]); return { ok: true }; },
+    disableOrganizationEmployee: async (...args) => { calls.push(['disableOrganizationEmployee', args]); return { ok: true }; },
   };
   const session = new NodeActorSession({
-    actorKind: 'organization_controller',
-    capabilities: ['organization.create_employee'],
+    actorKind: ActorKinds.OrganizationController,
+    capabilities: [ActorCapabilities.OrganizationCreateEmployee, ActorCapabilities.OrganizationDisableEmployee],
   }, client);
   const sdk = session.asOrganizationController();
   await sdk.createOrganizationEmployee({}, {});
-  assert.equal(calls.length, 1);
+  await sdk.disableEmployee({}, {});
+  await sdk.disableOrganizationEmployee({}, {});
+  assert.equal(calls.length, 3);
+});
+
+test('OrganizationControllerSdk enforces employee lifecycle capabilities when materialized from NodeActorSession', async () => {
+  const client = {
+    disableEmployee: async () => ({ ok: true }),
+  };
+  const session = new NodeActorSession({
+    actorKind: ActorKinds.OrganizationController,
+    capabilities: [ActorCapabilities.OrganizationCreateEmployee],
+  }, client);
+
+  assert.throws(
+    () => session.asOrganizationController().disableEmployee({}, {}),
+    new RegExp(`requires capability '${ActorCapabilities.OrganizationDisableEmployee.replace('.', '\\.')}'`),
+  );
+});
+
+test('IndividualControllerSdk enforces individual and member lifecycle capabilities when materialized from NodeActorSession', async () => {
+  const client = {
+    disableIndividual: async () => ({ ok: true }),
+    purgeIndividualMember: async () => ({ ok: true }),
+  };
+  const session = new NodeActorSession({
+    actorKind: ActorKinds.IndividualController,
+    capabilities: [ActorCapabilities.IndividualDisable],
+  }, client);
+  const sdk = session.asIndividualController();
+
+  await sdk.disableIndividual({}, {});
+  assert.throws(
+    () => sdk.purgeIndividualMember({}, {}),
+    new RegExp(`requires capability '${ActorCapabilities.IndividualMemberPurge.replace('.', '\\.')}'`),
+  );
 });
 
 test('submitAndPollWithClient falls back to submitBatch plus pollUntilComplete', async () => {

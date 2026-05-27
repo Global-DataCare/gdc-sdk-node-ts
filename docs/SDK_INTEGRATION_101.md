@@ -166,6 +166,33 @@ GW CORE:
 SDK:
 
 - `createOrganizationEmployee(...)`
+- `disableEmployee(...)`
+- `purgeEmployee(...)`
+
+Allowed actor/capability:
+
+- `OrganizationControllerSdk`
+- `organization.create_employee`
+- `organization.disable_employee`
+- `organization.purge_employee`
+- when the facade comes from `ActorSession` / `NodeActorSession`, the SDK now enforces those lifecycle capabilities before calling the runtime client
+
+GW CORE current contract:
+
+- `POST /{tenantId}/cds-{jurisdiction}/v1/{sector}/entity/org.schema/Employee/_batch`
+  current create path
+- `POST /{tenantId}/cds-{jurisdiction}/v1/{sector}/entity/org.schema/Employee/_batch`
+  current disable path with `body.data[0].request.method = DELETE`
+- `POST /{tenantId}/cds-{jurisdiction}/v1/{sector}/entity/org.schema/Employee/_purge`
+  explicit purge path
+
+Current semantic notes:
+
+- disable marks the employee inactive
+- disable does not release licenses
+- purge requires inactive status first
+- purge releases/disassociates licenses and preserves traceability
+- TODO `gw-core-lifecycle-target-patch-employee-disable`: migrate to `_batch + PATCH` only after GW CORE deploys it
 
 ### Individual organization bootstrap
 
@@ -173,16 +200,37 @@ SDK:
 
 - `startIndividualOrganization(...)`
 - `confirmIndividualOrganizationOrder(...)`
+- `disableIndividual(...)`
+- `purgeIndividual(...)`
+- `disableIndividualMember(...)`
+- `purgeIndividualMember(...)`
+
+Allowed actor/capability:
+
+- `IndividualControllerSdk`
+- `individual.bootstrap`
+- `individual.disable`
+- `individual.purge`
+- `individual_member.disable`
+- `individual_member.purge`
+- when the facade comes from `ActorSession` / `NodeActorSession`, the SDK now enforces those lifecycle capabilities before calling the runtime client
 
 GW CORE:
 
-- `POST /{tenantId}/cds-{jurisdiction}/v1/{sector}/individual/org.schema/Organization/_batch`
+- `POST /{tenantId}/cds-{jurisdiction}/v1/{sector}/individual/org.schema/Organization/_transaction`
 - `POST /{tenantId}/cds-{jurisdiction}/v1/{sector}/individual/org.schema/Order/_batch`
+- `POST /{tenantId}/cds-{jurisdiction}/v1/{sector}/individual/org.schema/Organization/_disable`
+- `POST /{tenantId}/cds-{jurisdiction}/v1/{sector}/individual/org.schema/Organization/_purge`
 
 Note:
 
 - The practical signed-PDF story is explained in the gateway docs and tests.
 - Use the end-to-end guide for the user journey, not this file.
+- `startIndividualOrganization(...)` now targets the current `_transaction` alias instead of the legacy `_batch` path.
+- disable does not release licenses.
+- purge requires inactive status first and then releases/disassociates licenses while preserving traceability.
+- TODO `gw-core-lifecycle-target-patch-individual-disable`: migrate to `_batch + PATCH` only after GW CORE deploys it.
+- `disableIndividualMember(...)` and `purgeIndividualMember(...)` are controller-only placeholders today; the runtime intentionally throws `not supported` until GW CORE exposes the stable `RelatedPerson` lifecycle contract.
 
 ### Consent grant
 
@@ -194,6 +242,12 @@ Shared consent model:
 
 - `gdc-sdk-core-ts/src/consent-access.ts`
 - `gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md`
+
+Lifecycle note:
+
+- In current GW CORE, consent creation/update is a normal `Consent/_batch` flow.
+- Do not model lifecycle in the SDK through `Communication`.
+- This SDK does not invent a future consent lifecycle contract that GW CORE has not deployed.
 
 ### SMART token
 
@@ -213,6 +267,34 @@ SDK:
 SDK:
 
 - `upsertRelatedPersonAndPoll(...)`
+
+Lifecycle note:
+
+- `RelatedPerson` models member/caregiver relationship data, not employee lifecycle.
+- Current SDK support is upsert/search/token-oriented. No extra lifecycle contract is fabricated here.
+
+## Lifecycle 101
+
+Use this mental model for current GW CORE:
+
+- `employee`:
+  `createOrganizationEmployee(...)` creates or reactivates.
+  `disableEmployee(...)` uses `_batch` plus entry `DELETE`.
+  `purgeEmployee(...)` uses explicit `/_purge`.
+  only `OrganizationControllerSdk` should expose these operations.
+- `individual/org.schema/Organization`:
+  `startIndividualOrganization(...)` uses `_transaction`.
+  `confirmIndividualOrganizationOrder(...)` confirms the returned order/offer.
+  `disableIndividual(...)` uses explicit `/_disable`.
+  `purgeIndividual(...)` uses explicit `/_purge`.
+  only `IndividualControllerSdk` should expose these operations.
+- `member`:
+  `upsertRelatedPersonAndPoll(...)` manages the caregiver/family relationship record.
+  `requestSmartToken(...)` is the runtime access step after that relationship exists.
+  `disableIndividualMember(...)` and `purgeIndividualMember(...)` are exposed only on `IndividualControllerSdk` as forward-looking placeholders and currently fail fast until GW CORE adds the stable contract.
+- `consent`:
+  `grantProfessionalAccess(...)` creates the consent record used by SMART/data access.
+  consent is not the transport for employee/individual lifecycle in current GW CORE.
 
 ## Shared Builders And Helpers
 

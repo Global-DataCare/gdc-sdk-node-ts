@@ -13,7 +13,12 @@ import type { HostRouteContext } from '../host-onboarding.js';
 import type { RouteContext } from '../individual-onboarding.js';
 import type { EmployeeDeviceActivationResult, EmployeeDeviceActivationRequestInput } from '../device-activation.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
-import type { CommunicationIngestionInput, GrantProfessionalAccessInput, GrantProfessionalAccessResult, OrganizationEmployeeCreationInput } from '../resource-operations.js';
+import type {
+  CommunicationIngestionInput,
+  GrantProfessionalAccessInput,
+  GrantProfessionalAccessResult,
+  OrganizationEmployeeCreationInput,
+} from '../resource-operations.js';
 
 /**
  * Professional-oriented facade combining host onboarding, employee bootstrap,

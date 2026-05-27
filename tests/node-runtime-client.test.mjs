@@ -63,3 +63,53 @@ test('NodeHttpClient injects AppId and AppVersion headers in outgoing GW request
     globalThis.fetch = originalFetch;
   }
 });
+
+test('NodeHttpClient exposes current GW CORE lifecycle paths for individual and employee flows', () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+    ctx: {
+      tenantId: 'acme-id',
+      jurisdiction: 'ES',
+      sector: 'health-care',
+    },
+  });
+
+  assert.equal(
+    client.individualFamilyOrganizationTransactionPath(),
+    '/acme-id/cds-ES/v1/health-care/individual/org.schema/Organization/_transaction',
+  );
+  assert.equal(
+    client.individualFamilyOrganizationDisablePath(),
+    '/acme-id/cds-ES/v1/health-care/individual/org.schema/Organization/_disable',
+  );
+  assert.equal(
+    client.individualFamilyOrganizationPurgePollPath(),
+    '/acme-id/cds-ES/v1/health-care/individual/org.schema/Organization/_purge-response',
+  );
+  assert.equal(
+    client.employeePurgePath(),
+    '/acme-id/cds-ES/v1/health-care/entity/org.schema/Employee/_purge',
+  );
+});
+
+test('NodeHttpClient keeps individual-member lifecycle methods as explicit not-supported placeholders', async () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+    ctx: {
+      tenantId: 'acme-id',
+      jurisdiction: 'ES',
+      sector: 'health-care',
+    },
+  });
+
+  await assert.rejects(
+    client.disableIndividualMember({}, { memberClaims: {} }),
+    /current GW CORE contract/,
+  );
+  await assert.rejects(
+    client.purgeIndividualMember({}, { memberClaims: {} }),
+    /current GW CORE contract/,
+  );
+});
+
+test.todo('NodeHttpClient will submit individual-member disable/purge once GW CORE exposes the stable RelatedPerson lifecycle contract');

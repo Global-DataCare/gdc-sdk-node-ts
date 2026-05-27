@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  ActorCapabilities,
+  ActorKinds,
   createNodeActorSessionFromFacade,
   createNodeActorSessionFromDescriptor,
   createNodeActorSessionsFromDescriptor,
@@ -10,12 +12,12 @@ import {
 
 test('createNodeActorSessionsFromDescriptor expands a Family descriptor into scoped node sessions', () => {
   const sessions = createNodeActorSessionsFromDescriptor({
-    actorKinds: ['individual_controller', 'individual_member'],
+    actorKinds: [ActorKinds.IndividualController, ActorKinds.IndividualMember],
     capabilities: [
-      'individual.bootstrap',
-      'individual.import_ips',
-      'individual.generate_digital_twin',
-      'consent.grant_professional_access',
+      ActorCapabilities.IndividualBootstrap,
+      ActorCapabilities.IndividualImportIps,
+      ActorCapabilities.IndividualGenerateDigitalTwin,
+      ActorCapabilities.ConsentGrantProfessionalAccess,
     ],
     appType: 'Family',
     profileId: 'profile-family-1',
@@ -26,46 +28,46 @@ test('createNodeActorSessionsFromDescriptor expands a Family descriptor into sco
   assert.deepEqual(
     sessions.map(session => [session.actorKind, session.capabilities]),
     [
-      ['individual_controller', ['individual.bootstrap', 'consent.grant_professional_access']],
-      ['individual_member', ['individual.import_ips', 'individual.generate_digital_twin']],
+      [ActorKinds.IndividualController, [ActorCapabilities.IndividualBootstrap, ActorCapabilities.ConsentGrantProfessionalAccess]],
+      [ActorKinds.IndividualMember, [ActorCapabilities.IndividualImportIps, ActorCapabilities.IndividualGenerateDigitalTwin]],
     ],
   );
 });
 
 test('createNodeActorSessionFromFacade preserves actor kind and identity', () => {
   const session = createNodeActorSessionFromFacade({
-    actorKind: 'organization_controller',
-    capabilities: ['organization.create_employee', 'organization.request_smart_token'],
+    actorKind: ActorKinds.OrganizationController,
+    capabilities: [ActorCapabilities.OrganizationCreateEmployee, ActorCapabilities.OrganizationRequestSmartToken],
     appType: 'Organization',
     profileId: 'profile-org-1',
     profileDid: 'did:web:org:controller',
   });
 
   assert.ok(session instanceof NodeActorSession);
-  assert.equal(session.actorKind, 'organization_controller');
+  assert.equal(session.actorKind, ActorKinds.OrganizationController);
   assert.equal(session.actorDid, 'did:web:org:controller');
   assert.deepEqual(session.capabilities, [
-    'organization.create_employee',
-    'organization.request_smart_token',
+    ActorCapabilities.OrganizationCreateEmployee,
+    ActorCapabilities.OrganizationRequestSmartToken,
   ]);
 });
 
 test('createNodeActorSessionFromDescriptor selects one actor facade explicitly', () => {
   const session = createNodeActorSessionFromDescriptor({
-    actorKinds: ['organization_controller'],
+    actorKinds: [ActorKinds.OrganizationController],
     capabilities: [
-      'organization.create_employee',
-      'organization.issue_activation_code',
-      'organization.request_smart_token',
+      ActorCapabilities.OrganizationCreateEmployee,
+      ActorCapabilities.OrganizationIssueActivationCode,
+      ActorCapabilities.OrganizationRequestSmartToken,
     ],
     appType: 'Organization',
     profileId: 'profile-org-1',
     profileDid: 'did:web:org:controller',
-  }, 'organization_controller');
+  }, ActorKinds.OrganizationController);
 
-  assert.equal(session.actorKind, 'organization_controller');
+  assert.equal(session.actorKind, ActorKinds.OrganizationController);
   assert.deepEqual(session.capabilities, [
-    'organization.create_employee',
-    'organization.request_smart_token',
+    ActorCapabilities.OrganizationCreateEmployee,
+    ActorCapabilities.OrganizationRequestSmartToken,
   ]);
 });

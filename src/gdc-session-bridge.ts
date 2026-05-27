@@ -1,5 +1,6 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
+import { ActorCapabilities } from 'gdc-common-utils-ts/constants/actor-session';
 import {
   expandActorSessionDescriptorToFacades,
   filterCapabilitiesForActor,
@@ -12,16 +13,28 @@ import { ActorSession, NodeActorSession, type NodeCapability } from './session.j
 import type { RuntimeClient } from './orchestration/client-port.js';
 
 const capabilityMap: Record<Capability, NodeCapability> = {
-  'organization.create_employee': 'organization.create_employee',
-  'organization.issue_activation_code': 'organization.issue_activation_code',
-  'organization.request_smart_token': 'organization.request_smart_token',
-  'individual.bootstrap': 'individual.bootstrap',
-  'individual.import_ips': 'individual.import_ips',
-  'individual.generate_digital_twin': 'individual.generate_digital_twin',
-  'consent.grant_professional_access': 'consent.grant_professional_access',
-  'professional.medication': 'professional.medication',
-  'professional.appointment': 'professional.appointment',
-  'professional.request_smart_token': 'professional.request_smart_token',
+  [ActorCapabilities.HostActivateOrganization]: ActorCapabilities.HostActivateOrganization,
+  [ActorCapabilities.HostConfirmOrder]: ActorCapabilities.HostConfirmOrder,
+  [ActorCapabilities.OrganizationCreateEmployee]: ActorCapabilities.OrganizationCreateEmployee,
+  [ActorCapabilities.OrganizationActivateDevice]: ActorCapabilities.OrganizationActivateDevice,
+  [ActorCapabilities.OrganizationIssueActivationCode]: ActorCapabilities.OrganizationIssueActivationCode,
+  [ActorCapabilities.OrganizationRequestSmartToken]: ActorCapabilities.OrganizationRequestSmartToken,
+  [ActorCapabilities.OrganizationDisableEmployee]: ActorCapabilities.OrganizationDisableEmployee,
+  [ActorCapabilities.OrganizationPurgeEmployee]: ActorCapabilities.OrganizationPurgeEmployee,
+  [ActorCapabilities.IndividualBootstrap]: ActorCapabilities.IndividualBootstrap,
+  [ActorCapabilities.IndividualDisable]: ActorCapabilities.IndividualDisable,
+  [ActorCapabilities.IndividualPurge]: ActorCapabilities.IndividualPurge,
+  [ActorCapabilities.IndividualImportIps]: ActorCapabilities.IndividualImportIps,
+  [ActorCapabilities.IndividualGenerateDigitalTwin]: ActorCapabilities.IndividualGenerateDigitalTwin,
+  [ActorCapabilities.IndividualIngestCommunication]: ActorCapabilities.IndividualIngestCommunication,
+  [ActorCapabilities.IndividualUpsertRelatedPerson]: ActorCapabilities.IndividualUpsertRelatedPerson,
+  [ActorCapabilities.IndividualMemberDisable]: ActorCapabilities.IndividualMemberDisable,
+  [ActorCapabilities.IndividualMemberPurge]: ActorCapabilities.IndividualMemberPurge,
+  [ActorCapabilities.ConsentGrantProfessionalAccess]: ActorCapabilities.ConsentGrantProfessionalAccess,
+  [ActorCapabilities.ProfessionalMedication]: ActorCapabilities.ProfessionalMedication,
+  [ActorCapabilities.ProfessionalAppointment]: ActorCapabilities.ProfessionalAppointment,
+  [ActorCapabilities.ProfessionalRequestSmartToken]: ActorCapabilities.ProfessionalRequestSmartToken,
+  [ActorCapabilities.TokenRequestSmart]: ActorCapabilities.TokenRequestSmart,
 };
 
 function mapCapabilities(capabilities: Capability[]): NodeCapability[] {

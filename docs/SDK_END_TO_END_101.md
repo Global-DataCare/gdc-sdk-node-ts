@@ -31,9 +31,10 @@ If you need lower-level runtime details after this guide, open:
 6. [Journey A: Legal organization to professional access](#6-journey-a-legal-organization-to-professional-access)
 7. [Journey B: Individual subject to IPS import and search](#7-journey-b-individual-subject-to-ips-import-and-search)
 8. [Permissions and invitation model](#8-permissions-and-invitation-model)
-9. [Common mistakes to avoid](#9-common-mistakes-to-avoid)
-10. [Copy/paste checklist for docs and examples](#10-copypaste-checklist-for-docs-and-examples)
-11. [Source files behind these examples](#11-source-files-behind-these-examples)
+9. [Lifecycle 101](#9-lifecycle-101)
+10. [Common mistakes to avoid](#10-common-mistakes-to-avoid)
+11. [Copy/paste checklist for docs and examples](#11-copypaste-checklist-for-docs-and-examples)
+12. [Source files behind these examples](#12-source-files-behind-these-examples)
 
 ## 1. What this SDK owns
 
@@ -672,7 +673,67 @@ About invitation flows:
 - for Node integrators, they should be treated as the next layer after basic
   permission creation, not as the first teaching step
 
-## 9. Common mistakes to avoid
+## 9. Lifecycle 101
+
+Use this as the current GW CORE lifecycle map.
+
+Employee today:
+
+- `createOrganizationEmployee(...)`
+  creates or reactivates
+- `disableEmployee(...)`
+  uses the current `Employee/_batch` plus entry `request.method = DELETE`
+- `purgeEmployee(...)`
+  uses the current explicit `Employee/_purge` route
+- actor:
+  only `OrganizationControllerSdk`
+
+Individual/family today:
+
+- `startIndividualOrganization(...)`
+  uses the current `Organization/_transaction` alias
+- `confirmIndividualOrganizationOrder(...)`
+  confirms the returned order/offer
+- `disableIndividual(...)`
+  uses the current explicit `Organization/_disable` route
+- `purgeIndividual(...)`
+  uses the current explicit `Organization/_purge` route
+- actor:
+  only `IndividualControllerSdk`
+
+Member and consent boundaries:
+
+- `upsertRelatedPersonAndPoll(...)`
+  manages the `RelatedPerson` membership/caregiver record
+- `disableIndividualMember(...)` and `purgeIndividualMember(...)`
+  are controller-only placeholders today and intentionally fail fast until GW CORE adds the stable `RelatedPerson` lifecycle contract
+- `grantProfessionalAccess(...)`
+  creates the consent record used by SMART/data access
+- `Communication`
+  is not the canonical lifecycle transport for employee or individual lifecycle in current GW CORE
+
+Business semantics the SDK now preserves:
+
+- disable does not release licenses
+- purge requires inactive status first
+- purge releases/disassociates licenses and preserves traceability
+
+Canonical shared example sources for lifecycle payload data:
+
+```ts
+import {
+  EXAMPLE_EMPLOYEE_DISABLE_MESSAGE,
+  EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE,
+  EXAMPLE_LIFECYCLE_REFERENCE,
+} from 'gdc-common-utils-ts/examples';
+```
+
+Current forward-looking TODOs intentionally left in the SDK source:
+
+- `TODO(gw-core-lifecycle-target-patch-employee-disable)`
+- `TODO(gw-core-lifecycle-target-patch-individual-disable)`
+
+## 10. Common mistakes to avoid
 
 - Do not teach legal organization activation and individual bootstrap as if they
   were the same flow.
@@ -685,7 +746,7 @@ About invitation flows:
 - Do not describe individual bootstrap as `individual _activate`.
 - Do not mix controller-person keys with technical app/device keys.
 
-## 10. Copy/paste checklist for docs and examples
+## 11. Copy/paste checklist for docs and examples
 
 A new example is in good shape when it satisfies all of these:
 
@@ -707,7 +768,7 @@ Preferred teaching names:
 - `orgControllerDid`
 - `individualControllerDid`
 
-## 11. Source files behind these examples
+## 12. Source files behind these examples
 
 If you need the exact reference files used to maintain this guide, open:
 
