@@ -1,10 +1,24 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
+/**
+ * @fileoverview Runtime helpers for GW resource submit/poll operations.
+ *
+ * @architecture 101
+ * - Keep request-payload construction centralized here.
+ * - Reuse shared DTO/parameter constants instead of repeating string literals.
+ */
 
 import { HealthcareBasicSections } from 'gdc-common-utils-ts/constants';
 import type {
   BundleSearchQuery,
   CommunicationInput,
   DateRange,
+  RelatedProfileSearchInput,
+} from 'gdc-sdk-core-ts';
+import {
+  RELATED_PROFILE_SEARCH_PARAM_ACTOR_IDENTIFIER,
+  RELATED_PROFILE_SEARCH_PARAM_INCLUDE_INACTIVE,
+  RELATED_PROFILE_SEARCH_PARAM_RELATIONSHIP,
+  RELATED_PROFILE_SEARCH_PARAM_SUBJECT_ID,
 } from 'gdc-sdk-core-ts';
 import {
   GwCoreLifecycleRequestMethod,
@@ -103,6 +117,11 @@ export type IpsOrFhirImportInput = {
 
 export type RelatedPersonUpsertInput = {
   relatedPersonPayload: { thid?: string } & Record<string, unknown>;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+};
+
+export type RelatedProfileSearchRuntimeInput = RelatedProfileSearchInput & {
+  requestThid?: string;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
 
@@ -401,6 +420,40 @@ export async function upsertRelatedPersonAndPollWithDeps(
   return deps.submitAndPoll(
     deps.individualRelatedPersonBatchPath(routeCtx),
     deps.individualRelatedPersonPollPath(routeCtx),
+    payload,
+    input.pollOptions,
+  );
+}
+
+export async function searchRelatedProfilesWithDeps(
+  routeCtx: RouteContext,
+  input: RelatedProfileSearchRuntimeInput,
+  deps: {
+    individualRelatedPersonSearchPath: (ctx: RouteContext) => string;
+    individualRelatedPersonSearchPollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  const payload = {
+    thid: input.requestThid || `relatedprofile-search-${createRuntimeUuid()}`,
+    body: {
+      resourceType: 'Parameters',
+      parameter: [
+        { name: RELATED_PROFILE_SEARCH_PARAM_ACTOR_IDENTIFIER, valueString: input.actorIdentifier },
+        ...(input.subjectId ? [{ name: RELATED_PROFILE_SEARCH_PARAM_SUBJECT_ID, valueString: input.subjectId }] : []),
+        ...(input.relationship ? [{ name: RELATED_PROFILE_SEARCH_PARAM_RELATIONSHIP, valueString: input.relationship }] : []),
+        ...(input.includeInactive === true ? [{ name: RELATED_PROFILE_SEARCH_PARAM_INCLUDE_INACTIVE, valueBoolean: true }] : []),
+      ],
+    },
+  };
+  return deps.submitAndPoll(
+    deps.individualRelatedPersonSearchPath(routeCtx),
+    deps.individualRelatedPersonSearchPollPath(routeCtx),
     payload,
     input.pollOptions,
   );

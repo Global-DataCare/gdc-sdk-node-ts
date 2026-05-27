@@ -1,6 +1,11 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
-// Always create JSDoc, do not use strings inline in keys nor values, use types instead, and reuse the data test examples.
-import type { ControllerBindingInput } from 'gdc-common-utils-ts/models';
+/**
+ * @fileoverview Shared runtime-client contracts for node orchestration.
+ *
+ * @architecture 101
+ * This module is contract-only. Route/path details stay in concrete runtime clients.
+ */
+import type { ControllerBindingInput } from 'gdc-common-utils-ts/models/index';
 import type {
   AsyncPollRequest,
   OrganizationActivationServiceOptions,
@@ -35,6 +40,7 @@ import type {
   OrganizationEmployeeCreationInput,
   OrganizationEmployeeLifecycleInput,
   RelatedPersonUpsertInput,
+  RelatedProfileSearchRuntimeInput,
 } from '../resource-operations.js';
 
 /**
@@ -153,6 +159,10 @@ export type RuntimeClient = {
   upsertRelatedPersonAndPoll?: (
     ctx: RouteContext,
     input: RelatedPersonUpsertInput,
+  ) => Promise<SubmitAndPollResult>;
+  searchRelatedProfiles?: (
+    ctx: RouteContext,
+    input: RelatedProfileSearchRuntimeInput,
   ) => Promise<SubmitAndPollResult>;
   generateDigitalTwinFromSubjectData?: (
     ctx: RouteContext,

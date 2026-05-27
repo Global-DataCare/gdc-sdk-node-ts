@@ -1,5 +1,11 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
-// Always create JSDoc, do not use strings inline in keys nor values, use types instead, and reuse the data test examples.
+/**
+ * @fileoverview Default HTTP implementation of the node runtime client.
+ *
+ * @architecture 101
+ * Keep deployed path conventions centralized here so higher-level SDK methods can
+ * stay business-oriented and testable.
+ */
 import fs from 'node:fs';
 import path from 'node:path';
 import type {
@@ -32,6 +38,7 @@ import {
   ingestCommunicationAndUpdateIndexWithDeps,
   purgeIndividualOrganizationWithDeps,
   purgeOrganizationEmployeeWithDeps,
+  searchRelatedProfilesWithDeps,
   searchClinicalBundleWithDeps,
   searchLatestIpsWithDeps,
   upsertRelatedPersonAndPollWithDeps,
@@ -44,6 +51,7 @@ import {
   type OrganizationEmployeeCreationInput,
   type OrganizationEmployeeLifecycleInput,
   type RelatedPersonUpsertInput,
+  type RelatedProfileSearchRuntimeInput,
 } from './resource-operations.js';
 import type { LegalOrganizationOrderInput } from './host-onboarding.js';
 import type { SmartTokenExchangeResult } from './smart-token.js';
@@ -481,6 +489,21 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
+   * Searches active related profiles for the given actor identifier by querying
+   * `RelatedPerson/_search`.
+   */
+  public async searchRelatedProfiles(
+    ctx: RouteContext,
+    input: RelatedProfileSearchRuntimeInput,
+  ): Promise<SubmitAndPollResult> {
+    return searchRelatedProfilesWithDeps(ctx, input, {
+      individualRelatedPersonSearchPath: this.individualRelatedPersonSearchPath.bind(this),
+      individualRelatedPersonSearchPollPath: this.individualRelatedPersonSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
    * Submits a FHIR `Communication` ingestion request and polls until the
    * GW has persisted the audit record and related projections.
    *
@@ -726,6 +749,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public individualFamilyOrderPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Order', '_batch-response'); }
   public individualRelatedPersonBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'RelatedPerson', '_batch'); }
   public individualRelatedPersonPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'RelatedPerson', '_batch-response'); }
+  public individualRelatedPersonSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'RelatedPerson', '_search'); }
+  public individualRelatedPersonSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'RelatedPerson', '_search-response'); }
   public individualConsentR4BatchPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Consent', '_batch'); }
   public individualConsentR4PollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Consent', '_batch-response'); }
   public individualCommunicationBatchPath(ctx: RouteContext, format: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4'): string { return this.v1Path(ctx, 'individual', format, 'Communication', '_batch'); }

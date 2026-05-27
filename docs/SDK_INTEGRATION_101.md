@@ -5,6 +5,7 @@ This file is no longer the main tutorial.
 If you want the full copy/paste onboarding flow, start here:
 
 - [SDK_END_TO_END_101.md](./SDK_END_TO_END_101.md)
+- [SDK_RELATED_PROFILES_101.md](./SDK_RELATED_PROFILES_101.md)
 
 This document is the short technical map:
 
