@@ -20,7 +20,7 @@ If you need lower-level runtime details after this guide, open:
 - [SDK_INTEGRATION_101.md](./SDK_INTEGRATION_101.md)
 - [gdc-sdk-core-ts/docs/SDK_FLOWS_101.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/SDK_FLOWS_101.md)
 - [gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/docs/CONSENT_ACCESS_101.md)
-- [gdc-common-utils-ts/docs/VP_TOKEN_101.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/VP_TOKEN_101.md)
+- [gdc-common-utils-ts/docs/VP_TOKEN_101.md](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/docs/VP_TOKEN_101.md)
 
 ## Index
 
