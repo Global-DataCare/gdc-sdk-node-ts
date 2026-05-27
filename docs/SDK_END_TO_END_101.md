@@ -20,6 +20,7 @@ If you need lower-level runtime details after this guide, open:
 - [SDK_INTEGRATION_101.md](./SDK_INTEGRATION_101.md)
 - [gdc-sdk-core-ts/docs/SDK_FLOWS_101.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/SDK_FLOWS_101.md)
 - [gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/docs/CONSENT_ACCESS_101.md)
+- [gdc-common-utils-ts/docs/VP_TOKEN_101.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/VP_TOKEN_101.md)
 
 ## Index
 
@@ -142,6 +143,7 @@ import {
   HealthcareConsentPurposes,
   HealthcareConsentActions,
   HealthcareBasicSections,
+  ServiceCapability,
   ResourceTypesFhirR4,
   SmartGatewayScopesFhirR4,
   buildControllerBindingInput,
@@ -155,6 +157,21 @@ import {
 ## 5. Runtime bootstrap
 
 This is the minimum runtime setup most backends need before calling any flow.
+
+What this bootstrap does today:
+
+- initializes the Node runtime client with route context and app identity
+- initializes the technical communication identity used by the runtime when it
+  needs signing/encryption keys for transport profiles
+- can optionally reuse an ICA-issued runtime/software `vp_token` as the default
+  HTTP Bearer credential when the integration runs in demo/compat mode
+
+What this bootstrap does not do today:
+
+- it does not define `bearerToken` as the canonical proof that the
+  portal/backend software is an ICA-authorized runtime across node operators
+- it does not yet implement a first-class ICA runtime-proof exchange/refresh
+  lifecycle inside `gdc-sdk-node-ts`
 
 There are two different initializations here:
 
@@ -183,21 +200,30 @@ const deviceIdentity = await initializeCommunicationIdentity({
   seedMaterial: crypto.randomBytes(32),
 });
 
+// This proof token must already be issued/built by the ICA-side software/runtime
+// onboarding flow. The SDK does not fabricate that VC or VP for you here.
+const runtimeVpToken = process.env.GW_RUNTIME_VP_TOKEN!;
+
 const tenantContext: TenantContext = {
   tenantId: 'acme-id',
   jurisdiction: 'ES',
   sector: DataspaceSectors.HealthCare,
 };
 
-const hostOperatorContext: HostRouteContext = {
+const hostOnboardingRoute: HostRouteContext = {
   jurisdiction: 'ES',
-  sector: DataspaceSectors.HealthCare,
+  // Legacy field name in the current route type. In host onboarding this value
+  // selects the target trust/network environment, not the tenant business sector.
+  sector: 'test-network',
 };
 
 const client = new NodeHttpClient({
   baseUrl: 'https://gw.example.org',
-  bearerToken: process.env.GW_BEARER_TOKEN,
   ctx: tenantContext,
+  runtimeVpToken,
+  appInfo: {
+    appId: 'https://portal.example.org',
+  },
 });
 ```
 
@@ -205,19 +231,92 @@ What each value means:
 
 - `deviceIdentity`
   technical communication identity for the backend/app profile
+- `runtimeVpToken`
+  compact VP/JWS proof for the software/runtime profile already issued/built by
+  the ICA-side flow; in current demo/compat wiring the Node client can reuse it
+  as the default HTTP Bearer credential
 - `tenantContext`
   tenant-scoped route context used by subject and organization runtime calls
-- `hostOperatorContext`
+- `hostOnboardingRoute`
   host-registry routing context for legal organization activation flows
 - `client`
   runtime executor used by the role-oriented facades
 
 Important:
 
-- `HostRouteContext` is a host-routing object, not a node-operator identity model
+- `tenantContext.sector` is the business sector path for tenant routes such as
+  `health-care`
+- `HostRouteContext.sector` is a legacy field name in the current host route
+  type
+- in host onboarding flows that field currently carries the network selector,
+  not the tenant business sector
+- current GW/gwtemplate deployments use values such as `test`,
+  `test-network`, or `network`
 - `controllerDid` and `hostDid` exist as optional route fields for some payloads,
   but they should not be introduced in the first example unless the flow really
   needs them
+- this guide intentionally does not prescribe `bearerToken` in the bootstrap
+  snippet because transport auth depends on operator policy and deployment
+- `runtimeVpToken` is the preferred semantic name when the integration wants to
+  pass an ICA-issued software/runtime proof token into the Node SDK
+- in current `gwtemplate-node-ts`, `vp_token` is the canonical activation proof,
+  while HTTP `Authorization: Bearer ...` is a separate transport/auth concern
+- for `identity/auth/_exchange`, current `gwtemplate-node-ts` documents the
+  Bearer token specifically as a Firebase/OIDC `id_token`
+- in the current `gdc-sdk-node-ts` demo/compat wiring, `runtimeVpToken` is
+  reused as `Authorization: Bearer <runtimeVpToken>` when no explicit
+  `bearerToken` is configured
+- explicit `bearerToken` still wins if both values are provided
+- other deployments may front GW with API key, proxy auth, or another trusted
+  backend token, so if you need custom auth headers use `defaultHeaders`
+
+Planned alignment note:
+
+- the repos do not yet expose one finalized cross-operator contract for
+  ICA-authorized software/runtime identity at SDK initialization time
+- the intended direction is to keep these three identities separate:
+  - ICA activation proof for organization/controller onboarding
+  - technical communication identity from `initializeCommunicationIdentity(...)`
+  - transport/session auth header such as HTTP Bearer or API key
+- if you need one sentence for the current `101`:
+  - today the SDK initializes with `appInfo`, route context, technical
+    communication keys, and optionally a `runtimeVpToken`; the full ICA
+    software/runtime trust lifecycle is still pending and must not be collapsed
+    into the generic name `bearerToken`
+- if ICA later finalizes a runtime/software VC profile, the SDK docs should
+  treat that proof as a fresh ICA-backed `vp_token` or equivalent signed proof
+  for the service/device runtime, with explicit renewal when the VP or VC
+  expires
+- that future proof should be renewed/refreshed when the VP expires or when the
+  underlying ICA VC is no longer valid, instead of being treated as a permanent
+  static API key
+- until that contract is finalized, do not document `bearerToken` as if it were
+  already the ICA proof for the portal/backend software itself
+
+### 5.0.1 Three separate trust layers
+
+When documenting backend bootstrap, keep these layers separate:
+
+- ICA onboarding proof
+  the `vp_token` used in legal organization activation and other ICA-governed
+  trust/bootstrap flows
+- technical communication identity
+  the local signing/encryption keys created by
+  `initializeCommunicationIdentity(...)` for the runtime channel
+- transport/session authentication
+  HTTP `Authorization`, API key, proxy token, or another deployment-specific
+  access mechanism
+
+Current contract summary:
+
+- `NodeHttpClient(...)` needs route context, base URL, and optional transport
+  auth configuration
+- `NodeHttpClient({ runtimeVpToken })` can already reuse that proof as the
+  default HTTP Bearer credential in demo/compat integrations
+- `initializeCommunicationIdentity(...)` prepares the runtime communication keys
+- a future ICA-authorized software/runtime proof may be required in addition,
+  with a finalized exchange/refresh contract that is not yet fully closed in
+  ICA
 
 ### 5.1 Two deployment modes
 
@@ -254,6 +353,14 @@ Use this when the integrator already has:
 - public auxiliary keys
 - business registration claims
 
+If your team needs the exact VP construction steps before this call, open
+`gdc-common-utils-ts/docs/VP_TOKEN_101.md`. That file explains how to:
+
+- assemble the VP payload
+- append the organization and representative VCs
+- prepare the `header.payload` signing input
+- build the final compact `vp_token` string
+
 Copy/paste example:
 
 ```ts
@@ -268,7 +375,7 @@ const controllerBinding = buildControllerBindingInput({
 });
 
 const organizationActivation = await professionalSdk.activateOrganizationInGatewayFromIcaProof(
-  hostOperatorContext,
+  hostOnboardingRoute,
   {
     vpToken: '<ica-proof-token>',
     controller: controllerBinding,
@@ -280,14 +387,16 @@ const organizationActivation = await professionalSdk.activateOrganizationInGatew
       ],
     },
     additionalClaims: {
+      [ClaimsOrganizationSchemaorg.alternateName]: 'acme-health',
       [ClaimsOrganizationSchemaorg.legalName]: 'ACME HEALTH SL',
       [ClaimsOrganizationSchemaorg.identifierType]: 'taxID',
       [ClaimsOrganizationSchemaorg.identifierValue]: 'VATES-B00112233',
-      [ClaimsOrganizationSchemaorg.addressCountry]: hostOperatorContext.jurisdiction,
+      [ClaimsOrganizationSchemaorg.numberOfEmployees]: 25,
+      [ClaimsOrganizationSchemaorg.addressCountry]: hostOnboardingRoute.jurisdiction,
       [ClaimsOrganizationSchemaorg.taxId]: 'VATES-B00112233',
       [ClaimsPersonSchemaorg.email]: emailControllerOrg,
       [ClaimsPersonSchemaorg.hasOccupationalRoleValue]: 'RESPRSN',
-      [ClaimsServiceSchemaorg.category]: hostOperatorContext.sector,
+      [ClaimsServiceSchemaorg.category]: tenantContext.sector,
       [ClaimsServiceSchemaorg.identifier]: 'did:web:public.acme.org',
     },
   },
@@ -311,13 +420,18 @@ What comes back:
 
 In the legal organization journey, order confirmation is a separate step.
 
-Use the `offerId` returned by the previous accepted activation response.
+Use the `offerId` returned by the accepted activation result. The current SDK
+does not expose a dedicated legal-organization helper equivalent to
+`startIndividualOrganization(...).offerId`, so this guide should treat that
+value as part of the activation response contract rather than invent a wrapper.
+
+Once you have that `offerId`, confirm the returned offer:
 
 ```ts
-await client.confirmLegalOrganizationOrder(hostOperatorContext, {
-  offerId: 'offer-123',
-  jurisdiction: hostOperatorContext.jurisdiction,
-  sector: hostOperatorContext.sector,
+await client.confirmLegalOrganizationOrder(hostOnboardingRoute, {
+  offerId: '<offer-id-from-organizationActivation>',
+  jurisdiction: hostOnboardingRoute.jurisdiction,
+  sector: hostOnboardingRoute.sector,
   timeoutSeconds: 12,
   intervalSeconds: 3,
 });
@@ -325,9 +439,12 @@ await client.confirmLegalOrganizationOrder(hostOperatorContext, {
 
 Notes:
 
-- the routing object is `hostOperatorContext`, not an organization-controller identity
+- the routing object is `hostOnboardingRoute`, not an organization-controller identity
 - for the basic example there is no reason to inject controller identity into
   this route object
+- before creating employees/professionals, declare the intended seat count in
+  activation claims with `ClaimsOrganizationSchemaorg.numberOfEmployees`
+  when your onboarding flow purchases or reserves licenses
 
 ### 6.4 Create an employee or professional under the organization
 

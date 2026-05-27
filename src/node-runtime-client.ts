@@ -64,6 +64,16 @@ export type HttpRuntimeClientOptions = {
   baseUrl: string;
   bearerToken?: string;
   /**
+   * Optional ICA-issued runtime/software proof token reused as the default
+   * HTTP Bearer credential in demo/compat profiles when no explicit
+   * `bearerToken` is provided.
+   *
+   * This keeps the SDK wiring ready for a future ICA-authorized software
+   * runtime contract without forcing callers to overload the semantic name
+   * `bearerToken` in documentation or app code.
+   */
+  runtimeVpToken?: string;
+  /**
    * Host app identity required by GW CORE.
    *
    * `appId` is mandatory when you want the SDK to inject canonical `AppId` and
@@ -97,6 +107,7 @@ export type NodeHttpClientOptions = HttpRuntimeClientOptions;
 export class HttpRuntimeClient implements NodeRuntimeClient {
   private readonly baseUrl: string;
   private readonly bearerToken?: string;
+  private readonly runtimeVpToken?: string;
   private readonly resolvedAppInfo?: ResolvedAppInfo;
   private readonly ctx?: RouteContext;
   private readonly defaultHeaders: Record<string, string>;
@@ -108,6 +119,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * @param options.baseUrl Gateway base URL without trailing slash.
    * @param options.interopMode Optional runtime interoperability mode from the SDK config layer (`demo`, `compat`, `strict`).
    * @param options.bearerToken Optional bearer token reused for direct HTTP calls.
+   * @param options.runtimeVpToken Optional ICA-issued runtime/software proof token reused as Bearer when `bearerToken` is not set.
    * @param options.appInfo Optional GW CORE app identity. When present, the
    * client injects `AppId` and `AppVersion` into all outgoing requests.
    * @param options.ctx Optional default route context.
@@ -116,7 +128,10 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    */
   constructor(options: HttpRuntimeClientOptions) {
     this.baseUrl = String(options.baseUrl || '').replace(/\/+$/, '');
-    this.bearerToken = String(options.bearerToken || '').trim() || undefined;
+    this.runtimeVpToken = String(options.runtimeVpToken || '').trim() || undefined;
+    this.bearerToken = String(options.bearerToken || '').trim()
+      || this.runtimeVpToken
+      || undefined;
     this.resolvedAppInfo = options.appInfo ? resolveAppInfo(options.appInfo) : undefined;
     this.ctx = options.ctx;
     this.defaultHeaders = {
@@ -140,6 +155,13 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public getAppHeaders(): Record<'AppId' | 'AppVersion', string> | undefined {
     if (!this.resolvedAppInfo) return undefined;
     return buildAppHeaders(this.resolvedAppInfo);
+  }
+
+  /**
+   * Returns the configured ICA-issued runtime/software proof token, when present.
+   */
+  public getRuntimeVpToken(): string | undefined {
+    return this.runtimeVpToken;
   }
 
   /**

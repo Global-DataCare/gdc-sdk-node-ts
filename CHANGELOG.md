@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.3] - 2026-05-27
+
+### Changed
+- Clarified `docs/SDK_END_TO_END_101.md` so host onboarding examples separate:
+  - tenant business sector
+  - legacy `HostRouteContext.sector` naming
+  - host trust/network selection semantics
+- Added explicit runtime-proof guidance for ICA-issued software/runtime
+  `vp_token` usage during SDK initialization.
+- Extended `NodeHttpClient` so `runtimeVpToken` can be wired as the default
+  `Authorization: Bearer ...` value in demo/compat deployments when no explicit
+  transport bearer is provided.
+
+### Testing
+- `npm test`
+
 ## [0.3.2] - 2026-05-26
 
 ### Changed
