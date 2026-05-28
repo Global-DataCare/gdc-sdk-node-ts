@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 ## [0.5.2] - 2026-05-28
 
 ### Changed
+- Updated shared dependency target to `gdc-common-utils-ts@^1.11.0`.
+- Clarified backend onboarding documentation around `Organization.hasCredential.material`, `Person.hasCredential.material`, and `SoftwareApplication.material`, including RFC 7638 / RFC 9278 key-id guidance.
+
+### Testing
+- `npm test`
+
+## [0.5.2] - 2026-05-28
+
+### Changed
 - Updated `docs/SDK_END_TO_END_101.md` so legal-organization and
   software-application trust examples explain the key-binding semantics for:
   - `Organization.hasCredential.material`
