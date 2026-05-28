@@ -28,9 +28,9 @@ If you are integrating this package for the first time, open these in order:
 3. [gdc-sdk-core-ts/docs/SDK_FLOWS_101.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/SDK_FLOWS_101.md)
    Actor split and business-flow map across organization, individual,
    permissions, invitation, import, and SMART flows.
-4. [gdc-common-utils-ts/src/examples/](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/tree/main/src/examples)
+4. [gdc-common-utils-ts/src/examples/](https://github.com/Global-DataCare/gdc-common-utils-ts/tree/main/src/examples)
    Shared payload values used by the docs and tests.
-5. [gdc-common-utils-ts/docs/LIFECYCLE_101.md](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/docs/LIFECYCLE_101.md)
+5. [gdc-common-utils-ts/docs/LIFECYCLE_101.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/LIFECYCLE_101.md)
    Canonical `enable/disable/delete` semantics and copy/paste placeholders.
 
 If you need the shortest path:
@@ -247,16 +247,16 @@ Teaching rule:
 ## Shared Contract Sources
 
 - [gdc-sdk-core-ts/README.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/README.md)
-- [gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/docs/CONSENT_ACCESS_101.md)
+- [gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/CONSENT_ACCESS_101.md)
 
 Reusable payload examples:
 
-- [gdc-common-utils-ts/src/examples/organization-controller.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/organization-controller.ts)
-- [gdc-common-utils-ts/src/examples/individual-controller.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/individual-controller.ts)
-- [gdc-common-utils-ts/src/examples/professional.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/professional.ts)
-- [gdc-common-utils-ts/src/examples/shared.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/shared.ts)
-- [gdc-common-utils-ts/src/examples/lifecycle.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/lifecycle.ts)
-- [gdc-common-utils-ts/src/examples/api-flow-examples.ts](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/src/examples/api-flow-examples.ts)
+- [gdc-common-utils-ts/src/examples/organization-controller.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/organization-controller.ts)
+- [gdc-common-utils-ts/src/examples/individual-controller.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/individual-controller.ts)
+- [gdc-common-utils-ts/src/examples/professional.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/professional.ts)
+- [gdc-common-utils-ts/src/examples/shared.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/shared.ts)
+- [gdc-common-utils-ts/src/examples/lifecycle.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/lifecycle.ts)
+- [gdc-common-utils-ts/src/examples/api-flow-examples.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/api-flow-examples.ts)
 
 ## API Index
 
