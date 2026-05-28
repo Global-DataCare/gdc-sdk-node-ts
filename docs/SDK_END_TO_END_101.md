@@ -154,31 +154,35 @@ import {
 } from 'gdc-common-utils-ts';
 ```
 
-## 5. Runtime bootstrap
+## 5. Backend communication bootstrap
 
 This is the minimum runtime setup most backends need before calling any flow.
+
+If your integration only needs legal-organization onboarding and does not need
+to model the portal/backend software as a separately authorized application,
+read this section quickly and skip the software-credential details for now.
 
 What this bootstrap does today:
 
 - initializes the Node runtime client with route context and app identity
 - initializes the technical communication identity used by the runtime when it
   needs signing/encryption keys for transport profiles
-- can optionally reuse an ICA-issued runtime/software `vp_token` as the default
+- can optionally reuse an ICA-issued app-service `vp_token` as the default
   HTTP Bearer credential when the integration runs in demo/compat mode
 - current `gwtemplate-node-ts` demo/bootstrap deployments do not yet enforce
-  software/runtime registration, so `runtimeVpToken` may still be omitted or
+  software/application registration, so the proof token may still be omitted or
   left empty there
 
 What this bootstrap does not do today:
 
 - it does not define `bearerToken` as the canonical proof that the
   portal/backend software is an ICA-authorized runtime across node operators
-- it does not yet implement a first-class ICA runtime-proof exchange/refresh
+- it does not yet implement a first-class ICA app-service-proof exchange/refresh
   lifecycle inside `gdc-sdk-node-ts`
 
 There are two different initializations here:
 
-1. app/runtime identity for GW headers and policy
+1. portal/backend application identity for GW headers and policy
 2. technical communication identity for transport keys
 
 They are not the same thing.
@@ -186,10 +190,21 @@ They are not the same thing.
 - `appId`
   identifies the portal/backend application towards GW CORE
 - `entityId` in `initializeCommunicationIdentity(...)`
-  identifies the local technical communication profile or channel runtime that
-  owns the transport keys
+  identifies the local technical communication profile of the backend/app
+  process that owns the transport keys
 - controller/professional/subject DIDs
   identify human/domain actors
+
+Use-case split:
+
+- legal organization onboarding:
+  you mainly care about the controller/legal-representative proof
+- software application trust:
+  you additionally care about the technical identity of the portal/backend
+  software and its communication key binding
+
+If that second use case is not yours, you can ignore `vcSoftwareRegisteredByICA`
+  and `appServiceVpToken` for now.
 
 Do not teach `entityId` as if it were the organization id.
 
@@ -203,20 +218,20 @@ const deviceIdentity = await initializeCommunicationIdentity({
   seedMaterial: crypto.randomBytes(32),
 });
 
-const softwareRuntimeDid = process.env.SOFTWARE_RUNTIME_DID || '';
-const softwareRuntimeName = process.env.SOFTWARE_RUNTIME_NAME || '';
-const softwareRuntimeUrl = process.env.SOFTWARE_RUNTIME_URL || '';
+const appServiceDid = process.env.APP_SERVICE_DID || '';
+const appServiceName = process.env.APP_SERVICE_NAME || '';
+const appServiceUrl = process.env.APP_SERVICE_URL || '';
 const participantDid = process.env.PARTICIPANT_DID || '';
 const icaDid = process.env.ICA_DID || '';
 const didWebPortalCommunicationSigningKeyId =
   deviceIdentity.commSigningKeyPair.publicJWKey.kid || '';
 
-// Canonical ICA-side input artifact for a software/runtime trust flow:
+// Canonical ICA-side input artifact for an app-service trust flow:
 // an already-issued SoftwareApplication VC (JWT or JSON), not a locally
 // fabricated credential.
 //
 // Current gwtemplate demo/bootstrap deployments do not enforce
-// software/runtime registration yet, so demo integrations may leave this empty.
+// software/application registration yet, so demo integrations may leave this empty.
 const vcSoftwareRegisteredByICA = process.env.VC_SOFTWARE_REGISTERED || '';
 
 // If you need to mock the VC shape while ICA software registration is still
@@ -232,20 +247,20 @@ const softwareApplicationCredentialMock = vcSoftwareRegisteredByICA
       issuer: icaDid,
       credentialSubject: {
         '@type': 'SoftwareApplication',
-        id: softwareRuntimeDid,
-        name: softwareRuntimeName,
-        url: softwareRuntimeUrl,
+        id: appServiceDid,
+        name: appServiceName,
+        url: appServiceUrl,
         sameAs: participantDid,
         material: didWebPortalCommunicationSigningKeyId,
       },
     };
 
-// If your integration already has a compact runtime VP/JWS proof built from
+// If your integration already has a compact app-service VP/JWS proof built from
 // that ICA-issued VC, the Node client can reuse it in demo/compat mode.
 //
-// If gwtemplate does not enforce software/runtime registration yet, leaving
+// If gwtemplate does not enforce software/application registration yet, leaving
 // this empty is still valid for the current demo/bootstrap path.
-const runtimeVpToken = process.env.GW_RUNTIME_VP_TOKEN || '';
+const appServiceVpToken = process.env.GW_APP_SERVICE_VP_TOKEN || '';
 
 const tenantContext: TenantContext = {
   tenantId: 'acme-id',
@@ -263,7 +278,7 @@ const hostOnboardingRoute: HostRouteContext = {
 const client = new NodeHttpClient({
   baseUrl: 'https://gw.example.org',
   ctx: tenantContext,
-  runtimeVpToken,
+  runtimeVpToken: appServiceVpToken,
   appInfo: {
     appId: 'https://portal.example.org',
   },
@@ -275,14 +290,14 @@ What each value means:
 - `deviceIdentity`
   technical communication identity for the backend/app profile
 - `vcSoftwareRegisteredByICA`
-  ICA-issued software/runtime VC kept by the integrator as the canonical input
-  artifact for future runtime-proof construction
+  ICA-issued software/application VC kept by the integrator as the canonical
+  input artifact for future proof construction
 - `softwareApplicationCredentialMock`
   environment-driven mock shape for the same VC when ICA software registration
   is not implemented yet; it keeps the intended fields visible without
   hardcoding deployment values
-- `runtimeVpToken`
-  compact VP/JWS proof derived from the ICA-issued software/runtime VC when that
+- `appServiceVpToken`
+  compact VP/JWS proof derived from the ICA-issued software/application VC when that
   proof has already been assembled; in current demo/compat wiring the Node
   client can reuse it as the default HTTP Bearer credential; in current
   `gwtemplate-node-ts` demo flows it may still be empty or omitted
@@ -308,16 +323,18 @@ Important:
   needs them
 - this guide intentionally does not prescribe `bearerToken` in the bootstrap
   snippet because transport auth depends on operator policy and deployment
-- `runtimeVpToken` is the preferred semantic name when the integration wants to
-  pass an ICA-issued software/runtime proof token into the Node SDK
+- `appServiceVpToken` is the preferred semantic name in this guide when the
+  integration wants to pass an ICA-issued software/application proof token
+- the current `NodeHttpClient(...)` option is still named `runtimeVpToken`, so
+  the example maps `appServiceVpToken` into that field explicitly
 - in current `gwtemplate-node-ts`, `vp_token` is the canonical activation proof,
   while HTTP `Authorization: Bearer ...` is a separate transport/auth concern
 - for `identity/auth/_exchange`, current `gwtemplate-node-ts` documents the
   Bearer token specifically as a Firebase/OIDC `id_token`
 - in the current `gdc-sdk-node-ts` demo/compat wiring, `runtimeVpToken` is
-  reused as `Authorization: Bearer <runtimeVpToken>` when no explicit
+  reused as `Authorization: Bearer <appServiceVpToken>` when no explicit
   `bearerToken` is configured
-- if `runtimeVpToken` is omitted or is an empty string, the Node client skips
+- if `appServiceVpToken` is omitted or is an empty string, the Node client skips
   that fallback and does not inject an Authorization header from it
 - explicit `bearerToken` still wins if both values are provided
 - other deployments may front GW with API key, proxy auth, or another trusted
@@ -326,15 +343,15 @@ Important:
 Planned alignment note:
 
 - the repos do not yet expose one finalized cross-operator contract for
-  ICA-authorized software/runtime identity at SDK initialization time
+  ICA-authorized software/application identity at SDK initialization time
 - the intended direction is to keep these three identities separate:
   - ICA activation proof for organization/controller onboarding
   - technical communication identity from `initializeCommunicationIdentity(...)`
   - transport/session auth header such as HTTP Bearer or API key
 - if you need one sentence for the current `101`:
   - today the SDK initializes with `appInfo`, route context, technical
-    communication keys, and optionally a `runtimeVpToken`; the full ICA
-    software/runtime trust lifecycle is still pending and must not be collapsed
+    communication keys, and optionally an `appServiceVpToken`; the full ICA
+    software/application trust lifecycle is still pending and must not be collapsed
     into the generic name `bearerToken`
 - if ICA later finalizes a runtime/software VC profile, the SDK docs should
   treat that proof as a fresh ICA-backed `vp_token` or equivalent signed proof
@@ -364,13 +381,13 @@ Current contract summary:
 
 - `NodeHttpClient(...)` needs route context, base URL, and optional transport
   auth configuration
-- `NodeHttpClient({ runtimeVpToken })` can already reuse that proof as the
+- `NodeHttpClient({ runtimeVpToken: appServiceVpToken })` can already reuse that proof as the
   default HTTP Bearer credential in demo/compat integrations
 - `NodeHttpClient({ runtimeVpToken: '' })` is also valid for current
-  `gwtemplate-node-ts` demo/bootstrap integrations where software/runtime
+  `gwtemplate-node-ts` demo/bootstrap integrations where software/application
   registration is not enforced yet
 - `initializeCommunicationIdentity(...)` prepares the runtime communication keys
-- a future ICA-authorized software/runtime proof may be required in addition,
+- a future ICA-authorized software/application proof may be required in addition,
   with a finalized exchange/refresh contract that is not yet fully closed in
   ICA
 
@@ -436,6 +453,9 @@ const organizationActivation = await professionalSdk.activateOrganizationInGatew
     vpToken: '<ica-proof-token>',
     controller: controllerBinding,
     service: {
+      // Hosting URL selected by the controller during onboarding. This points
+      // to the hosting operator/base connector location, not to the
+      // portal/backend URL and not to the tenant public did:web identity.
       url: 'https://operator.example.net/acme-id/cds-es/v1/health-care',
       capabilities: [
         ServiceCapability.IndexProvider,
@@ -463,6 +483,13 @@ Mandatory rule for this onboarding step:
 
 - legal-organization activation always declares `service.url`
 - legal-organization activation always declares `service.capabilities`
+- `service.url` is the hosting URL selected by the controller during onboarding
+- it identifies the hosting operator / connector location, not the portal URL
+  and not the tenant public `did:web`
+- the tenant public service identity is declared separately, for example in
+  `ClaimsServiceSchemaorg.identifier`
+- import `service.capabilities` from `gdc-common-utils-ts` and let GW persist
+  them as `org.schema.Service.serviceType`
 - GW persists them in `org.schema.Service.serviceType` and uses them for DID
   discovery and DCAT3 service offering publication
 
