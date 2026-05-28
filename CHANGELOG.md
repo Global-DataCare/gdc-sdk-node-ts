@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.2] - 2026-05-28
+
+### Changed
+- Updated `docs/SDK_END_TO_END_101.md` so legal-organization and
+  software-application trust examples explain the key-binding semantics for:
+  - `Organization.hasCredential.material`
+  - `Person.hasCredential.material`
+  - `SoftwareApplication.material`
+- Clarified RFC 7638 JWK thumbprints and RFC 9278 URN representation in the
+  backend onboarding/bootstrap narrative.
+- Updated the shared `VP_TOKEN_101.md` link to GitHub.
+
 ## [0.5.1] - 2026-05-27
 
 ### Changed

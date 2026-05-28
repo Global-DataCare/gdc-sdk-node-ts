@@ -20,7 +20,7 @@ If you need lower-level runtime details after this guide, open:
 - [SDK_INTEGRATION_101.md](./SDK_INTEGRATION_101.md)
 - [gdc-sdk-core-ts/docs/SDK_FLOWS_101.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/SDK_FLOWS_101.md)
 - [gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/docs/CONSENT_ACCESS_101.md)
-- [gdc-common-utils-ts/docs/VP_TOKEN_101.md](https://gitlab.dev.accuro.es/idi/espacio-de-datos/global-datacare/gdc-common-utils-ts/-/blob/main/docs/VP_TOKEN_101.md)
+- [gdc-common-utils-ts/docs/VP_TOKEN_101.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/VP_TOKEN_101.md)
 
 ## Index
 
@@ -230,6 +230,11 @@ const didWebPortalCommunicationSigningKeyId =
 // an already-issued SoftwareApplication VC (JWT or JSON), not a locally
 // fabricated credential.
 //
+// The controller-side signature belongs to the earlier ICA registration step
+// that bound the app-service communication key into that VC. Later operational
+// app-service proofs should be signed by the app-service key itself, not by
+// reusing the human controller as the runtime signer.
+//
 // Current gwtemplate demo/bootstrap deployments do not enforce
 // software/application registration yet, so demo integrations may leave this empty.
 const vcSoftwareRegisteredByICA = process.env.VC_SOFTWARE_REGISTERED || '';
@@ -254,6 +259,10 @@ const softwareApplicationCredentialMock = vcSoftwareRegisteredByICA
         material: didWebPortalCommunicationSigningKeyId,
       },
     };
+
+// In this mock shape, `SoftwareApplication.material` is the public
+// cryptographic material of the software application in this profile,
+// typically the communication signing key id bound by ICA.
 
 // If your integration already has a compact app-service VP/JWS proof built from
 // that ICA-issued VC, the Node client can reuse it in demo/compat mode.
@@ -292,10 +301,21 @@ What each value means:
 - `vcSoftwareRegisteredByICA`
   ICA-issued software/application VC kept by the integrator as the canonical
   input artifact for future proof construction
+- `Organization.hasCredential.material`
+  public cryptographic material of the organization when that binding is
+  carried in an ICA-issued organization credential
+- `Person.hasCredential.material`
+  public cryptographic material of the controller/person when that binding is
+  carried in an ICA-issued representative credential
 - `softwareApplicationCredentialMock`
   environment-driven mock shape for the same VC when ICA software registration
   is not implemented yet; it keeps the intended fields visible without
   hardcoding deployment values
+- `SoftwareApplication.material`
+  public cryptographic material of the software application, typically the
+  communication signing key id bound by ICA during the prior registration step
+  and commonly represented as the RFC 9278 URN form of an RFC 7638 JWK
+  thumbprint for the public signing / verification key
 - `appServiceVpToken`
   compact VP/JWS proof derived from the ICA-issued software/application VC when that
   proof has already been assembled; in current demo/compat wiring the Node
