@@ -420,8 +420,9 @@ const professionalSdk = new ProfessionalSdk(client);
 Use this when the integrator already has:
 
 - `vpToken` from ICA or trust bootstrap
-- controller DID
+- presenter signing key id used to sign the VP
 - controller alias such as `mailto:`
+- controller DID if the request must carry explicit controller bootstrap material
 - public signing key
 - public auxiliary keys
 - business registration claims
@@ -488,6 +489,9 @@ Mandatory rule for this onboarding step:
   and not the tenant public `did:web`
 - the tenant public service identity is declared separately, for example in
   `ClaimsServiceSchemaorg.identifier`
+- in the current activation examples, both are typically present:
+  `service.url` for the selected hosting location and
+  `ClaimsServiceSchemaorg.identifier` for the public tenant/service `did:web`
 - import `service.capabilities` from `gdc-common-utils-ts` and let GW persist
   them as `org.schema.Service.serviceType`
 - GW persists them in `org.schema.Service.serviceType` and uses them for DID
