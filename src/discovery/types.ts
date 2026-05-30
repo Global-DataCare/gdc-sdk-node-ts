@@ -1,6 +1,7 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
 import type {
+  DataspaceDiscoveryFilter,
   HostingOperatorSemanticRecord,
   PublishedProviderCatalogRecord,
   TenantServiceSemanticRecord,
@@ -10,22 +11,16 @@ import type {
  * Input for resolving hosting operators that can serve a given dataspace use
  * case.
  */
-export type ResolveHostingOperatorsInput = Readonly<{
-  sector: string;
+export type ResolveHostingOperatorsInput = Omit<DataspaceDiscoveryFilter, 'capability'> & Readonly<{
   requiredCapabilities: readonly string[];
-  jurisdiction?: string;
-  coverageScope?: string;
 }>;
 
 /**
  * Input for resolving publicly published providers through hosting-operator
  * catalogs.
  */
-export type ResolvePublishedProvidersInput = Readonly<{
-  sector: string;
+export type ResolvePublishedProvidersInput = Omit<DataspaceDiscoveryFilter, 'capability' | 'requiredCapabilities'> & Readonly<{
   providerCapability: string;
-  jurisdiction?: string;
-  coverageScope?: string;
 }>;
 
 /**
