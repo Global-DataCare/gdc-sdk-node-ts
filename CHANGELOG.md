@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-05-29
+
+### Added
+- Added the first backend/BFF-facing dataspace discovery runtime surface:
+  - `src/discovery/DataspaceResolver.ts`
+  - `src/discovery/types.ts`
+  - `src/discovery/index.ts`
+- Added public root exports for the dataspace discovery abstraction.
+- Added focused resolver tests covering:
+  - hosting-operator resolution contract specialization
+  - published-provider resolution contract specialization
+
+### Changed
+- Updated the shared dependency target to `gdc-common-utils-ts@^1.12.0` so the
+  node runtime can consume the new dataspace discovery semantic DTOs and EU
+  coverage helpers.
+- Updated `TODO.md` and `docs/DATASPACE_RESOLVER_TODO.md` to document the
+  staged implementation path:
+  - common-utils semantic parsing first
+  - node resolver orchestration second
+  - host catalog publication later in gateway/ICA repos
+
+### Testing
+- `npm test -- tests/dataspace-resolver.test.mjs`
+
 ## [0.5.2] - 2026-05-28
 
 ### Changed

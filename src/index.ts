@@ -13,6 +13,7 @@ export * from './smart-token.js';
 export * from './resource-operations.js';
 export * from './session.js';
 export * from './node-runtime-client.js';
+export * from './discovery/index.js';
 export * from './gdc-session-bridge.js';
 export * from './orchestration/client-port.js';
 export * from './orchestration/host-onboarding-sdk.js';
