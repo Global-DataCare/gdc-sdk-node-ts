@@ -2,6 +2,7 @@
 
 import type {
   DataspaceDiscoveryFilter,
+  HostingOperatorDiscoveryCatalog,
   HostingOperatorSemanticRecord,
   PublishedProviderCatalogRecord,
   TenantServiceSemanticRecord,
@@ -24,6 +25,25 @@ export type ResolvePublishedProvidersInput = Omit<DataspaceDiscoveryFilter, 'cap
 }>;
 
 /**
+ * Preloaded semantic hosting-operator record used by the node runtime to
+ * resolve public discovery data without re-parsing VCs.
+ */
+export type PreloadedHostingOperatorRecord = Readonly<{
+  operatorDid: string;
+  catalogUrl?: string;
+  record: HostingOperatorSemanticRecord;
+}>;
+
+/**
+ * Runtime configuration for the HTTP-capable dataspace resolver.
+ */
+export type HttpDataspaceResolverOptions = Readonly<{
+  hostingOperators: readonly PreloadedHostingOperatorRecord[];
+  fetcher?: typeof fetch;
+  requestHeaders?: Record<string, string>;
+}>;
+
+/**
  * Normalized hosting-operator match returned by a node/BFF resolver.
  */
 export type HostingOperatorMatch = Readonly<{
@@ -39,6 +59,13 @@ export type HostingOperatorMatch = Readonly<{
 export type PublishedProviderMatch = Readonly<{
   providerDid: string;
   record: PublishedProviderCatalogRecord;
-  hostingOperator?: HostingOperatorSemanticRecord;
+  hostingOperator: HostingOperatorSemanticRecord;
+  hostingOperatorDid: string;
+  catalogUrl?: string;
   tenantSemanticRecord?: TenantServiceSemanticRecord;
 }>;
+
+/**
+ * Shared host catalog shape returned by HTTP discovery endpoints.
+ */
+export type HostingOperatorCatalog = HostingOperatorDiscoveryCatalog;
