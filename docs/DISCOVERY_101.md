@@ -158,94 +158,138 @@ Reuse shared examples whenever possible.
 
 ## 6. Basic initialization
 
-Typical default-first initialization looks like this:
+For the current portal phase, the intended usage is:
+
+1. configure defaults once at backend startup
+2. then make simple calls by `sector + jurisdiction`
+3. do not make app code deal with bootstrap plans or low-level resolvers
+
+If matching hosting defaults already exist, `default-first` uses those
+immediately. That lets the backend answer host-discovery requests without
+depending on live ICA/internet resolution.
+
+Simple copy/paste example:
 
 ```ts
-import { HttpDataspaceResolver } from 'gdc-sdk-node-ts';
+import { createDefaultFirstDataspaceDiscovery } from 'gdc-sdk-node-ts';
 import {
-  DataspaceDiscoverySourceMode,
   DataspaceSectors,
   ServiceCapabilityToken,
-  createDataspaceDiscoveryDefaultsRegistry,
 } from 'gdc-common-utils-ts';
 import { HostNetworkTypes } from 'gdc-common-utils-ts/constants/network';
-import { buildExampleHostingOperatorCredentialSubject } from 'gdc-common-utils-ts/examples/dataspace-discovery';
-import { extractHostingOperatorSemanticRecord } from 'gdc-common-utils-ts/utils/dataspace-discovery';
 
-const defaults = createDataspaceDiscoveryDefaultsRegistry({
-  icas: [{
-    jurisdiction: 'ES',
-    version: 'v1',
-    networkType: HostNetworkTypes.Test,
-    icaUrl: 'https://ica.example.org/.well-known/ica-configuration',
-    icaDid: 'did:web:ica.example.org',
-  }],
-  hostingOperators: [
-    buildHost('did:web:host-health-care.example.org', DataspaceSectors.HealthCare),
-    buildHost('did:web:host-health-research.example.org', DataspaceSectors.HealthResearch),
-    buildHost('did:web:host-animal-care.example.org', DataspaceSectors.AnimalCare),
-    buildHost('did:web:host-animal-research.example.org', DataspaceSectors.AnimalResearch),
-  ],
-});
-
-const bootstrapPlan = defaults.buildBootstrapPlan({
-  jurisdiction: 'ES',
+const discovery = createDefaultFirstDataspaceDiscovery({
   version: 'v1',
   networkType: HostNetworkTypes.Test,
-  sector: DataspaceSectors.HealthCare,
-  coverageScope: 'EU',
-  requiredCapabilities: [ServiceCapabilityToken.IndexProvider],
-  sourceMode: DataspaceDiscoverySourceMode.DefaultFirst,
+  defaults: {
+    icas: [{
+      jurisdiction: 'ES',
+      version: 'v1',
+      networkType: HostNetworkTypes.Test,
+      title: 'ICA ES Test',
+      icaUrl: 'https://ica.example.org/.well-known/ica-configuration',
+      icaDid: 'did:web:ica.example.org',
+    }],
+    hostingOperators: [
+      buildHost({
+        domain: 'host-health-care.example.org',
+        title: 'Health Care Host ES',
+        sector: DataspaceSectors.HealthCare,
+        serviceTypes: [ServiceCapabilityToken.IndexProvider],
+      }),
+      buildHost({
+        domain: 'host-health-research.example.org',
+        title: 'Health Research Host ES',
+        sector: DataspaceSectors.HealthResearch,
+        serviceTypes: [ServiceCapabilityToken.DigitalTwinProvider],
+      }),
+      buildHost({
+        domain: 'host-animal-care.example.org',
+        title: 'Animal Care Host ES',
+        sector: DataspaceSectors.AnimalCare,
+        serviceTypes: [ServiceCapabilityToken.IndexProvider],
+      }),
+      buildHost({
+        domain: 'host-animal-research.example.org',
+        title: 'Animal Research Host ES',
+        sector: DataspaceSectors.AnimalResearch,
+        serviceTypes: [ServiceCapabilityToken.DigitalTwinProvider],
+      }),
+    ],
+  },
 });
 
-const resolver = new HttpDataspaceResolver({
-  hostingOperators: bootstrapPlan.hostingOperators,
-});
-
-const hosts = await resolver.resolveHostingOperators({
-  sector: DataspaceSectors.HealthCare,
+const hosts = await discovery.getHosts({
+  sector: DataspaceSectors.AnimalCare,
   jurisdiction: 'ES',
   coverageScope: 'EU',
   requiredCapabilities: [ServiceCapabilityToken.IndexProvider],
 });
 
-function buildHost(operatorDid: string, sector: string) {
-  const hostName = operatorDid.replace('did:web:', '');
+const indexProviders = await discovery.getIndexProviders({
+  sector: DataspaceSectors.AnimalCare,
+  jurisdiction: 'ES',
+  coverageScope: 'EU',
+});
+
+const digitalTwinProviders = await discovery.getDigitalTwinProviders({
+  sector: DataspaceSectors.AnimalResearch,
+  jurisdiction: 'ES',
+  coverageScope: 'EU',
+});
+
+function buildHost(input: {
+  domain: string;
+  title: string;
+  sector: string;
+  serviceTypes: string[];
+}) {
+  const operatorDid = `did:web:${input.domain}`;
   return {
     jurisdiction: 'ES',
     version: 'v1',
     networkType: HostNetworkTypes.Test,
+    title: input.title,
     operatorDid,
-    discoveryUrl: `https://${hostName}/host/cds-ES/v1/test/.well-known/dspace-version`,
-    catalogUrl: `https://${hostName}/host/cds-ES/v1/test/dsp/catalog/dcat.json`,
-    record: extractHostingOperatorSemanticRecord({
-      credentialSubject: buildExampleHostingOperatorCredentialSubject({
-        did: operatorDid,
-        serviceTypes: [ServiceCapabilityToken.IndexProvider],
-        categories: [sector],
-        areaServed: ['EU', 'ES'],
-      }),
-    }),
+    discoveryUrl: `https://${input.domain}/host/cds-ES/v1/test/.well-known/dspace-version`,
+    catalogUrl: `https://${input.domain}/host/cds-ES/v1/test/dsp/catalog/dcat.json`,
+    record: {
+      subjectId: operatorDid,
+      serviceTypes: input.serviceTypes,
+      categories: [input.sector],
+      areaServed: ['EU', 'ES'],
+      addressCountry: 'ES',
+      coverageScope: 'EU',
+    },
   };
 }
 ```
 
-Where:
+What each call does:
 
-- `bootstrapPlan.hostingOperators` is the preloaded list of normalized hosting
-  operators for the current request
-- `bootstrapPlan` is the current `default-first` plan returned by
-  `gdc-common-utils-ts`
-- `fetcher` is optional if you also need live HTTP discovery fallback
-- when omitted, `HttpDataspaceResolver` uses `globalThis.fetch` from the Node runtime
-- inject `discoveryFetch` only when you need transport control such as tests,
-  retries, cache/default fallback, custom agents, or extra observability
-- the canonical host entrypoint is the participant-scoped DSP well-known URL:
+- `getHosts(...)`
+  - returns the matching hosting operators from the configured defaults
+- `getIndexProviders(...)`
+  - starts from the matching default hosts for that `sector + jurisdiction`
+  - then reads each selected host public catalog
+  - returns published `IndexProvider` services
+- `getDigitalTwinProviders(...)`
+  - same flow, but returning published `DigitalTwinProvider` services
+
+Important notes:
+
+- the backend chooses `networkType`; the frontend should not need to know it
+- the example uses `domain` as the primary input because that is usually more
+  useful than `did:web` for integrators and portal links
+- `title` is available today for ICA and host defaults and can already help a
+  portal/backend build selection DTOs
+- `description`, `infoUrl`, and `termsUrl` are not part of the shared
+  defaults-registry shape yet, so they are not shown in this copy/paste
+  example
+- the canonical host entrypoint is:
   `/host/cds-{jurisdiction}/{version}/${HostNetworkTypes.Test}/.well-known/dspace-version`
-- the read-only catalog artifact is derived from the advertised DSP base path:
+- the derived host catalog artifact is:
   `/host/cds-{jurisdiction}/{version}/${HostNetworkTypes.Test}/dsp/catalog/dcat.json`
-- tenant/provider discovery URLs should normally look like:
-  `/{tenantId}/cds-{jurisdiction}/{version}/{businessSector}/.well-known/dspace-version`
 
 Executable references:
 

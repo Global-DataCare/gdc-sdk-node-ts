@@ -73,10 +73,13 @@ Open these tests when you want to see exact method calls and exact inputs:
 - [tests/dataspace-resolver.101.test.mjs](tests/dataspace-resolver.101.test.mjs)
   Dataspace discovery 101 with capability filtering, jurisdiction filtering,
   reader-vs-provider semantics, and fetcher-level fallback/cache examples.
+- [tests/default-first-dataspace-discovery.101.test.mjs](tests/default-first-dataspace-discovery.101.test.mjs)
+  Portal-style `default-first` discovery with simple `getHosts(...)`,
+  `getIndexProviders(...)`, and `getDigitalTwinProviders(...)` calls.
 
 ## Dataspace Discovery Quick Map
 
-Use the Node resolver when your backend or BFF needs to:
+Use the Node discovery layer when your backend or BFF needs to:
 
 - start from preloaded hosting-operator semantics
 - fetch the canonical `/.well-known/dspace-version` entrypoint
@@ -86,24 +89,26 @@ Use the Node resolver when your backend or BFF needs to:
 Primary references:
 
 - [docs/DISCOVERY_101.md](./docs/DISCOVERY_101.md)
+- [tests/default-first-dataspace-discovery.101.test.mjs](tests/default-first-dataspace-discovery.101.test.mjs)
 - [tests/dataspace-resolver.101.test.mjs](tests/dataspace-resolver.101.test.mjs)
 - [tests/dataspace-resolver.test.mjs](tests/dataspace-resolver.test.mjs)
 
 Copy/paste starting point:
 
 ```ts
-import { HttpDataspaceResolver } from 'gdc-sdk-node-ts';
-import { ServiceCapabilityToken } from 'gdc-common-utils-ts/constants';
+import { createDefaultFirstDataspaceDiscovery } from 'gdc-sdk-node-ts';
+import { DataspaceSectors } from 'gdc-common-utils-ts';
+import { HostNetworkTypes } from 'gdc-common-utils-ts/constants/network';
 
-const resolver = new HttpDataspaceResolver({
-  hostingOperators,
-  fetcher, // optional injection for tests, fallback, tracing, or custom agents
+const discovery = createDefaultFirstDataspaceDiscovery({
+  version: 'v1',
+  networkType: HostNetworkTypes.Test,
+  defaults,
 });
 
-const providers = await resolver.resolvePublishedProviders({
-  sector: 'animal-care',
+const providers = await discovery.getIndexProviders({
+  sector: DataspaceSectors.AnimalCare,
   jurisdiction: 'ES',
-  providerCapability: ServiceCapabilityToken.IndexProvider,
 });
 ```
 

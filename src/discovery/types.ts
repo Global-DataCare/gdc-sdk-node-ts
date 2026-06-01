@@ -1,6 +1,8 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
 import type {
+  DataspaceDiscoveryDefaultsRegistry,
+  DataspaceDiscoveryDefaultsRegistrySeed,
   DataspaceDiscoveryFilter,
   HostingOperatorDiscoveryCatalog,
   HostingOperatorSemanticRecord,
@@ -51,6 +53,37 @@ export type HttpDataspaceResolverOptions = Readonly<{
   hostingOperators: readonly PreloadedHostingOperatorRecord[];
   fetcher?: typeof fetch;
   requestHeaders?: Record<string, string>;
+}>;
+
+/**
+ * Minimal request shape for portal/backend discovery calls after defaults have
+ * already been configured at startup.
+ */
+export type SimpleDataspaceDiscoveryRequest = Readonly<{
+  sector: string;
+  jurisdiction: string;
+  coverageScope?: string;
+}>;
+
+/**
+ * Input for retrieving eligible hosts from the default-first discovery facade.
+ */
+export type GetDataspaceHostsInput = SimpleDataspaceDiscoveryRequest & Readonly<{
+  requiredCapabilities?: readonly string[];
+}>;
+
+/**
+ * Construction options for the default-first portal/backend discovery facade.
+ *
+ * This API intentionally keeps startup configuration separate from the
+ * per-request `sector + jurisdiction` queries used later by frontend-facing
+ * backends.
+ */
+export type DefaultFirstDataspaceDiscoveryOptions = Readonly<{
+  version?: string;
+  networkType: string;
+  defaults?: DataspaceDiscoveryDefaultsRegistry | DataspaceDiscoveryDefaultsRegistrySeed;
+  fetcher?: typeof fetch;
 }>;
 
 /**

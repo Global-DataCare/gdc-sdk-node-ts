@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.3] - 2026-06-01
+
+### Added
+- Added a high-level default-first discovery facade for portal/backend usage:
+  - `createDefaultFirstDataspaceDiscovery(...)`
+  - `DefaultFirstDataspaceDiscovery`
+  - `getHosts({ sector, jurisdiction, ... })`
+  - `getIndexProviders({ sector, jurisdiction, ... })`
+  - `getDigitalTwinProviders({ sector, jurisdiction, ... })`
+- Added executable 101 coverage in:
+  - `tests/default-first-dataspace-discovery.101.test.mjs`
+
+### Changed
+- Rewrote `docs/DISCOVERY_101.md` so the primary integration path is the
+  simple portal/backend API rather than the lower-level bootstrap plumbing.
+- Updated `README.md` to point integrators at the new default-first discovery
+  facade and 101 test.
+
+### Testing
+- `npm run type-check`
+- `npm test`
+
 ## [0.6.1] - 2026-06-01
 
 ### Changed
