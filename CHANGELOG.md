@@ -15,7 +15,10 @@ All notable changes to this project will be documented in this file.
   - published-provider resolution contract specialization
 
 ### Changed
-- Updated the shared dependency target to `gdc-common-utils-ts@^1.12.0` so the
+- Updated the shared dependency targets to:
+  - `gdc-common-utils-ts@^1.13.0`
+  - `gdc-sdk-core-ts@^0.6.0`
+  so the
   node runtime can consume the new dataspace discovery semantic DTOs and EU
   coverage helpers.
 - Updated `TODO.md` and `docs/DATASPACE_RESOLVER_TODO.md` to document the
@@ -23,6 +26,9 @@ All notable changes to this project will be documented in this file.
   - common-utils semantic parsing first
   - node resolver orchestration second
   - host catalog publication later in gateway/ICA repos
+- Clarified that the resolver `fetcher` dependency is optional and defaults to
+  the Node runtime `globalThis.fetch`, while remaining injectable for tests,
+  fallback/cache, and transport control.
 
 ### Testing
 - `npm test -- tests/dataspace-resolver.test.mjs`

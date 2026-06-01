@@ -3,6 +3,8 @@
 import type { NodeOperatorNetworkType } from 'gdc-common-utils-ts/constants/network';
 import type { DataPersistencePolicy } from 'gdc-sdk-core-ts';
 
+type HostNetworkType = NodeOperatorNetworkType;
+
 export type LegacyNodeSourcePackage = never;
 
 /**
@@ -35,17 +37,20 @@ export type TenantContext = {
 };
 
 /**
- * Discovery/bootstrap context for a node operator environment.
+ * Discovery/bootstrap context for a host environment.
  *
- * This describes the operator network/environment itself. It does not replace
+ * This describes the host network/environment itself. It does not replace
  * the tenant route context used by tenant-scoped GW endpoints.
  */
-export type NodeOperatorContext = {
-  networkType: NodeOperatorNetworkType;
+export type HostContext = {
+  networkType: HostNetworkType;
   jurisdiction: string;
   operatorDid?: string;
   baseUrl?: string;
 };
+
+/** @deprecated Use `HostContext`. */
+export type NodeOperatorContext = HostContext;
 
 export type NodeFetchLike = typeof fetch;
 

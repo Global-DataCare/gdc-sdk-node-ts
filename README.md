@@ -25,12 +25,15 @@ If you are integrating this package for the first time, open these in order:
    Real backend setup, imports, `initializeCommunicationIdentity(...)`,
    `new NodeHttpClient(...)`, route context, facade selection, and live method
    usage.
-3. [gdc-sdk-core-ts/docs/SDK_FLOWS_101.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/SDK_FLOWS_101.md)
+3. [docs/DISCOVERY_101.md](./docs/DISCOVERY_101.md)
+   Node/BFF dataspace discovery, hosting-operator resolution, provider
+   resolution, and the correct integration boundary for fallback and cache.
+4. [gdc-sdk-core-ts/docs/SDK_FLOWS_101.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/SDK_FLOWS_101.md)
    Actor split and business-flow map across organization, individual,
    permissions, invitation, import, and SMART flows.
-4. [gdc-common-utils-ts/src/examples/](https://github.com/Global-DataCare/gdc-common-utils-ts/tree/main/src/examples)
+5. [gdc-common-utils-ts/src/examples/](https://github.com/Global-DataCare/gdc-common-utils-ts/tree/main/src/examples)
    Shared payload values used by the docs and tests.
-5. [gdc-common-utils-ts/docs/LIFECYCLE_101.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/LIFECYCLE_101.md)
+6. [gdc-common-utils-ts/docs/LIFECYCLE_101.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/LIFECYCLE_101.md)
    Canonical `enable/disable/delete` semantics and copy/paste placeholders.
 
 If you need the shortest path:
@@ -46,6 +49,8 @@ If you need the shortest path:
   [`NodeHttpClient`](src/node-runtime-client.ts)
 - step-by-step runtime usage:
   [docs/SDK_INTEGRATION_101.md](./docs/SDK_INTEGRATION_101.md)
+- dataspace discovery and fallback/cache boundary:
+  [docs/DISCOVERY_101.md](./docs/DISCOVERY_101.md)
 
 ## Executable Usage Examples
 
@@ -65,6 +70,42 @@ Open these tests when you want to see exact method calls and exact inputs:
   SMART token request flow.
 - [tests/live-gw-node-runtime.e2e.test.mjs](tests/live-gw-node-runtime.e2e.test.mjs)
   End-to-end runtime wiring against a real GW environment.
+- [tests/dataspace-resolver.101.test.mjs](tests/dataspace-resolver.101.test.mjs)
+  Dataspace discovery 101 with capability filtering, jurisdiction filtering,
+  reader-vs-provider semantics, and fetcher-level fallback/cache examples.
+
+## Dataspace Discovery Quick Map
+
+Use the Node resolver when your backend or BFF needs to:
+
+- start from preloaded hosting-operator semantics
+- fetch the canonical `/.well-known/dspace-version` entrypoint
+- derive the participant-scoped `/dsp/catalog/dcat.json` artifact
+- return normalized provider/operator matches to portal or app backends
+
+Primary references:
+
+- [docs/DISCOVERY_101.md](./docs/DISCOVERY_101.md)
+- [tests/dataspace-resolver.101.test.mjs](tests/dataspace-resolver.101.test.mjs)
+- [tests/dataspace-resolver.test.mjs](tests/dataspace-resolver.test.mjs)
+
+Copy/paste starting point:
+
+```ts
+import { HttpDataspaceResolver } from 'gdc-sdk-node-ts';
+import { ServiceCapabilityToken } from 'gdc-common-utils-ts/constants';
+
+const resolver = new HttpDataspaceResolver({
+  hostingOperators,
+  fetcher, // optional injection for tests, fallback, tracing, or custom agents
+});
+
+const providers = await resolver.resolvePublishedProviders({
+  sector: 'animal-care',
+  jurisdiction: 'ES',
+  providerCapability: ServiceCapabilityToken.IndexProvider,
+});
+```
 
 ## Actor Split And Runtime Scope
 

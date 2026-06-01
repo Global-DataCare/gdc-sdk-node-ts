@@ -30,6 +30,16 @@ export type ResolvePublishedProvidersInput = Omit<DataspaceDiscoveryFilter, 'cap
  */
 export type PreloadedHostingOperatorRecord = Readonly<{
   operatorDid: string;
+  /**
+   * Canonical DSP discovery entrypoint.
+   *
+   * For GW CORE this should normally be `/.well-known/dspace-version`.
+   */
+  discoveryUrl?: string;
+  /**
+   * @deprecated Prefer `discoveryUrl`. This remains as a compatibility field
+   * for direct catalog artifact URLs.
+   */
   catalogUrl?: string;
   record: HostingOperatorSemanticRecord;
 }>;
@@ -50,6 +60,7 @@ export type HostingOperatorMatch = Readonly<{
   operatorDid: string;
   record: HostingOperatorSemanticRecord;
   matchedCapabilities: string[];
+  discoveryUrl?: string;
   catalogUrl?: string;
 }>;
 
@@ -61,6 +72,7 @@ export type PublishedProviderMatch = Readonly<{
   record: PublishedProviderCatalogRecord;
   hostingOperator: HostingOperatorSemanticRecord;
   hostingOperatorDid: string;
+  discoveryUrl?: string;
   catalogUrl?: string;
   tenantSemanticRecord?: TenantServiceSemanticRecord;
 }>;

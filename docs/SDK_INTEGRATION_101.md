@@ -144,7 +144,7 @@ Additional contract notes:
 - capabilities are mandatory business input
 - SDK capability vocabulary is `service.capabilities`
 - persisted GW claim is `org.schema.Service.serviceType`
-- discovery/DCAT3 is derived from that persisted claim
+- discovery/DSP publication is derived from that persisted claim
 
 Deep reference:
 
@@ -321,12 +321,12 @@ What already exists:
 
 - direct GW runtime use from a known provider/operator base URL
 - shared provider DID/service endpoint resolution contracts
-- capability-driven GW discovery and DCAT3 publication
+- capability-driven GW discovery and DSP catalog publication
 
 What is still converging:
 
 - first-class ICA discovery APIs
-- first-class typed DCAT3 client helpers
+- first-class typed DSP discovery client helpers
 - a single demo helper for fetching ICA proof automatically
 
 ## Use This File For

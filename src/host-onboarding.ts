@@ -7,11 +7,13 @@ import { resolvePollOptionsFromSeconds } from './poll-options.js';
  * Current host-registry route context for existing host endpoints.
  *
  * This is a routing object for host registry calls. It is not the same thing as
- * a node-operator discovery descriptor.
+ * a host discovery descriptor.
  */
 export type HostRouteContext = {
   jurisdiction: string;
-  sector: string;
+  hostNetwork?: string;
+  /** @deprecated Use `hostNetwork`. */
+  sector?: string;
   controllerDid?: string;
   hostDid?: string;
 };
@@ -22,6 +24,8 @@ export type HostRouteContext = {
 export type LegalOrganizationOrderInput = {
   offerId: string;
   jurisdiction?: string;
+  hostNetwork?: string;
+  /** @deprecated Use `hostNetwork`. */
   sector?: string;
   dataType?: string;
   additionalClaims?: Record<string, unknown>;

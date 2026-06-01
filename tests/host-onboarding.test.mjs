@@ -52,8 +52,8 @@ test('confirmLegalOrganizationOrderWithDeps builds canonical order payload and r
   });
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0][0], '/host/ES/health-care/order/_batch');
-  assert.equal(calls[0][1], '/host/ES/health-care/order/_batch-response');
+  assert.equal(calls[0][0], `/host/${EXAMPLE_HOST_ROUTE_CONTEXT.jurisdiction}/${EXAMPLE_HOST_ROUTE_CONTEXT.sector}/order/_batch`);
+  assert.equal(calls[0][1], `/host/${EXAMPLE_HOST_ROUTE_CONTEXT.jurisdiction}/${EXAMPLE_HOST_ROUTE_CONTEXT.sector}/order/_batch-response`);
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['Order.acceptedOffer.identifier'], 'offer-123');
   assert.deepEqual(calls[0][3], {
     timeoutMs: 12_000,

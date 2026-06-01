@@ -1,24 +1,32 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DataspaceCoverageScope, DataspaceSectors, ServiceCapabilityToken } from 'gdc-common-utils-ts';
+import { HostNetworkTypes } from 'gdc-common-utils-ts/constants/network';
 import {
   EXAMPLE_COVERAGE_SCOPE_EU,
-  EXAMPLE_HOSTING_OPERATOR_CATALOG_URL,
+  EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
+  EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL,
   EXAMPLE_HOSTING_OPERATOR_DID,
   EXAMPLE_JURISDICTION,
   EXAMPLE_PROVIDER_PUBLISHED_ENDPOINT_URL,
   EXAMPLE_SECONDARY_TENANT_SERVICE_DID,
   EXAMPLE_TENANT_SERVICE_DID,
 } from 'gdc-common-utils-ts/examples/shared';
+import {
+  buildDspaceVersionMetadata,
+} from 'gdc-common-utils-ts/utils/dataspace-protocol';
 import { HttpDataspaceResolver } from '../dist/index.js';
 
 const EXAMPLE_OPERATOR_A_DID = EXAMPLE_HOSTING_OPERATOR_DID;
 const EXAMPLE_OPERATOR_B_DID = 'did:web:host-b.example.org';
-const EXAMPLE_OPERATOR_A_CATALOG_URL = EXAMPLE_HOSTING_OPERATOR_CATALOG_URL;
-const EXAMPLE_OPERATOR_B_CATALOG_URL = 'https://host-b.example.org/.well-known/dcat3/catalog';
+const EXAMPLE_OPERATOR_A_DISCOVERY_URL = EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL;
+const EXAMPLE_OPERATOR_A_CATALOG_URL = EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL;
+const EXAMPLE_OPERATOR_B_DISCOVERY_URL = `https://host-b.example.org/host/cds-ES/v1/${HostNetworkTypes.Test}/.well-known/dspace-version`;
+const EXAMPLE_OPERATOR_B_CATALOG_URL = `https://host-b.example.org/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp/catalog/dcat.json`;
 
 function buildHostingOperatorRecord({
   operatorDid,
+  discoveryUrl,
   catalogUrl,
   serviceTypes,
   categories,
@@ -28,6 +36,7 @@ function buildHostingOperatorRecord({
 }) {
   return {
     operatorDid,
+    discoveryUrl,
     catalogUrl,
     record: {
       subjectId: operatorDid,
@@ -68,6 +77,7 @@ test('HttpDataspaceResolver resolves hosting operators from preloaded semantic r
     hostingOperators: [
       buildHostingOperatorRecord({
         operatorDid: EXAMPLE_OPERATOR_A_DID,
+        discoveryUrl: EXAMPLE_OPERATOR_A_DISCOVERY_URL,
         catalogUrl: EXAMPLE_OPERATOR_A_CATALOG_URL,
         serviceTypes: [ServiceCapabilityToken.IndexProvider],
         categories: [DataspaceSectors.AnimalCare],
@@ -77,6 +87,7 @@ test('HttpDataspaceResolver resolves hosting operators from preloaded semantic r
       }),
       buildHostingOperatorRecord({
         operatorDid: EXAMPLE_OPERATOR_B_DID,
+        discoveryUrl: EXAMPLE_OPERATOR_B_DISCOVERY_URL,
         catalogUrl: EXAMPLE_OPERATOR_B_CATALOG_URL,
         serviceTypes: [ServiceCapabilityToken.IndexReader],
         categories: [DataspaceSectors.AnimalCare],
@@ -96,13 +107,18 @@ test('HttpDataspaceResolver resolves hosting operators from preloaded semantic r
   assert.equal(results.length, 1);
   assert.equal(results[0]?.operatorDid, EXAMPLE_OPERATOR_A_DID);
   assert.deepEqual(results[0]?.matchedCapabilities, [ServiceCapabilityToken.IndexProvider]);
+  assert.equal(results[0]?.discoveryUrl, EXAMPLE_OPERATOR_A_DISCOVERY_URL);
   assert.equal(results[0]?.catalogUrl, EXAMPLE_OPERATOR_A_CATALOG_URL);
 });
 
 test('HttpDataspaceResolver fetches host public catalogs and filters published providers', async () => {
   const { calls, fetcher } = createFetchMock({
+    [EXAMPLE_OPERATOR_A_DISCOVERY_URL]: createJsonResponse(
+      buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
+    ),
     [EXAMPLE_OPERATOR_A_CATALOG_URL]: createJsonResponse({
       hostingOperatorDid: EXAMPLE_OPERATOR_A_DID,
+      discoveryUrl: EXAMPLE_OPERATOR_A_DISCOVERY_URL,
       catalogUrl: EXAMPLE_OPERATOR_A_CATALOG_URL,
       providers: [
         {
@@ -111,7 +127,8 @@ test('HttpDataspaceResolver fetches host public catalogs and filters published p
           category: DataspaceSectors.AnimalCare,
           areaServed: `${EXAMPLE_COVERAGE_SCOPE_EU},${EXAMPLE_JURISDICTION}`,
           endpointUrl: EXAMPLE_PROVIDER_PUBLISHED_ENDPOINT_URL,
-          catalogUrl: 'https://provider.example.org/.well-known/dcat3/catalog',
+          discoveryUrl: 'https://provider.example.org/acme/cds-ES/v1/animal-care/.well-known/dspace-version',
+          catalogUrl: 'https://provider.example.org/acme/cds-ES/v1/animal-care/dsp/catalog/dcat.json',
         },
         {
           providerDid: EXAMPLE_SECONDARY_TENANT_SERVICE_DID,
@@ -129,8 +146,12 @@ test('HttpDataspaceResolver fetches host public catalogs and filters published p
         },
       ],
     }),
+    [EXAMPLE_OPERATOR_B_DISCOVERY_URL]: createJsonResponse(
+      buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
+    ),
     [EXAMPLE_OPERATOR_B_CATALOG_URL]: createJsonResponse({
       hostingOperatorDid: EXAMPLE_OPERATOR_B_DID,
+      discoveryUrl: EXAMPLE_OPERATOR_B_DISCOVERY_URL,
       catalogUrl: EXAMPLE_OPERATOR_B_CATALOG_URL,
       providers: [
         {
@@ -149,6 +170,7 @@ test('HttpDataspaceResolver fetches host public catalogs and filters published p
     hostingOperators: [
       buildHostingOperatorRecord({
         operatorDid: EXAMPLE_OPERATOR_A_DID,
+        discoveryUrl: EXAMPLE_OPERATOR_A_DISCOVERY_URL,
         catalogUrl: EXAMPLE_OPERATOR_A_CATALOG_URL,
         serviceTypes: [ServiceCapabilityToken.IndexProvider, ServiceCapabilityToken.DigitalTwinProvider],
         categories: [DataspaceSectors.AnimalCare],
@@ -158,6 +180,7 @@ test('HttpDataspaceResolver fetches host public catalogs and filters published p
       }),
       buildHostingOperatorRecord({
         operatorDid: EXAMPLE_OPERATOR_B_DID,
+        discoveryUrl: EXAMPLE_OPERATOR_B_DISCOVERY_URL,
         catalogUrl: EXAMPLE_OPERATOR_B_CATALOG_URL,
         serviceTypes: [ServiceCapabilityToken.IndexProvider],
         categories: [DataspaceSectors.AnimalCare],
@@ -175,12 +198,13 @@ test('HttpDataspaceResolver fetches host public catalogs and filters published p
     coverageScope: EXAMPLE_COVERAGE_SCOPE_EU,
   });
 
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 4);
   assert.equal(results.length, 1);
   assert.equal(results[0]?.providerDid, EXAMPLE_TENANT_SERVICE_DID);
   assert.equal(results[0]?.hostingOperatorDid, EXAMPLE_OPERATOR_A_DID);
   assert.equal(results[0]?.record.serviceType, ServiceCapabilityToken.IndexProvider);
   assert.equal(results[0]?.record.endpointUrl, EXAMPLE_PROVIDER_PUBLISHED_ENDPOINT_URL);
-  assert.equal(results[0]?.catalogUrl, 'https://provider.example.org/.well-known/dcat3/catalog');
+  assert.equal(results[0]?.discoveryUrl, 'https://provider.example.org/acme/cds-ES/v1/animal-care/.well-known/dspace-version');
+  assert.equal(results[0]?.catalogUrl, 'https://provider.example.org/acme/cds-ES/v1/animal-care/dsp/catalog/dcat.json');
   assert.equal(results[0]?.hostingOperator.coverageScope, DataspaceCoverageScope.EuropeanUnion);
 });

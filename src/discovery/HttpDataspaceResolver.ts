@@ -2,11 +2,15 @@
 
 import {
   DataspaceCoverageScope,
+  DataspaceProtocolVersions,
+  DataspaceWellKnownPaths,
+  deriveGwCatalogArtifactUrlFromDspaceVersion,
   inferCoverageScopeFromCountryCode,
   isProviderServiceCapability,
   normalizeCountryCode,
 } from 'gdc-common-utils-ts';
 import type {
+  DspaceVersionMetadata,
   HostingOperatorDiscoveryCatalog,
   HostingOperatorSemanticRecord,
   PublishedProviderCatalogRecord,
@@ -114,6 +118,7 @@ function toHostingOperatorCatalog(value: unknown): HostingOperatorDiscoveryCatal
         category: asString(provider.category),
         areaServed: asString(provider.areaServed) || undefined,
         endpointUrl: asString(provider.endpointUrl) || undefined,
+        discoveryUrl: asString(provider.discoveryUrl) || undefined,
         catalogUrl: asString(provider.catalogUrl) || undefined,
       };
       return normalized.providerDid && normalized.serviceType && normalized.category
@@ -124,6 +129,7 @@ function toHostingOperatorCatalog(value: unknown): HostingOperatorDiscoveryCatal
 
   return {
     hostingOperatorDid: asString(value.hostingOperatorDid) || undefined,
+    discoveryUrl: asString(value.discoveryUrl) || undefined,
     catalogUrl: asString(value.catalogUrl) || undefined,
     providers: normalizedProviders,
   };
@@ -157,6 +163,7 @@ function matchPublishedProviderRecord(
 export class HttpDataspaceResolver extends DataspaceResolver {
   private readonly hostingOperators: readonly {
     operatorDid: string;
+    discoveryUrl?: string;
     catalogUrl?: string;
     record: HostingOperatorSemanticRecord;
   }[];
@@ -177,12 +184,13 @@ export class HttpDataspaceResolver extends DataspaceResolver {
   ): Promise<HostingOperatorMatch[]> {
     return this.hostingOperators
       .filter(({ record }) => matchHostingOperatorRecord(record, input))
-      .map(({ operatorDid, record, catalogUrl }) => ({
+      .map(({ operatorDid, discoveryUrl, record, catalogUrl }) => ({
         operatorDid,
         record,
         matchedCapabilities: (input.requiredCapabilities || []).filter((capability) =>
           record.serviceTypes.some((value) => equalsIgnoreCase(value, capability)),
         ),
+        discoveryUrl,
         catalogUrl,
       }))
       .sort((left, right) => left.operatorDid.localeCompare(right.operatorDid));
@@ -204,7 +212,7 @@ export class HttpDataspaceResolver extends DataspaceResolver {
 
     const catalogs = await Promise.all(eligibleHosts.map(async (host) => ({
       host,
-      catalog: await this.fetchCatalog(host.catalogUrl),
+      catalog: await this.fetchCatalog(host.discoveryUrl, host.catalogUrl),
     })));
 
     return catalogs.flatMap(({ host, catalog }) => {
@@ -216,15 +224,26 @@ export class HttpDataspaceResolver extends DataspaceResolver {
           record,
           hostingOperator: host.record,
           hostingOperatorDid: host.operatorDid,
+          discoveryUrl: record.discoveryUrl || catalog.discoveryUrl || host.discoveryUrl,
           catalogUrl: record.catalogUrl || catalog.catalogUrl || host.catalogUrl,
         }));
     }).sort((left, right) => left.providerDid.localeCompare(right.providerDid));
   }
 
-  private async fetchCatalog(catalogUrl: string | undefined): Promise<HostingOperatorDiscoveryCatalog | undefined> {
-    const normalizedCatalogUrl = String(catalogUrl || '').trim();
-    if (!normalizedCatalogUrl) return undefined;
-    const response = await this.fetcher(normalizedCatalogUrl, {
+  /**
+   * Fetches a public discovery catalog for a hosting operator.
+   *
+   * Resolution order:
+   * - canonical DSP entrypoint via `discoveryUrl` (`/.well-known/dspace-version`)
+   * - direct catalog artifact compatibility via `catalogUrl`
+   */
+  private async fetchCatalog(
+    discoveryUrl: string | undefined,
+    catalogUrl?: string | undefined,
+  ): Promise<HostingOperatorDiscoveryCatalog | undefined> {
+    const resolvedCatalogUrl = await this.resolveCatalogArtifactUrl(discoveryUrl, catalogUrl);
+    if (!resolvedCatalogUrl) return undefined;
+    const response = await this.fetcher(resolvedCatalogUrl, {
       method: 'GET',
       headers: {
         accept: 'application/json',
@@ -236,4 +255,48 @@ export class HttpDataspaceResolver extends DataspaceResolver {
     const body = await response.json();
     return toHostingOperatorCatalog(body) || undefined;
   }
+
+  private async resolveCatalogArtifactUrl(
+    discoveryUrl: string | undefined,
+    catalogUrl: string | undefined,
+  ): Promise<string | undefined> {
+    const normalizedDiscoveryUrl = String(discoveryUrl || '').trim();
+    if (normalizedDiscoveryUrl) {
+      if (normalizedDiscoveryUrl.endsWith(DataspaceWellKnownPaths.VersionMetadata)) {
+        const metadata = await this.fetchDspaceVersionMetadata(normalizedDiscoveryUrl);
+        return deriveGwCatalogArtifactUrlFromDspaceVersion(
+          normalizedDiscoveryUrl,
+          metadata,
+          DataspaceProtocolVersions.Current,
+        );
+      }
+      return normalizedDiscoveryUrl;
+    }
+    const normalizedCatalogUrl = String(catalogUrl || '').trim();
+    return normalizedCatalogUrl || undefined;
+  }
+
+  private async fetchDspaceVersionMetadata(
+    discoveryUrl: string,
+  ): Promise<DspaceVersionMetadata | undefined> {
+    const response = await this.fetcher(discoveryUrl, {
+      method: 'GET',
+      headers: {
+        accept: 'application/json',
+      },
+    });
+    if (!response.ok) {
+      return undefined;
+    }
+    const body = await response.json();
+    return isDspaceVersionMetadata(body)
+      ? body
+      : undefined;
+  }
+}
+
+function isDspaceVersionMetadata(value: unknown): value is DspaceVersionMetadata {
+  if (!isObject(value)) return false;
+  return Array.isArray(value.protocolVersions)
+    && value.protocolVersions.every((entry) => isObject(entry) && asString(entry.version) && asString(entry.path));
 }

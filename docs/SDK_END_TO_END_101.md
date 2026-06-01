@@ -134,6 +134,7 @@ import {
 } from 'gdc-sdk-node-ts';
 
 import { CryptographyService } from 'gdc-common-utils-ts';
+import { HostNetworkTypes } from 'gdc-common-utils-ts/constants/network';
 import {
   ClaimsOrganizationSchemaorg,
   ClaimsPersonSchemaorg,
@@ -279,9 +280,7 @@ const tenantContext: TenantContext = {
 
 const hostOnboardingRoute: HostRouteContext = {
   jurisdiction: 'ES',
-  // Legacy field name in the current route type. In host onboarding this value
-  // selects the target trust/network environment, not the tenant business sector.
-  sector: 'test-network',
+  hostNetwork: HostNetworkTypes.Test,
 };
 
 const client = new NodeHttpClient({
@@ -332,12 +331,11 @@ Important:
 
 - `tenantContext.sector` is the business sector path for tenant routes such as
   `health-care`
-- `HostRouteContext.sector` is a legacy field name in the current host route
-  type
-- in host onboarding flows that field currently carries the network selector,
-  not the tenant business sector
-- current GW/gwtemplate deployments use values such as `test`,
-  `test-network`, or `network`
+- `HostRouteContext.hostNetwork` is the preferred host routing field
+- legacy `HostRouteContext.sector` remains as a compatibility alias
+- current GW/gwtemplate deployments use the canonical
+  `HostNetworkTypes` values such as `Test`, `TestNetwork`, or
+  `Network`
 - `controllerDid` and `hostDid` exist as optional route fields for some payloads,
   but they should not be introduced in the first example unless the flow really
   needs them
@@ -515,7 +513,7 @@ Mandatory rule for this onboarding step:
 - import `service.capabilities` from `gdc-common-utils-ts` and let GW persist
   them as `org.schema.Service.serviceType`
 - GW persists them in `org.schema.Service.serviceType` and uses them for DID
-  discovery and DCAT3 service offering publication
+  discovery and DSP service-offering publication
 
 What comes back:
 

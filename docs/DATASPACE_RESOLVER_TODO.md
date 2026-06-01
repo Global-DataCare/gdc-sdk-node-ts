@@ -1,4 +1,4 @@
-# Dataspace Resolver TODO
+# Dataspace Resolver Notes
 
 Version:
 - Planned runtime release: `0.6.0`
@@ -14,7 +14,18 @@ of the semantic/common parsing added in `gdc-common-utils-ts`.
 The node package is the place for the backend/BFF-facing resolver abstraction.
 It must not redefine Schema.org parsing rules already owned by common-utils.
 
-## Public API To Add
+Status:
+
+- `src/discovery/DataspaceResolver.ts`
+- `src/discovery/types.ts`
+- `src/discovery/index.ts`
+- `tests/dataspace-resolver.test.mjs`
+- `tests/dataspace-resolver.101.test.mjs`
+
+The items below are kept as design notes and maintenance guidance for the
+implemented resolver.
+
+## Public API
 
 Add a new discovery module under:
 
@@ -86,11 +97,7 @@ Each JSDoc block must state:
 - default integration path: backend/BFF
 - note that tenant-host linkage is resolved from host catalogs, not tenant VCs
 
-## Tests To Add
-
-Add:
-
-- `tests/dataspace-resolver.test.mjs`
+## Tests
 
 Coverage minimum:
 
@@ -107,7 +114,8 @@ Allowed examples:
 
 - `did:web:host.example.org`
 - `did:web:provider.example.org`
-- `https://catalog.example.org/.well-known/dcat3/catalog`
+- `https://host.example.org/host/cds-ES/v1/test/.well-known/dspace-version`
+- `https://host.example.org/host/cds-ES/v1/test/dsp/catalog/dcat.json`
 
 Avoid:
 

@@ -724,13 +724,14 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
 
   private hostRegistryPath(ctx: HostRouteContext | undefined, resourceType: string, action: string): string {
     const hostCtx = this.requireHostRouteContext(ctx);
-    return `/host/cds-${encodeURIComponent(hostCtx.jurisdiction)}/v1/${encodeURIComponent(hostCtx.sector)}/registry/org.schema/${encodeURIComponent(resourceType)}/${encodeURIComponent(action)}`;
+    return `/host/cds-${encodeURIComponent(hostCtx.jurisdiction)}/v1/${encodeURIComponent(hostCtx.hostNetwork || '')}/registry/org.schema/${encodeURIComponent(resourceType)}/${encodeURIComponent(action)}`;
   }
   private requireHostRouteContext(ctx?: HostRouteContext): HostRouteContext {
+    const runtimeCtx = (this.ctx || {}) as { jurisdiction?: string; sector?: string; hostNetwork?: string };
     const jurisdiction = String(ctx?.jurisdiction || this.ctx?.jurisdiction || '').trim();
-    const sector = String(ctx?.sector || this.ctx?.sector || '').trim();
-    if (!jurisdiction || !sector) throw new Error('Host route context is required.');
-    return { jurisdiction, sector };
+    const hostNetwork = String(ctx?.hostNetwork || ctx?.sector || runtimeCtx.hostNetwork || runtimeCtx.sector || '').trim();
+    if (!jurisdiction || !hostNetwork) throw new Error('Host route context is required.');
+    return { jurisdiction, hostNetwork };
   }
 
   public hostRegistryOrganizationActivatePath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', '_activate'); }
