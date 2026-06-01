@@ -168,7 +168,18 @@ If matching hosting defaults already exist, `default-first` uses those
 immediately. That lets the backend answer host-discovery requests without
 depending on live ICA/internet resolution.
 
-Simple copy/paste example:
+There are two different concerns here:
+
+- startup seed
+  - load one ICA default and one or more host defaults into the backend
+- runtime query
+  - ask for hosts or providers by `sector + jurisdiction`
+
+Most integrators should focus on the runtime query part first.
+
+### 6.1 Runtime query
+
+This is the main example that backend developers should copy first:
 
 ```ts
 import { createDefaultFirstDataspaceDiscovery } from 'gdc-sdk-node-ts';
@@ -177,92 +188,78 @@ import {
   ServiceCapabilityToken,
 } from 'gdc-common-utils-ts';
 import { HostNetworkTypes } from 'gdc-common-utils-ts/constants/network';
+import {
+  buildDefaultHostingOperatorRegistrationFromAuthority,
+  buildDefaultIcaRegistrationFromAuthority,
+} from 'gdc-common-utils-ts/utils/dataspace-discovery-defaults';
 
+const JURISDICTION = 'ES';
+const VERSION = 'v1';
+const NETWORK_TYPE = HostNetworkTypes.Test;
+const COVERAGE_SCOPE = 'EU';
+
+// Configure defaults once when the backend starts.
 const discovery = createDefaultFirstDataspaceDiscovery({
-  version: 'v1',
-  networkType: HostNetworkTypes.Test,
+  version: VERSION,
+  networkType: NETWORK_TYPE,
   defaults: {
-    icas: [{
-      jurisdiction: 'ES',
-      version: 'v1',
-      networkType: HostNetworkTypes.Test,
-      title: 'ICA ES Test',
-      icaUrl: 'https://ica.example.org/.well-known/ica-configuration',
-      icaDid: 'did:web:ica.example.org',
-    }],
+    icas: [
+      buildDefaultIcaRegistrationFromAuthority({
+        authority: 'ica.example.org',
+        jurisdiction: JURISDICTION,
+        version: VERSION,
+        networkType: NETWORK_TYPE,
+        title: 'ICA ES Test',
+      }),
+    ],
     hostingOperators: [
-      buildHost({
-        domain: 'host-health-care.example.org',
+      buildDefaultHostingOperatorRegistrationFromAuthority({
+        authority: 'host-health-care.example.org',
+        jurisdiction: JURISDICTION,
+        version: VERSION,
+        networkType: NETWORK_TYPE,
         title: 'Health Care Host ES',
         sector: DataspaceSectors.HealthCare,
         serviceTypes: [ServiceCapabilityToken.IndexProvider],
+        areaServed: [COVERAGE_SCOPE, JURISDICTION],
+        coverageScope: COVERAGE_SCOPE,
       }),
-      buildHost({
-        domain: 'host-health-research.example.org',
+      buildDefaultHostingOperatorRegistrationFromAuthority({
+        authority: 'host-health-research.example.org',
+        jurisdiction: JURISDICTION,
+        version: VERSION,
+        networkType: NETWORK_TYPE,
         title: 'Health Research Host ES',
         sector: DataspaceSectors.HealthResearch,
         serviceTypes: [ServiceCapabilityToken.DigitalTwinProvider],
-      }),
-      buildHost({
-        domain: 'host-animal-care.example.org',
-        title: 'Animal Care Host ES',
-        sector: DataspaceSectors.AnimalCare,
-        serviceTypes: [ServiceCapabilityToken.IndexProvider],
-      }),
-      buildHost({
-        domain: 'host-animal-research.example.org',
-        title: 'Animal Research Host ES',
-        sector: DataspaceSectors.AnimalResearch,
-        serviceTypes: [ServiceCapabilityToken.DigitalTwinProvider],
+        areaServed: [COVERAGE_SCOPE, JURISDICTION],
+        coverageScope: COVERAGE_SCOPE,
       }),
     ],
   },
 });
 
+// Ask for the hosts that can serve one sector in one jurisdiction.
 const hosts = await discovery.getHosts({
-  sector: DataspaceSectors.AnimalCare,
-  jurisdiction: 'ES',
-  coverageScope: 'EU',
+  sector: DataspaceSectors.HealthCare,
+  jurisdiction: JURISDICTION,
+  coverageScope: COVERAGE_SCOPE,
   requiredCapabilities: [ServiceCapabilityToken.IndexProvider],
 });
 
+// Ask for published index providers for one sector in one jurisdiction.
 const indexProviders = await discovery.getIndexProviders({
-  sector: DataspaceSectors.AnimalCare,
-  jurisdiction: 'ES',
-  coverageScope: 'EU',
+  sector: DataspaceSectors.HealthCare,
+  jurisdiction: JURISDICTION,
+  coverageScope: COVERAGE_SCOPE,
 });
 
+// Ask for published digital twin providers for one sector in one jurisdiction.
 const digitalTwinProviders = await discovery.getDigitalTwinProviders({
-  sector: DataspaceSectors.AnimalResearch,
-  jurisdiction: 'ES',
-  coverageScope: 'EU',
+  sector: DataspaceSectors.HealthResearch,
+  jurisdiction: JURISDICTION,
+  coverageScope: COVERAGE_SCOPE,
 });
-
-function buildHost(input: {
-  domain: string;
-  title: string;
-  sector: string;
-  serviceTypes: string[];
-}) {
-  const operatorDid = `did:web:${input.domain}`;
-  return {
-    jurisdiction: 'ES',
-    version: 'v1',
-    networkType: HostNetworkTypes.Test,
-    title: input.title,
-    operatorDid,
-    discoveryUrl: `https://${input.domain}/host/cds-ES/v1/test/.well-known/dspace-version`,
-    catalogUrl: `https://${input.domain}/host/cds-ES/v1/test/dsp/catalog/dcat.json`,
-    record: {
-      subjectId: operatorDid,
-      serviceTypes: input.serviceTypes,
-      categories: [input.sector],
-      areaServed: ['EU', 'ES'],
-      addressCountry: 'ES',
-      coverageScope: 'EU',
-    },
-  };
-}
 ```
 
 What each call does:
@@ -279,8 +276,11 @@ What each call does:
 Important notes:
 
 - the backend chooses `networkType`; the frontend should not need to know it
-- the example uses `domain` as the primary input because that is usually more
-  useful than `did:web` for integrators and portal links
+- the example uses `authority` such as a domain or IP as the primary input
+  because that is usually what integrators know at startup
+- the helpers derive `did:web` and `discoveryUrl` automatically
+- `catalogUrl` is intentionally omitted from the startup seed because integrators
+  normally do not need to know it up front
 - `title` is available today for ICA and host defaults and can already help a
   portal/backend build selection DTOs
 - `description`, `infoUrl`, and `termsUrl` are not part of the shared
