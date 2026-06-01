@@ -33,7 +33,7 @@
    - `resolveHostingOperators(...)`
    - `resolvePublishedProviders(...)`
    - host-catalog-driven provider discovery for individuals
-10. Follow `docs/DATASPACE_RESOLVER_TODO.md` for exact sequencing and JSDoc scope.
+10. Follow `docs/DISCOVERY_101.md` for the current dataspace discovery guide.
 
 ## NEXT
 1. Add BFF-oriented examples for endpoints such as `GET /api/personal/related-profiles`.

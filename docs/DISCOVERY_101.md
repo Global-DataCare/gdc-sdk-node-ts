@@ -95,7 +95,7 @@ Important terminology:
 Path-segment rule:
 
 - tenant/provider routes use `businessSector`
-- host/ICA/runtime routes use `hostNetwork`
+- host/ICA/defaults routes use `networkType`
 - for technical host/runtime paths this uses the canonical
   `HostNetworkTypes` values, for example:
   - `HostNetworkTypes.Test`
@@ -158,23 +158,85 @@ Reuse shared examples whenever possible.
 
 ## 6. Basic initialization
 
-Typical initialization looks like this:
+Typical default-first initialization looks like this:
 
 ```ts
 import { HttpDataspaceResolver } from 'gdc-sdk-node-ts';
-import { ServiceCapabilityToken } from 'gdc-common-utils-ts';
+import {
+  DataspaceDiscoverySourceMode,
+  DataspaceSectors,
+  ServiceCapabilityToken,
+  createDataspaceDiscoveryDefaultsRegistry,
+} from 'gdc-common-utils-ts';
 import { HostNetworkTypes } from 'gdc-common-utils-ts/constants/network';
+import { buildExampleHostingOperatorCredentialSubject } from 'gdc-common-utils-ts/examples/dataspace-discovery';
+import { extractHostingOperatorSemanticRecord } from 'gdc-common-utils-ts/utils/dataspace-discovery';
+
+const defaults = createDataspaceDiscoveryDefaultsRegistry({
+  icas: [{
+    jurisdiction: 'ES',
+    version: 'v1',
+    networkType: HostNetworkTypes.Test,
+    icaUrl: 'https://ica.example.org/.well-known/ica-configuration',
+    icaDid: 'did:web:ica.example.org',
+  }],
+  hostingOperators: [
+    buildHost('did:web:host-health-care.example.org', DataspaceSectors.HealthCare),
+    buildHost('did:web:host-health-research.example.org', DataspaceSectors.HealthResearch),
+    buildHost('did:web:host-animal-care.example.org', DataspaceSectors.AnimalCare),
+    buildHost('did:web:host-animal-research.example.org', DataspaceSectors.AnimalResearch),
+  ],
+});
+
+const bootstrapPlan = defaults.buildBootstrapPlan({
+  jurisdiction: 'ES',
+  version: 'v1',
+  networkType: HostNetworkTypes.Test,
+  sector: DataspaceSectors.HealthCare,
+  coverageScope: 'EU',
+  requiredCapabilities: [ServiceCapabilityToken.IndexProvider],
+  sourceMode: DataspaceDiscoverySourceMode.DefaultFirst,
+});
 
 const resolver = new HttpDataspaceResolver({
-  hostingOperators,
-  fetcher: discoveryFetch,
+  hostingOperators: bootstrapPlan.hostingOperators,
 });
+
+const hosts = await resolver.resolveHostingOperators({
+  sector: DataspaceSectors.HealthCare,
+  jurisdiction: 'ES',
+  coverageScope: 'EU',
+  requiredCapabilities: [ServiceCapabilityToken.IndexProvider],
+});
+
+function buildHost(operatorDid: string, sector: string) {
+  const hostName = operatorDid.replace('did:web:', '');
+  return {
+    jurisdiction: 'ES',
+    version: 'v1',
+    networkType: HostNetworkTypes.Test,
+    operatorDid,
+    discoveryUrl: `https://${hostName}/host/cds-ES/v1/test/.well-known/dspace-version`,
+    catalogUrl: `https://${hostName}/host/cds-ES/v1/test/dsp/catalog/dcat.json`,
+    record: extractHostingOperatorSemanticRecord({
+      credentialSubject: buildExampleHostingOperatorCredentialSubject({
+        did: operatorDid,
+        serviceTypes: [ServiceCapabilityToken.IndexProvider],
+        categories: [sector],
+        areaServed: ['EU', 'ES'],
+      }),
+    }),
+  };
+}
 ```
 
 Where:
 
-- `hostingOperators` is the preloaded list of normalized hosting operators
-- `fetcher` is optional
+- `bootstrapPlan.hostingOperators` is the preloaded list of normalized hosting
+  operators for the current request
+- `bootstrapPlan` is the current `default-first` plan returned by
+  `gdc-common-utils-ts`
+- `fetcher` is optional if you also need live HTTP discovery fallback
 - when omitted, `HttpDataspaceResolver` uses `globalThis.fetch` from the Node runtime
 - inject `discoveryFetch` only when you need transport control such as tests,
   retries, cache/default fallback, custom agents, or extra observability
@@ -184,25 +246,6 @@ Where:
   `/host/cds-{jurisdiction}/{version}/${HostNetworkTypes.Test}/dsp/catalog/dcat.json`
 - tenant/provider discovery URLs should normally look like:
   `/{tenantId}/cds-{jurisdiction}/{version}/{businessSector}/.well-known/dspace-version`
-
-Copy/paste example:
-
-```ts
-import { HttpDataspaceResolver } from 'gdc-sdk-node-ts';
-import { ServiceCapabilityToken } from 'gdc-common-utils-ts/constants';
-
-const resolver = new HttpDataspaceResolver({
-  hostingOperators,
-  fetcher: discoveryFetch, // optional dependency injection
-});
-
-const providers = await resolver.resolvePublishedProviders({
-  sector: 'animal-care',
-  jurisdiction: 'ES',
-  coverageScope: 'EU',
-  providerCapability: ServiceCapabilityToken.IndexProvider,
-});
-```
 
 Executable references:
 

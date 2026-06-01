@@ -33,8 +33,8 @@ All notable changes to this project will be documented in this file.
   so the
   node runtime can consume the new dataspace discovery semantic DTOs and EU
   coverage helpers.
-- Updated `TODO.md` and `docs/DATASPACE_RESOLVER_TODO.md` to document the
-  staged implementation path:
+- Updated `TODO.md` and `docs/DISCOVERY_101.md` to document the staged
+  implementation path:
   - common-utils semantic parsing first
   - node resolver orchestration second
   - host catalog publication later in gateway/ICA repos
