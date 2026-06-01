@@ -11,6 +11,7 @@ export * from './individual-onboarding.js';
 export * from './device-activation.js';
 export * from './smart-token.js';
 export * from './resource-operations.js';
+export * from './consent-claim-helpers.js';
 export * from './session.js';
 export * from './node-runtime-client.js';
 export * from './discovery/index.js';
