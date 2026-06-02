@@ -64,6 +64,7 @@ npm run test:e2e:live-gw
 | Indexed retrieval | `LIVE communication ingestion through individual controller facade persists DocumentReference baseline` | The new runtime can verify that GW indexed `DocumentReference` entries are later searchable and CID-backed | `runtimeClient.submitAndPoll(...)` through the actor-scoped flow | same run artifacts |
 | IPS medications ingestion | `LIVE communication ingestion indexes two medication statements from two bundles` | The new runtime can ingest two separate IPS bundles and project both medication statements into the subject index | `asIndividualController().ingestCommunicationAndUpdateIndex(...)` | same run artifacts |
 | IPS medications retrieval | `LIVE communication ingestion indexes two medication statements from two bundles` | The new runtime can read back both indexed medications with structured dosage/timing/PRN claims | `runtimeClient.searchClinicalBundle(...)` | same run artifacts |
+| IPS consolidated bundle retrieval | `LIVE communication ingestion indexes two medication statements from two bundles` | The new runtime can request the subject IPS as `Bundle/_search` filtered by `composition.subject + composition.type` and validate the consolidated bundle document returned by GW | `submitAndPoll(... individualBundleSearchPath/_response ...)` | same run artifacts |
 
 ## Why this matters for the core-memory baseline
 

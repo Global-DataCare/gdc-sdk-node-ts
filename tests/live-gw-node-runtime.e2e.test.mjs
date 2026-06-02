@@ -24,6 +24,7 @@ import {
   buildExampleDocumentReferenceSearchPayload,
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
+import { createIpsSummarySearchDidcommMessage } from 'gdc-common-utils-ts/utils/communication-bundle-document-request';
 
 import { ActorCapabilities, ActorKinds, NodeActorSession, NodeHttpClient } from '../dist/index.js';
 import {
@@ -625,32 +626,29 @@ test('LIVE communication ingestion indexes two medication statements from two bu
     );
   }
 
-  const ipsSearch = await individualControllerSession.asIndividualController().submitAndPoll(
-    runtimeClient.individualBundleSearchPath(routeCtx),
-    runtimeClient.individualBundleSearchPollPath(routeCtx),
+  const ipsSearchCommunicationPayload = createIpsSummarySearchDidcommMessage({
+    subjectId: subjectDid,
+    requesterId: professionalDid,
+    thid: `ips-search-${Date.now()}`,
+    sent: new Date().toISOString(),
+  });
+  const ipsSearch = await individualControllerSession.asIndividualController().ingestCommunicationAndUpdateIndex(
+    routeCtx,
     {
-      thid: `ips-search-${Date.now()}`,
-      body: {
-        resourceType: 'Bundle',
-        type: 'batch',
-        entry: [{
-          request: {
-            method: 'GET',
-            url:
-              `Bundle?type=document&composition.subject=${encodeURIComponent(subjectDid)}`
-              + `&composition.type=${encodeURIComponent('http://loinc.org|60591-5')}`,
-          },
-        }],
-      },
+      communicationPayload: ipsSearchCommunicationPayload,
+      pathFormatSegment: 'org.hl7.fhir.r4',
+      pollOptions: { timeoutMs: 120000, intervalMs: 1500 },
     },
-    { timeoutMs: 120000, intervalMs: 1500 },
   );
-  debug.record('ips-bundle-search', { response: ipsSearch });
-  assert.equal(ipsSearch.poll.status, 200, 'IPS bundle search must return 200.');
+  debug.record('ips-communication-search', {
+    payload: ipsSearchCommunicationPayload,
+    response: ipsSearch,
+  });
+  assert.equal(ipsSearch.poll.status, 200, 'IPS communication search must return 200.');
   for (const medication of cases) {
     assertIpsBundleHasMedication(
       ipsSearch.poll.body,
-      'IPS bundle search after communication ingestion',
+      'IPS communication search after communication ingestion',
       {
         identifier: medication.identifier,
         text: medication.text,

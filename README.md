@@ -93,9 +93,13 @@ Current live flow covered by the test suite:
 1. bootstrap tenant / legal organization
 2. bootstrap doctor or controller employee
 3. bootstrap individual and grant consent for the doctor
+   default example: `INDIVIDUAL_ALTERNATE_NAME=Doraemon`
 4. ingest two IPS `Communication` bundles, each with one `MedicationStatement`
 5. read the IPS/clinical index and verify both medications are present
-6. persist audit/debug traces in `test-results/*.jsonl`
+6. request the consolidated IPS bundle through
+   `Bundle?type=document&composition.subject=<did>&composition.type=http://loinc.org|60591-5`
+7. verify the returned bundle document contains both medication statements
+8. persist audit/debug traces in `test-results/*.jsonl`
 
 Shared example source of truth:
 
@@ -126,6 +130,13 @@ Run the IPS ingestion/search branch as well:
 RUN_LIVE_GW_E2E_IPS_INGESTION=1 \
 npm run test:e2e:live-gw
 ```
+
+Implementation note:
+
+- the public runtime contract is still `Bundle/_search`
+- `gdc-sdk-node-ts` submits that request as-is
+- GW CORE resolves it internally from indexed subject sections and returns the
+  consolidated IPS bundle document
 
 Common overrides:
 
