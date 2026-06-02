@@ -71,11 +71,10 @@ Open these tests when you want to see exact method calls and exact inputs:
 - [tests/live-gw-node-runtime.e2e.test.mjs](tests/live-gw-node-runtime.e2e.test.mjs)
   End-to-end runtime wiring against a real GW environment.
 - [tests/101-dataspace-resolver.test.mjs](tests/101-dataspace-resolver.test.mjs)
-  Dataspace discovery 101 with capability filtering, jurisdiction filtering,
-  reader-vs-provider semantics, and fetcher-level fallback/cache examples.
+  Minimal `HttpDataspaceResolver` 101 with one host and one published provider.
 - [tests/101-default-first-dataspace-discovery.test.mjs](tests/101-default-first-dataspace-discovery.test.mjs)
-  Portal-style `default-first` discovery with simple `getHosts(...)`,
-  `getIndexProviders(...)`, and `getDigitalTwinProviders(...)` calls.
+  Minimal `default-first` discovery with one host and one published
+  `IndexProvider`.
 
 ## Live GW CORE Flow
 
@@ -173,6 +172,7 @@ Primary references:
 - [docs/101-DISCOVERY.md](./docs/101-DISCOVERY.md)
 - [tests/101-default-first-dataspace-discovery.test.mjs](tests/101-default-first-dataspace-discovery.test.mjs)
 - [tests/101-dataspace-resolver.test.mjs](tests/101-dataspace-resolver.test.mjs)
+- [tests/dataspace-resolver-advanced.test.mjs](tests/dataspace-resolver-advanced.test.mjs)
 - [tests/dataspace-resolver.test.mjs](tests/dataspace-resolver.test.mjs)
 
 Copy/paste starting point:

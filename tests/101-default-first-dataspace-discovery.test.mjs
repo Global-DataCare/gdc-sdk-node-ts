@@ -8,6 +8,12 @@ import {
 } from 'gdc-common-utils-ts';
 import { HostNetworkTypes } from 'gdc-common-utils-ts/constants/network';
 import {
+  EXAMPLE_COVERAGE_SCOPE_EU,
+  EXAMPLE_HOST_PUBLIC_HOSTNAME,
+  EXAMPLE_JURISDICTION,
+  EXAMPLE_TENANT_IDENTIFIER,
+} from 'gdc-common-utils-ts/examples/shared';
+import {
   buildDefaultHostingOperatorRegistrationFromAuthority,
   buildDefaultIcaRegistrationFromAuthority,
   buildDefaultPublishedProviderRecordFromTenant,
@@ -16,125 +22,75 @@ import { createDefaultFirstDataspaceDiscovery } from '../dist/index.js';
 
 const VERSION = 'v1';
 const NETWORK_TYPE = HostNetworkTypes.Test;
-const JURISDICTION = 'ES';
+const JURISDICTION = EXAMPLE_JURISDICTION;
 const COVERAGE_SCOPE = DataspaceCoverageScope.EuropeanUnion;
+const HOST_AUTHORITY = EXAMPLE_HOST_PUBLIC_HOSTNAME;
 
-const HEALTH_CARE_HOST = buildDefaultHostingOperatorRegistrationFromAuthority({
-  authority: 'host-health-care.example.org',
-  jurisdiction: JURISDICTION,
-  version: VERSION,
-  networkType: NETWORK_TYPE,
-  title: 'Health Care Host ES',
-  sector: DataspaceSectors.HealthCare,
-  serviceTypes: [ServiceCapabilityToken.IndexProvider],
-  areaServed: [COVERAGE_SCOPE, JURISDICTION],
-  coverageScope: COVERAGE_SCOPE,
-});
-
-const HEALTH_RESEARCH_HOST = buildDefaultHostingOperatorRegistrationFromAuthority({
-  authority: 'host-health-research.example.org',
-  jurisdiction: JURISDICTION,
-  version: VERSION,
-  networkType: NETWORK_TYPE,
-  title: 'Health Research Host ES',
-  sector: DataspaceSectors.HealthResearch,
-  serviceTypes: [ServiceCapabilityToken.DigitalTwinProvider],
-  areaServed: [COVERAGE_SCOPE, JURISDICTION],
-  coverageScope: COVERAGE_SCOPE,
-});
-
-const DEFAULTS = {
-  icas: [
-    buildDefaultIcaRegistrationFromAuthority({
-      authority: 'ica.example.org',
-      jurisdiction: JURISDICTION,
-      version: VERSION,
-      networkType: NETWORK_TYPE,
-      title: 'ICA ES Test',
-    }),
-  ],
-  hostingOperators: [
-    {
-      ...HEALTH_CARE_HOST,
-      publishedProviders: [
-        buildDefaultPublishedProviderRecordFromTenant({
-          hostAuthority: 'host-health-care.example.org',
-          tenantId: 'acme-id',
+test('101: default-first discovery returns the default index provider for one sector and jurisdiction', async () => {
+  // Step 1.
+  // Backend startup config already knows one ICA default and one host default.
+  const defaults = {
+    icas: [
+      buildDefaultIcaRegistrationFromAuthority({
+        authority: 'ica.example.org',
+        jurisdiction: JURISDICTION,
+        version: VERSION,
+        networkType: NETWORK_TYPE,
+        title: 'ICA ES Test',
+      }),
+    ],
+    hostingOperators: [
+      {
+        ...buildDefaultHostingOperatorRegistrationFromAuthority({
+          authority: HOST_AUTHORITY,
           jurisdiction: JURISDICTION,
           version: VERSION,
+          networkType: NETWORK_TYPE,
+          title: 'Health Care Host ES',
           sector: DataspaceSectors.HealthCare,
-          providerCapability: ServiceCapabilityToken.IndexProvider,
-          areaServed: [COVERAGE_SCOPE, JURISDICTION],
+          serviceTypes: [ServiceCapabilityToken.IndexProvider],
+          areaServed: [EXAMPLE_COVERAGE_SCOPE_EU, JURISDICTION],
+          coverageScope: COVERAGE_SCOPE,
         }),
-      ],
-    },
-    {
-      ...HEALTH_RESEARCH_HOST,
-      publishedProviders: [
-        buildDefaultPublishedProviderRecordFromTenant({
-          hostAuthority: 'host-health-research.example.org',
-          tenantId: 'acme-id',
-          jurisdiction: JURISDICTION,
-          version: VERSION,
-          sector: DataspaceSectors.HealthResearch,
-          providerCapability: ServiceCapabilityToken.DigitalTwinProvider,
-          areaServed: [COVERAGE_SCOPE, JURISDICTION],
-        }),
-      ],
-    },
-  ],
-};
+        publishedProviders: [
+          buildDefaultPublishedProviderRecordFromTenant({
+            hostAuthority: HOST_AUTHORITY,
+            tenantId: EXAMPLE_TENANT_IDENTIFIER,
+            jurisdiction: JURISDICTION,
+            version: VERSION,
+            sector: DataspaceSectors.HealthCare,
+            providerCapability: ServiceCapabilityToken.IndexProvider,
+            areaServed: [EXAMPLE_COVERAGE_SCOPE_EU, JURISDICTION],
+          }),
+        ],
+      },
+    ],
+  };
 
-test('101: default-first discovery returns configured hosts by sector and jurisdiction', async () => {
+  // Step 2.
+  // Build the discovery facade once with those startup defaults.
   const discovery = createDefaultFirstDataspaceDiscovery({
     version: VERSION,
     networkType: NETWORK_TYPE,
-    defaults: DEFAULTS,
+    defaults,
   });
 
+  // Step 3.
+  // Runtime code asks for hosts or providers by sector + jurisdiction.
   const hosts = await discovery.getHosts({
     sector: DataspaceSectors.HealthCare,
     jurisdiction: JURISDICTION,
     coverageScope: COVERAGE_SCOPE,
     requiredCapabilities: [ServiceCapabilityToken.IndexProvider],
   });
-
-  assert.equal(hosts.length, 1);
-  assert.equal(hosts[0]?.operatorDid, HEALTH_CARE_HOST.operatorDid);
-});
-
-test('101: default-first discovery returns index providers from nested host defaults', async () => {
-  const discovery = createDefaultFirstDataspaceDiscovery({
-    version: VERSION,
-    networkType: NETWORK_TYPE,
-    defaults: DEFAULTS,
-  });
-
   const providers = await discovery.getIndexProviders({
     sector: DataspaceSectors.HealthCare,
     jurisdiction: JURISDICTION,
     coverageScope: COVERAGE_SCOPE,
   });
 
+  assert.equal(hosts.length, 1);
   assert.equal(providers.length, 1);
-  assert.equal(providers[0]?.providerDid, 'did:web:host-health-care.example.org:acme-id:cds-ES:v1:health-care');
-  assert.equal(providers[0]?.hostingOperatorDid, HEALTH_CARE_HOST.operatorDid);
-});
-
-test('101: default-first discovery returns digital twin providers from nested host defaults', async () => {
-  const discovery = createDefaultFirstDataspaceDiscovery({
-    version: VERSION,
-    networkType: NETWORK_TYPE,
-    defaults: DEFAULTS,
-  });
-
-  const providers = await discovery.getDigitalTwinProviders({
-    sector: DataspaceSectors.HealthResearch,
-    jurisdiction: JURISDICTION,
-    coverageScope: COVERAGE_SCOPE,
-  });
-
-  assert.equal(providers.length, 1);
-  assert.equal(providers[0]?.providerDid, 'did:web:host-health-research.example.org:acme-id:cds-ES:v1:health-research');
-  assert.equal(providers[0]?.hostingOperatorDid, HEALTH_RESEARCH_HOST.operatorDid);
+  assert.equal(hosts[0]?.operatorDid, defaults.hostingOperators[0]?.operatorDid);
+  assert.equal(providers[0]?.hostingOperatorDid, defaults.hostingOperators[0]?.operatorDid);
 });
