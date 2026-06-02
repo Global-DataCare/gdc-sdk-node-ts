@@ -25,7 +25,7 @@ If you are integrating this package for the first time, open these in order:
    Real backend setup, imports, `initializeCommunicationIdentity(...)`,
    `new NodeHttpClient(...)`, route context, facade selection, and live method
    usage.
-3. [docs/DISCOVERY_101.md](./docs/DISCOVERY_101.md)
+3. [docs/101-DISCOVERY.md](./docs/101-DISCOVERY.md)
    Node/BFF dataspace discovery, hosting-operator resolution, provider
    resolution, and the correct integration boundary for fallback and cache.
 4. [gdc-sdk-core-ts/docs/SDK_FLOWS_101.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/SDK_FLOWS_101.md)
@@ -50,7 +50,7 @@ If you need the shortest path:
 - step-by-step runtime usage:
   [docs/SDK_INTEGRATION_101.md](./docs/SDK_INTEGRATION_101.md)
 - dataspace discovery and fallback/cache boundary:
-  [docs/DISCOVERY_101.md](./docs/DISCOVERY_101.md)
+  [docs/101-DISCOVERY.md](./docs/101-DISCOVERY.md)
 
 ## Executable Usage Examples
 
@@ -70,10 +70,10 @@ Open these tests when you want to see exact method calls and exact inputs:
   SMART token request flow.
 - [tests/live-gw-node-runtime.e2e.test.mjs](tests/live-gw-node-runtime.e2e.test.mjs)
   End-to-end runtime wiring against a real GW environment.
-- [tests/dataspace-resolver.101.test.mjs](tests/dataspace-resolver.101.test.mjs)
+- [tests/101-dataspace-resolver.test.mjs](tests/101-dataspace-resolver.test.mjs)
   Dataspace discovery 101 with capability filtering, jurisdiction filtering,
   reader-vs-provider semantics, and fetcher-level fallback/cache examples.
-- [tests/default-first-dataspace-discovery.101.test.mjs](tests/default-first-dataspace-discovery.101.test.mjs)
+- [tests/101-default-first-dataspace-discovery.test.mjs](tests/101-default-first-dataspace-discovery.test.mjs)
   Portal-style `default-first` discovery with simple `getHosts(...)`,
   `getIndexProviders(...)`, and `getDigitalTwinProviders(...)` calls.
 
@@ -170,9 +170,9 @@ Use the Node discovery layer when your backend or BFF needs to:
 
 Primary references:
 
-- [docs/DISCOVERY_101.md](./docs/DISCOVERY_101.md)
-- [tests/default-first-dataspace-discovery.101.test.mjs](tests/default-first-dataspace-discovery.101.test.mjs)
-- [tests/dataspace-resolver.101.test.mjs](tests/dataspace-resolver.101.test.mjs)
+- [docs/101-DISCOVERY.md](./docs/101-DISCOVERY.md)
+- [tests/101-default-first-dataspace-discovery.test.mjs](tests/101-default-first-dataspace-discovery.test.mjs)
+- [tests/101-dataspace-resolver.test.mjs](tests/101-dataspace-resolver.test.mjs)
 - [tests/dataspace-resolver.test.mjs](tests/dataspace-resolver.test.mjs)
 
 Copy/paste starting point:

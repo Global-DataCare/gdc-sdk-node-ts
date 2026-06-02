@@ -7,7 +7,11 @@ import {
   ServiceCapabilityToken,
 } from 'gdc-common-utils-ts';
 import { HostNetworkTypes } from 'gdc-common-utils-ts/constants/network';
-import { buildOrganizationDidWeb, getBaseUrlFromDidWeb } from 'gdc-common-utils-ts/utils/did';
+import {
+  buildDefaultHostingOperatorRegistrationFromAuthority,
+  buildDefaultIcaRegistrationFromAuthority,
+  buildDefaultPublishedProviderRecordFromTenant,
+} from 'gdc-common-utils-ts/utils/dataspace-discovery-defaults';
 import { createDefaultFirstDataspaceDiscovery } from '../dist/index.js';
 
 const VERSION = 'v1';
@@ -15,95 +19,67 @@ const NETWORK_TYPE = HostNetworkTypes.Test;
 const JURISDICTION = 'ES';
 const COVERAGE_SCOPE = DataspaceCoverageScope.EuropeanUnion;
 
-function buildPublishedProviderFromTenant(hostAuthority, tenantId, sector, providerCapability) {
-  const providerDid = buildOrganizationDidWeb({
-    hostDidWeb: `did:web:${hostAuthority}`,
-    tenantId,
-    jurisdiction: JURISDICTION,
-    version: VERSION,
-    sector,
-  });
-  const endpointUrl = getBaseUrlFromDidWeb(providerDid);
-  return {
-    providerDid,
-    serviceType: providerCapability,
-    category: sector,
-    areaServed: `${COVERAGE_SCOPE},${JURISDICTION}`,
-    endpointUrl,
-    discoveryUrl: new URL('.well-known/dspace-version', endpointUrl).toString(),
-    catalogUrl: new URL('dsp/catalog/dcat.json', endpointUrl).toString(),
-  };
-}
+const HEALTH_CARE_HOST = buildDefaultHostingOperatorRegistrationFromAuthority({
+  authority: 'host-health-care.example.org',
+  jurisdiction: JURISDICTION,
+  version: VERSION,
+  networkType: NETWORK_TYPE,
+  title: 'Health Care Host ES',
+  sector: DataspaceSectors.HealthCare,
+  serviceTypes: [ServiceCapabilityToken.IndexProvider],
+  areaServed: [COVERAGE_SCOPE, JURISDICTION],
+  coverageScope: COVERAGE_SCOPE,
+});
 
-function buildIcaDefault(authority, title) {
-  return {
-    jurisdiction: JURISDICTION,
-    version: VERSION,
-    networkType: NETWORK_TYPE,
-    title,
-    icaUrl: `https://${authority}/.well-known/ica-configuration`,
-    icaDid: `did:web:${authority}`,
-  };
-}
-
-function buildHostDefault(authority, title, sector, serviceTypes) {
-  return {
-    jurisdiction: JURISDICTION,
-    version: VERSION,
-    networkType: NETWORK_TYPE,
-    title,
-    operatorDid: `did:web:${authority}`,
-    discoveryUrl: `https://${authority}/host/cds-${JURISDICTION}/${VERSION}/${NETWORK_TYPE}/.well-known/dspace-version`,
-    record: {
-      subjectId: `did:web:${authority}`,
-      serviceTypes,
-      categories: [sector],
-      areaServed: [COVERAGE_SCOPE, JURISDICTION],
-      addressCountry: JURISDICTION,
-      coverageScope: COVERAGE_SCOPE,
-    },
-  };
-}
-
-const HEALTH_CARE_HOST = buildHostDefault(
-  'host-health-care.example.org',
-  'Health Care Host ES',
-  DataspaceSectors.HealthCare,
-  [ServiceCapabilityToken.IndexProvider],
-);
-
-const HEALTH_RESEARCH_HOST = buildHostDefault(
-  'host-health-research.example.org',
-  'Health Research Host ES',
-  DataspaceSectors.HealthResearch,
-  [ServiceCapabilityToken.DigitalTwinProvider],
-);
+const HEALTH_RESEARCH_HOST = buildDefaultHostingOperatorRegistrationFromAuthority({
+  authority: 'host-health-research.example.org',
+  jurisdiction: JURISDICTION,
+  version: VERSION,
+  networkType: NETWORK_TYPE,
+  title: 'Health Research Host ES',
+  sector: DataspaceSectors.HealthResearch,
+  serviceTypes: [ServiceCapabilityToken.DigitalTwinProvider],
+  areaServed: [COVERAGE_SCOPE, JURISDICTION],
+  coverageScope: COVERAGE_SCOPE,
+});
 
 const DEFAULTS = {
   icas: [
-    buildIcaDefault('ica.example.org', 'ICA ES Test'),
+    buildDefaultIcaRegistrationFromAuthority({
+      authority: 'ica.example.org',
+      jurisdiction: JURISDICTION,
+      version: VERSION,
+      networkType: NETWORK_TYPE,
+      title: 'ICA ES Test',
+    }),
   ],
   hostingOperators: [
     {
       ...HEALTH_CARE_HOST,
       publishedProviders: [
-        buildPublishedProviderFromTenant(
-          'host-health-care.example.org',
-          'acme-id',
-          DataspaceSectors.HealthCare,
-          ServiceCapabilityToken.IndexProvider,
-        ),
+        buildDefaultPublishedProviderRecordFromTenant({
+          hostAuthority: 'host-health-care.example.org',
+          tenantId: 'acme-id',
+          jurisdiction: JURISDICTION,
+          version: VERSION,
+          sector: DataspaceSectors.HealthCare,
+          providerCapability: ServiceCapabilityToken.IndexProvider,
+          areaServed: [COVERAGE_SCOPE, JURISDICTION],
+        }),
       ],
     },
     {
       ...HEALTH_RESEARCH_HOST,
       publishedProviders: [
-        buildPublishedProviderFromTenant(
-          'host-health-research.example.org',
-          'acme-id',
-          DataspaceSectors.HealthResearch,
-          ServiceCapabilityToken.DigitalTwinProvider,
-        ),
+        buildDefaultPublishedProviderRecordFromTenant({
+          hostAuthority: 'host-health-research.example.org',
+          tenantId: 'acme-id',
+          jurisdiction: JURISDICTION,
+          version: VERSION,
+          sector: DataspaceSectors.HealthResearch,
+          providerCapability: ServiceCapabilityToken.DigitalTwinProvider,
+          areaServed: [COVERAGE_SCOPE, JURISDICTION],
+        }),
       ],
     },
   ],

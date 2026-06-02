@@ -326,7 +326,7 @@ Important notes:
 
 Executable references:
 
-- [`tests/dataspace-resolver.101.test.mjs`](../tests/dataspace-resolver.101.test.mjs)
+- [`tests/101-dataspace-resolver.test.mjs`](../tests/101-dataspace-resolver.test.mjs)
 - [`tests/dataspace-resolver.test.mjs`](../tests/dataspace-resolver.test.mjs)
 
 ## 7. Resolving hosting operators

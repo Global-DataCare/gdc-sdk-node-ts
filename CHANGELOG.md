@@ -44,10 +44,10 @@ All notable changes to this project will be documented in this file.
   - `getIndexProviders({ sector, jurisdiction, ... })`
   - `getDigitalTwinProviders({ sector, jurisdiction, ... })`
 - Added executable 101 coverage in:
-  - `tests/default-first-dataspace-discovery.101.test.mjs`
+  - `tests/101-default-first-dataspace-discovery.test.mjs`
 
 ### Changed
-- Rewrote `docs/DISCOVERY_101.md` so the primary integration path is the
+- Rewrote `docs/101-DISCOVERY.md` so the primary integration path is the
   simple portal/backend API rather than the lower-level bootstrap plumbing.
 - Updated `README.md` to point integrators at the new default-first discovery
   facade and 101 test.
@@ -87,7 +87,7 @@ All notable changes to this project will be documented in this file.
   so the
   node runtime can consume the new dataspace discovery semantic DTOs and EU
   coverage helpers.
-- Updated `TODO.md` and `docs/DISCOVERY_101.md` to document the staged
+- Updated `TODO.md` and `docs/101-DISCOVERY.md` to document the staged
   implementation path:
   - common-utils semantic parsing first
   - node resolver orchestration second
