@@ -17,6 +17,7 @@ This suite validates:
 - organization controller employee creation
 - individual controller start/order/consent/token flow
 - Communication ingestion and indexed `DocumentReference` retrieval through the new runtime facade
+- IPS ingestion of two medication bundles and later indexed retrieval of both `MedicationStatement` rows
 
 It does not yet validate:
 - RelatedPerson parity with the legacy `4/4` suite
@@ -25,15 +26,25 @@ It does not yet validate:
 
 ## Command
 
+Local GW default:
+
 ```bash
-RUN_LIVE_GW_E2E=1 npm run test:e2e:live-gw
+npm run test:e2e:live-gw
 ```
 
-With indexed Communication branch and debug artifacts:
+Local GW with IPS ingestion branch and debug artifacts:
+
+```bash
+BASE_URL=http://127.0.0.1:3000 \
+RUN_LIVE_GW_E2E_IPS_INGESTION=1 \
+LIVE_GW_NODE_E2E_DEBUG=1 \
+npm run test:e2e:live-gw
+```
+
+Docker-exposed GW override:
 
 ```bash
 BASE_URL=http://127.0.0.1:8000 \
-RUN_LIVE_GW_E2E=1 \
 RUN_LIVE_GW_E2E_IPS_INGESTION=1 \
 LIVE_GW_NODE_E2E_DEBUG=1 \
 npm run test:e2e:live-gw
@@ -51,6 +62,8 @@ npm run test:e2e:live-gw
 | SMART token | `LIVE actor-scoped node runtime chain on GW` | The new actor-scoped runtime can request the core SMART token successfully | `asIndividualController().requestSmartTokenSimple(...)` | same run artifacts |
 | Communication ingestion | `LIVE communication ingestion through individual controller facade persists DocumentReference baseline` | The new `individual_controller` facade can ingest Communication through the canonical core route | `asIndividualController().ingestCommunicationAndUpdateIndex(...)` | same run artifacts |
 | Indexed retrieval | `LIVE communication ingestion through individual controller facade persists DocumentReference baseline` | The new runtime can verify that GW indexed `DocumentReference` entries are later searchable and CID-backed | `runtimeClient.submitAndPoll(...)` through the actor-scoped flow | same run artifacts |
+| IPS medications ingestion | `LIVE communication ingestion indexes two medication statements from two bundles` | The new runtime can ingest two separate IPS bundles and project both medication statements into the subject index | `asIndividualController().ingestCommunicationAndUpdateIndex(...)` | same run artifacts |
+| IPS medications retrieval | `LIVE communication ingestion indexes two medication statements from two bundles` | The new runtime can read back both indexed medications with structured dosage/timing/PRN claims | `runtimeClient.searchClinicalBundle(...)` | same run artifacts |
 
 ## Why this matters for the core-memory baseline
 

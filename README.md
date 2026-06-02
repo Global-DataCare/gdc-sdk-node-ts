@@ -77,6 +77,88 @@ Open these tests when you want to see exact method calls and exact inputs:
   Portal-style `default-first` discovery with simple `getHosts(...)`,
   `getIndexProviders(...)`, and `getDigitalTwinProviders(...)` calls.
 
+## Live GW CORE Flow
+
+Use [tests/live-gw-node-runtime.e2e.test.mjs](tests/live-gw-node-runtime.e2e.test.mjs)
+as the canonical runtime flow.
+
+Teaching rule:
+
+- defaults come from `gdc-common-utils-ts/examples`
+- override with env vars only when your tenant, bearer, or route is different
+- local GW default is `http://127.0.0.1:3000`
+- Docker-exposed GW can be overridden with `BASE_URL=http://127.0.0.1:8000`
+
+Current live flow covered by the test suite:
+
+1. bootstrap tenant / legal organization
+2. bootstrap doctor or controller employee
+3. bootstrap individual and grant consent for the doctor
+4. ingest two IPS `Communication` bundles, each with one `MedicationStatement`
+5. read the IPS/clinical index and verify both medications are present
+6. persist audit/debug traces in `test-results/*.jsonl`
+
+Shared example source of truth:
+
+- tenant/route/controller/professional defaults:
+  [gdc-common-utils-ts/src/examples/shared.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/shared.ts)
+- live employee defaults:
+  [gdc-common-utils-ts/src/examples/organization-controller.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/organization-controller.ts)
+- live consent defaults:
+  [gdc-common-utils-ts/src/examples/individual-controller.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/individual-controller.ts)
+
+The two medication defaults used by the live test are intentionally reusable:
+
+- `Ibuprofen 400 mg`
+- `Paracetamol 600 mg`
+- both every `8` hours
+- both `PRN` / `dosage-asneeded = true`
+- note text keeps the `4` hour gap in English
+
+Run the full live runtime baseline:
+
+```bash
+npm run test:e2e:live-gw
+```
+
+Run the IPS ingestion/search branch as well:
+
+```bash
+RUN_LIVE_GW_E2E_IPS_INGESTION=1 \
+npm run test:e2e:live-gw
+```
+
+Common overrides:
+
+```bash
+BASE_URL=http://127.0.0.1:3000 \
+AUTH_BEARER=... \
+TENANT_ID=VATES-B00112233 \
+TENANT_ROUTE_ID=acme-live \
+JURISDICTION=ES \
+SECTOR=health-care \
+SUBJECT_DID=did:web:api.acme.org:individual:123 \
+RUN_LIVE_GW_E2E_IPS_INGESTION=1 \
+LIVE_GW_NODE_E2E_DEBUG=1 \
+npm run test:e2e:live-gw
+```
+
+Docker-exposed GW example:
+
+```bash
+BASE_URL=http://127.0.0.1:8000 \
+RUN_LIVE_GW_E2E_IPS_INGESTION=1 \
+npm run test:e2e:live-gw
+```
+
+Documentation consistency rule for this repo family:
+
+- scripts, README examples, Swagger examples, and internal tests must reuse the
+  same example data and flow order
+- if a new request/response example is added, add it first to
+  `gdc-common-utils-ts/examples` and consume it from there instead of
+  re-hardcoding values locally
+
 ## Dataspace Discovery Quick Map
 
 Use the Node discovery layer when your backend or BFF needs to:

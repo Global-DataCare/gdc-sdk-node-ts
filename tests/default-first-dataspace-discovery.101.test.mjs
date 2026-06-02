@@ -7,12 +7,7 @@ import {
   ServiceCapabilityToken,
 } from 'gdc-common-utils-ts';
 import { HostNetworkTypes } from 'gdc-common-utils-ts/constants/network';
-import {
-  buildDefaultHostingOperatorDiscoveryCatalog,
-  buildDefaultPublishedProviderCatalogRecord,
-  createDiscoveryCatalogFetcher,
-} from 'gdc-common-utils-ts/utils/dataspace-discovery';
-import { buildDspaceVersionMetadata } from 'gdc-common-utils-ts/utils/dataspace-protocol';
+import { buildOrganizationDidWeb, getBaseUrlFromDidWeb } from 'gdc-common-utils-ts/utils/did';
 import { createDefaultFirstDataspaceDiscovery } from '../dist/index.js';
 
 const VERSION = 'v1';
@@ -20,18 +15,47 @@ const NETWORK_TYPE = HostNetworkTypes.Test;
 const JURISDICTION = 'ES';
 const COVERAGE_SCOPE = DataspaceCoverageScope.EuropeanUnion;
 
-function buildHost(domain, title, sector, serviceTypes) {
-  const operatorDid = `did:web:${domain}`;
+function buildPublishedProviderFromTenant(hostAuthority, tenantId, sector, providerCapability) {
+  const providerDid = buildOrganizationDidWeb({
+    hostDidWeb: `did:web:${hostAuthority}`,
+    tenantId,
+    jurisdiction: JURISDICTION,
+    version: VERSION,
+    sector,
+  });
+  const endpointUrl = getBaseUrlFromDidWeb(providerDid);
+  return {
+    providerDid,
+    serviceType: providerCapability,
+    category: sector,
+    areaServed: `${COVERAGE_SCOPE},${JURISDICTION}`,
+    endpointUrl,
+    discoveryUrl: new URL('.well-known/dspace-version', endpointUrl).toString(),
+    catalogUrl: new URL('dsp/catalog/dcat.json', endpointUrl).toString(),
+  };
+}
+
+function buildIcaDefault(authority, title) {
   return {
     jurisdiction: JURISDICTION,
     version: VERSION,
     networkType: NETWORK_TYPE,
     title,
-    operatorDid,
-    discoveryUrl: `https://${domain}/host/cds-${JURISDICTION}/${VERSION}/${NETWORK_TYPE}/.well-known/dspace-version`,
-    catalogUrl: `https://${domain}/host/cds-${JURISDICTION}/${VERSION}/${NETWORK_TYPE}/dsp/catalog/dcat.json`,
+    icaUrl: `https://${authority}/.well-known/ica-configuration`,
+    icaDid: `did:web:${authority}`,
+  };
+}
+
+function buildHostDefault(authority, title, sector, serviceTypes) {
+  return {
+    jurisdiction: JURISDICTION,
+    version: VERSION,
+    networkType: NETWORK_TYPE,
+    title,
+    operatorDid: `did:web:${authority}`,
+    discoveryUrl: `https://${authority}/host/cds-${JURISDICTION}/${VERSION}/${NETWORK_TYPE}/.well-known/dspace-version`,
     record: {
-      subjectId: operatorDid,
+      subjectId: `did:web:${authority}`,
       serviceTypes,
       categories: [sector],
       areaServed: [COVERAGE_SCOPE, JURISDICTION],
@@ -41,94 +65,49 @@ function buildHost(domain, title, sector, serviceTypes) {
   };
 }
 
-const HEALTH_CARE_HOST = buildHost(
+const HEALTH_CARE_HOST = buildHostDefault(
   'host-health-care.example.org',
   'Health Care Host ES',
   DataspaceSectors.HealthCare,
   [ServiceCapabilityToken.IndexProvider],
 );
 
-const HEALTH_RESEARCH_HOST = buildHost(
+const HEALTH_RESEARCH_HOST = buildHostDefault(
   'host-health-research.example.org',
   'Health Research Host ES',
   DataspaceSectors.HealthResearch,
   [ServiceCapabilityToken.DigitalTwinProvider],
 );
 
-const ANIMAL_CARE_HOST = buildHost(
-  'host-animal-care.example.org',
-  'Animal Care Host ES',
-  DataspaceSectors.AnimalCare,
-  [ServiceCapabilityToken.IndexProvider],
-);
-
-const ANIMAL_RESEARCH_HOST = buildHost(
-  'host-animal-research.example.org',
-  'Animal Research Host ES',
-  DataspaceSectors.AnimalResearch,
-  [ServiceCapabilityToken.DigitalTwinProvider],
-);
-
 const DEFAULTS = {
-  icas: [{
-    jurisdiction: JURISDICTION,
-    version: VERSION,
-    networkType: NETWORK_TYPE,
-    title: 'ICA ES Test',
-    icaUrl: 'https://ica.example.org/.well-known/ica-configuration',
-    icaDid: 'did:web:ica.example.org',
-  }],
+  icas: [
+    buildIcaDefault('ica.example.org', 'ICA ES Test'),
+  ],
   hostingOperators: [
-    HEALTH_CARE_HOST,
-    HEALTH_RESEARCH_HOST,
-    ANIMAL_CARE_HOST,
-    ANIMAL_RESEARCH_HOST,
+    {
+      ...HEALTH_CARE_HOST,
+      publishedProviders: [
+        buildPublishedProviderFromTenant(
+          'host-health-care.example.org',
+          'acme-id',
+          DataspaceSectors.HealthCare,
+          ServiceCapabilityToken.IndexProvider,
+        ),
+      ],
+    },
+    {
+      ...HEALTH_RESEARCH_HOST,
+      publishedProviders: [
+        buildPublishedProviderFromTenant(
+          'host-health-research.example.org',
+          'acme-id',
+          DataspaceSectors.HealthResearch,
+          ServiceCapabilityToken.DigitalTwinProvider,
+        ),
+      ],
+    },
   ],
 };
-
-const ANIMAL_CARE_PROVIDER_DID = 'did:web:animal-care-provider.example.org';
-const ANIMAL_RESEARCH_PROVIDER_DID = 'did:web:animal-research-provider.example.org';
-
-const transport = createDiscoveryCatalogFetcher({
-  internetJsonByUrl: {
-    [ANIMAL_CARE_HOST.discoveryUrl]: buildDspaceVersionMetadata(`/host/cds-${JURISDICTION}/${VERSION}/${NETWORK_TYPE}/dsp`),
-    [ANIMAL_RESEARCH_HOST.discoveryUrl]: buildDspaceVersionMetadata(`/host/cds-${JURISDICTION}/${VERSION}/${NETWORK_TYPE}/dsp`),
-  },
-  internetCatalogs: {
-    [ANIMAL_CARE_HOST.catalogUrl]: buildDefaultHostingOperatorDiscoveryCatalog({
-      hostingOperatorDid: ANIMAL_CARE_HOST.operatorDid,
-      discoveryUrl: ANIMAL_CARE_HOST.discoveryUrl,
-      catalogUrl: ANIMAL_CARE_HOST.catalogUrl,
-      providers: [
-        buildDefaultPublishedProviderCatalogRecord({
-          providerDid: ANIMAL_CARE_PROVIDER_DID,
-          serviceType: ServiceCapabilityToken.IndexProvider,
-          category: DataspaceSectors.AnimalCare,
-          areaServed: [COVERAGE_SCOPE, JURISDICTION],
-          endpointUrl: 'https://animal-care-provider.example.org/dsp',
-          discoveryUrl: ANIMAL_CARE_HOST.discoveryUrl,
-          catalogUrl: ANIMAL_CARE_HOST.catalogUrl,
-        }),
-      ],
-    }),
-    [ANIMAL_RESEARCH_HOST.catalogUrl]: buildDefaultHostingOperatorDiscoveryCatalog({
-      hostingOperatorDid: ANIMAL_RESEARCH_HOST.operatorDid,
-      discoveryUrl: ANIMAL_RESEARCH_HOST.discoveryUrl,
-      catalogUrl: ANIMAL_RESEARCH_HOST.catalogUrl,
-      providers: [
-        buildDefaultPublishedProviderCatalogRecord({
-          providerDid: ANIMAL_RESEARCH_PROVIDER_DID,
-          serviceType: ServiceCapabilityToken.DigitalTwinProvider,
-          category: DataspaceSectors.AnimalResearch,
-          areaServed: [COVERAGE_SCOPE, JURISDICTION],
-          endpointUrl: 'https://animal-research-provider.example.org/dsp',
-          discoveryUrl: ANIMAL_RESEARCH_HOST.discoveryUrl,
-          catalogUrl: ANIMAL_RESEARCH_HOST.catalogUrl,
-        }),
-      ],
-    }),
-  },
-});
 
 test('101: default-first discovery returns configured hosts by sector and jurisdiction', async () => {
   const discovery = createDefaultFirstDataspaceDiscovery({
@@ -138,50 +117,48 @@ test('101: default-first discovery returns configured hosts by sector and jurisd
   });
 
   const hosts = await discovery.getHosts({
-    sector: DataspaceSectors.AnimalCare,
+    sector: DataspaceSectors.HealthCare,
     jurisdiction: JURISDICTION,
     coverageScope: COVERAGE_SCOPE,
     requiredCapabilities: [ServiceCapabilityToken.IndexProvider],
   });
 
   assert.equal(hosts.length, 1);
-  assert.equal(hosts[0]?.operatorDid, ANIMAL_CARE_HOST.operatorDid);
+  assert.equal(hosts[0]?.operatorDid, HEALTH_CARE_HOST.operatorDid);
 });
 
-test('101: default-first discovery returns index providers for the selected sector', async () => {
+test('101: default-first discovery returns index providers from nested host defaults', async () => {
   const discovery = createDefaultFirstDataspaceDiscovery({
     version: VERSION,
     networkType: NETWORK_TYPE,
     defaults: DEFAULTS,
-    fetcher: transport.fetcher,
   });
 
   const providers = await discovery.getIndexProviders({
-    sector: DataspaceSectors.AnimalCare,
+    sector: DataspaceSectors.HealthCare,
     jurisdiction: JURISDICTION,
     coverageScope: COVERAGE_SCOPE,
   });
 
   assert.equal(providers.length, 1);
-  assert.equal(providers[0]?.providerDid, ANIMAL_CARE_PROVIDER_DID);
-  assert.equal(providers[0]?.hostingOperatorDid, ANIMAL_CARE_HOST.operatorDid);
+  assert.equal(providers[0]?.providerDid, 'did:web:host-health-care.example.org:acme-id:cds-ES:v1:health-care');
+  assert.equal(providers[0]?.hostingOperatorDid, HEALTH_CARE_HOST.operatorDid);
 });
 
-test('101: default-first discovery returns digital twin providers for the selected sector', async () => {
+test('101: default-first discovery returns digital twin providers from nested host defaults', async () => {
   const discovery = createDefaultFirstDataspaceDiscovery({
     version: VERSION,
     networkType: NETWORK_TYPE,
     defaults: DEFAULTS,
-    fetcher: transport.fetcher,
   });
 
   const providers = await discovery.getDigitalTwinProviders({
-    sector: DataspaceSectors.AnimalResearch,
+    sector: DataspaceSectors.HealthResearch,
     jurisdiction: JURISDICTION,
     coverageScope: COVERAGE_SCOPE,
   });
 
   assert.equal(providers.length, 1);
-  assert.equal(providers[0]?.providerDid, ANIMAL_RESEARCH_PROVIDER_DID);
-  assert.equal(providers[0]?.hostingOperatorDid, ANIMAL_RESEARCH_HOST.operatorDid);
+  assert.equal(providers[0]?.providerDid, 'did:web:host-health-research.example.org:acme-id:cds-ES:v1:health-research');
+  assert.equal(providers[0]?.hostingOperatorDid, HEALTH_RESEARCH_HOST.operatorDid);
 });

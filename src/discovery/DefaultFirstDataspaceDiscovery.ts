@@ -1,14 +1,19 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
 import {
+  DataspaceCoverageScope,
   DataspaceDiscoverySourceMode,
   ServiceCapabilityToken,
   createDataspaceDiscoveryDefaultsRegistry,
   DataspaceProtocolVersions,
+  inferCoverageScopeFromCountryCode,
+  isProviderServiceCapability,
+  normalizeCountryCode,
 } from 'gdc-common-utils-ts';
 import type {
   DataspaceDiscoveryDefaultsRegistry,
   DataspaceDiscoveryDefaultsRegistrySeed,
+  PublishedProviderCatalogRecord,
 } from 'gdc-common-utils-ts';
 import { HttpDataspaceResolver } from './HttpDataspaceResolver.js';
 import type {
@@ -23,6 +28,61 @@ function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function equalsIgnoreCase(left: string, right: string): boolean {
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
+function splitTokens(value: string | readonly string[] | undefined): string[] {
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeString(entry)).filter(Boolean);
+  }
+  const raw = normalizeString(value);
+  if (!raw) return [];
+  return raw.split(',').map((entry) => entry.trim()).filter(Boolean);
+}
+
+function buildCoverageTokens(
+  areaServed: string | readonly string[] | undefined,
+  filterJurisdiction: string | undefined,
+): Set<string> {
+  const tokens = new Set(splitTokens(areaServed).map((token) => token.toUpperCase()));
+  const normalizedJurisdiction = normalizeCountryCode(filterJurisdiction);
+  if (normalizedJurisdiction) {
+    const inferred = inferCoverageScopeFromCountryCode(normalizedJurisdiction);
+    if (inferred) tokens.add(inferred.toUpperCase());
+  }
+  return tokens;
+}
+
+function matchesProviderCoverage(
+  provider: PublishedProviderCatalogRecord,
+  jurisdiction: string | undefined,
+  coverageScope: string | undefined,
+): boolean {
+  const normalizedJurisdiction = normalizeCountryCode(jurisdiction);
+  const normalizedCoverageScope = normalizeString(coverageScope).toUpperCase();
+  if (!normalizedJurisdiction && !normalizedCoverageScope) return true;
+  const tokens = buildCoverageTokens(provider.areaServed, jurisdiction);
+  if (normalizedJurisdiction && tokens.has(normalizedJurisdiction)) return true;
+  if (normalizedCoverageScope && tokens.has(normalizedCoverageScope)) return true;
+  if (normalizedCoverageScope === DataspaceCoverageScope.EuropeanUnion) {
+    return Array.from(tokens).some((token) => inferCoverageScopeFromCountryCode(token) === DataspaceCoverageScope.EuropeanUnion);
+  }
+  return false;
+}
+
+function matchesDefaultPublishedProvider(
+  provider: PublishedProviderCatalogRecord,
+  input: SimpleDataspaceDiscoveryRequest,
+  providerCapability: string,
+): boolean {
+  if (!equalsIgnoreCase(provider.category, input.sector)) return false;
+  if (!isProviderServiceCapability(provider.serviceType)) return false;
+  if (!equalsIgnoreCase(provider.serviceType, providerCapability)) return false;
+  if (!matchesProviderCoverage(provider, input.jurisdiction, input.coverageScope)) return false;
+  return true;
+}
+
 function isDefaultsRegistry(
   value: DataspaceDiscoveryDefaultsRegistry | DataspaceDiscoveryDefaultsRegistrySeed | undefined,
 ): value is DataspaceDiscoveryDefaultsRegistry {
@@ -31,6 +91,14 @@ function isDefaultsRegistry(
     && 'buildBootstrapPlan' in value
     && typeof value.buildBootstrapPlan === 'function';
 }
+
+type DefaultHostingOperatorRegistrationWithPublishedProviders = Readonly<{
+  operatorDid: string;
+  discoveryUrl?: string;
+  catalogUrl?: string;
+  record: import('gdc-common-utils-ts').HostingOperatorSemanticRecord;
+  publishedProviders?: readonly PublishedProviderCatalogRecord[];
+}>;
 
 /**
  * High-level default-first discovery facade for portal/backend integrations.
@@ -103,7 +171,19 @@ export class DefaultFirstDataspaceDiscovery {
     input: SimpleDataspaceDiscoveryRequest,
     providerCapability: string,
   ): Promise<PublishedProviderMatch[]> {
-    const resolver = this.createResolver(input, [providerCapability]);
+    const bootstrapPlan = this.buildBootstrapPlan(input, [providerCapability]);
+    const defaultPublishedProviders = this.resolveDefaultPublishedProviders(
+      bootstrapPlan.hostingOperators,
+      input,
+      providerCapability,
+    );
+    if (defaultPublishedProviders.length > 0) {
+      return defaultPublishedProviders;
+    }
+    const resolver = new HttpDataspaceResolver({
+      hostingOperators: bootstrapPlan.hostingOperators,
+      fetcher: this.fetcher,
+    });
     return resolver.resolvePublishedProviders({
       sector: input.sector,
       jurisdiction: input.jurisdiction,
@@ -116,7 +196,19 @@ export class DefaultFirstDataspaceDiscovery {
     input: SimpleDataspaceDiscoveryRequest,
     requiredCapabilities: readonly string[],
   ): HttpDataspaceResolver {
-    const bootstrapPlan = this.defaultsRegistry.buildBootstrapPlan({
+    const bootstrapPlan = this.buildBootstrapPlan(input, requiredCapabilities);
+
+    return new HttpDataspaceResolver({
+      hostingOperators: bootstrapPlan.hostingOperators,
+      fetcher: this.fetcher,
+    });
+  }
+
+  private buildBootstrapPlan(
+    input: SimpleDataspaceDiscoveryRequest,
+    requiredCapabilities: readonly string[],
+  ) {
+    return this.defaultsRegistry.buildBootstrapPlan({
       jurisdiction: input.jurisdiction,
       version: this.version,
       networkType: this.networkType,
@@ -125,11 +217,24 @@ export class DefaultFirstDataspaceDiscovery {
       requiredCapabilities,
       sourceMode: DataspaceDiscoverySourceMode.DefaultFirst,
     });
+  }
 
-    return new HttpDataspaceResolver({
-      hostingOperators: bootstrapPlan.hostingOperators,
-      fetcher: this.fetcher,
-    });
+  private resolveDefaultPublishedProviders(
+    hosts: readonly DefaultHostingOperatorRegistrationWithPublishedProviders[],
+    input: SimpleDataspaceDiscoveryRequest,
+    providerCapability: string,
+  ): PublishedProviderMatch[] {
+    return hosts.flatMap((host) =>
+      (host.publishedProviders || [])
+        .filter((provider: PublishedProviderCatalogRecord) => matchesDefaultPublishedProvider(provider, input, providerCapability))
+        .map((provider: PublishedProviderCatalogRecord) => ({
+          providerDid: provider.providerDid,
+          record: provider,
+          hostingOperator: host.record,
+          hostingOperatorDid: host.operatorDid,
+          discoveryUrl: provider.discoveryUrl || host.discoveryUrl,
+          catalogUrl: provider.catalogUrl || host.catalogUrl,
+        })));
   }
 }
 

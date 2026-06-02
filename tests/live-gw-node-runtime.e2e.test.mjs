@@ -3,11 +3,22 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CommunicationCategoryCodes } from 'gdc-common-utils-ts/constants';
+import { CommunicationCategoryCodes, HealthcareBasicSections } from 'gdc-common-utils-ts/constants';
+import {
+  MedicationStatementClaim,
+  MedicationStatementClaimsFhirApiExtended,
+} from 'gdc-common-utils-ts/models/interoperable-claims/medication-statement-claims';
 import {
   EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT,
+  EXAMPLE_API_ORGANIZATION_DID,
+  EXAMPLE_JURISDICTION,
+  EXAMPLE_LIVE_GW_BASE_URL_LOCAL,
   EXAMPLE_LIVE_CONSENT_GRANT_INPUT,
   EXAMPLE_LIVE_EMPLOYEE_INPUT,
+  EXAMPLE_SECTOR,
+  EXAMPLE_SUBJECT_DID,
+  EXAMPLE_TENANT_IDENTIFIER,
+  buildExampleLiveMedicationCases,
   EXAMPLE_SMART_PRESENTATION_SUBMISSION,
   buildExampleCommunicationIngestionPayload,
   buildExampleDocumentReferenceSearchPayload,
@@ -30,6 +41,15 @@ const RUN_IPS_INGESTION = env('RUN_LIVE_GW_E2E_IPS_INGESTION', '0') === '1';
 const DEBUG = env('LIVE_GW_NODE_E2E_DEBUG', env('LIVE_GW_E2E_DEBUG', '0')) === '1';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const runId = new Date().toISOString().replace(/[:.]/g, '-');
+const suiteTenantId = env('TENANT_ID', EXAMPLE_TENANT_IDENTIFIER);
+const suiteTenantRouteId = env('TENANT_ROUTE_ID', suiteTenantId);
+const suiteJurisdiction = env('JURISDICTION', EXAMPLE_JURISDICTION);
+const suiteSector = env('SECTOR', EXAMPLE_SECTOR);
+const suiteSubjectDid = env('SUBJECT_DID', EXAMPLE_SUBJECT_DID);
+const suiteConsentSection = env(
+  'SMART_SCOPE_SECTION',
+  String(EXAMPLE_LIVE_CONSENT_GRANT_INPUT.actions?.[0] || HealthcareBasicSections.PatientSummaryDocument.attributeValue),
+);
 
 function ensureTraceFiles() {
   const debugFile = env(
@@ -121,6 +141,99 @@ function assertDocumentReferenceSearchHasCid(pollBody, label, expectedSubject) {
   return match;
 }
 
+function assertMedicationSearchHasMatch(pollBody, label, expected) {
+  const resourceData = assertSearchResponseHasMatches(pollBody, label);
+  const match = resourceData.find((row) =>
+    extractClaim(row, MedicationStatementClaim.Identifier) === expected.identifier
+    && extractClaim(row, MedicationStatementClaim.MedicationText) === expected.text
+    && extractClaim(row, MedicationStatementClaim.Note) === expected.note
+    && String(row?.[MedicationStatementClaimsFhirApiExtended.DoseQuantityValue] ?? row?.meta?.claims?.[MedicationStatementClaimsFhirApiExtended.DoseQuantityValue] ?? '') === String(expected.doseQuantityValue)
+    && extractClaim(row, MedicationStatementClaimsFhirApiExtended.DoseQuantityUnit) === expected.doseQuantityUnit
+    && String(row?.[MedicationStatementClaimsFhirApiExtended.TimingFrequency] ?? row?.meta?.claims?.[MedicationStatementClaimsFhirApiExtended.TimingFrequency] ?? '') === String(expected.timingFrequency)
+    && String(row?.[MedicationStatementClaimsFhirApiExtended.TimingPeriod] ?? row?.meta?.claims?.[MedicationStatementClaimsFhirApiExtended.TimingPeriod] ?? '') === String(expected.timingPeriod)
+    && extractClaim(row, MedicationStatementClaimsFhirApiExtended.TimingPeriodUnit) === expected.timingPeriodUnit
+    && String(row?.[MedicationStatementClaimsFhirApiExtended.DosageAsNeeded] ?? row?.meta?.claims?.[MedicationStatementClaimsFhirApiExtended.DosageAsNeeded] ?? '') === String(expected.dosageAsNeeded)
+  );
+  assert.ok(match, `${label} must include MedicationStatement ${expected.identifier}.`);
+  return match;
+}
+
+function buildMedicationBundle({
+  subjectDid,
+  identifier,
+  effectiveDateTime,
+  medicationText,
+  noteText,
+  doseQuantityValue,
+  doseQuantityUnit,
+  timingFrequency,
+  timingPeriod,
+  timingPeriodUnit,
+  dosageAsNeeded,
+}) {
+  return {
+    resourceType: 'Bundle',
+    type: 'document',
+    entry: [
+      {
+        resource: {
+          resourceType: 'Composition',
+          id: `composition-${identifier}`,
+          status: 'final',
+          subject: { reference: subjectDid },
+          type: { coding: [{ system: 'http://loinc.org', code: '60591-5' }] },
+          section: [
+            {
+              code: {
+                coding: [{
+                  system: 'http://loinc.org',
+                  code: '10160-0',
+                }],
+              },
+            },
+          ],
+        },
+      },
+      {
+        resource: {
+          resourceType: 'Patient',
+          id: `patient-${identifier}`,
+        },
+      },
+      {
+        resource: {
+          resourceType: 'MedicationStatement',
+          id: identifier,
+          status: 'active',
+          subject: { reference: subjectDid },
+          effectiveDateTime,
+          medicationCodeableConcept: { text: medicationText },
+          identifier: [{ value: identifier }],
+          note: [{ text: noteText }],
+          meta: {
+            claims: {
+              '@context': 'org.hl7.fhir.api',
+              [MedicationStatementClaim.Identifier]: identifier,
+              [MedicationStatementClaim.Subject]: subjectDid,
+              [MedicationStatementClaim.Status]: 'active',
+              [MedicationStatementClaim.MedicationText]: medicationText,
+              [MedicationStatementClaim.Effective]: effectiveDateTime,
+              [MedicationStatementClaim.Note]: noteText,
+              [MedicationStatementClaim.Category]: HealthcareBasicSections.HistoryOfMedicationUse.attributeValue,
+              [MedicationStatementClaimsFhirApiExtended.DoseQuantityValue]: doseQuantityValue,
+              [MedicationStatementClaimsFhirApiExtended.DoseQuantityUnit]: doseQuantityUnit,
+              [MedicationStatementClaimsFhirApiExtended.TimingFrequency]: timingFrequency,
+              [MedicationStatementClaimsFhirApiExtended.TimingPeriod]: timingPeriod,
+              [MedicationStatementClaimsFhirApiExtended.TimingPeriodUnit]: timingPeriodUnit,
+              [MedicationStatementClaimsFhirApiExtended.DosageAsNeeded]: dosageAsNeeded,
+            },
+          },
+        },
+      },
+    ],
+  };
+}
+
 function createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutMs = 15_000 } = {}) {
   return new NodeHttpClient({
     baseUrl,
@@ -132,19 +245,16 @@ function createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutMs = 15_
 
 test('LIVE actor-scoped node runtime chain on GW', { skip: !RUN }, async () => {
   const debug = createDebugLogger();
-  const baseUrl = env('BASE_URL', 'http://127.0.0.1:3000');
+  const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
   const vpTokenEnv = env('VP_TOKEN');
   const vpTokenFile = env(
     'VP_TOKEN_FILE',
     path.join(__dirname, 'fixtures', 'ica-vp-minimal.json'),
   );
-  const tenantId = env('TENANT_ID', 'VATES-B00112233');
-  const tenantRouteId = env(
-    'TENANT_ROUTE_ID',
-    `${tenantId.toLowerCase()}-${runId.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-  );
-  const jurisdiction = env('JURISDICTION', 'ES');
-  const sector = env('SECTOR', 'health-care');
+  const tenantId = suiteTenantId;
+  const tenantRouteId = suiteTenantRouteId;
+  const jurisdiction = suiteJurisdiction;
+  const sector = suiteSector;
   const hostSector = env('HOST_REGISTRY_SECTOR', 'test');
   const professionalIdToken = env(
     'PROFESSIONAL_ID_TOKEN',
@@ -155,7 +265,7 @@ test('LIVE actor-scoped node runtime chain on GW', { skip: !RUN }, async () => {
     }),
   );
   const bearerToken = env('AUTH_BEARER', professionalIdToken);
-  const professionalDid = env('PROFESSIONAL_DID', 'did:web:api.acme.org');
+  const professionalDid = env('PROFESSIONAL_DID', EXAMPLE_API_ORGANIZATION_DID);
 
   const vpPayload = loadVpPayloadFixture(vpTokenFile);
   const vpToken = vpTokenEnv || buildUnsignedVpJwt(vpPayload);
@@ -229,9 +339,9 @@ test('LIVE actor-scoped node runtime chain on GW', { skip: !RUN }, async () => {
   debug.record('employee-create', { response: employee });
   assert.equal(employee.poll.status, 200, 'Organization controller facade must create employee through GW.');
 
-  const individualAltName = env('INDIVIDUAL_ALTERNATE_NAME', `family-${Date.now()}`);
+  const individualAltName = env('INDIVIDUAL_ALTERNATE_NAME', 'ana');
   const individualControllerEmail = env('INDIVIDUAL_CONTROLLER_EMAIL', 'controller@example.com');
-  const patientSubjectDid = env('SUBJECT_DID', 'did:web:api.acme.org:individual:123');
+  const patientSubjectDid = suiteSubjectDid;
   const smartProfessionalDid = env('SMART_SUBJECT_DID', 'did:web:api.acme.org:employee:doctor1@acme.org:ISCO-08|2211');
   const smartClientId = env('SMART_CLIENT_ID', 'did:web:api.acme.org:employee:admin1@acme.org:device:demo');
 
@@ -308,7 +418,7 @@ test('LIVE actor-scoped node runtime chain on GW', { skip: !RUN }, async () => {
     codeChallengeMethod: 'S256',
     vpToken: smartVpToken,
     presentationSubmission: cloneExample(EXAMPLE_SMART_PRESENTATION_SUBMISSION),
-    scopes: [`organization/Composition.rs?subject=${env('SMART_SCOPE_SUBJECT_DID', patientSubjectDid)}&section=LOINC|48765-2 organization/Consent.cruds`],
+    scopes: [`organization/Composition.rs?subject=${env('SMART_SCOPE_SUBJECT_DID', patientSubjectDid)}&section=${suiteConsentSection} organization/Consent.cruds`],
     smartTokenKind: 'openid-smart',
     timeoutSeconds: 60,
     intervalSeconds: 2,
@@ -319,12 +429,12 @@ test('LIVE actor-scoped node runtime chain on GW', { skip: !RUN }, async () => {
 
 test('LIVE communication ingestion through individual controller facade persists DocumentReference baseline', { skip: !(RUN && RUN_IPS_INGESTION) }, async () => {
   const debug = createDebugLogger();
-  const baseUrl = env('BASE_URL', 'http://127.0.0.1:3000');
-  const tenantId = env('TENANT_ROUTE_ID', env('TENANT_ID', 'VATES-B00112233'));
-  const jurisdiction = env('JURISDICTION', 'ES');
-  const sector = env('SECTOR', 'health-care');
+  const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
+  const tenantId = suiteTenantRouteId;
+  const jurisdiction = suiteJurisdiction;
+  const sector = suiteSector;
   const bearerToken = env('AUTH_BEARER');
-  const subjectDid = env('SUBJECT_DID', 'did:web:api.acme.org:individual:123');
+  const subjectDid = suiteSubjectDid;
 
   const runtimeClient = createRuntimeClient({
     baseUrl,
@@ -391,4 +501,104 @@ test('LIVE communication ingestion through individual controller facade persists
     'DocumentReference search after communication ingestion',
     subjectDid,
   );
+});
+
+test('LIVE communication ingestion indexes two medication statements from two bundles', { skip: !(RUN && RUN_IPS_INGESTION) }, async () => {
+  const debug = createDebugLogger();
+  const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
+  const tenantId = suiteTenantRouteId;
+  const jurisdiction = suiteJurisdiction;
+  const sector = suiteSector;
+  const bearerToken = env('AUTH_BEARER');
+  const subjectDid = suiteSubjectDid;
+  const routeCtx = { tenantId, jurisdiction, sector };
+
+  const runtimeClient = createRuntimeClient({
+    baseUrl,
+    ctx: routeCtx,
+    bearerToken,
+  });
+  const individualControllerSession = new NodeActorSession(
+    { actorKind: ActorKinds.IndividualController, capabilities: [ActorCapabilities.IndividualIngestCommunication] },
+    runtimeClient,
+  );
+
+  const cases = buildExampleLiveMedicationCases(Date.now());
+
+  for (const medication of cases) {
+    const bundle = buildMedicationBundle({
+      subjectDid,
+      identifier: medication.identifier,
+      effectiveDateTime: medication.effectiveDateTime,
+      medicationText: medication.text,
+      noteText: medication.note,
+      doseQuantityValue: medication.doseQuantityValue,
+      doseQuantityUnit: medication.doseQuantityUnit,
+      timingFrequency: medication.timingFrequency,
+      timingPeriod: medication.timingPeriod,
+      timingPeriodUnit: medication.timingPeriodUnit,
+      dosageAsNeeded: medication.dosageAsNeeded,
+    });
+    const communicationPayload = buildExampleCommunicationIngestionPayload({
+      subjectDid,
+      sent: medication.effectiveDateTime,
+      ipsBundleBase64: Buffer.from(JSON.stringify(bundle), 'utf8').toString('base64'),
+    });
+    const communicationResource = communicationPayload?.body?.data?.[0]?.resource;
+    if (communicationResource?.meta?.claims) {
+      communicationResource.meta.claims['Composition.section'] = HealthcareBasicSections.HistoryOfMedicationUse.attributeValue;
+    }
+
+    let ingest = await individualControllerSession.asIndividualController().ingestCommunicationAndUpdateIndex(
+      routeCtx,
+      {
+        communicationPayload,
+        pathFormatSegment: 'api',
+        pollOptions: { timeoutMs: 120000, intervalMs: 1500 },
+      },
+    );
+    if (ingest.poll.status === 404) {
+      ingest = await individualControllerSession.asIndividualController().ingestCommunicationAndUpdateIndex(
+        routeCtx,
+        {
+          communicationPayload,
+          pathFormatSegment: 'org.hl7.fhir.r4',
+          pollOptions: { timeoutMs: 120000, intervalMs: 1500 },
+        },
+      );
+    }
+    debug.record('communication-ingest-medication', {
+      medicationIdentifier: medication.identifier,
+      response: ingest,
+    });
+    assert.equal(ingest.poll.status, 200, `Communication ingestion for ${medication.identifier} must complete.`);
+    assertCommunicationAckShape(ingest.poll.body, `Communication ingestion for ${medication.identifier}`);
+  }
+
+  const search = await runtimeClient.searchClinicalBundle(routeCtx, {
+    subject: subjectDid,
+    section: HealthcareBasicSections.HistoryOfMedicationUse.attributeValue,
+    includedTypes: ['MedicationStatement'],
+    pollOptions: { timeoutMs: 120000, intervalMs: 1500 },
+  });
+  debug.record('medicationstatement-search', { response: search });
+  assert.equal(search.poll.status, 200, 'MedicationStatement bundle search must return 200.');
+
+  for (const medication of cases) {
+    assertMedicationSearchHasMatch(
+      search.poll.body,
+      'MedicationStatement search after communication ingestion',
+      {
+        identifier: medication.identifier,
+        text: medication.text,
+        note: medication.note,
+        doseQuantityValue: medication.doseQuantityValue,
+        doseQuantityUnit: medication.doseQuantityUnit,
+        timingFrequency: medication.timingFrequency,
+        timingPeriod: medication.timingPeriod,
+        timingPeriodUnit: medication.timingPeriodUnit,
+        dosageAsNeeded: medication.dosageAsNeeded,
+      },
+    );
+  }
 });

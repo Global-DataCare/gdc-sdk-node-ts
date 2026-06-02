@@ -191,6 +191,7 @@ import { HostNetworkTypes } from 'gdc-common-utils-ts/constants/network';
 import {
   buildDefaultHostingOperatorRegistrationFromAuthority,
   buildDefaultIcaRegistrationFromAuthority,
+  buildDefaultPublishedProviderRecordFromTenant,
 } from 'gdc-common-utils-ts/utils/dataspace-discovery-defaults';
 
 const JURISDICTION = 'ES';
@@ -213,28 +214,58 @@ const discovery = createDefaultFirstDataspaceDiscovery({
       }),
     ],
     hostingOperators: [
-      buildDefaultHostingOperatorRegistrationFromAuthority({
-        authority: 'host-health-care.example.org',
-        jurisdiction: JURISDICTION,
-        version: VERSION,
-        networkType: NETWORK_TYPE,
-        title: 'Health Care Host ES',
-        sector: DataspaceSectors.HealthCare,
-        serviceTypes: [ServiceCapabilityToken.IndexProvider],
-        areaServed: [COVERAGE_SCOPE, JURISDICTION],
-        coverageScope: COVERAGE_SCOPE,
-      }),
-      buildDefaultHostingOperatorRegistrationFromAuthority({
-        authority: 'host-health-research.example.org',
-        jurisdiction: JURISDICTION,
-        version: VERSION,
-        networkType: NETWORK_TYPE,
-        title: 'Health Research Host ES',
-        sector: DataspaceSectors.HealthResearch,
-        serviceTypes: [ServiceCapabilityToken.DigitalTwinProvider],
-        areaServed: [COVERAGE_SCOPE, JURISDICTION],
-        coverageScope: COVERAGE_SCOPE,
-      }),
+      {
+        ...buildDefaultHostingOperatorRegistrationFromAuthority({
+          authority: 'host-health-care.example.org',
+          jurisdiction: JURISDICTION,
+          version: VERSION,
+          networkType: NETWORK_TYPE,
+          title: 'Health Care Host ES',
+          sector: DataspaceSectors.HealthCare,
+          serviceTypes: [ServiceCapabilityToken.IndexProvider],
+          areaServed: [COVERAGE_SCOPE, JURISDICTION],
+          coverageScope: COVERAGE_SCOPE,
+        }),
+        publishedProviders: [
+          buildDefaultPublishedProviderRecordFromTenant({
+            hostAuthority: 'host-health-care.example.org',
+            tenantId: 'acme-id',
+            jurisdiction: JURISDICTION,
+            version: VERSION,
+            sector: DataspaceSectors.HealthCare,
+            providerCapability: ServiceCapabilityToken.IndexProvider,
+            areaServed: [COVERAGE_SCOPE, JURISDICTION],
+            // Future optional public domain:
+            // externalDomain: 'acme-health.example.org',
+          }),
+        ],
+      },
+      {
+        ...buildDefaultHostingOperatorRegistrationFromAuthority({
+          authority: 'host-health-research.example.org',
+          jurisdiction: JURISDICTION,
+          version: VERSION,
+          networkType: NETWORK_TYPE,
+          title: 'Health Research Host ES',
+          sector: DataspaceSectors.HealthResearch,
+          serviceTypes: [ServiceCapabilityToken.DigitalTwinProvider],
+          areaServed: [COVERAGE_SCOPE, JURISDICTION],
+          coverageScope: COVERAGE_SCOPE,
+        }),
+        publishedProviders: [
+          buildDefaultPublishedProviderRecordFromTenant({
+            hostAuthority: 'host-health-research.example.org',
+            tenantId: 'acme-id',
+            jurisdiction: JURISDICTION,
+            version: VERSION,
+            sector: DataspaceSectors.HealthResearch,
+            providerCapability: ServiceCapabilityToken.DigitalTwinProvider,
+            areaServed: [COVERAGE_SCOPE, JURISDICTION],
+            // Future optional public domain:
+            // externalDomain: 'acme-health.example.org',
+          }),
+        ],
+      },
     ],
   },
 });
@@ -279,6 +310,8 @@ Important notes:
 - the example uses `authority` such as a domain or IP as the primary input
   because that is usually what integrators know at startup
 - the helpers derive `did:web` and `discoveryUrl` automatically
+- nested `publishedProviders` can be seeded with `tenantId` when you want the
+  portal/backend to work before depending on host catalog crawling
 - `catalogUrl` is intentionally omitted from the startup seed because integrators
   normally do not need to know it up front
 - `title` is available today for ICA and host defaults and can already help a

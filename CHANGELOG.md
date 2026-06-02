@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.6] - 2026-06-02
+
+### Changed
+- Updated shared dependency targets to:
+  - `gdc-common-utils-ts@^1.14.10`
+  - `gdc-sdk-core-ts@^0.6.9`
+- Clarified the backend discovery and live GW runtime examples around the
+  current default-first and IPS ingestion flows.
+- Extended the live GW runtime coverage so the backend example path can ingest
+  and validate two medication statements coming from two different IPS bundle
+  communications.
+
+### Testing
+- `npm test`
+- `npm run build`
+
+## [0.6.4] - 2026-06-01
+
+### Changed
+- Simplified the `default-first` discovery docs further so integrators seed
+  defaults from:
+  - ICA authority/domain
+  - host authority/domain
+  - published provider `tenantId` nested under each host
+- Updated the shared dependency target to `gdc-common-utils-ts@^1.14.3` so the
+  node runtime can use the new authority-based and tenant-based discovery
+  builders.
+
+### Testing
+- `npm run type-check`
+- `npm test`
+
 ## [0.6.3] - 2026-06-01
 
 ### Added
