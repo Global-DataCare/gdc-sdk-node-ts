@@ -158,6 +158,29 @@ function assertMedicationSearchHasMatch(pollBody, label, expected) {
   return match;
 }
 
+function assertIpsBundleHasMedication(pollBody, label, expected) {
+  const entries = assertBundleHasEntries(pollBody, label);
+  const first = entries[0] || {};
+  const bundle = first?.resource;
+  assert.equal(bundle?.resourceType, 'Bundle', `${label} must return a FHIR Bundle resource.`);
+  assert.equal(bundle?.type, 'document', `${label} must return a Bundle document.`);
+  const bundleEntries = Array.isArray(bundle?.entry) ? bundle.entry : [];
+  assert.ok(bundleEntries.length > 0, `${label} must contain bundle entries.`);
+  assert.equal(
+    bundleEntries[0]?.resource?.resourceType,
+    'Composition',
+    `${label} first bundle entry must be Composition.`,
+  );
+  const match = bundleEntries.find((entry) =>
+    entry?.resource?.resourceType === 'MedicationStatement'
+    && extractClaim(entry.resource, MedicationStatementClaim.Identifier) === expected.identifier
+    && extractClaim(entry.resource, MedicationStatementClaim.MedicationText) === expected.text
+    && extractClaim(entry.resource, MedicationStatementClaim.Note) === expected.note,
+  );
+  assert.ok(match, `${label} must include consolidated MedicationStatement ${expected.identifier}.`);
+  return match;
+}
+
 function buildMedicationBundle({
   subjectDid,
   identifier,
@@ -339,7 +362,7 @@ test('LIVE actor-scoped node runtime chain on GW', { skip: !RUN }, async () => {
   debug.record('employee-create', { response: employee });
   assert.equal(employee.poll.status, 200, 'Organization controller facade must create employee through GW.');
 
-  const individualAltName = env('INDIVIDUAL_ALTERNATE_NAME', 'ana');
+  const individualAltName = env('INDIVIDUAL_ALTERNATE_NAME', 'Doraemon');
   const individualControllerEmail = env('INDIVIDUAL_CONTROLLER_EMAIL', 'controller@example.com');
   const patientSubjectDid = suiteSubjectDid;
   const smartProfessionalDid = env('SMART_SUBJECT_DID', 'did:web:api.acme.org:employee:doctor1@acme.org:ISCO-08|2211');
@@ -598,6 +621,40 @@ test('LIVE communication ingestion indexes two medication statements from two bu
         timingPeriod: medication.timingPeriod,
         timingPeriodUnit: medication.timingPeriodUnit,
         dosageAsNeeded: medication.dosageAsNeeded,
+      },
+    );
+  }
+
+  const ipsSearch = await individualControllerSession.asIndividualController().submitAndPoll(
+    runtimeClient.individualBundleSearchPath(routeCtx),
+    runtimeClient.individualBundleSearchPollPath(routeCtx),
+    {
+      thid: `ips-search-${Date.now()}`,
+      body: {
+        resourceType: 'Bundle',
+        type: 'batch',
+        entry: [{
+          request: {
+            method: 'GET',
+            url:
+              `Bundle?type=document&composition.subject=${encodeURIComponent(subjectDid)}`
+              + `&composition.type=${encodeURIComponent('http://loinc.org|60591-5')}`,
+          },
+        }],
+      },
+    },
+    { timeoutMs: 120000, intervalMs: 1500 },
+  );
+  debug.record('ips-bundle-search', { response: ipsSearch });
+  assert.equal(ipsSearch.poll.status, 200, 'IPS bundle search must return 200.');
+  for (const medication of cases) {
+    assertIpsBundleHasMedication(
+      ipsSearch.poll.body,
+      'IPS bundle search after communication ingestion',
+      {
+        identifier: medication.identifier,
+        text: medication.text,
+        note: medication.note,
       },
     );
   }
