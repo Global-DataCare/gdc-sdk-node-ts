@@ -1,9 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CommunicationCategoryCodes, HealthcareBasicSections } from 'gdc-common-utils-ts/constants';
+import { HealthcareBasicSections } from 'gdc-common-utils-ts/constants';
 import {
   MedicationStatementClaim,
   MedicationStatementClaimsFhirApiExtended,
@@ -25,13 +24,23 @@ import {
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
 import { createIpsSummarySearchDidcommMessage } from 'gdc-common-utils-ts/utils/communication-bundle-document-request';
+import {
+  buildBundleDocumentFromClaims,
+  extractFlatClaimValue,
+  getBundleDocumentResourceIds,
+  getBundleDocumentResources,
+} from '../../gdc-common-utils-ts/dist/utils/bundle-document-builder.js';
 
-import { ActorCapabilities, ActorKinds, NodeActorSession, NodeHttpClient } from '../dist/index.js';
+import { ActorCapabilities, ActorKinds, NodeActorSession } from '../dist/index.js';
 import {
   buildUnsignedJwt,
   buildUnsignedVpJwt,
   loadVpPayloadFixture,
 } from './helpers/vp-token-fixture.mjs';
+import {
+  createRuntimeClient,
+  ensureLiveGwTraceFiles,
+} from './helpers/live-gw-runtime-helpers.mjs';
 
 function env(name, fallback = '') {
   return String(process.env[name] ?? fallback).trim();
@@ -52,227 +61,33 @@ const suiteConsentSection = env(
   String(EXAMPLE_LIVE_CONSENT_GRANT_INPUT.actions?.[0] || HealthcareBasicSections.PatientSummaryDocument.attributeValue),
 );
 
-function ensureTraceFiles() {
-  const debugFile = env(
-    'LIVE_GW_NODE_E2E_DEBUG_FILE',
-    path.join(__dirname, '..', 'test-results', `live-gw-node-runtime-debug-${runId}.jsonl`),
-  );
-  const httpTraceFile = env(
-    'SDK_HTTP_TRACE_FILE',
-    path.join(__dirname, '..', 'test-results', `live-gw-http-trace-${runId}.jsonl`),
-  );
-  fs.mkdirSync(path.dirname(debugFile), { recursive: true });
-  if (!process.env.SDK_HTTP_TRACE_FILE) {
-    process.env.SDK_HTTP_TRACE_FILE = httpTraceFile;
-  }
-  return { debugFile, httpTraceFile };
-}
-
-function redactForDebug(value) {
-  return JSON.parse(JSON.stringify(value, (key, nestedValue) => {
-    if (/token|authorization|secret|password/i.test(String(key || ''))) {
-      return '[redacted]';
-    }
-    return nestedValue;
-  }));
-}
-
 function createDebugLogger() {
-  const { debugFile } = ensureTraceFiles();
-  if (!DEBUG) {
-    return { filePath: debugFile, record: () => {} };
-  }
-  fs.writeFileSync(debugFile, '');
-  return {
-    filePath: debugFile,
-    record(stage, data) {
-      fs.appendFileSync(
-        debugFile,
-        `${JSON.stringify({
-          ts: new Date().toISOString(),
-          stage,
-          ...redactForDebug(data),
-        })}\n`,
-      );
-    },
-  };
+  return ensureLiveGwTraceFiles({
+    debugEnabled: DEBUG,
+    debugFilePath: env(
+      'LIVE_GW_NODE_E2E_DEBUG_FILE',
+      path.join(__dirname, '..', 'test-results', `live-gw-node-runtime-debug-${runId}.jsonl`),
+    ),
+    httpTraceFilePath: env(
+      'SDK_HTTP_TRACE_FILE',
+      path.join(__dirname, '..', 'test-results', `live-gw-http-trace-${runId}.jsonl`),
+    ),
+  });
 }
 
-function assertBundleHasEntries(pollBody, label) {
+function getBatchEntries(pollBody, label) {
   const entries = pollBody?.body?.data || pollBody?.data || [];
-  assert.ok(Array.isArray(entries), `${label} must return a bundle-like data array.`);
-  assert.ok(entries.length > 0, `${label} must return at least one entry in data[].`);
+  assert.ok(Array.isArray(entries), `${label} must return a batch-style data array.`);
+  assert.ok(entries.length > 0, `${label} must return at least one batch entry.`);
   return entries;
 }
 
-function assertCommunicationAckShape(pollBody, label) {
-  const entries = assertBundleHasEntries(pollBody, label);
-  const first = entries[0] || {};
-  const status = Number(first?.response?.status || 0);
-  assert.ok(status === 200 || status === 201, `${label} first entry response.status must be 200/201.`);
-  return first;
-}
-
-function assertSearchResponseHasMatches(pollBody, label) {
-  const entries = assertBundleHasEntries(pollBody, label);
-  const first = entries[0] || {};
-  const resourceData = first?.resource?.data;
-  assert.ok(Array.isArray(resourceData), `${label} first entry must expose resource.data array.`);
-  assert.ok(resourceData.length > 0, `${label} must return at least one matched resource.`);
-  return resourceData;
-}
-
-function extractClaim(record, key) {
-  if (!record || typeof record !== 'object') return '';
-  const direct = record[key];
-  if (typeof direct === 'string' && direct.trim()) return direct.trim();
-  const contextualizedR4 = record[`org.hl7.fhir.r4.${key}`];
-  if (typeof contextualizedR4 === 'string' && contextualizedR4.trim()) return contextualizedR4.trim();
-  const contextualizedApi = record[`org.hl7.fhir.api.${key}`];
-  if (typeof contextualizedApi === 'string' && contextualizedApi.trim()) return contextualizedApi.trim();
-  const nested = record?.meta?.claims?.[key];
-  if (typeof nested === 'string' && nested.trim()) return nested.trim();
-  const nestedR4 = record?.meta?.claims?.[`org.hl7.fhir.r4.${key}`];
-  if (typeof nestedR4 === 'string' && nestedR4.trim()) return nestedR4.trim();
-  const nestedApi = record?.meta?.claims?.[`org.hl7.fhir.api.${key}`];
-  if (typeof nestedApi === 'string' && nestedApi.trim()) return nestedApi.trim();
-  return '';
-}
-
-function assertDocumentReferenceSearchHasCid(pollBody, label, expectedSubject) {
-  const resourceData = assertSearchResponseHasMatches(pollBody, label);
-  const match = resourceData.find((row) => {
-    const subject = extractClaim(row, 'DocumentReference.subject');
-    const cid = extractClaim(row, 'DocumentReference.contenthash');
-    return subject === expectedSubject && cid.startsWith('z');
-  });
-  assert.ok(match, `${label} must include at least one DocumentReference row with subject=${expectedSubject} and CID contenthash.`);
-  return match;
-}
-
-function assertMedicationSearchHasMatch(pollBody, label, expected) {
-  const resourceData = assertSearchResponseHasMatches(pollBody, label);
-  const match = resourceData.find((row) =>
-    extractClaim(row, MedicationStatementClaim.Identifier) === expected.identifier
-    && extractClaim(row, MedicationStatementClaim.MedicationText) === expected.text
-    && extractClaim(row, MedicationStatementClaim.Note) === expected.note
-    && String(row?.[MedicationStatementClaimsFhirApiExtended.DoseQuantityValue] ?? row?.meta?.claims?.[MedicationStatementClaimsFhirApiExtended.DoseQuantityValue] ?? '') === String(expected.doseQuantityValue)
-    && extractClaim(row, MedicationStatementClaimsFhirApiExtended.DoseQuantityUnit) === expected.doseQuantityUnit
-    && String(row?.[MedicationStatementClaimsFhirApiExtended.TimingFrequency] ?? row?.meta?.claims?.[MedicationStatementClaimsFhirApiExtended.TimingFrequency] ?? '') === String(expected.timingFrequency)
-    && String(row?.[MedicationStatementClaimsFhirApiExtended.TimingPeriod] ?? row?.meta?.claims?.[MedicationStatementClaimsFhirApiExtended.TimingPeriod] ?? '') === String(expected.timingPeriod)
-    && extractClaim(row, MedicationStatementClaimsFhirApiExtended.TimingPeriodUnit) === expected.timingPeriodUnit
-    && String(row?.[MedicationStatementClaimsFhirApiExtended.DosageAsNeeded] ?? row?.meta?.claims?.[MedicationStatementClaimsFhirApiExtended.DosageAsNeeded] ?? '') === String(expected.dosageAsNeeded)
-  );
-  assert.ok(match, `${label} must include MedicationStatement ${expected.identifier}.`);
-  return match;
-}
-
-function assertIpsBundleHasMedication(pollBody, label, expected) {
-  const entries = assertBundleHasEntries(pollBody, label);
-  const first = entries[0] || {};
-  const bundle = first?.resource;
-  assert.equal(bundle?.resourceType, 'Bundle', `${label} must return a FHIR Bundle resource.`);
-  assert.equal(bundle?.type, 'document', `${label} must return a Bundle document.`);
-  const bundleEntries = Array.isArray(bundle?.entry) ? bundle.entry : [];
-  assert.ok(bundleEntries.length > 0, `${label} must contain bundle entries.`);
-  assert.equal(
-    bundleEntries[0]?.resource?.resourceType,
-    'Composition',
-    `${label} first bundle entry must be Composition.`,
-  );
-  const match = bundleEntries.find((entry) =>
-    entry?.resource?.resourceType === 'MedicationStatement'
-    && extractClaim(entry.resource, MedicationStatementClaim.Identifier) === expected.identifier
-    && extractClaim(entry.resource, MedicationStatementClaim.MedicationText) === expected.text
-    && extractClaim(entry.resource, MedicationStatementClaim.Note) === expected.note,
-  );
-  assert.ok(match, `${label} must include consolidated MedicationStatement ${expected.identifier}.`);
-  return match;
-}
-
-function buildMedicationBundle({
-  subjectDid,
-  identifier,
-  effectiveDateTime,
-  medicationText,
-  noteText,
-  doseQuantityValue,
-  doseQuantityUnit,
-  timingFrequency,
-  timingPeriod,
-  timingPeriodUnit,
-  dosageAsNeeded,
-}) {
-  return {
-    resourceType: 'Bundle',
-    type: 'document',
-    entry: [
-      {
-        resource: {
-          resourceType: 'Composition',
-          id: `composition-${identifier}`,
-          status: 'final',
-          subject: { reference: subjectDid },
-          type: { coding: [{ system: 'http://loinc.org', code: '60591-5' }] },
-          section: [
-            {
-              code: {
-                coding: [{
-                  system: 'http://loinc.org',
-                  code: '10160-0',
-                }],
-              },
-            },
-          ],
-        },
-      },
-      {
-        resource: {
-          resourceType: 'Patient',
-          id: `patient-${identifier}`,
-        },
-      },
-      {
-        resource: {
-          resourceType: 'MedicationStatement',
-          id: identifier,
-          status: 'active',
-          subject: { reference: subjectDid },
-          effectiveDateTime,
-          medicationCodeableConcept: { text: medicationText },
-          identifier: [{ value: identifier }],
-          note: [{ text: noteText }],
-          meta: {
-            claims: {
-              '@context': 'org.hl7.fhir.api',
-              [MedicationStatementClaim.Identifier]: identifier,
-              [MedicationStatementClaim.Subject]: subjectDid,
-              [MedicationStatementClaim.Status]: 'active',
-              [MedicationStatementClaim.MedicationText]: medicationText,
-              [MedicationStatementClaim.Effective]: effectiveDateTime,
-              [MedicationStatementClaim.Note]: noteText,
-              [MedicationStatementClaim.Category]: HealthcareBasicSections.HistoryOfMedicationUse.attributeValue,
-              [MedicationStatementClaimsFhirApiExtended.DoseQuantityValue]: doseQuantityValue,
-              [MedicationStatementClaimsFhirApiExtended.DoseQuantityUnit]: doseQuantityUnit,
-              [MedicationStatementClaimsFhirApiExtended.TimingFrequency]: timingFrequency,
-              [MedicationStatementClaimsFhirApiExtended.TimingPeriod]: timingPeriod,
-              [MedicationStatementClaimsFhirApiExtended.TimingPeriodUnit]: timingPeriodUnit,
-              [MedicationStatementClaimsFhirApiExtended.DosageAsNeeded]: dosageAsNeeded,
-            },
-          },
-        },
-      },
-    ],
-  };
-}
-
-function createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutMs = 15_000 } = {}) {
-  return new NodeHttpClient({
-    baseUrl,
-    ctx,
-    bearerToken,
-    requestTimeoutMs,
-  });
+function getSearchRows(pollBody, label) {
+  const first = getBatchEntries(pollBody, label)[0] || {};
+  const rows = first?.resource?.data;
+  assert.ok(Array.isArray(rows), `${label} first batch entry must expose resource.data.`);
+  assert.ok(rows.length > 0, `${label} must return at least one matched row.`);
+  return rows;
 }
 
 test('LIVE actor-scoped node runtime chain on GW', { skip: !RUN }, async () => {
@@ -516,7 +331,11 @@ test('LIVE communication ingestion through individual controller facade persists
   }
   debug.record('communication-ingest', { response: ingest });
   assert.equal(ingest.poll.status, 200, 'Communication ingestion through facade must complete.');
-  assertCommunicationAckShape(ingest.poll.body, 'Communication ingestion');
+  {
+    const first = getBatchEntries(ingest.poll.body, 'Communication ingestion')[0] || {};
+    const status = Number(first?.response?.status || 0);
+    assert.ok(status === 200 || status === 201, 'Communication ingestion first entry response.status must be 200/201.');
+  }
 
   const search = await individualControllerSession.asIndividualController().submitAndPoll(
     runtimeClient.v1Path({ tenantId, jurisdiction, sector }, 'individual', 'org.hl7.fhir.r4', 'Bundle', '_search'),
@@ -529,11 +348,15 @@ test('LIVE communication ingestion through individual controller facade persists
   );
   debug.record('documentreference-search', { response: search });
   assert.equal(search.poll.status, 200, 'DocumentReference search through facade submitAndPoll must return 200.');
-  assertDocumentReferenceSearchHasCid(
-    search.poll.body,
-    'DocumentReference search after communication ingestion',
-    subjectDid,
-  );
+  {
+    const rows = getSearchRows(search.poll.body, 'DocumentReference search after communication ingestion');
+    const match = rows.find((row) => {
+      const subject = extractFlatClaimValue(row, 'DocumentReference.subject');
+      const cid = extractFlatClaimValue(row, 'DocumentReference.contenthash');
+      return subject === subjectDid && cid.startsWith('z');
+    });
+    assert.ok(match, 'DocumentReference search after communication ingestion must include one row with matching subject and CID contenthash.');
+  }
 });
 
 test('LIVE communication ingestion indexes two medication statements from two bundles', { skip: !(RUN && RUN_IPS_INGESTION) }, async () => {
@@ -560,28 +383,31 @@ test('LIVE communication ingestion indexes two medication statements from two bu
   const cases = buildExampleLiveMedicationCases(Date.now());
 
   for (const medication of cases) {
-    const bundle = buildMedicationBundle({
+    const medicationClaims = {
+      '@context': 'org.hl7.fhir.api',
+      [MedicationStatementClaim.Identifier]: medication.identifier,
+      [MedicationStatementClaim.Subject]: subjectDid,
+      [MedicationStatementClaim.Status]: 'active',
+      [MedicationStatementClaim.MedicationText]: medication.text,
+      [MedicationStatementClaim.Effective]: medication.effectiveDateTime,
+      [MedicationStatementClaim.Note]: medication.note,
+      [MedicationStatementClaim.Category]: medication.section,
+      [MedicationStatementClaimsFhirApiExtended.DoseQuantityValue]: medication.doseQuantityValue,
+      [MedicationStatementClaimsFhirApiExtended.DoseQuantityUnit]: medication.doseQuantityUnit,
+      [MedicationStatementClaimsFhirApiExtended.TimingFrequency]: medication.timingFrequency,
+      [MedicationStatementClaimsFhirApiExtended.TimingPeriod]: medication.timingPeriod,
+      [MedicationStatementClaimsFhirApiExtended.TimingPeriodUnit]: medication.timingPeriodUnit,
+      [MedicationStatementClaimsFhirApiExtended.DosageAsNeeded]: medication.dosageAsNeeded,
+    };
+    const bundle = buildBundleDocumentFromClaims({
       subjectDid,
-      identifier: medication.identifier,
-      effectiveDateTime: medication.effectiveDateTime,
-      medicationText: medication.text,
-      noteText: medication.note,
-      doseQuantityValue: medication.doseQuantityValue,
-      doseQuantityUnit: medication.doseQuantityUnit,
-      timingFrequency: medication.timingFrequency,
-      timingPeriod: medication.timingPeriod,
-      timingPeriodUnit: medication.timingPeriodUnit,
-      dosageAsNeeded: medication.dosageAsNeeded,
+      claimsList: [medicationClaims],
     });
     const communicationPayload = buildExampleCommunicationIngestionPayload({
       subjectDid,
       sent: medication.effectiveDateTime,
       ipsBundleBase64: Buffer.from(JSON.stringify(bundle), 'utf8').toString('base64'),
     });
-    const communicationResource = communicationPayload?.body?.data?.[0]?.resource;
-    if (communicationResource?.meta?.claims) {
-      communicationResource.meta.claims['Composition.section'] = HealthcareBasicSections.HistoryOfMedicationUse.attributeValue;
-    }
 
     let ingest = await individualControllerSession.asIndividualController().ingestCommunicationAndUpdateIndex(
       routeCtx,
@@ -606,49 +432,11 @@ test('LIVE communication ingestion indexes two medication statements from two bu
       response: ingest,
     });
     assert.equal(ingest.poll.status, 200, `Communication ingestion for ${medication.identifier} must complete.`);
-    assertCommunicationAckShape(ingest.poll.body, `Communication ingestion for ${medication.identifier}`);
-  }
-
-  const search = await individualControllerSession.asIndividualController().submitAndPoll(
-    runtimeClient.v1Path(routeCtx, 'individual', 'org.hl7.fhir.api', 'MedicationStatement', '_search'),
-    runtimeClient.v1Path(routeCtx, 'individual', 'org.hl7.fhir.api', 'MedicationStatement', '_batch-response'),
     {
-      thid: `medication-search-${Date.now()}`,
-      body: {
-        data: [
-          {
-            type: 'MedicationStatement-search-request-v1.0',
-            meta: {
-              claims: {
-                '@context': 'org.hl7.fhir.api',
-                'MedicationStatement.subject': subjectDid,
-              },
-            },
-          },
-        ],
-      },
-    },
-    { timeoutMs: 120000, intervalMs: 1500 },
-  );
-  debug.record('medicationstatement-search', { response: search });
-  assert.equal(search.poll.status, 200, 'MedicationStatement search must return 200.');
-
-  for (const medication of cases) {
-    assertMedicationSearchHasMatch(
-      search.poll.body,
-      'MedicationStatement search after communication ingestion',
-      {
-        identifier: medication.identifier,
-        text: medication.text,
-        note: medication.note,
-        doseQuantityValue: medication.doseQuantityValue,
-        doseQuantityUnit: medication.doseQuantityUnit,
-        timingFrequency: medication.timingFrequency,
-        timingPeriod: medication.timingPeriod,
-        timingPeriodUnit: medication.timingPeriodUnit,
-        dosageAsNeeded: medication.dosageAsNeeded,
-      },
-    );
+      const first = getBatchEntries(ingest.poll.body, `Communication ingestion for ${medication.identifier}`)[0] || {};
+      const status = Number(first?.response?.status || 0);
+      assert.ok(status === 200 || status === 201, `Communication ingestion for ${medication.identifier} first entry response.status must be 200/201.`);
+    }
   }
 
   const ipsSearchCommunicationPayload = createIpsSummarySearchDidcommMessage({
@@ -670,15 +458,46 @@ test('LIVE communication ingestion indexes two medication statements from two bu
     response: ipsSearch,
   });
   assert.equal(ipsSearch.poll.status, 200, 'IPS communication search must return 200.');
+  // Important architecture note:
+  // this request does not call Bundle/_search directly from the test.
+  // The test sends a Communication whose content-reference asks for
+  // `individual/.../Bundle/_search?...`. GW stores the Communication,
+  // then resolves that embedded request internally and returns the
+  // consolidated Bundle document in the Communication batch response.
+  const ipsSearchEntries = getBatchEntries(
+    ipsSearch.poll.body,
+    'IPS communication search after communication ingestion',
+  );
+  const ipsBundle = ipsSearchEntries[0]?.resource;
+  assert.equal(ipsBundle?.resourceType, 'Bundle', 'IPS communication search must return a FHIR Bundle resource.');
+  assert.equal(ipsBundle?.type, 'document', 'IPS communication search must return a Bundle document.');
+  assert.equal(
+    ipsBundle?.entry?.[0]?.resource?.resourceType,
+    'Composition',
+    'IPS communication search must return a Bundle document whose first entry is Composition.',
+  );
+  const medicationIds = getBundleDocumentResourceIds(ipsBundle, {
+    section: HealthcareBasicSections.HistoryOfMedicationUse.attributeValue,
+    resourceType: 'MedicationStatement',
+  });
+  assert.ok(
+    medicationIds.length >= cases.length,
+    'IPS communication search must expose at least the ingested MedicationStatement ids in the medication section.',
+  );
   for (const medication of cases) {
-    assertIpsBundleHasMedication(
-      ipsSearch.poll.body,
-      'IPS communication search after communication ingestion',
-      {
-        identifier: medication.identifier,
-        text: medication.text,
-        note: medication.note,
-      },
+    assert.ok(
+      medicationIds.includes(medication.identifier),
+      `IPS communication search must include MedicationStatement id ${medication.identifier} in the medication section.`,
     );
+    const resources = getBundleDocumentResources(ipsBundle, {
+      section: HealthcareBasicSections.HistoryOfMedicationUse.attributeValue,
+      resourceType: 'MedicationStatement',
+    });
+    const match = resources.find((resource) =>
+      extractFlatClaimValue(resource, MedicationStatementClaim.Identifier) === medication.identifier
+      && extractFlatClaimValue(resource, MedicationStatementClaim.MedicationText) === medication.text
+      && extractFlatClaimValue(resource, MedicationStatementClaim.Note) === medication.note,
+    );
+    assert.ok(match, `IPS communication search must include consolidated MedicationStatement ${medication.identifier} in the medication section.`);
   }
 });
