@@ -16,7 +16,7 @@ This document is the short technical map:
 Employee lifecycle/search semantics and the runtime-neutral employee bundle
 contract are documented centrally in:
 
-- `gdc-sdk-core-ts/docs/EMPLOYEES_101.md`
+- [gdc-sdk-core-ts/docs/EMPLOYEES_101.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/EMPLOYEES_101.md)
 
 ## Rules
 
