@@ -20,6 +20,10 @@ import type {
  * Professional-oriented facade for runtime actions that belong to the
  * professional actor itself after tenant and employee provisioning have already
  * happened through the organization-scoped facades.
+ *
+ * Keep this boundary strict:
+ * - professional runtime actions belong here
+ * - organization activation and employee provisioning do not
  */
 export class ProfessionalSdk {
   /**

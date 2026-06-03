@@ -14,13 +14,23 @@ Use this package when your backend needs to:
 This package is for runtime execution. It is not the place where the canonical
 business contract is defined.
 
+Architectural rule:
+
+- shared contracts and actor boundaries come from `gdc-sdk-core-ts`
+- this package executes those flows against GW
+- this package should not widen an actor facade just because the runtime client
+  happens to expose the underlying method
+
 ## Start Here
 
 If you are integrating this package for the first time, open these in order:
 
+1. [gdc-sdk-core-ts/docs/101-SDK_PACKAGE_BOUNDARIES.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-SDK_PACKAGE_BOUNDARIES.md)
+   Why `core`, `node`, and `front` are separate packages, what belongs in each
+   one, and why actor-scoped facades must stay aligned across runtimes.
 1. [docs/101-SDK_END_TO_END.md](./docs/101-SDK_END_TO_END.md)
-   Ordered onboarding guide with end-to-end journeys, copy/paste snippets, and
-   the recommended reading path for new backend integrators.
+  Ordered onboarding guide with end-to-end journeys, copy/paste snippets, and
+  the recommended reading path for new backend integrators.
 2. [docs/101-SDK_INTEGRATION.md](./docs/101-SDK_INTEGRATION.md)
    Real backend setup, imports, `initializeCommunicationIdentity(...)`,
    `new NodeHttpClient(...)`, route context, facade selection, and live method
