@@ -328,7 +328,7 @@ export async function searchOrganizationEmployeesWithDeps(
     deps.employeeSearchPollPath(routeCtx),
     {
       thid: input.requestThid || `employee-search-${createRuntimeUuid()}`,
-      body: buildEmployeeSearchBundle({ employeeClaims: input.employeeClaims }),
+      body: buildEmployeeSearchBundle({ claims: input.employeeClaims }),
     },
     input.pollOptions,
   );
@@ -670,7 +670,6 @@ function buildEmployeeLifecyclePayload(input: {
     data: Array<{
       type: string;
       request: { method: string };
-      meta: { claims: Record<string, unknown> };
       resource: { id?: string; meta: { claims: Record<string, unknown> } };
     }>;
   };
@@ -684,9 +683,9 @@ function buildEmployeeLifecyclePayload(input: {
     thid: `${input.thidPrefix}-${createRuntimeUuid()}`,
     body: {
       data: [buildEmployeeBatchEntry({
-        requestType: input.requestType,
-        requestMethod: input.requestMethod as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
-        employeeClaims: claims,
+        type: input.requestType,
+        method: input.requestMethod as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+        claims,
         resourceId: input.resourceId,
       })],
     },

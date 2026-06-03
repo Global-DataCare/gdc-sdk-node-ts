@@ -17,8 +17,8 @@
     "test:e2e:live-gw": "npm run build && RUN_LIVE_GW_E2E=1 node --test tests/live-gw-node-runtime.e2e.test.mjs"
   },
   "dependencies": {
-    "gdc-common-utils-ts": "^1.14.10",
-    "gdc-sdk-core-ts": "^0.6.9"
+    "gdc-common-utils-ts": "^1.14.14",
+    "gdc-sdk-core-ts": "^0.6.12"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",

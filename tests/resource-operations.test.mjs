@@ -78,9 +78,15 @@ test('searchOrganizationEmployeesWithDeps builds Employee bundle search payload'
   assert.equal(calls[0][0], '/employee/_search');
   assert.equal(calls[0][1], '/employee/_search-response');
   assert.equal(calls[0][2].body.resourceType, 'Bundle');
-  assert.equal(calls[0][2].body.entry[0].request.method, 'GET');
-  assert.match(calls[0][2].body.entry[0].request.url, /^Employee\?/);
-  assert.match(calls[0][2].body.entry[0].request.url, /org\.schema\.Person\.email=receptionist1%40acme\.org/);
+  assert.equal(calls[0][2].body.entry[0].request.method, 'POST');
+  assert.equal(calls[0][2].body.entry[0].request.url, 'Employee/_search');
+  assert.deepEqual(calls[0][2].body.entry[0].resource, {
+    resourceType: 'Parameters',
+    parameter: [
+      { name: 'org.schema.Person.email', valueString: 'receptionist1@acme.org' },
+      { name: 'org.schema.Person.hasOccupation.identifier.value', valueString: 'ISCO-08|4226' },
+    ],
+  });
 });
 
 test('disableOrganizationEmployeeWithDeps keeps the current GW CORE DELETE-in-batch contract', async () => {
