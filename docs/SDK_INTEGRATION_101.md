@@ -13,6 +13,11 @@ This document is the short technical map:
 - which SDK method maps to each GW CORE flow
 - which shared docs explain the contract details
 
+Employee lifecycle/search semantics and the runtime-neutral employee bundle
+contract are documented centrally in:
+
+- `gdc-sdk-core-ts/docs/EMPLOYEES_101.md`
+
 ## Rules
 
 - Do not start a beginner tutorial from raw GW wire payloads.
