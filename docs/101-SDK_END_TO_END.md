@@ -3,6 +3,13 @@
 This is the main onboarding guide for backend developers integrating
 `gdc-sdk-node-ts`.
 
+Teaching rule for this `101`:
+
+- start from end-to-end journeys before low-level runtime details
+- keep organization and individual journeys separate
+- keep employee create, employee search, and employee lifecycle as separate
+  ideas when they appear
+
 Use this file first when you want:
 
 - one ordered reading path
@@ -19,8 +26,8 @@ If you need lower-level runtime details after this guide, open:
 
 - [101-SDK_INTEGRATION.md](./101-SDK_INTEGRATION.md)
 - [gdc-sdk-core-ts/docs/101-SDK_FLOWS.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-SDK_FLOWS.md)
-- [gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/CONSENT_ACCESS_101.md)
-- [gdc-common-utils-ts/docs/VP_TOKEN_101.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/VP_TOKEN_101.md)
+- [gdc-common-utils-ts/docs/101-CONSENT_ACCESS.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/101-CONSENT_ACCESS.md)
+- [gdc-common-utils-ts/docs/101-VP_TOKEN.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/101-VP_TOKEN.md)
 
 ## Index
 
@@ -47,7 +54,7 @@ It owns:
 - submit/poll orchestration
 - onboarding flows
 - employee creation
-- consent grant submission
+- consent-related index-data submission
 - `RelatedPerson` upsert
 - `Communication` ingestion
 - SMART token requests
@@ -446,7 +453,7 @@ Use this when the integrator already has:
 - business registration claims
 
 If your team needs the exact VP construction steps before this call, open
-`gdc-common-utils-ts/docs/VP_TOKEN_101.md`. That file explains how to:
+`gdc-common-utils-ts/docs/101-VP_TOKEN.md`. That file explains how to:
 
 - assemble the VP payload
 - append the organization and representative VCs
@@ -880,7 +887,7 @@ The documentation split today is:
 Read these together:
 
 - [gdc-sdk-core-ts/docs/101-SDK_FLOWS.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-SDK_FLOWS.md)
-- [gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/CONSENT_ACCESS_101.md)
+- [gdc-common-utils-ts/docs/101-CONSENT_ACCESS.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/101-CONSENT_ACCESS.md)
 
 Important:
 
@@ -932,7 +939,11 @@ Member and consent boundaries:
 - `grantProfessionalAccess(...)`
   creates the consent record used by SMART/data access
 - `Communication`
-  is not the canonical lifecycle transport for employee or individual lifecycle in current GW CORE
+  is the canonical auditable exchange envelope for individual index data,
+  including consent-related data
+- attached `Bundle`
+  carries the real resources such as `Consent`, `Composition`, or `DocumentReference`
+- standalone employee or host/onboarding lifecycle should still not be taught as if it were a `Communication` flow
 
 Business semantics the SDK now preserves:
 

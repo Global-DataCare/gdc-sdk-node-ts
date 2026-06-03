@@ -3,6 +3,12 @@
 This is the canonical live/local reference for running the SDK against a real
 local `GW CORE`.
 
+Teaching rule for this `101`:
+
+- start from the exact command order first
+- keep local process mode and Docker mode separate
+- keep employee smoke meaning separate from the generic live suite
+
 Use this before asking an AI agent to run live E2E commands, and before running
 `npm run test:e2e:live-gw`.
 

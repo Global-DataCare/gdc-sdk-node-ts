@@ -2,6 +2,12 @@
 
 This guide is intentionally short.
 
+Teaching rule for this `101`:
+
+- start from the simplest backend discovery surface first
+- explain one discovery strategy at a time
+- keep advanced resolver details at the end
+
 If you are integrating discovery for the first time, copy one of these two
 tests and stop there:
 

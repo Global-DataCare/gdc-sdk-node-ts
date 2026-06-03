@@ -26,6 +26,12 @@ contract are documented centrally in:
 
 - [gdc-sdk-core-ts/docs/101-EMPLOYEES.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-EMPLOYEES.md)
 
+When teaching employee flows in this runtime guide, keep this order:
+
+1. create
+2. search
+3. lifecycle
+
 If you are confused about DIDComm envelope vs batch body vs entry type vs FHIR
 resource vs `CommMsgExtended`, read first:
 
