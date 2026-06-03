@@ -18,17 +18,17 @@ business contract is defined.
 
 If you are integrating this package for the first time, open these in order:
 
-1. [docs/SDK_END_TO_END_101.md](./docs/SDK_END_TO_END_101.md)
+1. [docs/101-SDK_END_TO_END.md](./docs/101-SDK_END_TO_END.md)
    Ordered onboarding guide with end-to-end journeys, copy/paste snippets, and
    the recommended reading path for new backend integrators.
-2. [docs/SDK_INTEGRATION_101.md](./docs/SDK_INTEGRATION_101.md)
+2. [docs/101-SDK_INTEGRATION.md](./docs/101-SDK_INTEGRATION.md)
    Real backend setup, imports, `initializeCommunicationIdentity(...)`,
    `new NodeHttpClient(...)`, route context, facade selection, and live method
    usage.
 3. [docs/101-DISCOVERY.md](./docs/101-DISCOVERY.md)
    Node/BFF dataspace discovery, hosting-operator resolution, provider
    resolution, and the correct integration boundary for fallback and cache.
-4. [gdc-sdk-core-ts/docs/SDK_FLOWS_101.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/SDK_FLOWS_101.md)
+4. [gdc-sdk-core-ts/docs/101-SDK_FLOWS.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-SDK_FLOWS.md)
    Actor split and business-flow map across organization, individual,
    permissions, invitation, import, and SMART flows.
 5. [gdc-common-utils-ts/src/examples/](https://github.com/Global-DataCare/gdc-common-utils-ts/tree/main/src/examples)
@@ -39,16 +39,16 @@ If you are integrating this package for the first time, open these in order:
 If you need the shortest path:
 
 - main onboarding guide:
-  [docs/SDK_END_TO_END_101.md](./docs/SDK_END_TO_END_101.md)
+  [docs/101-SDK_END_TO_END.md](./docs/101-SDK_END_TO_END.md)
 - GW CORE app identity:
   `appId` mandatory, `appVersion` optional with default `v1.0`
 - backend technical identity:
-  [`initializeCommunicationIdentity(...)`](./docs/SDK_INTEGRATION_101.md)
+  [`initializeCommunicationIdentity(...)`](./docs/101-SDK_INTEGRATION.md)
   for the technical channel/runtime identity, not the legal organization id
 - runtime client:
   [`NodeHttpClient`](src/node-runtime-client.ts)
 - step-by-step runtime usage:
-  [docs/SDK_INTEGRATION_101.md](./docs/SDK_INTEGRATION_101.md)
+  [docs/101-SDK_INTEGRATION.md](./docs/101-SDK_INTEGRATION.md)
 - dataspace discovery and fallback/cache boundary:
   [docs/101-DISCOVERY.md](./docs/101-DISCOVERY.md)
 

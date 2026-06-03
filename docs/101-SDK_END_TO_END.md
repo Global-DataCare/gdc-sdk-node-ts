@@ -17,8 +17,8 @@ Use this file first when you want:
 
 If you need lower-level runtime details after this guide, open:
 
-- [SDK_INTEGRATION_101.md](./SDK_INTEGRATION_101.md)
-- [gdc-sdk-core-ts/docs/SDK_FLOWS_101.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/SDK_FLOWS_101.md)
+- [101-SDK_INTEGRATION.md](./101-SDK_INTEGRATION.md)
+- [gdc-sdk-core-ts/docs/101-SDK_FLOWS.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-SDK_FLOWS.md)
 - [gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/CONSENT_ACCESS_101.md)
 - [gdc-common-utils-ts/docs/VP_TOKEN_101.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/VP_TOKEN_101.md)
 
@@ -879,7 +879,7 @@ The documentation split today is:
 
 Read these together:
 
-- [gdc-sdk-core-ts/docs/SDK_FLOWS_101.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/SDK_FLOWS_101.md)
+- [gdc-sdk-core-ts/docs/101-SDK_FLOWS.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-SDK_FLOWS.md)
 - [gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/CONSENT_ACCESS_101.md)
 
 Important:
@@ -995,7 +995,7 @@ Preferred teaching names:
 If you need the exact reference files used to maintain this guide, open:
 
 - [README.md](./README.md)
-- [SDK_INTEGRATION_101.md](./SDK_INTEGRATION_101.md)
+- [101-SDK_INTEGRATION.md](./101-SDK_INTEGRATION.md)
 - [tests/host-onboarding.test.mjs](./tests/host-onboarding.test.mjs)
 - [tests/individual-start.test.mjs](./tests/individual-start.test.mjs)
 - [tests/individual-onboarding.test.mjs](./tests/individual-onboarding.test.mjs)

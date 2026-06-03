@@ -4,7 +4,7 @@ This file is no longer the main tutorial.
 
 If you want the full copy/paste onboarding flow, start here:
 
-- [SDK_END_TO_END_101.md](./SDK_END_TO_END_101.md)
+- [101-SDK_END_TO_END.md](./101-SDK_END_TO_END.md)
 
 This document is the short technical map:
 
@@ -16,7 +16,7 @@ This document is the short technical map:
 Employee lifecycle/search semantics and the runtime-neutral employee bundle
 contract are documented centrally in:
 
-- [gdc-sdk-core-ts/docs/EMPLOYEES_101.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/EMPLOYEES_101.md)
+- [gdc-sdk-core-ts/docs/101-EMPLOYEES.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-EMPLOYEES.md)
 
 ## Rules
 
@@ -44,6 +44,25 @@ contract are documented centrally in:
   - Node runtime transport
   - submit/poll orchestration
   - role-oriented SDK facades
+
+## Actor Map
+
+- `gdc-common-utils-ts`
+  - pure helpers, constants, and reusable examples
+- `gdc-sdk-core-ts`
+  - shared actor/capability model and runtime-neutral bundle builders
+- `gdc-sdk-node-ts`
+  - runtime client plus actor-scoped facades
+
+Employee management belongs to:
+
+- `OrganizationControllerSdk`
+  - create/search/disable/purge employee
+
+It does not belong to:
+
+- `ProfessionalSdk`
+  - professional flows such as employee device activation, SMART, consent, and communication
 
 Canonical shared examples:
 
@@ -96,11 +115,23 @@ Use:
 Main methods:
 
 - `activateOrganizationInGatewayFromIcaProof(...)`
-- `createOrganizationEmployee(...)`
 - `activateEmployeeDeviceWithActivationRequest(...)`
 - `grantProfessionalAccess(...)`
 - `requestSmartToken(...)`
 - `ingestCommunicationAndUpdateIndex(...)`
+
+### Organization controller
+
+Use:
+
+- `OrganizationControllerSdk`
+
+Main methods:
+
+- `createOrganizationEmployee(...)`
+- `searchOrganizationEmployees(...)`
+- `disableEmployee(...)`
+- `purgeEmployee(...)`
 
 ### Individual controller
 
@@ -356,4 +387,4 @@ What is still converging:
 
 For those, use:
 
-- [SDK_END_TO_END_101.md](./SDK_END_TO_END_101.md)
+- [101-SDK_END_TO_END.md](./101-SDK_END_TO_END.md)
