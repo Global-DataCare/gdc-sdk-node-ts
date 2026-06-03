@@ -15,6 +15,7 @@ import {
 } from 'gdc-common-utils-ts/examples';
 
 import {
+  EmployeeDraft,
   createOrganizationEmployeeWithDeps,
   disableIndividualOrganizationWithDeps,
   disableOrganizationEmployeeWithDeps,
@@ -24,6 +25,7 @@ import {
   ingestCommunicationAndUpdateIndexWithDeps,
   purgeIndividualOrganizationWithDeps,
   purgeOrganizationEmployeeWithDeps,
+  searchOrganizationEmployeesWithDeps,
   searchClinicalBundleWithDeps,
   searchLatestIpsWithDeps,
   upsertRelatedPersonAndPollWithDeps,
@@ -33,7 +35,11 @@ test('createOrganizationEmployeeWithDeps builds employee batch payload', async (
   const calls = [];
   await createOrganizationEmployeeWithDeps(
     cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
-    cloneExample(EXAMPLE_ORGANIZATION_EMPLOYEE_INPUT),
+    {
+      employeeClaims: new EmployeeDraft()
+        .mergeClaims(cloneExample(EXAMPLE_ORGANIZATION_EMPLOYEE_INPUT.employeeClaims))
+        .toClaims(),
+    },
     { timeoutMs: 1000, intervalMs: 1 },
     {
       employeeBatchPath: () => '/employee/_batch',
@@ -47,6 +53,34 @@ test('createOrganizationEmployeeWithDeps builds employee batch payload', async (
   assert.equal(calls[0][0], '/employee/_batch');
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Person.email'], 'receptionist1@acme.org');
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Person.hasOccupation.identifier.value'], 'ISCO-08|4226');
+  assert.equal(calls[0][2].body.data[0].resource.resourceType, 'Employee');
+});
+
+test('searchOrganizationEmployeesWithDeps builds Employee bundle search payload', async () => {
+  const calls = [];
+  await searchOrganizationEmployeesWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      employeeClaims: {
+        'org.schema.Person.email': 'receptionist1@acme.org',
+        'org.schema.Person.hasOccupation.identifier.value': 'ISCO-08|4226',
+      },
+    },
+    {
+      employeeSearchPath: () => '/employee/_search',
+      employeeSearchPollPath: () => '/employee/_search-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][0], '/employee/_search');
+  assert.equal(calls[0][1], '/employee/_search-response');
+  assert.equal(calls[0][2].body.resourceType, 'Bundle');
+  assert.equal(calls[0][2].body.entry[0].request.method, 'GET');
+  assert.match(calls[0][2].body.entry[0].request.url, /^Employee\?/);
+  assert.match(calls[0][2].body.entry[0].request.url, /org\.schema\.Person\.email=receptionist1%40acme\.org/);
 });
 
 test('disableOrganizationEmployeeWithDeps keeps the current GW CORE DELETE-in-batch contract', async () => {

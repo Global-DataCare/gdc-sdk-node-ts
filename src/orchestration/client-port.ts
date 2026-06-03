@@ -34,6 +34,7 @@ import type {
   IpsOrFhirImportInput,
   OrganizationEmployeeCreationInput,
   OrganizationEmployeeLifecycleInput,
+  OrganizationEmployeeSearchInput,
   RelatedPersonUpsertInput,
 } from '../resource-operations.js';
 
@@ -72,6 +73,10 @@ export type RuntimeClient = {
     ctx: RouteContext,
     input: OrganizationEmployeeCreationInput,
     pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  searchOrganizationEmployees?: (
+    ctx: RouteContext,
+    input: OrganizationEmployeeSearchInput,
   ) => Promise<SubmitAndPollResult>;
   disableEmployee?: (
     ctx: RouteContext,

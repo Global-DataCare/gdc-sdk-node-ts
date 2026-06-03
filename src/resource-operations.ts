@@ -5,12 +5,17 @@ import type {
   BundleSearchQuery,
   CommunicationInput,
   DateRange,
+  EmployeeSearchValue,
 } from 'gdc-sdk-core-ts';
 import {
   GwCoreLifecycleRequestMethod,
   GwCoreLifecycleRequestType,
   GwCoreLifecycleTodo,
 } from './constants/lifecycle.js';
+import {
+  buildEmployeeBatchEntry,
+  buildEmployeeSearchBundle,
+} from 'gdc-sdk-core-ts';
 import type { SubmitAndPollResult } from './orchestration/client-port.js';
 import type { RouteContext } from './individual-onboarding.js';
 
@@ -56,6 +61,20 @@ export type OrganizationEmployeeLifecycleInput = {
    */
   resourceId?: string;
   dataType?: string;
+};
+
+export type OrganizationEmployeeSearchInput = {
+  /**
+   * Canonical employee/person claims used as search filters against GW CORE.
+   *
+   * Typical examples:
+   * - `org.schema.Person.email`
+   * - `org.schema.Person.hasOccupation.identifier.value`
+   * - `org.schema.Person.memberOf.taxID`
+   */
+  employeeClaims?: Record<string, EmployeeSearchValue>;
+  requestThid?: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
 
 /**
@@ -287,6 +306,31 @@ export async function purgeOrganizationEmployeeWithDeps(
     deps.employeePurgePollPath(routeCtx),
     payload,
     options,
+  );
+}
+
+export async function searchOrganizationEmployeesWithDeps(
+  routeCtx: RouteContext,
+  input: OrganizationEmployeeSearchInput,
+  deps: {
+    employeeSearchPath: (ctx: RouteContext) => string;
+    employeeSearchPollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  return deps.submitAndPoll(
+    deps.employeeSearchPath(routeCtx),
+    deps.employeeSearchPollPath(routeCtx),
+    {
+      thid: input.requestThid || `employee-search-${createRuntimeUuid()}`,
+      body: buildEmployeeSearchBundle({ employeeClaims: input.employeeClaims }),
+    },
+    input.pollOptions,
   );
 }
 
@@ -639,15 +683,12 @@ function buildEmployeeLifecyclePayload(input: {
     type: 'application/didcomm-plain+json',
     thid: `${input.thidPrefix}-${createRuntimeUuid()}`,
     body: {
-      data: [{
-        type: input.requestType,
-        request: { method: input.requestMethod },
-        meta: { claims },
-        resource: {
-          ...(input.resourceId ? { id: input.resourceId } : {}),
-          meta: { claims },
-        },
-      }],
+      data: [buildEmployeeBatchEntry({
+        requestType: input.requestType,
+        requestMethod: input.requestMethod as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+        employeeClaims: claims,
+        resourceId: input.resourceId,
+      })],
     },
   };
 }

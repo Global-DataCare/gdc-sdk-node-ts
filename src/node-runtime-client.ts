@@ -32,6 +32,7 @@ import {
   ingestCommunicationAndUpdateIndexWithDeps,
   purgeIndividualOrganizationWithDeps,
   purgeOrganizationEmployeeWithDeps,
+  searchOrganizationEmployeesWithDeps,
   searchClinicalBundleWithDeps,
   searchLatestIpsWithDeps,
   upsertRelatedPersonAndPollWithDeps,
@@ -43,6 +44,7 @@ import {
   type IndividualOrganizationLifecycleInput,
   type OrganizationEmployeeCreationInput,
   type OrganizationEmployeeLifecycleInput,
+  type OrganizationEmployeeSearchInput,
   type RelatedPersonUpsertInput,
 } from './resource-operations.js';
 import type { LegalOrganizationOrderInput } from './host-onboarding.js';
@@ -334,6 +336,20 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
     return this.purgeOrganizationEmployee(ctx, input, pollOptions);
+  }
+
+  /**
+   * Searches employees/professionals under the selected organization tenant.
+   */
+  public async searchOrganizationEmployees(
+    ctx: RouteContext,
+    input: OrganizationEmployeeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return searchOrganizationEmployeesWithDeps(ctx, input, {
+      employeeSearchPath: this.employeeSearchPath.bind(this),
+      employeeSearchPollPath: this.employeeSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
   }
 
   /**
@@ -740,6 +756,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public hostRegistryOrderPollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Order', '_batch-response'); }
   public employeeBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', GwCoreLifecycleAction.Batch); }
   public employeePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', GwCoreLifecycleAction.BatchResponse); }
+  public employeeSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', '_search'); }
+  public employeeSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', '_search-response'); }
   public employeePurgePath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', GwCoreLifecycleAction.Purge); }
   public employeePurgePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', `${GwCoreLifecycleAction.Purge}-response`); }
   public individualFamilyOrganizationBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.Batch); }
