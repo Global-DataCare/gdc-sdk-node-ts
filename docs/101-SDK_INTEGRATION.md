@@ -5,6 +5,7 @@ This file is no longer the main tutorial.
 If you want the full copy/paste onboarding flow, start here:
 
 - [101-SDK_END_TO_END.md](./101-SDK_END_TO_END.md)
+- [101-LIVE_GW_LOCAL.md](./101-LIVE_GW_LOCAL.md)
 
 This document is the short technical map:
 
@@ -17,6 +18,11 @@ Employee lifecycle/search semantics and the runtime-neutral employee bundle
 contract are documented centrally in:
 
 - [gdc-sdk-core-ts/docs/101-EMPLOYEES.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-EMPLOYEES.md)
+
+If you need the exact local GW commands, TTY order, tenant bootstrap, Docker
+variant, and port-stop commands, use:
+
+- [101-LIVE_GW_LOCAL.md](./101-LIVE_GW_LOCAL.md)
 
 ## Rules
 

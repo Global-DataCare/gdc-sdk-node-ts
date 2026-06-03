@@ -25,15 +25,18 @@ If you are integrating this package for the first time, open these in order:
    Real backend setup, imports, `initializeCommunicationIdentity(...)`,
    `new NodeHttpClient(...)`, route context, facade selection, and live method
    usage.
-3. [docs/101-DISCOVERY.md](./docs/101-DISCOVERY.md)
+3. [docs/101-LIVE_GW_LOCAL.md](./docs/101-LIVE_GW_LOCAL.md)
+   Exact TTY/local/Docker commands for running the SDK against a real local GW
+   CORE, including tenant bootstrap and employee-seat setup.
+4. [docs/101-DISCOVERY.md](./docs/101-DISCOVERY.md)
    Node/BFF dataspace discovery, hosting-operator resolution, provider
    resolution, and the correct integration boundary for fallback and cache.
-4. [gdc-sdk-core-ts/docs/101-SDK_FLOWS.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-SDK_FLOWS.md)
+5. [gdc-sdk-core-ts/docs/101-SDK_FLOWS.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-SDK_FLOWS.md)
    Actor split and business-flow map across organization, individual,
    permissions, invitation, import, and SMART flows.
-5. [gdc-common-utils-ts/src/examples/](https://github.com/Global-DataCare/gdc-common-utils-ts/tree/main/src/examples)
+6. [gdc-common-utils-ts/src/examples/](https://github.com/Global-DataCare/gdc-common-utils-ts/tree/main/src/examples)
    Shared payload values used by the docs and tests.
-6. [gdc-common-utils-ts/docs/LIFECYCLE_101.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/LIFECYCLE_101.md)
+7. [gdc-common-utils-ts/docs/LIFECYCLE_101.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/LIFECYCLE_101.md)
    Canonical `enable/disable/delete` semantics and copy/paste placeholders.
 
 If you need the shortest path:
@@ -80,6 +83,10 @@ Open these tests when you want to see exact method calls and exact inputs:
 
 Use [tests/live-gw-node-runtime.e2e.test.mjs](tests/live-gw-node-runtime.e2e.test.mjs)
 as the canonical runtime flow.
+
+Before running that suite, read:
+
+- [docs/101-LIVE_GW_LOCAL.md](./docs/101-LIVE_GW_LOCAL.md)
 
 Teaching rule:
 

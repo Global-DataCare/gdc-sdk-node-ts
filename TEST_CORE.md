@@ -26,6 +26,10 @@ It does not yet validate:
 
 ## Command
 
+Before running the live suite, use:
+
+- [docs/101-LIVE_GW_LOCAL.md](./docs/101-LIVE_GW_LOCAL.md)
+
 Local GW default:
 
 ```bash
@@ -80,3 +84,4 @@ That matters because the migration is architectural, not only cosmetic:
 
 - GW-side canonical flow: `../gwtemplate-node-ts/docs/API_CORE_INTEGRATION.md`
 - Current package overview: `README.md`
+- Local live command reference: `docs/101-LIVE_GW_LOCAL.md`
