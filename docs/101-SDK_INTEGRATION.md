@@ -224,26 +224,55 @@ GW CORE:
 - `POST /host/cds-{jurisdiction}/v1/{sector}/registry/org.schema/Order/_batch`
 - `POST /host/cds-{jurisdiction}/v1/{sector}/registry/org.schema/Order/_batch-response`
 
-### Employee / professional creation
+### Employee create
 
 SDK:
 
 - `createOrganizationEmployee(...)`
+
+Allowed actor/capability:
+
+- `OrganizationControllerSdk`
+- `organization.create_employee`
+- when the facade comes from `ActorSession` / `NodeActorSession`, the SDK enforces the required capability before calling the runtime client
+
+GW CORE current contract:
+
+- `POST /{tenantId}/cds-{jurisdiction}/v1/{sector}/entity/org.schema/Employee/_batch`
+  current create path
+
+### Employee search
+
+SDK:
+
+- `searchOrganizationEmployees(...)`
+
+Allowed actor/capability:
+
+- `OrganizationControllerSdk`
+- same organization-admin surface as employee management
+
+GW CORE current contract:
+
+- `POST /{tenantId}/cds-{jurisdiction}/v1/{sector}/entity/org.schema/Employee/_search`
+  canonical search path using `POST + Parameters`
+
+### Employee lifecycle
+
+SDK:
+
 - `disableEmployee(...)`
 - `purgeEmployee(...)`
 
 Allowed actor/capability:
 
 - `OrganizationControllerSdk`
-- `organization.create_employee`
 - `organization.disable_employee`
 - `organization.purge_employee`
-- when the facade comes from `ActorSession` / `NodeActorSession`, the SDK now enforces those lifecycle capabilities before calling the runtime client
+- when the facade comes from `ActorSession` / `NodeActorSession`, the SDK enforces those lifecycle capabilities before calling the runtime client
 
 GW CORE current contract:
 
-- `POST /{tenantId}/cds-{jurisdiction}/v1/{sector}/entity/org.schema/Employee/_batch`
-  current create path
 - `POST /{tenantId}/cds-{jurisdiction}/v1/{sector}/entity/org.schema/Employee/_batch`
   current disable path with `body.data[0].request.method = DELETE`
 - `POST /{tenantId}/cds-{jurisdiction}/v1/{sector}/entity/org.schema/Employee/_purge`
