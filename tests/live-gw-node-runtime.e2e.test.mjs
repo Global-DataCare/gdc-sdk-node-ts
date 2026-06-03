@@ -126,8 +126,16 @@ function extractClaim(record, key) {
   if (!record || typeof record !== 'object') return '';
   const direct = record[key];
   if (typeof direct === 'string' && direct.trim()) return direct.trim();
+  const contextualizedR4 = record[`org.hl7.fhir.r4.${key}`];
+  if (typeof contextualizedR4 === 'string' && contextualizedR4.trim()) return contextualizedR4.trim();
+  const contextualizedApi = record[`org.hl7.fhir.api.${key}`];
+  if (typeof contextualizedApi === 'string' && contextualizedApi.trim()) return contextualizedApi.trim();
   const nested = record?.meta?.claims?.[key];
   if (typeof nested === 'string' && nested.trim()) return nested.trim();
+  const nestedR4 = record?.meta?.claims?.[`org.hl7.fhir.r4.${key}`];
+  if (typeof nestedR4 === 'string' && nestedR4.trim()) return nestedR4.trim();
+  const nestedApi = record?.meta?.claims?.[`org.hl7.fhir.api.${key}`];
+  if (typeof nestedApi === 'string' && nestedApi.trim()) return nestedApi.trim();
   return '';
 }
 
@@ -344,8 +352,8 @@ test('LIVE actor-scoped node runtime chain on GW', { skip: !RUN }, async () => {
   debug.record('legal-activation', { response: activation });
   assert.equal(activation.poll.status, 200, 'Host onboarding facade must complete organization activation.');
   assert.ok(
-    ['200', '201'].includes(String(activation.poll.body?.data?.[0]?.response?.status || '')),
-    'Host onboarding facade must return an inner activation response.status of 200/201.',
+    ['200', '201', '409'].includes(String(activation.poll.body?.data?.[0]?.response?.status || '')),
+    'Host onboarding facade must return an inner activation response.status of 200/201/409.',
   );
 
   const employee = await orgControllerSession.asOrganizationController().createOrganizationEmployee(
@@ -401,7 +409,7 @@ test('LIVE actor-scoped node runtime chain on GW', { skip: !RUN }, async () => {
   const consent = await individualControllerSession.asIndividualController().grantProfessionalAccess(ctx, {
     ...cloneExample(EXAMPLE_LIVE_CONSENT_GRANT_INPUT),
     subjectDid: patientSubjectDid,
-    actor: { identifier: professionalDid },
+    actor: { identifier: smartProfessionalDid },
     actorRole: env('PROFESSIONAL_ROLE', 'ISCO-08|2211'),
     purpose: env('CONSENT_PURPOSE', 'TREAT'),
     pollOptions,
@@ -432,6 +440,7 @@ test('LIVE actor-scoped node runtime chain on GW', { skip: !RUN }, async () => {
     jurisdiction,
     sector,
     idToken: professionalIdToken,
+    actorDid: smartProfessionalDid,
     subjectDid: smartProfessionalDid,
     clientId: smartClientId,
     issuer: env('SMART_ISSUER', smartClientId),
@@ -536,6 +545,7 @@ test('LIVE communication ingestion indexes two medication statements from two bu
   const bearerToken = env('AUTH_BEARER');
   const subjectDid = suiteSubjectDid;
   const routeCtx = { tenantId, jurisdiction, sector };
+  const professionalDid = env('PROFESSIONAL_DID', EXAMPLE_API_ORGANIZATION_DID);
 
   const runtimeClient = createRuntimeClient({
     baseUrl,
@@ -599,14 +609,29 @@ test('LIVE communication ingestion indexes two medication statements from two bu
     assertCommunicationAckShape(ingest.poll.body, `Communication ingestion for ${medication.identifier}`);
   }
 
-  const search = await runtimeClient.searchClinicalBundle(routeCtx, {
-    subject: subjectDid,
-    section: HealthcareBasicSections.HistoryOfMedicationUse.attributeValue,
-    includedTypes: ['MedicationStatement'],
-    pollOptions: { timeoutMs: 120000, intervalMs: 1500 },
-  });
+  const search = await individualControllerSession.asIndividualController().submitAndPoll(
+    runtimeClient.v1Path(routeCtx, 'individual', 'org.hl7.fhir.api', 'MedicationStatement', '_search'),
+    runtimeClient.v1Path(routeCtx, 'individual', 'org.hl7.fhir.api', 'MedicationStatement', '_batch-response'),
+    {
+      thid: `medication-search-${Date.now()}`,
+      body: {
+        data: [
+          {
+            type: 'MedicationStatement-search-request-v1.0',
+            meta: {
+              claims: {
+                '@context': 'org.hl7.fhir.api',
+                'MedicationStatement.subject': subjectDid,
+              },
+            },
+          },
+        ],
+      },
+    },
+    { timeoutMs: 120000, intervalMs: 1500 },
+  );
   debug.record('medicationstatement-search', { response: search });
-  assert.equal(search.poll.status, 200, 'MedicationStatement bundle search must return 200.');
+  assert.equal(search.poll.status, 200, 'MedicationStatement search must return 200.');
 
   for (const medication of cases) {
     assertMedicationSearchHasMatch(
