@@ -43,6 +43,9 @@ test('IndividualControllerSdk delegates to the runtime client', async () => {
 test('ProfessionalSdk keeps role-scoped surface separation', () => {
   assert.equal(typeof ProfessionalSdk.prototype.bootstrapIndividualOrganization, 'undefined');
   assert.equal(typeof ProfessionalSdk.prototype.generateDigitalTwinFromSubjectData, 'undefined');
+  assert.equal(typeof ProfessionalSdk.prototype.activateOrganizationInGatewayFromIcaProof, 'undefined');
+  assert.equal(typeof ProfessionalSdk.prototype.createOrganizationEmployee, 'undefined');
+  assert.equal(typeof ProfessionalSdk.prototype.activateEmployeeDeviceWithActivationRequest, 'undefined');
   assert.equal(typeof ProfessionalSdk.prototype.disableEmployee, 'undefined');
   assert.equal(typeof ProfessionalSdk.prototype.purgeEmployee, 'undefined');
 });

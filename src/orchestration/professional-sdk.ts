@@ -3,63 +3,29 @@
 import {
   requireClientMethod,
   submitAndPollWithClient,
-  type NodeOrganizationActivationInput,
   type NodeRuntimeClient,
   type PollOptions,
   type SubmitAndPollResult,
   type SubmitPayload,
 } from './client-port.js';
-import type { HostRouteContext } from '../host-onboarding.js';
 import type { RouteContext } from '../individual-onboarding.js';
-import type { EmployeeDeviceActivationResult, EmployeeDeviceActivationRequestInput } from '../device-activation.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type {
   CommunicationIngestionInput,
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
-  OrganizationEmployeeCreationInput,
 } from '../resource-operations.js';
 
 /**
- * Professional-oriented facade combining host onboarding, employee bootstrap,
- * consent, communication, and SMART token runtime calls.
+ * Professional-oriented facade for runtime actions that belong to the
+ * professional actor itself after tenant and employee provisioning have already
+ * happened through the organization-scoped facades.
  */
 export class ProfessionalSdk {
   /**
    * @param client Runtime client implementation used to submit and poll GW flows.
    */
   constructor(private readonly client: NodeRuntimeClient) {}
-
-  /**
-   * Activates the legal organization in the gateway from an ICA-issued proof
-   * token and the declared service capabilities that will be published through
-   * DID/DCAT discovery.
-   */
-  public activateOrganizationInGatewayFromIcaProof(
-    hostCtx: HostRouteContext,
-    input: NodeOrganizationActivationInput,
-    pollOptions?: PollOptions,
-  ): Promise<SubmitAndPollResult> {
-    return requireClientMethod(this.client, 'activateOrganizationInGatewayFromIcaProof')(hostCtx, input, pollOptions);
-  }
-
-  /**
-   * Creates an employee/professional under the current organization tenant.
-   */
-  public createOrganizationEmployee(
-    ctx: RouteContext,
-    input: OrganizationEmployeeCreationInput,
-    pollOptions?: PollOptions,
-  ): Promise<SubmitAndPollResult> {
-    return requireClientMethod(this.client, 'createOrganizationEmployee')(ctx, input, pollOptions);
-  }
-
-  /**
-   * Activates the current employee device from a previously issued activation request.
-   */
-  public activateEmployeeDeviceWithActivationRequest(input: EmployeeDeviceActivationRequestInput): Promise<EmployeeDeviceActivationResult> {
-    return requireClientMethod(this.client, 'activateEmployeeDeviceWithActivationRequest')(input);
-  }
 
   /**
    * Requests a SMART token suitable for subsequent clinical/document calls.
