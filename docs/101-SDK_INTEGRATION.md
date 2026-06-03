@@ -14,10 +14,22 @@ This document is the short technical map:
 - which SDK method maps to each GW CORE flow
 - which shared docs explain the contract details
 
+Teaching rule for this `101`:
+
+- start from the highest-level runtime surface a new developer should call
+- then point to the shared/core document for the lower-level model
+- do not start from GW wire payloads, raw claims maps, or low-level bundle
+  internals
+
 Employee lifecycle/search semantics and the runtime-neutral employee bundle
 contract are documented centrally in:
 
 - [gdc-sdk-core-ts/docs/101-EMPLOYEES.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-EMPLOYEES.md)
+
+If you are confused about DIDComm envelope vs batch body vs entry type vs FHIR
+resource vs `CommMsgExtended`, read first:
+
+- [gdc-common-utils-ts/docs/101-COMMUNICATION_LAYERING.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/101-COMMUNICATION_LAYERING.md)
 
 If you need the exact local GW commands, TTY order, tenant bootstrap, Docker
 variant, and port-stop commands, use:
@@ -69,6 +81,15 @@ It does not belong to:
 
 - `ProfessionalSdk`
   - professional flows such as employee device activation, SMART, consent, and communication
+
+## Onboarding Order
+
+For new developers, teach these layers in this order:
+
+1. actor-scoped runtime facade
+2. shared high-level editor/session object from `sdk-core`
+3. lower-level shared builders only if needed
+4. raw bundle shapes only for debugging or advanced integration work
 
 Canonical shared examples:
 
@@ -290,13 +311,16 @@ SDK:
 Shared consent model:
 
 - `gdc-sdk-core-ts/src/consent-access.ts`
-- `gdc-common-utils-ts/docs/CONSENT_ACCESS_101.md`
+- `gdc-common-utils-ts/docs/101-CONSENT_ACCESS.md`
 
 Lifecycle note:
 
-- In current GW CORE, consent creation/update is a normal `Consent/_batch` flow.
-- Do not model lifecycle in the SDK through `Communication`.
-- This SDK does not invent a future consent lifecycle contract that GW CORE has not deployed.
+- In the current shared SDK teaching model, operations on individual index data,
+  including consent-related data, travel through `Communication`.
+- `Communication` is the auditable exchange envelope; the attached `Bundle`
+  carries the real `Consent` resources.
+- Do not teach `Consent/_batch` as the primary envelope for index-oriented
+  flows in new SDK material.
 
 ### SMART token
 
@@ -343,7 +367,8 @@ Use this mental model for current GW CORE:
   `disableIndividualMember(...)` and `purgeIndividualMember(...)` are exposed only on `IndividualControllerSdk` as forward-looking placeholders and currently fail fast until GW CORE adds the stable contract.
 - `consent`:
   `grantProfessionalAccess(...)` creates the consent record used by SMART/data access.
-  consent is not the transport for employee/individual lifecycle in current GW CORE.
+  index-oriented consent data is transported through `Communication`, not taught
+  as a standalone primary envelope.
 
 ## Shared Builders And Helpers
 
