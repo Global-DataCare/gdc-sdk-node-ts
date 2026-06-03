@@ -192,7 +192,14 @@ Current semantic notes:
 - disable does not release licenses
 - purge requires inactive status first
 - purge releases/disassociates licenses and preserves traceability
+- purge keeps the previous employee as historical identity; a later create for the same `email + role` creates a new employee identity instead of reactivating the purged one
 - TODO `gw-core-lifecycle-target-patch-employee-disable`: migrate to `_batch + PATCH` only after GW CORE deploys it
+
+Local GW smoke note:
+
+- When using the default local bootstrap values (`TENANT_ID=acme-id`, `ADMIN_EMAIL=admin1@acme.org`, and the rest of the script defaults), `EMPLOYEE_COUNT=2` leaves only one additional employee seat because the controller/admin already consumes one seat.
+- Use `EMPLOYEE_COUNT=3` only if you want to run the exact two-employee lifecycle smoke after bootstrap (`create employee 1`, `create employee 2`, `disable employee 2`, `purge both`).
+- If you continue with a later doctor/professional-access smoke after purging one employee, that released seat can be reused by the doctor employee flow.
 
 ### Individual organization bootstrap
 
