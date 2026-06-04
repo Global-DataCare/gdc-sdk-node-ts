@@ -15,9 +15,6 @@ import type { EmployeeDeviceActivationResult, EmployeeDeviceActivationRequestInp
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type { NodeCapability } from '../session.js';
 import type {
-  CommunicationIngestionInput,
-  GrantProfessionalAccessInput,
-  GrantProfessionalAccessResult,
   OrganizationEmployeeCreationInput,
   OrganizationEmployeeLifecycleInput,
 } from '../resource-operations.js';
@@ -112,21 +109,8 @@ export class OrganizationControllerSdk {
    * compatibility requires overriding them on the call.
    */
   public requestSmartToken(input: SmartTokenRequestInput): Promise<SmartTokenExchangeResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationRequestSmartToken, ActorKinds.OrganizationController, 'requestSmartToken');
     return requireClientMethod(this.client, 'requestSmartToken')(input);
-  }
-
-  /**
-   * Ingests a `Communication` and waits for indexing.
-   */
-  public ingestCommunicationAndUpdateIndex(ctx: RouteContext, input: CommunicationIngestionInput): Promise<SubmitAndPollResult> {
-    return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
-  }
-
-  /**
-   * Grants access to a professional through a consent flow.
-   */
-  public grantProfessionalAccess(ctx: RouteContext, input: GrantProfessionalAccessInput): Promise<GrantProfessionalAccessResult> {
-    return requireClientMethod(this.client, 'grantProfessionalAccess')(ctx, input);
   }
 
   /**

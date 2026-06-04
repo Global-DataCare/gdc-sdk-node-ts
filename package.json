@@ -1,6 +1,6 @@
 {
   "name": "gdc-sdk-node-ts",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Next-generation Node runtime package for the GDC SDK family",
   "license": "Apache-2.0",
   "author": "Antifraud Services Inc.",
@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "gdc-common-utils-ts": "^1.16.0",
-    "gdc-sdk-core-ts": "^0.8.0"
+    "gdc-sdk-core-ts": "^0.8.1"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",

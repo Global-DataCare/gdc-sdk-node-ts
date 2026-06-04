@@ -15,6 +15,8 @@ test('createNodeActorSessionsFromDescriptor expands a Family descriptor into sco
     actorKinds: [ActorKinds.IndividualController, ActorKinds.IndividualMember],
     capabilities: [
       ActorCapabilities.IndividualBootstrap,
+      ActorCapabilities.IndividualIngestCommunication,
+      ActorCapabilities.IndividualUpsertRelatedPerson,
       ActorCapabilities.IndividualImportIps,
       ActorCapabilities.IndividualGenerateDigitalTwin,
       ActorCapabilities.ConsentGrantProfessionalAccess,
@@ -28,8 +30,19 @@ test('createNodeActorSessionsFromDescriptor expands a Family descriptor into sco
   assert.deepEqual(
     sessions.map(session => [session.actorKind, session.capabilities]),
     [
-      [ActorKinds.IndividualController, [ActorCapabilities.IndividualBootstrap, ActorCapabilities.ConsentGrantProfessionalAccess]],
-      [ActorKinds.IndividualMember, [ActorCapabilities.IndividualImportIps, ActorCapabilities.IndividualGenerateDigitalTwin]],
+      [ActorKinds.IndividualController, [
+        ActorCapabilities.IndividualBootstrap,
+        ActorCapabilities.IndividualIngestCommunication,
+        ActorCapabilities.IndividualUpsertRelatedPerson,
+        ActorCapabilities.IndividualImportIps,
+        ActorCapabilities.IndividualGenerateDigitalTwin,
+        ActorCapabilities.ConsentGrantProfessionalAccess,
+      ]],
+      [ActorKinds.IndividualMember, [
+        ActorCapabilities.IndividualUpsertRelatedPerson,
+        ActorCapabilities.IndividualImportIps,
+        ActorCapabilities.IndividualGenerateDigitalTwin,
+      ]],
     ],
   );
 });

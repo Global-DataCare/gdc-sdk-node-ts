@@ -52,6 +52,7 @@ export class IndividualControllerSdk {
    * Confirms the order returned by `startIndividualOrganization(...)`.
    */
   public confirmIndividualOrganizationOrder(input: IndividualOrganizationConfirmOrderInput): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualBootstrap, ActorKinds.IndividualController, 'confirmIndividualOrganizationOrder');
     return requireClientMethod(this.client, 'confirmIndividualOrganizationOrder')(input);
   }
 
@@ -137,6 +138,7 @@ export class IndividualControllerSdk {
    * Grants access to a professional through a consent flow.
    */
   public grantProfessionalAccess(ctx: RouteContext, input: GrantProfessionalAccessInput): Promise<GrantProfessionalAccessResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.ConsentGrantProfessionalAccess, ActorKinds.IndividualController, 'grantProfessionalAccess');
     return requireClientMethod(this.client, 'grantProfessionalAccess')(ctx, input);
   }
 
@@ -144,6 +146,7 @@ export class IndividualControllerSdk {
    * Imports a FHIR/IPS payload and waits until it is indexed.
    */
   public importIpsOrFhirAndUpdateIndex(ctx: RouteContext, input: IpsOrFhirImportInput): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualImportIps, ActorKinds.IndividualController, 'importIpsOrFhirAndUpdateIndex');
     return requireClientMethod(this.client, 'importIpsOrFhirAndUpdateIndex')(ctx, input);
   }
 
@@ -151,6 +154,7 @@ export class IndividualControllerSdk {
    * Creates or updates a `RelatedPerson` for non-employee caregivers or family members.
    */
   public upsertRelatedPersonAndPoll(ctx: RouteContext, input: RelatedPersonUpsertInput): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualUpsertRelatedPerson, ActorKinds.IndividualController, 'upsertRelatedPersonAndPoll');
     return requireClientMethod(this.client, 'upsertRelatedPersonAndPoll')(ctx, input);
   }
 
@@ -158,6 +162,7 @@ export class IndividualControllerSdk {
    * Ingests a FHIR `Communication` and waits for indexing.
    */
   public ingestCommunicationAndUpdateIndex(ctx: RouteContext, input: CommunicationIngestionInput): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualIngestCommunication, ActorKinds.IndividualController, 'ingestCommunicationAndUpdateIndex');
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
   }
 
@@ -165,6 +170,7 @@ export class IndividualControllerSdk {
    * Generates a digital twin projection from subject data.
    */
   public generateDigitalTwinFromSubjectData(ctx: RouteContext, input: DigitalTwinGenerationInput): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualGenerateDigitalTwin, ActorKinds.IndividualController, 'generateDigitalTwinFromSubjectData');
     return requireClientMethod(this.client, 'generateDigitalTwinFromSubjectData')(ctx, input);
   }
 

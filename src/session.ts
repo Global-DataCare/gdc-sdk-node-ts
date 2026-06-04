@@ -70,7 +70,7 @@ export class ActorSession {
 
   public asOrganizationEmployee(): OrganizationEmployeeSdk {
     this.assertActorKind(ActorKinds.OrganizationEmployee);
-    return new OrganizationEmployeeSdk(this.requireClient());
+    return new OrganizationEmployeeSdk(this.requireClient(), this.capabilities);
   }
 
   public asIndividualController(): IndividualControllerSdk {

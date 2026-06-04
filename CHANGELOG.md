@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.1] - 2026-06-04
+
+### Changed
+- Updated shared dependency targets to:
+  - `gdc-common-utils-ts@^1.16.0`
+  - `gdc-sdk-core-ts@^0.8.1`
+- Tightened node actor-facade enforcement so:
+  - `OrganizationControllerSdk` keeps only controller-scoped employee flows
+  - `IndividualControllerSdk` enforces consent, ingestion, related-person, and
+    digital-twin capabilities
+  - `OrganizationEmployeeSdk` enforces its own runtime capabilities
+- Updated node actor-session bridge tests to stay aligned with the expanded
+  capability split defined in `sdk-core`.
+
+### Testing
+- `node --test tests/gdc-session-bridge.test.mjs tests/orchestration.test.mjs`
+- `npm run build`
+
 ## [0.8.0] - 2026-06-04
 
 ### Changed

@@ -137,6 +137,52 @@ test('IndividualControllerSdk enforces individual and member lifecycle capabilit
   );
 });
 
+test('IndividualControllerSdk enforces consent, ingest, related-person, and digital-twin capabilities when materialized from NodeActorSession', async () => {
+  const client = {
+    grantProfessionalAccess: async () => ({ ok: true }),
+    ingestCommunicationAndUpdateIndex: async () => ({ ok: true }),
+    upsertRelatedPersonAndPoll: async () => ({ ok: true }),
+    generateDigitalTwinFromSubjectData: async () => ({ ok: true }),
+  };
+  const session = new NodeActorSession({
+    actorKind: ActorKinds.IndividualController,
+    capabilities: [ActorCapabilities.ConsentGrantProfessionalAccess],
+  }, client);
+  const sdk = session.asIndividualController();
+
+  await sdk.grantProfessionalAccess({}, {});
+  assert.throws(
+    () => sdk.ingestCommunicationAndUpdateIndex({}, {}),
+    new RegExp(`requires capability '${ActorCapabilities.IndividualIngestCommunication.replace('.', '\\.')}'`),
+  );
+  assert.throws(
+    () => sdk.upsertRelatedPersonAndPoll({}, {}),
+    new RegExp(`requires capability '${ActorCapabilities.IndividualUpsertRelatedPerson.replace('.', '\\.')}'`),
+  );
+  assert.throws(
+    () => sdk.generateDigitalTwinFromSubjectData({}, {}),
+    new RegExp(`requires capability '${ActorCapabilities.IndividualGenerateDigitalTwin.replace('.', '\\.')}'`),
+  );
+});
+
+test('OrganizationEmployeeSdk enforces employee runtime capabilities when materialized from NodeActorSession', async () => {
+  const client = {
+    activateEmployeeDeviceWithActivationRequest: async () => ({ ok: true }),
+    requestSmartToken: async () => ({ ok: true }),
+  };
+  const session = new NodeActorSession({
+    actorKind: ActorKinds.OrganizationEmployee,
+    capabilities: [ActorCapabilities.OrganizationActivateDevice],
+  }, client);
+  const sdk = session.asOrganizationEmployee();
+
+  await sdk.activateEmployeeDeviceWithActivationRequest({});
+  assert.throws(
+    () => sdk.requestSmartToken({}),
+    new RegExp(`requires capability '${ActorCapabilities.OrganizationRequestSmartToken.replace('.', '\\.')}'`),
+  );
+});
+
 test('submitAndPollWithClient falls back to submitBatch plus pollUntilComplete', async () => {
   const calls = [];
   const result = await submitAndPollWithClient({
