@@ -111,14 +111,14 @@ All notable changes to this project will be documented in this file.
 ## [0.5.2] - 2026-05-28
 
 ### Changed
-- Updated `docs/SDK_END_TO_END_101.md` so legal-organization and
+- Updated `docs/101-SDK_END_TO_END.md` so legal-organization and
   software-application trust examples explain the key-binding semantics for:
   - `Organization.hasCredential.material`
   - `Person.hasCredential.material`
   - `SoftwareApplication.material`
 - Clarified RFC 7638 JWK thumbprints and RFC 9278 URN representation in the
   backend onboarding/bootstrap narrative.
-- Updated the shared `VP_TOKEN_101.md` link to GitHub.
+- Updated the shared `101-VP_TOKEN.md` link to GitHub.
 
 ## [0.5.1] - 2026-05-27
 
@@ -138,7 +138,7 @@ All notable changes to this project will be documented in this file.
 ## [0.3.3] - 2026-05-27
 
 ### Changed
-- Clarified `docs/SDK_END_TO_END_101.md` so host onboarding examples separate:
+- Clarified `docs/101-SDK_END_TO_END.md` so host onboarding examples separate:
   - tenant business sector
   - legacy `HostRouteContext.sector` naming
   - host trust/network selection semantics
@@ -154,7 +154,7 @@ All notable changes to this project will be documented in this file.
 ## [0.3.2] - 2026-05-26
 
 ### Changed
-- Reduced `docs/SDK_INTEGRATION_101.md` from a duplicated tutorial into a short runtime/API map that points beginners to `docs/SDK_END_TO_END_101.md` for the full copy/paste flow.
+- Reduced `docs/101-SDK_INTEGRATION.md` from a duplicated tutorial into a short runtime/API map that points beginners to `docs/101-SDK_END_TO_END.md` for the full copy/paste flow.
 - Kept the integration guide focused on:
   - package/facade selection
   - method-to-flow mapping
@@ -191,7 +191,7 @@ All notable changes to this project will be documented in this file.
 ## [0.2.1] - 2026-05-24
 
 ### Changed
-- Updated README and `SDK_INTEGRATION_101.md` to document the shared consent-access model, missing-permission evaluation flow, canonical permission-request `Communication`, and subject-scoped lookup by identifier, thread id, or linked CID.
+- Updated README and `101-SDK_INTEGRATION.md` to document the shared consent-access model, missing-permission evaluation flow, canonical permission-request `Communication`, and subject-scoped lookup by identifier, thread id, or linked CID.
 
 ### Testing
 - `npm run type-check` passes after the consent-access documentation and re-export alignment.
@@ -218,7 +218,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Added temporary legacy compatibility exports in `legacy-compat.ts` so downstream packages still importing legacy `Gdc*` symbols and `*Simple*` helpers can run while migrating.
 - Kept `NodeHttpClient` focused on generic runtime transport/orchestration concerns.
-- README, `SDK_INTEGRATION_101.md`, and JSDoc now point to shared request/response contract examples in `gdc-common-utils-ts`.
+- README, `101-SDK_INTEGRATION.md`, and JSDoc now point to shared request/response contract examples in `gdc-common-utils-ts`.
 
 ## 0.1.1 - 2026-05-20
 
