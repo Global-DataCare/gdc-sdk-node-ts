@@ -11,6 +11,8 @@ All notable changes to this project will be documented in this file.
 - Clarified in the README and `docs/101-DISCOVERY.md` that the canonical GW
   hosting discovery entrypoint is the contextualized hosting-operator
   `/.well-known/dspace-version` URL, not the host root.
+- Clarified that the host-scoped GW path segment represents
+  `hostCoverageScope + networkType`, not the host legal jurisdiction.
 
 ### Testing
 - `node --test tests/101-dataspace-resolver.test.mjs tests/101-default-first-dataspace-discovery.test.mjs tests/dataspace-resolver.test.mjs tests/dataspace-resolver-advanced.test.mjs`

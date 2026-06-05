@@ -85,7 +85,8 @@ flow.
 
 ## 4. Technical path rule
 
-For host discovery routes, use `networkType` in the path, not business sector.
+For host discovery routes, use `hostCoverageScope + networkType` in the path,
+not business sector and not the host legal jurisdiction.
 
 That means the host DSP URL is not the host root. It is the contextualized
 hosting-operator base URL plus `/.well-known/dspace-version`.
