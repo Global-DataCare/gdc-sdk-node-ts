@@ -191,7 +191,8 @@ Documentation consistency rule for this repo family:
 Use the Node discovery layer when your backend or BFF needs to:
 
 - start from preloaded hosting-operator semantics
-- fetch the canonical `/.well-known/dspace-version` entrypoint
+- fetch the canonical host-scoped
+  `/<hosting-operator-network-context>/.well-known/dspace-version` entrypoint
 - derive the participant-scoped `/dsp/catalog/dcat.json` artifact
 - return normalized provider/operator matches to portal or app backends
 
@@ -202,6 +203,11 @@ Primary references:
 - [tests/101-dataspace-resolver.test.mjs](tests/101-dataspace-resolver.test.mjs)
 - [tests/dataspace-resolver-advanced.test.mjs](tests/dataspace-resolver-advanced.test.mjs)
 - [tests/dataspace-resolver.test.mjs](tests/dataspace-resolver.test.mjs)
+
+Architecture note:
+
+- the reusable discovery resolver logic lives in `gdc-sdk-core-ts`
+- `gdc-sdk-node-ts` re-exports it and supplies the Node runtime surface
 
 Copy/paste starting point:
 

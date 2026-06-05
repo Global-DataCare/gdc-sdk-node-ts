@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- Reworked the node discovery layer into a thin compatibility facade that
+  re-exports the shared dataspace discovery implementation from
+  `gdc-sdk-core-ts`.
+- Clarified in the README and `docs/101-DISCOVERY.md` that the canonical GW
+  hosting discovery entrypoint is the contextualized hosting-operator
+  `/.well-known/dspace-version` URL, not the host root.
+
+### Testing
+- `node --test tests/101-dataspace-resolver.test.mjs tests/101-default-first-dataspace-discovery.test.mjs tests/dataspace-resolver.test.mjs tests/dataspace-resolver-advanced.test.mjs`
+- `npm run build`
+
 ## [0.8.2] - 2026-06-04
 
 ### Changed

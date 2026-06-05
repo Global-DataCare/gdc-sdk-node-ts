@@ -46,9 +46,14 @@ The mental model is:
 Use `HttpDataspaceResolver` when the backend must:
 
 - start from a hosting operator semantic record
-- fetch the host `/.well-known/dspace-version`
+- fetch the host-scoped contextualized `/.well-known/dspace-version`
 - fetch the host public catalog
 - return matching published providers
+
+Location rule:
+
+- the resolver logic lives in `gdc-sdk-core-ts`
+- `gdc-sdk-node-ts` re-exports it for Node backends
 
 Open this test next:
 
@@ -81,6 +86,9 @@ flow.
 ## 4. Technical path rule
 
 For host discovery routes, use `networkType` in the path, not business sector.
+
+That means the host DSP URL is not the host root. It is the contextualized
+hosting-operator base URL plus `/.well-known/dspace-version`.
 
 Examples:
 
