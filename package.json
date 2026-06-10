@@ -1,6 +1,6 @@
 {
   "name": "gdc-sdk-node-ts",
-  "version": "0.8.3",
+  "version": "0.9.0",
   "description": "Next-generation Node runtime package for the GDC SDK family",
   "license": "Apache-2.0",
   "author": "Antifraud Services Inc.",
@@ -17,8 +17,8 @@
     "test:e2e:live-gw": "npm run build && RUN_LIVE_GW_E2E=1 node --test tests/live-gw-node-runtime.e2e.test.mjs"
   },
   "dependencies": {
-    "gdc-common-utils-ts": "^1.18.1",
-    "gdc-sdk-core-ts": "^0.8.3"
+    "gdc-common-utils-ts": "^1.20.0",
+    "gdc-sdk-core-ts": "^0.9.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",

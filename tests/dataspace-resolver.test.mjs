@@ -4,8 +4,6 @@ import { DataspaceCoverageScope, DataspaceSectors, ServiceCapabilityToken } from
 import { HostNetworkTypes } from 'gdc-common-utils-ts/constants/network';
 import {
   EXAMPLE_COVERAGE_SCOPE_EU,
-  EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
-  EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL,
   EXAMPLE_HOSTING_OPERATOR_DID,
   EXAMPLE_JURISDICTION,
   EXAMPLE_PROVIDER_PUBLISHED_ENDPOINT_URL,
@@ -19,8 +17,8 @@ import { HttpDataspaceResolver } from '../dist/index.js';
 
 const EXAMPLE_OPERATOR_A_DID = EXAMPLE_HOSTING_OPERATOR_DID;
 const EXAMPLE_OPERATOR_B_DID = 'did:web:host-b.example.org';
-const EXAMPLE_OPERATOR_A_DISCOVERY_URL = EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL;
-const EXAMPLE_OPERATOR_A_CATALOG_URL = EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL;
+const EXAMPLE_OPERATOR_A_DISCOVERY_URL = `https://host.example.org/host/cds-${EXAMPLE_COVERAGE_SCOPE_EU}/v1/${HostNetworkTypes.Test}/.well-known/dspace-version`;
+const EXAMPLE_OPERATOR_A_CATALOG_URL = `https://host.example.org/host/cds-${EXAMPLE_JURISDICTION}/v1/${HostNetworkTypes.Test}/dsp/catalog/dcat.json`;
 const EXAMPLE_OPERATOR_B_DISCOVERY_URL = `https://host-b.example.org/host/cds-ES/v1/${HostNetworkTypes.Test}/.well-known/dspace-version`;
 const EXAMPLE_OPERATOR_B_CATALOG_URL = `https://host-b.example.org/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp/catalog/dcat.json`;
 

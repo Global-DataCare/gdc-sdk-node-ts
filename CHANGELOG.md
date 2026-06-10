@@ -2,12 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.9.0] - 2026-06-10
 
 ### Changed
 - Updated shared dependency targets to:
-  - `gdc-common-utils-ts@^1.18.1`
-  - `gdc-sdk-core-ts@^0.8.3`
+  - `gdc-common-utils-ts@^1.20.0`
+  - `gdc-sdk-core-ts@^0.9.0`
 - Reworked the node discovery layer into a thin compatibility facade that
   re-exports the shared dataspace discovery implementation from
   `gdc-sdk-core-ts`.
