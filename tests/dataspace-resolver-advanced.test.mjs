@@ -9,8 +9,6 @@ import {
 import { HostNetworkTypes } from 'gdc-common-utils-ts/constants/network';
 import {
   EXAMPLE_COVERAGE_SCOPE_EU,
-  EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
-  EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL,
   EXAMPLE_HOSTING_OPERATOR_DID,
   EXAMPLE_JURISDICTION,
   EXAMPLE_NON_EU_COUNTRY,
@@ -29,6 +27,9 @@ import {
 import { buildDspaceVersionMetadata } from 'gdc-common-utils-ts/utils/dataspace-protocol';
 import { buildOrganizationDidWeb, getBaseUrlFromDidWeb } from 'gdc-common-utils-ts/utils/did';
 import { HttpDataspaceResolver } from '../dist/index.js';
+
+const EXAMPLE_EU_HOST_DISCOVERY_URL = `https://host.example.org/host/cds-${EXAMPLE_COVERAGE_SCOPE_EU}/v1/${HostNetworkTypes.Test}/.well-known/dspace-version`;
+const EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL = `https://host.example.org/host/cds-${EXAMPLE_JURISDICTION}/v1/${HostNetworkTypes.Test}/dsp/catalog/dcat.json`;
 
 /**
  * Canonical hosted/internal provider DID used by the hosting operator runtime.
@@ -83,8 +84,8 @@ const EXAMPLE_READER_ONLY_PROVIDER_OPERATIONAL_URL = getBaseUrlFromDidWeb(EXAMPL
 /** @type {{ operatorDid: string, discoveryUrl: string, catalogUrl: string, record: import('gdc-common-utils-ts').HostingOperatorSemanticRecord }} */
 const EXAMPLE_ANIMAL_CARE_HOST = {
   operatorDid: EXAMPLE_HOSTING_OPERATOR_DID,
-  discoveryUrl: EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL,
-  catalogUrl: EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
+  discoveryUrl: EXAMPLE_EU_HOST_DISCOVERY_URL,
+  catalogUrl: EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL,
   record: {
     subjectId: EXAMPLE_HOSTING_OPERATOR_DID,
     serviceTypes: [ServiceCapabilityToken.IndexReader, ServiceCapabilityToken.IndexProvider],
@@ -118,8 +119,8 @@ const EXAMPLE_PT_HOST = {
 const EXAMPLE_ANIMAL_CARE_MIXED_PROVIDER_CATALOG = {
   ...buildDefaultHostingOperatorDiscoveryCatalog({
     hostingOperatorDid: EXAMPLE_HOSTING_OPERATOR_DID,
-    discoveryUrl: EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL,
-    catalogUrl: EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
+    discoveryUrl: EXAMPLE_EU_HOST_DISCOVERY_URL,
+    catalogUrl: EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL,
     providers: [
       buildDefaultPublishedProviderCatalogRecord({
         providerDid: EXAMPLE_PRIMARY_PROVIDER_DID,
@@ -127,8 +128,8 @@ const EXAMPLE_ANIMAL_CARE_MIXED_PROVIDER_CATALOG = {
         category: DataspaceSectors.AnimalCare,
         areaServed: [EXAMPLE_COVERAGE_SCOPE_EU, EXAMPLE_JURISDICTION],
         endpointUrl: EXAMPLE_PRIMARY_PROVIDER_OPERATIONAL_URL,
-        discoveryUrl: EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL,
-        catalogUrl: EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
+        discoveryUrl: EXAMPLE_EU_HOST_DISCOVERY_URL,
+        catalogUrl: EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL,
       }),
       buildDefaultPublishedProviderCatalogRecord({
         providerDid: EXAMPLE_SECONDARY_TENANT_SERVICE_DID,
@@ -136,8 +137,8 @@ const EXAMPLE_ANIMAL_CARE_MIXED_PROVIDER_CATALOG = {
         category: DataspaceSectors.AnimalCare,
         areaServed: [EXAMPLE_COVERAGE_SCOPE_EU, EXAMPLE_JURISDICTION],
         endpointUrl: EXAMPLE_SECONDARY_PROVIDER_OPERATIONAL_URL,
-        discoveryUrl: EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL,
-        catalogUrl: EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
+        discoveryUrl: EXAMPLE_EU_HOST_DISCOVERY_URL,
+        catalogUrl: EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL,
       }),
       buildDefaultPublishedProviderCatalogRecord({
         providerDid: EXAMPLE_READER_ONLY_PROVIDER_DID,
@@ -145,8 +146,8 @@ const EXAMPLE_ANIMAL_CARE_MIXED_PROVIDER_CATALOG = {
         category: DataspaceSectors.AnimalCare,
         areaServed: [EXAMPLE_COVERAGE_SCOPE_EU, EXAMPLE_JURISDICTION],
         endpointUrl: EXAMPLE_READER_ONLY_PROVIDER_OPERATIONAL_URL,
-        discoveryUrl: EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL,
-        catalogUrl: EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
+        discoveryUrl: EXAMPLE_EU_HOST_DISCOVERY_URL,
+        catalogUrl: EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL,
       }),
     ],
   }),
@@ -156,8 +157,8 @@ const EXAMPLE_ANIMAL_CARE_MIXED_PROVIDER_CATALOG = {
 const EXAMPLE_DEFAULT_INDEX_PROVIDER_CATALOG = {
   ...buildDefaultHostingOperatorDiscoveryCatalog({
     hostingOperatorDid: EXAMPLE_HOSTING_OPERATOR_DID,
-    discoveryUrl: EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL,
-    catalogUrl: EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
+    discoveryUrl: EXAMPLE_EU_HOST_DISCOVERY_URL,
+    catalogUrl: EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL,
     providers: [
       buildDefaultPublishedProviderCatalogRecord({
         providerDid: EXAMPLE_PRIMARY_PROVIDER_DID,
@@ -165,8 +166,8 @@ const EXAMPLE_DEFAULT_INDEX_PROVIDER_CATALOG = {
         category: DataspaceSectors.AnimalCare,
         areaServed: [EXAMPLE_COVERAGE_SCOPE_EU, EXAMPLE_JURISDICTION],
         endpointUrl: EXAMPLE_PRIMARY_PROVIDER_OPERATIONAL_URL,
-        discoveryUrl: EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL,
-        catalogUrl: EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
+        discoveryUrl: EXAMPLE_EU_HOST_DISCOVERY_URL,
+        catalogUrl: EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL,
       }),
     ],
   }),
@@ -186,8 +187,8 @@ const EXAMPLE_HEALTH_CARE_PROVIDER_OPERATIONAL_URL = getBaseUrlFromDidWeb(EXAMPL
 const EXAMPLE_MIXED_SECTOR_PROVIDER_CATALOG = {
   ...buildDefaultHostingOperatorDiscoveryCatalog({
     hostingOperatorDid: EXAMPLE_HOSTING_OPERATOR_DID,
-    discoveryUrl: EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL,
-    catalogUrl: EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
+    discoveryUrl: EXAMPLE_EU_HOST_DISCOVERY_URL,
+    catalogUrl: EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL,
     providers: [
       ...EXAMPLE_ANIMAL_CARE_MIXED_PROVIDER_CATALOG.providers,
       buildDefaultPublishedProviderCatalogRecord({
@@ -196,8 +197,8 @@ const EXAMPLE_MIXED_SECTOR_PROVIDER_CATALOG = {
         category: DataspaceSectors.HealthCare,
         areaServed: [EXAMPLE_COVERAGE_SCOPE_EU, EXAMPLE_JURISDICTION],
         endpointUrl: EXAMPLE_HEALTH_CARE_PROVIDER_OPERATIONAL_URL,
-        discoveryUrl: EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL,
-        catalogUrl: EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
+        discoveryUrl: EXAMPLE_EU_HOST_DISCOVERY_URL,
+        catalogUrl: EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL,
       }),
     ],
   }),
@@ -240,11 +241,11 @@ test('101: resolves EU hosting operators by country within EU coverage', async (
 test('101: resolves published index providers for the requested jurisdiction', async () => {
   const transport = createDiscoveryCatalogFetcher({
     internetJsonByUrl: {
-      [EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL]: buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
+      [EXAMPLE_EU_HOST_DISCOVERY_URL]: buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
       [EXAMPLE_PT_HOST_DISCOVERY_URL]: buildDspaceVersionMetadata(`/host/cds-PT/v1/${HostNetworkTypes.Test}/dsp`),
     },
     internetCatalogs: {
-      [EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL]: EXAMPLE_ANIMAL_CARE_MIXED_PROVIDER_CATALOG,
+      [EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL]: EXAMPLE_ANIMAL_CARE_MIXED_PROVIDER_CATALOG,
     },
   });
 
@@ -269,17 +270,17 @@ test('101: resolves published index providers for the requested jurisdiction', a
   assert.equal(results.length, 1);
   assert.equal(results[0]?.providerDid, EXAMPLE_PRIMARY_PROVIDER_DID);
   assert.equal(results[0]?.record.serviceType, ServiceCapabilityToken.IndexProvider);
-  assert.equal(transport.sources.get(EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL), DiscoveryCatalogSource.Internet);
-  assert.equal(transport.sources.get(EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL), DiscoveryCatalogSource.Internet);
+  assert.equal(transport.sources.get(EXAMPLE_EU_HOST_DISCOVERY_URL), DiscoveryCatalogSource.Internet);
+  assert.equal(transport.sources.get(EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL), DiscoveryCatalogSource.Internet);
 });
 
 test('101: resolves published digital twin providers for the requested jurisdiction', async () => {
   const transport = createDiscoveryCatalogFetcher({
     internetJsonByUrl: {
-      [EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL]: buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
+      [EXAMPLE_EU_HOST_DISCOVERY_URL]: buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
     },
     internetCatalogs: {
-      [EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL]: EXAMPLE_ANIMAL_CARE_MIXED_PROVIDER_CATALOG,
+      [EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL]: EXAMPLE_ANIMAL_CARE_MIXED_PROVIDER_CATALOG,
     },
   });
 
@@ -309,10 +310,10 @@ test('101: resolves published digital twin providers for the requested jurisdict
 test('101: excludes reader-only catalog entries from individual provider selection', async () => {
   const transport = createDiscoveryCatalogFetcher({
     internetJsonByUrl: {
-      [EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL]: buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
+      [EXAMPLE_EU_HOST_DISCOVERY_URL]: buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
     },
     internetCatalogs: {
-      [EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL]: EXAMPLE_ANIMAL_CARE_MIXED_PROVIDER_CATALOG,
+      [EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL]: EXAMPLE_ANIMAL_CARE_MIXED_PROVIDER_CATALOG,
     },
   });
 
@@ -343,10 +344,10 @@ test('101: excludes reader-only catalog entries from individual provider selecti
 test('101: filters mixed animal-care and health-care catalogs by sector', async () => {
   const transport = createDiscoveryCatalogFetcher({
     internetJsonByUrl: {
-      [EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL]: buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
+      [EXAMPLE_EU_HOST_DISCOVERY_URL]: buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
     },
     internetCatalogs: {
-      [EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL]: EXAMPLE_MIXED_SECTOR_PROVIDER_CATALOG,
+      [EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL]: EXAMPLE_MIXED_SECTOR_PROVIDER_CATALOG,
     },
   });
 
@@ -384,10 +385,10 @@ test('101: filters mixed animal-care and health-care catalogs by sector', async 
 test('101: returns no providers when the jurisdiction does not match EU catalog coverage', async () => {
   const transport = createDiscoveryCatalogFetcher({
     internetJsonByUrl: {
-      [EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL]: buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
+      [EXAMPLE_EU_HOST_DISCOVERY_URL]: buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
     },
     internetCatalogs: {
-      [EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL]: EXAMPLE_DEFAULT_INDEX_PROVIDER_CATALOG,
+      [EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL]: EXAMPLE_DEFAULT_INDEX_PROVIDER_CATALOG,
     },
   });
 
@@ -414,10 +415,10 @@ test('101: returns no providers when the jurisdiction does not match EU catalog 
 test('101: falls back to cached catalog when a later HTTP request fails', async () => {
   const transport = createDiscoveryCatalogFetcher({
     internetJsonByUrl: {
-      [EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL]: buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
+      [EXAMPLE_EU_HOST_DISCOVERY_URL]: buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
     },
     internetCatalogs: {
-      [EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL]: EXAMPLE_ANIMAL_CARE_MIXED_PROVIDER_CATALOG,
+      [EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL]: EXAMPLE_ANIMAL_CARE_MIXED_PROVIDER_CATALOG,
     },
   });
 
@@ -440,10 +441,10 @@ test('101: falls back to cached catalog when a later HTTP request fails', async 
   });
 
   assert.equal(firstResults.length, 1);
-  assert.equal(transport.sources.get(EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL), DiscoveryCatalogSource.Internet);
+  assert.equal(transport.sources.get(EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL), DiscoveryCatalogSource.Internet);
 
   transport.setInternetFailure(
-    EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
+    EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL,
     503,
     { error: 'temporary failure' },
   );
@@ -457,16 +458,16 @@ test('101: falls back to cached catalog when a later HTTP request fails', async 
 
   assert.equal(secondResults.length, 1);
   assert.equal(secondResults[0]?.providerDid, EXAMPLE_PRIMARY_PROVIDER_DID);
-  assert.equal(transport.sources.get(EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL), DiscoveryCatalogSource.Cache);
+  assert.equal(transport.sources.get(EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL), DiscoveryCatalogSource.Cache);
 });
 
 test('101: falls back to a configured default catalog when HTTP fails and cache is empty', async () => {
   const transport = createDiscoveryCatalogFetcher({
     internetJsonByUrl: {
-      [EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL]: buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
+      [EXAMPLE_EU_HOST_DISCOVERY_URL]: buildDspaceVersionMetadata(`/host/cds-ES/v1/${HostNetworkTypes.Test}/dsp`),
     },
     defaultCatalogs: {
-      [EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL]: EXAMPLE_DEFAULT_INDEX_PROVIDER_CATALOG,
+      [EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL]: EXAMPLE_DEFAULT_INDEX_PROVIDER_CATALOG,
     },
   });
 
@@ -484,7 +485,7 @@ test('101: falls back to a configured default catalog when HTTP fails and cache 
 
   assert.equal(results.length, 1);
   assert.equal(results[0]?.providerDid, EXAMPLE_PRIMARY_PROVIDER_DID);
-  assert.equal(transport.sources.get(EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL), DiscoveryCatalogSource.Default);
+  assert.equal(transport.sources.get(EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL), DiscoveryCatalogSource.Default);
 });
 
 test.todo(

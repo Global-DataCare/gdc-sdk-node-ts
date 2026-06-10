@@ -9,8 +9,6 @@ import {
 import { HostNetworkTypes } from 'gdc-common-utils-ts/constants/network';
 import {
   EXAMPLE_COVERAGE_SCOPE_EU,
-  EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
-  EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL,
   EXAMPLE_JURISDICTION,
   EXAMPLE_TENANT_SERVICE_DID,
 } from 'gdc-common-utils-ts/examples/shared';
@@ -27,6 +25,8 @@ const VERSION = 'v1';
 const NETWORK_TYPE = HostNetworkTypes.Test;
 const JURISDICTION = EXAMPLE_JURISDICTION;
 const COVERAGE_SCOPE = DataspaceCoverageScope.EuropeanUnion;
+const HOST_DISCOVERY_URL = `https://host.example.org/host/cds-${COVERAGE_SCOPE}/${VERSION}/${NETWORK_TYPE}/.well-known/dspace-version`;
+const HOST_CATALOG_URL = `https://host.example.org/host/cds-${JURISDICTION}/${VERSION}/${NETWORK_TYPE}/dsp/catalog/dcat.json`;
 
 const HOST = buildDefaultHostingOperatorRegistrationFromAuthority({
   authority: 'host.example.org',
@@ -49,23 +49,23 @@ test('101: HttpDataspaceResolver resolves one published index provider from one 
   // The resolver fetches the host DSP version document and then the public catalog.
   const transport = createDiscoveryCatalogFetcher({
     internetJsonByUrl: {
-      [EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL]: buildDspaceVersionMetadata(
+      [HOST_DISCOVERY_URL]: buildDspaceVersionMetadata(
         `/host/cds-${JURISDICTION}/${VERSION}/${NETWORK_TYPE}/dsp`,
       ),
     },
     internetCatalogs: {
-      [EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL]: buildDefaultHostingOperatorDiscoveryCatalog({
+      [HOST_CATALOG_URL]: buildDefaultHostingOperatorDiscoveryCatalog({
         hostingOperatorDid: HOST.operatorDid,
-        discoveryUrl: EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL,
-        catalogUrl: EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
+        discoveryUrl: HOST_DISCOVERY_URL,
+        catalogUrl: HOST_CATALOG_URL,
         providers: [
           buildDefaultPublishedProviderCatalogRecord({
             providerDid: EXAMPLE_TENANT_SERVICE_DID,
             serviceType: ServiceCapabilityToken.IndexProvider,
             category: DataspaceSectors.AnimalCare,
             areaServed: [EXAMPLE_COVERAGE_SCOPE_EU, JURISDICTION],
-            discoveryUrl: EXAMPLE_HOSTING_OPERATOR_DSPACE_VERSION_URL,
-            catalogUrl: EXAMPLE_HOSTING_OPERATOR_CATALOG_ARTIFACT_URL,
+            discoveryUrl: HOST_DISCOVERY_URL,
+            catalogUrl: HOST_CATALOG_URL,
           }),
         ],
       }),
