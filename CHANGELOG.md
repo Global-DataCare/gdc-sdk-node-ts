@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.1] - 2026-06-11
+
+### Changed
+- Updated shared dependency targets to:
+  - `gdc-common-utils-ts@^1.20.1`
+  - `gdc-sdk-core-ts@^0.9.1`
+
+### Testing
+- `npm run build`
+
 ## [0.9.0] - 2026-06-10
 
 ### Changed
