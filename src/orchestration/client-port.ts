@@ -27,6 +27,7 @@ import type { EmployeeDeviceActivationResult, EmployeeDeviceActivationRequestInp
 import type { HostRouteContext, LegalOrganizationOrderInput } from '../host-onboarding.js';
 import type { IndividualOrganizationConfirmOrderInput, RouteContext } from '../individual-onboarding.js';
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
+import type { OrganizationLicenseOrderConfirmInput } from '../organization-license-order.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type {
   CommunicationIngestionInput,
@@ -106,6 +107,11 @@ export type RuntimeClient = {
   listOrganizationLicenseOrders?: (
     ctx: RouteContext,
     input?: LicenseOrderRuntimeSearchInput,
+  ) => Promise<SubmitAndPollResult>;
+  confirmOrganizationLicenseOrder?: (
+    ctx: RouteContext,
+    input: OrganizationLicenseOrderConfirmInput,
+    pollOptions?: PollOptions,
   ) => Promise<SubmitAndPollResult>;
   disableEmployee?: (
     ctx: RouteContext,

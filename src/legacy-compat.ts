@@ -11,6 +11,9 @@ export {
   confirmIndividualOrganizationOrderWithDeps as confirmIndividualOrganizationOrderSimpleWithDeps,
 } from './individual-onboarding.js';
 export {
+  confirmOrganizationLicenseOrderWithDeps as confirmOrganizationLicenseOrderSimpleWithDeps,
+} from './organization-license-order.js';
+export {
   requestSmartTokenWithDeps as requestSmartTokenSimpleWithDeps,
 } from './smart-token.js';
 export {
@@ -31,6 +34,9 @@ export type {
 export type {
   IndividualOrganizationConfirmOrderInput as IndividualOrganizationConfirmOrderSimpleInput,
 } from './individual-onboarding.js';
+export type {
+  OrganizationLicenseOrderConfirmInput as OrganizationLicenseOrderConfirmSimpleInput,
+} from './organization-license-order.js';
 
 export type {
   IndividualOrganizationBootstrapInput as IndividualOrganizationBootstrapSimpleInput,

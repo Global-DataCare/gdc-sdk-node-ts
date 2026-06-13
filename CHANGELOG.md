@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.0] - 2026-06-13
+
+### Added
+- Added public organization order confirmation support for portal-managed
+  post-payment seat activation in:
+  - `src/organization-license-order.ts`
+  - `src/node-runtime-client.ts`
+  - `src/orchestration/organization-controller-sdk.ts`
+- Added live GW transport/execution helpers for the controlled
+  `front -> virtual API -> GW CORE` test harness in:
+  - `tests/helpers/live-gw-execution-modes.mjs`
+  - `tests/helpers/live-gw-suite-profiles.mjs`
+  - `tests/helpers/live-gw-transport-profiles.mjs`
+
+### Changed
+- Extended individual order confirmation to accept additional commercial
+  claims and read back the embedded invoice bundle from GW CORE responses.
+- Updated the live E2E suite to validate:
+  - complete `mem` lifecycles for `individual` and `professional`
+  - `didcomm-plain` clinical ingestion
+  - `legacy-fhir` clinical ingestion
+  - invoice bundle readback on order responses
+- Updated the shared dependency target to `gdc-common-utils-ts@^1.22.0`.
+
+### Testing
+- `npm run build`
+- `node --test tests/node-runtime-client.test.mjs tests/orchestration.test.mjs`
+- `RUN_LIVE_GW_E2E=1 RUN_LIVE_GW_E2E_IPS_INGESTION=1 RUN_LIVE_GW_E2E_INDIVIDUAL_LIFECYCLE=1 LIVE_GW_E2E_TRANSPORT=all LIVE_GW_E2E_EXECUTION_MODE=direct node --test tests/live-gw-node-runtime.e2e.test.mjs`
+
 ## [0.10.1] - 2026-06-13
 
 ### Added

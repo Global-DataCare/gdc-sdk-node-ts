@@ -14,6 +14,16 @@ Use this package when your backend needs to:
 This package is for runtime execution. It is not the place where the canonical
 business contract is defined.
 
+Important test-harness boundary:
+
+- `gdc-sdk-node-ts` is not the product BFF
+- the live E2E suite simulates a controlled `virtual API` with a BFF-like role
+  only to validate GW CORE lifecycles end to end
+- the current live suites run with the future `user job manager` queue disabled,
+  so every high-level call goes directly through that controlled `virtual API`
+- app-side job queues, offline retry, local vault/read models, and the future
+  user job manager are separate follow-up concerns
+
 Architectural rule:
 
 - shared contracts and actor boundaries come from `gdc-sdk-core-ts`
@@ -44,10 +54,16 @@ If you are integrating this package for the first time, open these in order:
 5. [gdc-sdk-core-ts/docs/101-SDK_FLOWS.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-SDK_FLOWS.md)
    Actor split and business-flow map across organization, individual,
    permissions, invitation, import, and SMART flows.
-6. [gdc-common-utils-ts/src/examples/](https://github.com/Global-DataCare/gdc-common-utils-ts/tree/main/src/examples)
+6. [gwtemplate-node-ts/docs/PORTAL_API_TO_GW_CORE.md](https://github.com/Global-DataCare/gwtemplate-node-ts/blob/main/docs/PORTAL_API_TO_GW_CORE.md)
+   Canonical portal/BFF functional map over GW CORE, including the domain
+   split between `employees`, `related persons`, `members`, and `consents`.
+7. [gdc-common-utils-ts/src/examples/](https://github.com/Global-DataCare/gdc-common-utils-ts/tree/main/src/examples)
    Shared payload values used by the docs and tests.
-7. [gdc-common-utils-ts/docs/101-LIFECYCLE.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/101-LIFECYCLE.md)
+8. [gdc-common-utils-ts/docs/101-LIFECYCLE.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/101-LIFECYCLE.md)
    Canonical `enable/disable/delete` semantics and copy/paste placeholders.
+9. [docs/NEXT_STEPS.md](./docs/NEXT_STEPS.md)
+   Follow-up scope after GW CORE live validation, including the future user job
+   manager boundary.
 
 If you need the shortest path:
 
@@ -104,6 +120,8 @@ Teaching rule:
 - override with env vars only when your tenant, bearer, or route is different
 - local GW default is `http://127.0.0.1:3000`
 - Docker-exposed GW can be overridden with `BASE_URL=http://127.0.0.1:8000`
+- `LIVE_GW_E2E_EXECUTION_MODE=direct` is the current and only supported mode
+  for live validation; queued app-side job management is a later phase
 
 Current live flow covered by the test suite:
 
@@ -117,6 +135,38 @@ Current live flow covered by the test suite:
    `Bundle?type=document&composition.subject=<did>&composition.type=http://loinc.org|60591-5`
 7. verify the returned bundle document contains both medication statements
 8. persist audit/debug traces in `test-results/*.jsonl`
+
+What is still not fully covered as one single root lifecycle:
+
+- initial organization license listing
+- extra-seat activation after the portal-side fictitious payment confirmation
+- relisting licenses after seat activation
+- one employee bundle with employee `A` and employee `B`
+- selective disable/purge validation across both employees
+- consent escalation from partial IPS access to broader IPS access
+- final cleanup of consent, individual, remaining employees, and tenant
+
+Current invoice/readback behavior:
+
+- both host and individual `Order/_batch-response` flows now return the flat
+  compatibility claims and an embedded invoice `Bundle`
+- the invoice bundle contains one FHIR `Invoice`, one PDF
+  `DocumentReference`, and one structured JSON/XML `DocumentReference`
+- live suites can read that bundle back through the same high-level response
+  body that the virtual API exposes to the simulated front
+
+Current runtime boundary:
+
+- `OrganizationControllerSdk.confirmOrganizationLicenseOrder(...)` now uses the
+  public host `Order/_batch` route used by GW CORE for portal-managed
+  post-payment seat activation
+- the long root lifecycle is still not fully closed because the suite does not
+  yet orchestrate the whole `license list -> pay -> confirm -> relist -> two
+  employees -> selective purge -> cleanup` dialogue as one single test
+
+The exact pending release-readiness checklist lives in:
+
+- [docs/NEXT_STEPS.md](./docs/NEXT_STEPS.md)
 
 Optional live lifecycle extension:
 
@@ -149,6 +199,20 @@ Run the full live runtime baseline:
 ```bash
 npm run test:e2e:live-gw
 ```
+
+Select one live transport profile from the same Node entrypoint:
+
+```bash
+npm run test:e2e:live-gw:didcomm-plain
+npm run test:e2e:live-gw:legacy-fhir
+npm run test:e2e:live-gw:all
+```
+
+Profile note:
+
+- `didcomm-plain` is the current live baseline implemented by the Node runtime client
+- `legacy-fhir` exercises raw `application/fhir+json` async batch submission for `org.hl7.fhir.*`
+- `all` runs every implemented profile from the same suite file
 
 Run the IPS ingestion/search branch as well:
 

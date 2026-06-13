@@ -14,6 +14,35 @@ This document is the short technical map:
 - which SDK method maps to each GW CORE flow
 - which shared docs explain the contract details
 
+Important boundary for live tests:
+
+- `gdc-sdk-node-ts` is not the product BFF
+- the live E2E suite simulates one controlled `virtual API` with a BFF-like
+  role only for testing
+- that test harness encapsulates GW CORE `submit + poll` so lifecycle journeys
+  can be validated end to end against a real gateway
+- the current harness runs with the future `user job manager` queue disabled,
+  so all high-level facade calls go directly through the controlled `virtual API`
+- future app-side job management, vault persistence, read models, and retry
+  state machines are separate concerns and are not the goal of this runtime
+  guide
+
+Current execution-mode rule:
+
+- `LIVE_GW_E2E_EXECUTION_MODE=direct` is the supported live-test mode today
+- queued execution is reserved for a later `user job manager` phase
+
+Canonical portal/BFF functional mapping over GW CORE lives in:
+
+- [gwtemplate-node-ts/docs/PORTAL_API_TO_GW_CORE.md](https://github.com/Global-DataCare/gwtemplate-node-ts/blob/main/docs/PORTAL_API_TO_GW_CORE.md)
+
+Use that GW CORE document when you need the product-facing distinction between:
+
+- `employees`
+- `related persons`
+- `members`
+- `access consents`
+
 Teaching rule for this `101`:
 
 - start from the highest-level runtime surface a new developer should call
@@ -77,6 +106,19 @@ variant, and port-stop commands, use:
   - shared actor/capability model and runtime-neutral bundle builders
 - `gdc-sdk-node-ts`
   - runtime client plus actor-scoped facades
+
+Current canonical facades:
+
+- `OrganizationController`
+- `OrganizationEmployee`
+- `IndividualController`
+- `IndividualMember`
+- `Professional`
+
+Treat domain labels such as `OrgProfHealthCare`, `OrgProfVet`,
+`OrgProfAdministrative`, or `OrgProfFirstResponder` as specializations over the
+canonical `Professional` actor until the shared actor/capability contract is
+extended centrally in `sdk-core`.
 
 Employee management belongs to:
 

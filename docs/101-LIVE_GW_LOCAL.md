@@ -109,6 +109,38 @@ Expected result:
 - purge of employee 1 fails because it is still active
 - purge of employee 2 succeeds because it was disabled first
 
+Important limitation of that smoke:
+
+- it is only one slice of the larger live user-dialogue lifecycle
+- it does not yet cover extra-seat activation, individual bootstrap, consent
+  escalation, professional read retry, or final tenant cleanup
+
+For release-readiness of GW CORE, the target lifecycle is longer:
+
+1. list licenses
+2. activate extra seats after the portal-side fictitious payment is confirmed
+3. relist licenses
+4. create two employees
+5. disable and purge only the allowed one
+6. bootstrap the individual
+7. ingest medication bundle communication
+8. ingest full IPS communication
+9. grant limited consent
+10. verify professional read failure for broader sections
+11. broaden consent
+12. verify professional IPS read success
+13. clean up consent, individual, employees, and tenant
+
+Current public-route boundary:
+
+- `OrganizationControllerSdk.confirmOrganizationLicenseOrder(...)` already
+  exists in `sdk-node` as the canonical post-payment business step
+- it currently submits through the public host `Order/_batch` route used by GW
+  CORE for portal-managed payment confirmations
+- what is still missing is the single long live suite that chains this step
+  into the full `list -> pay -> confirm -> relist -> employees -> cleanup`
+  dialogue
+
 The canonical employee lifecycle/contract details live in:
 
 - [gdc-sdk-core-ts/docs/101-EMPLOYEES.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-EMPLOYEES.md)

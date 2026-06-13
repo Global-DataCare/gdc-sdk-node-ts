@@ -22,6 +22,7 @@ export type IndividualOrganizationConfirmOrderInput = {
   jurisdiction?: string;
   sector?: string;
   offerId: string;
+  additionalClaims?: Record<string, unknown>;
   timeoutSeconds?: number;
   intervalSeconds?: number;
 };
@@ -52,6 +53,7 @@ export async function confirmIndividualOrganizationOrderWithDeps(
   const orderClaims: Record<string, unknown> = {
     '@context': 'org.schema',
     'Order.acceptedOffer.identifier': offerId,
+    ...(deps.input.additionalClaims || {}),
   };
 
   const payload = {

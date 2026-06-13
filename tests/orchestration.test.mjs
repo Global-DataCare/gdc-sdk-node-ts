@@ -129,6 +129,7 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
     listOrganizationLicenseOffers: async (...args) => { calls.push(['listOrganizationLicenseOffers', args]); return { ok: true }; },
     searchOrganizationLicenseOrders: async (...args) => { calls.push(['searchOrganizationLicenseOrders', args]); return { ok: true }; },
     listOrganizationLicenseOrders: async (...args) => { calls.push(['listOrganizationLicenseOrders', args]); return { ok: true }; },
+    confirmOrganizationLicenseOrder: async (...args) => { calls.push(['confirmOrganizationLicenseOrder', args]); return { ok: true }; },
     disableEmployee: async (...args) => { calls.push(['disableEmployee', args]); return { ok: true }; },
     disableOrganizationEmployee: async (...args) => { calls.push(['disableOrganizationEmployee', args]); return { ok: true }; },
   };
@@ -145,9 +146,25 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   await sdk.listLicenseOffers({}, {});
   await sdk.searchLicenseOrders({}, {});
   await sdk.listLicenseOrders({}, {});
+  await sdk.confirmOrganizationLicenseOrder({}, { offerId: 'urn:cds:offer:test' });
   await sdk.disableEmployee({}, {});
   await sdk.disableOrganizationEmployee({}, {});
-  assert.equal(calls.length, 10);
+  assert.equal(calls.length, 11);
+});
+
+test('OrganizationControllerSdk delegates organization-side license-order confirmation to the runtime client', async () => {
+  const calls = [];
+  const session = new NodeActorSession({
+    actorKind: ActorKinds.OrganizationController,
+    capabilities: [],
+  }, {
+    confirmOrganizationLicenseOrder: async (...args) => { calls.push(args); return { ok: true }; },
+  });
+
+  await session.asOrganizationController().confirmOrganizationLicenseOrder({}, { offerId: 'urn:cds:offer:test' });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1].offerId, 'urn:cds:offer:test');
 });
 
 test('OrganizationControllerSdk enforces employee lifecycle capabilities when materialized from NodeActorSession', async () => {

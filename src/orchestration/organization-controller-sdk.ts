@@ -13,6 +13,7 @@ import { assertFacadeCapability } from './capability-guard.js';
 import type { RouteContext } from '../individual-onboarding.js';
 import type { EmployeeDeviceActivationResult, EmployeeDeviceActivationRequestInput } from '../device-activation.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
+import type { OrganizationLicenseOrderConfirmInput } from '../organization-license-order.js';
 import type { NodeCapability } from '../session.js';
 import type {
   LicenseListRuntimeSearchInput,
@@ -144,6 +145,28 @@ export class OrganizationControllerSdk {
     input: LicenseOrderRuntimeSearchInput = {},
   ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'listOrganizationLicenseOrders')(ctx, input);
+  }
+
+  /**
+   * Confirms an already paid organization-side license order so GW CORE can
+   * activate additional tenant seats once the public route exists.
+   *
+   * The commercial/payment step happens outside GW CORE. This method models
+   * the follow-up confirmation that should materialize new seats from the
+   * accepted order.
+   *
+   * Current runtime note:
+   * - search/list of organization license offers and orders already exists
+   * - the public/write post-payment seat-activation route is not converged yet
+   * - current runtime clients therefore throw an explicit unsupported-flow
+   *   error instead of fabricating an unstable payload contract
+   */
+  public confirmOrganizationLicenseOrder(
+    ctx: RouteContext,
+    input: OrganizationLicenseOrderConfirmInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'confirmOrganizationLicenseOrder')(ctx, input, pollOptions);
   }
 
   /**

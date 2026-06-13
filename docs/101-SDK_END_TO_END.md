@@ -22,6 +22,23 @@ Use this file first when you want:
   - IPS import
   - SMART/search
 
+Live-test boundary:
+
+- this SDK guide is about runtime execution and high-level facade calls
+- the live E2E suite simulates a controlled `virtual API` so GW CORE can be
+  tested in a realistic but deterministic environment
+- that `virtual API` is only a harness for tests
+- the current harness assumes the future `user job manager` local queue is
+  disabled, so each high-level call is executed directly
+- it should not be confused with the final product BFF or with the future
+  app-side user job manager
+
+Current execution-mode rule:
+
+- `LIVE_GW_E2E_EXECUTION_MODE=direct` is the supported live-test mode today
+- future queued execution belongs to the later app-side `user job manager`
+  phase and is intentionally outside this guide
+
 If you need lower-level runtime details after this guide, open:
 
 - [101-SDK_INTEGRATION.md](./101-SDK_INTEGRATION.md)

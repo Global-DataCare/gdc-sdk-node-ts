@@ -27,6 +27,7 @@ import {
   extractOfferIdFromResponseBody,
   extractOfferPreviewFromResponseBody,
 } from './order-offer-summary.js';
+import { confirmOrganizationLicenseOrderWithDeps, type OrganizationLicenseOrderConfirmInput } from './organization-license-order.js';
 import { startIndividualOrganizationWithDeps, type IndividualOrganizationBootstrapInput, type IndividualOrganizationStartResult } from './individual-start.js';
 import {
   createOrganizationEmployeeWithDeps,
@@ -443,6 +444,32 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return listOrganizationLicenseOrdersWithDeps(ctx, input, {
       organizationLicenseOrderSearchPath: this.organizationLicenseOrderSearchPath.bind(this),
       organizationLicenseOrderSearchPollPath: this.organizationLicenseOrderSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
+   * Confirms an already paid organization-side license order so additional
+   * seats become usable once GW CORE exposes the public converged route.
+   *
+   * Current runtime note:
+   * - search/list for organization license offers and orders already works
+   * - the public/write post-payment seat activation route is not wired yet
+   * - this method therefore fails explicitly instead of guessing a transport
+   *   contract that is not stable in GW CORE
+   */
+  public async confirmOrganizationLicenseOrder(
+    ctx: RouteContext,
+    input: OrganizationLicenseOrderConfirmInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return confirmOrganizationLicenseOrderWithDeps({
+      routeCtx: ctx,
+      input,
+      defaultTimeoutMs: pollOptions?.timeoutMs,
+      defaultIntervalMs: pollOptions?.intervalMs,
+      hostRegistryOrderBatchPath: this.hostRegistryOrderBatchPath.bind(this),
+      hostRegistryOrderPollPath: this.hostRegistryOrderPollPath.bind(this),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }

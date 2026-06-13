@@ -207,6 +207,32 @@ test('NodeHttpClient searches organization-owned commercial orders through Order
   assert.equal(calls[0][2].body.data[0].type, 'Order-search-request-v1.0');
 });
 
+test('NodeHttpClient confirms organization-side extra license activation through host Order/_batch', async () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+    ctx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+  });
+
+  const calls = [];
+  client.submitAndPoll = async (...args) => {
+    calls.push(args);
+    return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+  };
+
+  await client.confirmOrganizationLicenseOrder(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      offerId: EXAMPLE_LICENSE_ACTIVE_RECORD.offerId || 'urn:cds:offer:test',
+      hostNetwork: 'test',
+      additionalClaims: { 'Order.paymentMethod': 'invoice' },
+    },
+  );
+
+  assert.equal(calls[0][0], '/host/cds-ES/v1/test/registry/org.schema/Order/_batch');
+  assert.equal(calls[0][1], '/host/cds-ES/v1/test/registry/org.schema/Order/_batch-response');
+  assert.equal(calls[0][2].body.data[0].meta.claims['Order.paymentMethod'], 'invoice');
+});
+
 test('NodeHttpClient searches subject-side commercial offers and orders through Offer/_search and Order/_search', async () => {
   const client = new NodeHttpClient({
     baseUrl: 'https://gw.example.org',
