@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0] - 2026-06-12
+
+### Added
+- Added current lifecycle support for individual-member `RelatedPerson`
+  records in the Node runtime:
+  - `disableIndividualMember(...)` now submits identifier-first inactive
+    lifecycle resources over `RelatedPerson/_batch`
+  - `purgeIndividualMember(...)` now uses explicit `RelatedPerson/_purge`
+    routes and request types
+- Added shared order/offer response parsing helpers in:
+  - `src/order-offer-summary.ts`
+
+### Changed
+- Refactored individual-organization lifecycle payload building to reuse the
+  shared `IndividualOrganizationLifecycleDraft` instead of duplicating GW
+  payload assembly.
+- Expanded public actor facades to match implemented runtime capabilities:
+  - `OrganizationControllerSdk.searchOrganizationEmployees(...)`
+  - `IndividualControllerSdk.searchClinicalBundle(...)`
+  - `PersonalSdk.getLatestIps(...)`
+- Added `getLatestIps(...)` as a preferred runtime alias on the node client,
+  backed by the existing latest-IPS search flow.
+- Updated individual start/bootstrap wiring to consume canonical offer preview
+  parsing instead of returning an empty preview placeholder.
+- Re-exported the new lifecycle and order/offer summary surfaces from the
+  package root.
+- Updated the shared dependency target to `gdc-sdk-core-ts@^0.10.0`.
+- Refreshed README/integration/end-to-end docs to reflect:
+  - real member lifecycle support
+  - shared related-person example fixtures
+  - the current runtime contract for `disableIndividualMember(...)` and
+    `purgeIndividualMember(...)`
+  - the opt-in live GW lifecycle gate
+
+### Testing
+- `npm run build`
+- `node --test tests/resource-operations.test.mjs tests/node-runtime-client.test.mjs`
+
 ## [0.9.1] - 2026-06-11
 
 ### Changed

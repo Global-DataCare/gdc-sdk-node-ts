@@ -14,6 +14,7 @@ import type { IndividualOrganizationConfirmOrderInput, RouteContext } from '../i
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
 import type { NodeCapability } from '../session.js';
 import type {
+  ClinicalBundleSearchInput,
   CommunicationIngestionInput,
   DigitalTwinGenerationInput,
   GrantProfessionalAccessInput,
@@ -172,6 +173,26 @@ export class IndividualControllerSdk {
   public generateDigitalTwinFromSubjectData(ctx: RouteContext, input: DigitalTwinGenerationInput): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualGenerateDigitalTwin, ActorKinds.IndividualController, 'generateDigitalTwinFromSubjectData');
     return requireClientMethod(this.client, 'generateDigitalTwinFromSubjectData')(ctx, input);
+  }
+
+  /**
+   * Searches indexed clinical bundles for the current subject/controller context.
+   */
+  public searchClinicalBundle(
+    ctx: RouteContext,
+    input: ClinicalBundleSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchClinicalBundle')(ctx, input);
+  }
+
+  /**
+   * Returns the latest IPS-oriented bundle for one subject.
+   */
+  public getLatestIps(
+    ctx: RouteContext,
+    input: Omit<ClinicalBundleSearchInput, 'includedTypes'>,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'getLatestIps')(ctx, input);
   }
 
   /**

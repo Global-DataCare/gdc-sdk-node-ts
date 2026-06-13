@@ -757,25 +757,15 @@ Use this when the actor is a caregiver, guardian, grandparent, or another
 non-employee subject-side relation.
 
 ```ts
+import {
+  EXAMPLE_RELATED_PERSON_UPSERT_BUNDLE_PAYLOAD,
+  cloneExample,
+} from 'gdc-common-utils-ts/examples';
+
 const memberSdk = new IndividualMemberSdk(client);
 
 await memberSdk.upsertRelatedPersonAndPoll(tenantContext, {
-  relatedPersonPayload: {
-    thid: 'relatedperson-grandfather-001',
-    body: {
-      resourceType: 'Bundle',
-      type: 'batch',
-      entry: [{
-        resource: {
-          resourceType: 'RelatedPerson',
-          id: 'grandfather-001',
-          patient: { reference: subjectDid },
-          relationship: [{ text: 'Grandfather' }],
-          name: [{ text: 'Jose Example' }],
-        },
-      }],
-    },
-  },
+  relatedPersonPayload: cloneExample(EXAMPLE_RELATED_PERSON_UPSERT_BUNDLE_PAYLOAD),
 });
 ```
 
@@ -935,7 +925,10 @@ Member and consent boundaries:
 - `upsertRelatedPersonAndPoll(...)`
   manages the `RelatedPerson` membership/caregiver record
 - `disableIndividualMember(...)` and `purgeIndividualMember(...)`
-  are controller-only placeholders today and intentionally fail fast until GW CORE adds the stable `RelatedPerson` lifecycle contract
+  are real controller lifecycle operations today:
+  `disableIndividualMember(...)` uses the current `RelatedPerson/_batch` path,
+  and `purgeIndividualMember(...)` uses the explicit `RelatedPerson/_purge`
+  path
 - `grantProfessionalAccess(...)`
   creates the consent record used by SMART/data access
 - `Communication`

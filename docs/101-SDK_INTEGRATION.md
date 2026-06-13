@@ -335,7 +335,15 @@ Note:
 - disable does not release licenses.
 - purge requires inactive status first and then releases/disassociates licenses while preserving traceability.
 - TODO `gw-core-lifecycle-target-patch-individual-disable`: migrate to `_batch + PATCH` only after GW CORE deploys it.
-- `disableIndividualMember(...)` and `purgeIndividualMember(...)` are controller-only placeholders today; the runtime intentionally throws `not supported` until GW CORE exposes the stable `RelatedPerson` lifecycle contract.
+- `disableIndividualMember(...)` now emits the shared identifier-first lifecycle resource contract over the current `RelatedPerson/_batch` runtime path:
+  - `resource.identifier` is the interoperable locator
+  - `resource.id` is optional internal metadata
+  - `resource.meta.claims` is the canonical processing shape
+  - `resource.meta.status = inactive` carries lifecycle state without overloading `RelatedPerson.active`
+- `purgeIndividualMember(...)` now uses the explicit `RelatedPerson/_purge`
+  runtime path with the same shared identifier-first lifecycle resource
+  contract used by the SDK tests and examples.
+- Shared contract reference: `gdc-common-utils-ts/docs/101-RESOURCE_IDENTIFIER_AND_OPERATIONS.md`
 
 ### Consent grant
 
@@ -379,7 +387,13 @@ SDK:
 Lifecycle note:
 
 - `RelatedPerson` models member/caregiver relationship data, not employee lifecycle.
-- Current SDK support is upsert/search/token-oriented. No extra lifecycle contract is fabricated here.
+- `upsertRelatedPersonAndPoll(...)` reuses the shared bundle fixture style from
+  `gdc-common-utils-ts/src/examples/related-person.ts`.
+- `disableIndividualMember(...)` now emits the shared identifier-first lifecycle
+  resource contract over the current `RelatedPerson/_batch` runtime path.
+- `purgeIndividualMember(...)` now uses the explicit
+  `RelatedPerson/_purge` runtime path and the shared identifier-first
+  lifecycle resource contract.
 
 ## Lifecycle 101
 
@@ -399,7 +413,12 @@ Use this mental model for current GW CORE:
 - `member`:
   `upsertRelatedPersonAndPoll(...)` manages the caregiver/family relationship record.
   `requestSmartToken(...)` is the runtime access step after that relationship exists.
-  `disableIndividualMember(...)` and `purgeIndividualMember(...)` are exposed only on `IndividualControllerSdk` as forward-looking placeholders and currently fail fast until GW CORE adds the stable contract.
+  `disableIndividualMember(...)` is supported through the current
+  `RelatedPerson/_batch` runtime path using the shared identifier-first
+  lifecycle resource contract.
+  `purgeIndividualMember(...)` uses the explicit `RelatedPerson/_purge`
+  runtime path and the same shared identifier-first lifecycle resource
+  contract.
 - `consent`:
   `grantProfessionalAccess(...)` creates the consent record used by SMART/data access.
   index-oriented consent data is transported through `Communication`, not taught

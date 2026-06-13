@@ -118,6 +118,15 @@ Current live flow covered by the test suite:
 7. verify the returned bundle document contains both medication statements
 8. persist audit/debug traces in `test-results/*.jsonl`
 
+Optional live lifecycle extension:
+
+- set `RUN_LIVE_GW_E2E_INDIVIDUAL_LIFECYCLE=1` to extend the same suite with
+  `disableIndividual(...)` + `purgeIndividual(...)` against the real
+  `gwtemplate-node-ts` runtime contract
+- this extra block is intentionally separate from the default happy path
+  because it changes lifecycle state and should only run when that tenant/test
+  subject is disposable
+
 Shared example source of truth:
 
 - tenant/route/controller/professional defaults:

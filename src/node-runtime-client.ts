@@ -23,13 +23,19 @@ import {
   type RouteContext,
 } from './individual-onboarding.js';
 import { requestSmartTokenWithDeps, type SmartTokenRequestInput } from './smart-token.js';
+import {
+  extractOfferIdFromResponseBody,
+  extractOfferPreviewFromResponseBody,
+} from './order-offer-summary.js';
 import { startIndividualOrganizationWithDeps, type IndividualOrganizationBootstrapInput, type IndividualOrganizationStartResult } from './individual-start.js';
 import {
   createOrganizationEmployeeWithDeps,
+  disableIndividualMemberWithDeps,
   disableIndividualOrganizationWithDeps,
   disableOrganizationEmployeeWithDeps,
   grantProfessionalAccessWithDeps,
   ingestCommunicationAndUpdateIndexWithDeps,
+  purgeIndividualMemberWithDeps,
   purgeIndividualOrganizationWithDeps,
   purgeOrganizationEmployeeWithDeps,
   searchOrganizationEmployeesWithDeps,
@@ -363,8 +369,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       individualFamilyOrganizationBatchPath: this.individualFamilyOrganizationTransactionPath.bind(this),
       individualFamilyOrganizationPollPath: this.individualFamilyOrganizationTransactionPollPath.bind(this),
       submitAndPoll: this.submitAndPoll.bind(this),
-      getOfferIdFromResponse: (result) => this.extractOfferId(result.poll.body),
-      getOfferPreviewFromResponse: () => ({}),
+      getOfferIdFromResponse: (result) => extractOfferIdFromResponseBody(result.poll.body),
+      getOfferPreviewFromResponse: (result) => extractOfferPreviewFromResponseBody(result.poll.body),
     });
   }
 
@@ -441,17 +447,19 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
-   * Placeholder for a future GW CORE member/caregiver lifecycle contract.
-   *
-   * Current GW CORE does not yet expose a stable lifecycle route for
-   * `RelatedPerson` / individual-member disable.
+   * Soft-disables a `RelatedPerson` membership/contact using the current
+   * public batch-update path and `RelatedPerson.active = false`.
    */
   public async disableIndividualMember(
-    _ctx: RouteContext,
-    _input: IndividualMemberLifecycleInput,
-    _pollOptions?: PollOptions,
+    ctx: RouteContext,
+    input: IndividualMemberLifecycleInput,
+    pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
-    throw new Error('disableIndividualMember is not supported by the current GW CORE contract. TODO(gw-core-lifecycle-target-member-disable).');
+    return disableIndividualMemberWithDeps(ctx, input, pollOptions, {
+      individualRelatedPersonBatchPath: this.individualRelatedPersonBatchPath.bind(this),
+      individualRelatedPersonPollPath: this.individualRelatedPersonPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
   }
 
   /**
@@ -461,11 +469,15 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * `RelatedPerson` / individual-member purge.
    */
   public async purgeIndividualMember(
-    _ctx: RouteContext,
-    _input: IndividualMemberLifecycleInput,
-    _pollOptions?: PollOptions,
+    ctx: RouteContext,
+    input: IndividualMemberLifecycleInput,
+    pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
-    throw new Error('purgeIndividualMember is not supported by the current GW CORE contract. TODO(gw-core-lifecycle-target-member-purge).');
+    return purgeIndividualMemberWithDeps(ctx, input, pollOptions, {
+      individualRelatedPersonPurgePath: this.individualRelatedPersonPurgePath.bind(this),
+      individualRelatedPersonPurgePollPath: this.individualRelatedPersonPurgePollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
   }
 
   /**
@@ -587,6 +599,16 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return searchLatestIpsWithDeps(ctx, input, {
       searchClinicalBundle: this.searchClinicalBundle.bind(this),
     });
+  }
+
+  /**
+   * Preferred runtime alias for latest-IPS retrieval used by shared facades.
+   */
+  public async getLatestIps(
+    ctx: RouteContext,
+    input: Omit<ClinicalBundleSearchInput, 'includedTypes'>,
+  ): Promise<SubmitAndPollResult> {
+    return this.searchLatestIps(ctx, input);
   }
 
   /**
@@ -772,6 +794,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public individualFamilyOrderPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Order', '_batch-response'); }
   public individualRelatedPersonBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'RelatedPerson', '_batch'); }
   public individualRelatedPersonPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'RelatedPerson', '_batch-response'); }
+  public individualRelatedPersonPurgePath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'RelatedPerson', '_purge'); }
+  public individualRelatedPersonPurgePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'RelatedPerson', '_purge-response'); }
   public individualConsentR4BatchPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Consent', '_batch'); }
   public individualConsentR4PollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Consent', '_batch-response'); }
   public individualCommunicationBatchPath(ctx: RouteContext, format: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4'): string { return this.v1Path(ctx, 'individual', format, 'Communication', '_batch'); }
@@ -789,20 +813,6 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
   public identityOpenIdSmartTokenPollPath(ctx: RouteContext): string {
     return `/${encodeURIComponent(ctx.tenantId)}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/identity/openid/smart/_batch-response`;
-  }
-
-  private extractOfferId(body: unknown): string | undefined {
-    const root = (body as Record<string, unknown>) || {};
-    const bodyNode = (root.body as Record<string, unknown> | undefined) || root;
-    const data = (bodyNode.data as Array<Record<string, unknown>> | undefined) || [];
-    const first = data[0] || {};
-    const firstMeta = (first.meta as Record<string, unknown> | undefined) || {};
-    const resource = (first.resource as Record<string, unknown> | undefined) || {};
-    const resourceMeta = (resource.meta as Record<string, unknown> | undefined) || {};
-    const claims = (firstMeta.claims as Record<string, unknown> | undefined)
-      || (resourceMeta.claims as Record<string, unknown> | undefined)
-      || {};
-    return String(claims['org.schema.Offer.identifier'] || '').trim() || undefined;
   }
 
   private appendHttpTrace(entry: Record<string, unknown>): void {

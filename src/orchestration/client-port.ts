@@ -167,6 +167,10 @@ export type RuntimeClient = {
     ctx: RouteContext,
     input: ClinicalBundleSearchInput,
   ) => Promise<SubmitAndPollResult>;
+  getLatestIps?: (
+    ctx: RouteContext,
+    input: Omit<ClinicalBundleSearchInput, 'includedTypes'>,
+  ) => Promise<SubmitAndPollResult>;
   submitBatch?: (
     submitPath: string,
     payload: SubmitPayload,

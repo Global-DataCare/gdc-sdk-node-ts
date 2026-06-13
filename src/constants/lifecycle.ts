@@ -1,4 +1,5 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
+import { LifecycleRequestType } from 'gdc-common-utils-ts';
 
 /**
  * GW CORE lifecycle route/action tokens used by the Node runtime SDK.
@@ -35,6 +36,7 @@ export const GwCoreLifecycleRequestType = Object.freeze({
   IndividualOrganizationRegistration: 'SubjectOrg-registration-form-v1.0',
   IndividualOrganizationDisable: 'Family-disable-request-v1.0',
   IndividualOrganizationPurge: 'Family-purge-request-v1.0',
+  IndividualMemberPurge: LifecycleRequestType.RelatedPersonPurge,
 } as const);
 
 /**

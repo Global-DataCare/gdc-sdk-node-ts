@@ -1,6 +1,13 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
-import { HealthcareBasicSections } from 'gdc-common-utils-ts/constants';
+import { HealthcareBasicSections, ResourceTypesFhirR4 } from 'gdc-common-utils-ts/constants';
+import { Format } from 'gdc-common-utils-ts/constants/Schemas';
+import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
+import {
+  createInteroperableResourceOperationEditor,
+  IndividualOrganizationLifecycleDraft,
+  InteroperableLifecycleStatuses,
+} from 'gdc-common-utils-ts';
 import type {
   BundleSearchQuery,
   CommunicationInput,
@@ -424,6 +431,105 @@ export async function importIpsOrFhirAndUpdateIndexWithDeps(
   return deps.submitAndPoll(submitPath, pollPath, payload, input.pollOptions);
 }
 
+export async function disableIndividualMemberWithDeps(
+  routeCtx: RouteContext,
+  input: IndividualMemberLifecycleInput,
+  options: { timeoutMs?: number; intervalMs?: number } | undefined,
+  deps: {
+    individualRelatedPersonBatchPath: (ctx: RouteContext) => string;
+    individualRelatedPersonPollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  const claims: Record<string, unknown> = {
+    '@context': String(input.memberClaims?.['@context'] || Format.FHIR_API).trim() || Format.FHIR_API,
+    ...(input.memberClaims || {}),
+  };
+  const resource = createInteroperableResourceOperationEditor()
+    .setResourceType(ResourceTypesFhirR4.RelatedPerson)
+    .setIdentifierClaimKey(RelatedPersonClaim.Identifier)
+    .setBusinessIdentifier(String(claims[RelatedPersonClaim.Identifier] || '').trim())
+    .setClaims(claims)
+    .setLifecycleStatus(InteroperableLifecycleStatuses.Inactive)
+    .buildLifecycleResource();
+  const payload = {
+    thid: `relatedperson-disable-${createRuntimeUuid()}`,
+    body: {
+      resourceType: 'Bundle',
+      type: 'batch',
+      entry: [{
+        request: { method: GwCoreLifecycleRequestMethod.Post },
+        meta: { claims },
+        resource: {
+          ...resource,
+          ...(input.resourceId ? { id: input.resourceId } : {}),
+        },
+      }],
+    },
+  };
+  return deps.submitAndPoll(
+    deps.individualRelatedPersonBatchPath(routeCtx),
+    deps.individualRelatedPersonPollPath(routeCtx),
+    payload,
+    options,
+  );
+}
+
+export async function purgeIndividualMemberWithDeps(
+  routeCtx: RouteContext,
+  input: IndividualMemberLifecycleInput,
+  options: { timeoutMs?: number; intervalMs?: number } | undefined,
+  deps: {
+    individualRelatedPersonPurgePath: (ctx: RouteContext) => string;
+    individualRelatedPersonPurgePollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  const claims: Record<string, unknown> = {
+    '@context': String(input.memberClaims?.['@context'] || Format.FHIR_API).trim() || Format.FHIR_API,
+    ...(input.memberClaims || {}),
+  };
+  const resource = createInteroperableResourceOperationEditor()
+    .setResourceType(ResourceTypesFhirR4.RelatedPerson)
+    .setIdentifierClaimKey(RelatedPersonClaim.Identifier)
+    .setBusinessIdentifier(String(claims[RelatedPersonClaim.Identifier] || '').trim())
+    .setClaims(claims)
+    .setLifecycleStatus(InteroperableLifecycleStatuses.Purged)
+    .buildLifecycleResource();
+  const payload = {
+    thid: `relatedperson-purge-${createRuntimeUuid()}`,
+    body: {
+      resourceType: 'Bundle',
+      type: 'batch',
+      entry: [{
+        type: input.dataType || GwCoreLifecycleRequestType.IndividualMemberPurge,
+        request: { method: GwCoreLifecycleRequestMethod.Post },
+        meta: { claims },
+        resource: {
+          ...resource,
+          ...(input.resourceId ? { id: input.resourceId } : {}),
+        },
+      }],
+    },
+  };
+  return deps.submitAndPoll(
+    deps.individualRelatedPersonPurgePath(routeCtx),
+    deps.individualRelatedPersonPurgePollPath(routeCtx),
+    payload,
+    options,
+  );
+}
+
 export async function upsertRelatedPersonAndPollWithDeps(
   routeCtx: RouteContext,
   input: RelatedPersonUpsertInput,
@@ -714,23 +820,21 @@ function buildIndividualOrganizationLifecyclePayload(input: {
   };
 } {
   const claims = input.organizationClaims || {};
+  const payload = new IndividualOrganizationLifecycleDraft()
+    .setClaims(claims)
+    .setRequestType(input.requestType)
+    .setThreadId(`${input.thidPrefix}-${createRuntimeUuid()}`);
+
+  if (input.resourceId) {
+    payload.setResourceId(input.resourceId);
+  }
+
   return {
     jti: `jti-${createRuntimeUuid()}`,
     iss: input.routeCtx.tenantId,
     aud: input.routeCtx.tenantId,
     type: 'application/didcomm-plain+json',
-    thid: `${input.thidPrefix}-${createRuntimeUuid()}`,
-    body: {
-      data: [{
-        type: input.requestType,
-        request: { method: GwCoreLifecycleRequestMethod.Post },
-        meta: { claims },
-        resource: {
-          ...(input.resourceId ? { id: input.resourceId } : {}),
-          meta: { claims },
-        },
-      }],
-    },
+    ...payload.buildCurrentGwPayload(),
   };
 }
 

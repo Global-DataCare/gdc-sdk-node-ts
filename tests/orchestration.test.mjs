@@ -24,6 +24,8 @@ test('IndividualControllerSdk delegates to the runtime client', async () => {
     disableIndividualOrganization: async (...args) => { calls.push(['disableIndividualOrganization', args]); return { ok: true }; },
     purgeIndividualOrganization: async (...args) => { calls.push(['purgeIndividualOrganization', args]); return { ok: true }; },
     grantProfessionalAccess: async (...args) => { calls.push(['grantProfessionalAccess', args]); return { ok: true }; },
+    searchClinicalBundle: async (...args) => { calls.push(['searchClinicalBundle', args]); return { ok: true }; },
+    getLatestIps: async (...args) => { calls.push(['getLatestIps', args]); return { ok: true }; },
     requestSmartToken: async (...args) => { calls.push(['requestSmartToken', args]); return { ok: true }; },
   };
   const sdk = new IndividualControllerSdk(client);
@@ -35,9 +37,11 @@ test('IndividualControllerSdk delegates to the runtime client', async () => {
   await sdk.purgeIndividualMember({}, {});
   await sdk.disableIndividualOrganization({}, {});
   await sdk.purgeIndividualOrganization({}, {});
-  await sdk.grantProfessionalAccess({});
+  await sdk.grantProfessionalAccess({}, {});
+  await sdk.searchClinicalBundle({}, { subject: 'did:web:subject.example' });
+  await sdk.getLatestIps({}, { subject: 'did:web:subject.example' });
   await sdk.requestSmartToken({});
-  assert.equal(calls.length, 10);
+  assert.equal(calls.length, 12);
 });
 
 test('ProfessionalSdk keeps role-scoped surface separation', () => {
@@ -55,13 +59,17 @@ test('PersonalSdk delegates to the runtime client', async () => {
   const client = {
     startIndividualOrganization: async (...args) => { calls.push(['startIndividualOrganization', args]); return { ok: true }; },
     grantProfessionalAccess: async (...args) => { calls.push(['grantProfessionalAccess', args]); return { ok: true }; },
+    searchClinicalBundle: async (...args) => { calls.push(['searchClinicalBundle', args]); return { ok: true }; },
+    getLatestIps: async (...args) => { calls.push(['getLatestIps', args]); return { ok: true }; },
     requestSmartToken: async (...args) => { calls.push(['requestSmartToken', args]); return { ok: true }; },
   };
   const sdk = new PersonalSdk(client);
   await sdk.startIndividualOrganization({});
-  await sdk.grantProfessionalAccess({});
+  await sdk.grantProfessionalAccess({}, {});
+  await sdk.searchClinicalBundle({}, { subject: 'did:web:subject.example' });
+  await sdk.getLatestIps({}, { subject: 'did:web:subject.example' });
   await sdk.requestSmartToken({});
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 5);
 });
 
 test('target node facades do not expose bootstrap helper shortcuts', () => {
@@ -90,6 +98,7 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   const calls = [];
   const client = {
     createOrganizationEmployee: async (...args) => { calls.push(['createOrganizationEmployee', args]); return { ok: true }; },
+    searchOrganizationEmployees: async (...args) => { calls.push(['searchOrganizationEmployees', args]); return { ok: true }; },
     disableEmployee: async (...args) => { calls.push(['disableEmployee', args]); return { ok: true }; },
     disableOrganizationEmployee: async (...args) => { calls.push(['disableOrganizationEmployee', args]); return { ok: true }; },
   };
@@ -99,9 +108,10 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   }, client);
   const sdk = session.asOrganizationController();
   await sdk.createOrganizationEmployee({}, {});
+  await sdk.searchOrganizationEmployees({}, {});
   await sdk.disableEmployee({}, {});
   await sdk.disableOrganizationEmployee({}, {});
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
 });
 
 test('OrganizationControllerSdk enforces employee lifecycle capabilities when materialized from NodeActorSession', async () => {

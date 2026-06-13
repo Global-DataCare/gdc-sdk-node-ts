@@ -9,6 +9,7 @@ import { GwCoreLifecycleRequestType } from './constants/lifecycle.js';
 import { resolvePollOptionsFromSeconds } from './poll-options.js';
 import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
 import type { RouteContext } from './individual-onboarding.js';
+import type { OfferPreview } from './order-offer-summary.js';
 
 export type IndividualOrganizationBootstrapInput = {
   /**
@@ -63,17 +64,6 @@ export type IndividualOrganizationBootstrapInput = {
   additionalClaims?: Record<string, unknown>;
   timeoutSeconds?: number;
   intervalSeconds?: number;
-};
-
-export type OfferPreview = {
-  offerId?: string;
-  amount?: string;
-  currency?: string;
-  seats?: number | undefined;
-  planName?: string;
-  sku?: string;
-  paymentMethod?: string;
-  checkoutUrl?: string;
 };
 
 export type IndividualOrganizationStartResult = {

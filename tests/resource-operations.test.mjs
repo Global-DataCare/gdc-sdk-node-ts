@@ -3,41 +3,62 @@ import assert from 'node:assert/strict';
 import {
   EXAMPLE_EMPLOYEE_DISABLE_MESSAGE,
   EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE,
+  EXAMPLE_INDIVIDUAL_ORGANIZATION_DISABLE_ENTRY,
+  EXAMPLE_INDIVIDUAL_ORGANIZATION_PURGE_ENTRY,
   EXAMPLE_CLINICAL_BUNDLE_SEARCH_INPUT,
   EXAMPLE_COMMUNICATION_INGESTION_PAYLOAD,
   EXAMPLE_CONSENT_GRANT_INPUT,
   EXAMPLE_DIGITAL_TWIN_COMPOSITION_INPUT,
   EXAMPLE_LATEST_IPS_SEARCH_INPUT,
   EXAMPLE_ORGANIZATION_EMPLOYEE_INPUT,
+  EXAMPLE_RELATED_PERSON_DISABLE_INPUT,
+  EXAMPLE_RELATED_PERSON_DISABLE_BUNDLE_ENTRY,
+  EXAMPLE_RELATED_PERSON_IDENTIFIER,
+  EXAMPLE_RELATED_PERSON_PURGE_BUNDLE_ENTRY,
   EXAMPLE_RELATED_PERSON_PAYLOAD,
+  EXAMPLE_RELATED_PERSON_UPSERT_BUNDLE_PAYLOAD,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
+import {
+  buildFhirParametersResourceFromSearchParams,
+  ClaimsPersonSchemaorg,
+  EmployeeBatchEntryTypes,
+  EmployeeBundleMethods,
+  EmployeeBundleRoutes,
+  InteroperableLifecycleStatuses,
+} from 'gdc-common-utils-ts';
+import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
 
 import {
   EmployeeDraft,
   createOrganizationEmployeeWithDeps,
+  disableIndividualMemberWithDeps,
   disableIndividualOrganizationWithDeps,
   disableOrganizationEmployeeWithDeps,
   generateDigitalTwinFromSubjectDataWithDeps,
   grantProfessionalAccessWithDeps,
   importIpsOrFhirAndUpdateIndexWithDeps,
   ingestCommunicationAndUpdateIndexWithDeps,
+  purgeIndividualMemberWithDeps,
   purgeIndividualOrganizationWithDeps,
   purgeOrganizationEmployeeWithDeps,
   searchOrganizationEmployeesWithDeps,
   searchClinicalBundleWithDeps,
   searchLatestIpsWithDeps,
   upsertRelatedPersonAndPollWithDeps,
+  GwCoreLifecycleRequestMethod,
+  GwCoreLifecycleRequestType,
 } from '../dist/index.js';
 
 test('createOrganizationEmployeeWithDeps builds employee batch payload', async () => {
   const calls = [];
+  const employeeClaims = cloneExample(EXAMPLE_ORGANIZATION_EMPLOYEE_INPUT.employeeClaims);
   await createOrganizationEmployeeWithDeps(
     cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
     {
       employeeClaims: new EmployeeDraft()
-        .mergeClaims(cloneExample(EXAMPLE_ORGANIZATION_EMPLOYEE_INPUT.employeeClaims))
+        .mergeClaims(employeeClaims)
         .toClaims(),
     },
     { timeoutMs: 1000, intervalMs: 1 },
@@ -51,20 +72,24 @@ test('createOrganizationEmployeeWithDeps builds employee batch payload', async (
     },
   );
   assert.equal(calls[0][0], '/employee/_batch');
-  assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Person.email'], 'receptionist1@acme.org');
-  assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Person.hasOccupation.identifier.value'], 'ISCO-08|4226');
+  assert.equal(
+    calls[0][2].body.data[0].resource.meta.claims[ClaimsPersonSchemaorg.email],
+    employeeClaims[ClaimsPersonSchemaorg.email],
+  );
+  assert.equal(
+    calls[0][2].body.data[0].resource.meta.claims[ClaimsPersonSchemaorg.hasOccupationalRoleValue],
+    employeeClaims[ClaimsPersonSchemaorg.hasOccupationalRoleValue],
+  );
   assert.equal(calls[0][2].body.data[0].resource.resourceType, 'Employee');
 });
 
 test('searchOrganizationEmployeesWithDeps builds Employee bundle search payload', async () => {
   const calls = [];
+  const employeeClaims = cloneExample(EXAMPLE_ORGANIZATION_EMPLOYEE_INPUT.employeeClaims);
   await searchOrganizationEmployeesWithDeps(
     cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
     {
-      employeeClaims: {
-        'org.schema.Person.email': 'receptionist1@acme.org',
-        'org.schema.Person.hasOccupation.identifier.value': 'ISCO-08|4226',
-      },
+      employeeClaims,
     },
     {
       employeeSearchPath: () => '/employee/_search',
@@ -78,15 +103,12 @@ test('searchOrganizationEmployeesWithDeps builds Employee bundle search payload'
   assert.equal(calls[0][0], '/employee/_search');
   assert.equal(calls[0][1], '/employee/_search-response');
   assert.equal(calls[0][2].body.resourceType, 'Bundle');
-  assert.equal(calls[0][2].body.entry[0].request.method, 'POST');
-  assert.equal(calls[0][2].body.entry[0].request.url, 'Employee/_search');
-  assert.deepEqual(calls[0][2].body.entry[0].resource, {
-    resourceType: 'Parameters',
-    parameter: [
-      { name: 'org.schema.Person.email', valueString: 'receptionist1@acme.org' },
-      { name: 'org.schema.Person.hasOccupation.identifier.value', valueString: 'ISCO-08|4226' },
-    ],
-  });
+  assert.equal(calls[0][2].body.entry[0].request.method, EmployeeBundleMethods.search);
+  assert.equal(calls[0][2].body.entry[0].request.url, EmployeeBundleRoutes.search);
+  assert.deepEqual(
+    calls[0][2].body.entry[0].resource,
+    buildFhirParametersResourceFromSearchParams(employeeClaims),
+  );
 });
 
 test('disableOrganizationEmployeeWithDeps keeps the current GW CORE DELETE-in-batch contract', async () => {
@@ -109,8 +131,8 @@ test('disableOrganizationEmployeeWithDeps keeps the current GW CORE DELETE-in-ba
   );
   assert.equal(calls[0][0], '/employee/_batch');
   assert.equal(calls[0][1], '/employee/_batch-response');
-  assert.equal(calls[0][2].body.data[0].request.method, 'DELETE');
-  assert.equal(calls[0][2].body.data[0].type, 'Employee-disable-request-v1.0');
+  assert.equal(calls[0][2].body.data[0].request.method, GwCoreLifecycleRequestMethod.Delete);
+  assert.equal(calls[0][2].body.data[0].type, EmployeeBatchEntryTypes.disable);
   assert.equal(calls[0][2].body.data[0].resource.id, 'employee-to-disable');
 });
 
@@ -134,8 +156,8 @@ test('purgeOrganizationEmployeeWithDeps uses the explicit current purge route', 
   );
   assert.equal(calls[0][0], '/employee/_purge');
   assert.equal(calls[0][1], '/employee/_purge-response');
-  assert.equal(calls[0][2].body.data[0].request.method, 'POST');
-  assert.equal(calls[0][2].body.data[0].type, 'Employee-purge-request-v1.0');
+  assert.equal(calls[0][2].body.data[0].request.method, EmployeeBundleMethods.purge);
+  assert.equal(calls[0][2].body.data[0].type, EmployeeBatchEntryTypes.purge);
 });
 
 test('disableIndividualOrganizationWithDeps uses the explicit current disable route', async () => {
@@ -158,8 +180,15 @@ test('disableIndividualOrganizationWithDeps uses the explicit current disable ro
   );
   assert.equal(calls[0][0], '/individual/org.schema/Organization/_disable');
   assert.equal(calls[0][1], '/individual/org.schema/Organization/_disable-response');
-  assert.equal(calls[0][2].body.data[0].request.method, 'POST');
-  assert.equal(calls[0][2].body.data[0].type, 'Family-disable-request-v1.0');
+  assert.deepEqual(calls[0][2].body.data[0], {
+    ...cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_DISABLE_ENTRY),
+    resource: {
+      ...cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_DISABLE_ENTRY.resource),
+      id: 'individual-org-1',
+    },
+  });
+  assert.equal(calls[0][2].body.data[0].request.method, GwCoreLifecycleRequestMethod.Post);
+  assert.equal(calls[0][2].body.data[0].type, GwCoreLifecycleRequestType.IndividualOrganizationDisable);
   assert.equal(calls[0][2].body.data[0].resource.id, 'individual-org-1');
 });
 
@@ -182,8 +211,58 @@ test('purgeIndividualOrganizationWithDeps uses the explicit current purge route'
   );
   assert.equal(calls[0][0], '/individual/org.schema/Organization/_purge');
   assert.equal(calls[0][1], '/individual/org.schema/Organization/_purge-response');
-  assert.equal(calls[0][2].body.data[0].request.method, 'POST');
-  assert.equal(calls[0][2].body.data[0].type, 'Family-purge-request-v1.0');
+  assert.deepEqual(calls[0][2].body.data[0], cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_PURGE_ENTRY));
+  assert.equal(calls[0][2].body.data[0].request.method, GwCoreLifecycleRequestMethod.Post);
+  assert.equal(calls[0][2].body.data[0].type, GwCoreLifecycleRequestType.IndividualOrganizationPurge);
+});
+
+test('disableIndividualMemberWithDeps sends identifier-first lifecycle resource semantics for RelatedPerson', async () => {
+  const calls = [];
+  await disableIndividualMemberWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    cloneExample(EXAMPLE_RELATED_PERSON_DISABLE_INPUT),
+    { timeoutMs: 1000, intervalMs: 100 },
+    {
+      individualRelatedPersonBatchPath: () => '/related-person/batch',
+      individualRelatedPersonPollPath: () => '/related-person/batch-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+
+  assert.equal(calls[0][0], '/related-person/batch');
+  assert.equal(calls[0][1], '/related-person/batch-response');
+  assert.deepEqual(calls[0][2].body.entry[0], cloneExample(EXAMPLE_RELATED_PERSON_DISABLE_BUNDLE_ENTRY));
+  assert.equal(calls[0][2].body.entry[0].resource.identifier[0].value, EXAMPLE_RELATED_PERSON_IDENTIFIER);
+  assert.equal(calls[0][2].body.entry[0].resource.meta.status, InteroperableLifecycleStatuses.Inactive);
+  assert.equal(calls[0][2].body.entry[0].meta.claims[RelatedPersonClaim.Active], undefined);
+  assert.equal(calls[0][2].body.entry[0].resource.id, EXAMPLE_RELATED_PERSON_DISABLE_INPUT.resourceId);
+});
+
+test('purgeIndividualMemberWithDeps sends explicit RelatedPerson purge lifecycle semantics', async () => {
+  const calls = [];
+  await purgeIndividualMemberWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    cloneExample(EXAMPLE_RELATED_PERSON_DISABLE_INPUT),
+    { timeoutMs: 1000, intervalMs: 100 },
+    {
+      individualRelatedPersonPurgePath: () => '/related-person/_purge',
+      individualRelatedPersonPurgePollPath: () => '/related-person/_purge-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+
+  assert.equal(calls[0][0], '/related-person/_purge');
+  assert.equal(calls[0][1], '/related-person/_purge-response');
+  assert.deepEqual(calls[0][2].body.entry[0], cloneExample(EXAMPLE_RELATED_PERSON_PURGE_BUNDLE_ENTRY));
+  assert.equal(calls[0][2].body.entry[0].resource.identifier[0].value, EXAMPLE_RELATED_PERSON_IDENTIFIER);
+  assert.equal(calls[0][2].body.entry[0].request.method, GwCoreLifecycleRequestMethod.Post);
+  assert.equal(calls[0][2].body.entry[0].type, GwCoreLifecycleRequestType.IndividualMemberPurge);
 });
 
 test('importIpsOrFhirAndUpdateIndexWithDeps rewrites api path family when needed', async () => {
@@ -207,7 +286,7 @@ test('upsertRelatedPersonAndPollWithDeps preserves payload and routes', async ()
   const calls = [];
   await upsertRelatedPersonAndPollWithDeps(
     cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
-    { relatedPersonPayload: cloneExample(EXAMPLE_RELATED_PERSON_PAYLOAD) },
+    { relatedPersonPayload: cloneExample(EXAMPLE_RELATED_PERSON_UPSERT_BUNDLE_PAYLOAD) },
     {
       individualRelatedPersonBatchPath: () => '/related/_batch',
       individualRelatedPersonPollPath: () => '/related/_batch-response',
@@ -218,6 +297,7 @@ test('upsertRelatedPersonAndPollWithDeps preserves payload and routes', async ()
     },
   );
   assert.equal(calls[0][0], '/related/_batch');
+  assert.deepEqual(calls[0][2], cloneExample(EXAMPLE_RELATED_PERSON_UPSERT_BUNDLE_PAYLOAD));
 });
 
 test('ingestCommunicationAndUpdateIndexWithDeps uses transformer on r4 path', async () => {

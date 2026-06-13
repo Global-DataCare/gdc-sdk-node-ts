@@ -1,5 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {
+  EXAMPLE_RELATED_PERSON_DISABLE_BUNDLE_ENTRY,
+  EXAMPLE_RELATED_PERSON_DISABLE_INPUT,
+  EXAMPLE_RELATED_PERSON_IDENTIFIER,
+  EXAMPLE_RELATED_PERSON_PURGE_BUNDLE_ENTRY,
+  EXAMPLE_TENANT_ROUTE_CONTEXT,
+  cloneExample,
+} from 'gdc-common-utils-ts/examples';
+import { InteroperableLifecycleStatuses } from 'gdc-common-utils-ts';
+import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
 
 import { NodeHttpClient } from '../dist/index.js';
 
@@ -100,11 +110,7 @@ test('NodeHttpClient can reuse runtimeVpToken as the default Authorization Beare
 test('NodeHttpClient exposes current GW CORE lifecycle paths for individual and employee flows', () => {
   const client = new NodeHttpClient({
     baseUrl: 'https://gw.example.org',
-    ctx: {
-      tenantId: 'acme-id',
-      jurisdiction: 'ES',
-      sector: 'health-care',
-    },
+    ctx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
   });
 
   assert.equal(
@@ -125,24 +131,54 @@ test('NodeHttpClient exposes current GW CORE lifecycle paths for individual and 
   );
 });
 
-test('NodeHttpClient keeps individual-member lifecycle methods as explicit not-supported placeholders', async () => {
+test('NodeHttpClient disables individual-member relationships through identifier-first RelatedPerson lifecycle resources', async () => {
   const client = new NodeHttpClient({
     baseUrl: 'https://gw.example.org',
-    ctx: {
-      tenantId: 'acme-id',
-      jurisdiction: 'ES',
-      sector: 'health-care',
-    },
+    ctx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
   });
 
-  await assert.rejects(
-    client.disableIndividualMember({}, { memberClaims: {} }),
-    /current GW CORE contract/,
+  const calls = [];
+  client.submitAndPoll = async (...args) => {
+    calls.push(args);
+    return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+  };
+
+  await client.disableIndividualMember(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    cloneExample(EXAMPLE_RELATED_PERSON_DISABLE_INPUT),
   );
-  await assert.rejects(
-    client.purgeIndividualMember({}, { memberClaims: {} }),
-    /current GW CORE contract/,
-  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], '/acme-id/cds-ES/v1/health-care/individual/org.hl7.fhir.r4/RelatedPerson/_batch');
+  assert.equal(calls[0][1], '/acme-id/cds-ES/v1/health-care/individual/org.hl7.fhir.r4/RelatedPerson/_batch-response');
+  assert.deepEqual(calls[0][2].body.entry[0], cloneExample(EXAMPLE_RELATED_PERSON_DISABLE_BUNDLE_ENTRY));
+  assert.equal(calls[0][2].body.entry[0].resource.identifier[0].value, EXAMPLE_RELATED_PERSON_IDENTIFIER);
+  assert.equal(calls[0][2].body.entry[0].resource.meta.status, InteroperableLifecycleStatuses.Inactive);
+  assert.equal(calls[0][2].body.entry[0].meta.claims[RelatedPersonClaim.Active], undefined);
+  assert.equal(calls[0][2].body.entry[0].resource.id, EXAMPLE_RELATED_PERSON_DISABLE_INPUT.resourceId);
 });
 
-test.todo('NodeHttpClient will submit individual-member disable/purge once GW CORE exposes the stable RelatedPerson lifecycle contract');
+test('NodeHttpClient purges individual-member relationships through explicit RelatedPerson purge paths', async () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+    ctx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+  });
+
+  const calls = [];
+  client.submitAndPoll = async (...args) => {
+    calls.push(args);
+    return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+  };
+
+  await client.purgeIndividualMember(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    cloneExample(EXAMPLE_RELATED_PERSON_DISABLE_INPUT),
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], '/acme-id/cds-ES/v1/health-care/individual/org.hl7.fhir.r4/RelatedPerson/_purge');
+  assert.equal(calls[0][1], '/acme-id/cds-ES/v1/health-care/individual/org.hl7.fhir.r4/RelatedPerson/_purge-response');
+  assert.deepEqual(calls[0][2].body.entry[0], cloneExample(EXAMPLE_RELATED_PERSON_PURGE_BUNDLE_ENTRY));
+  assert.equal(calls[0][2].body.entry[0].resource.identifier[0].value, EXAMPLE_RELATED_PERSON_IDENTIFIER);
+  assert.equal(calls[0][2].body.entry[0].resource.meta.status, InteroperableLifecycleStatuses.Purged);
+});

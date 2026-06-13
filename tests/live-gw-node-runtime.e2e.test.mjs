@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HealthcareBasicSections } from 'gdc-common-utils-ts/constants';
+import { ClaimsOrganizationSchemaorg } from 'gdc-common-utils-ts/constants/schemaorg';
 import {
   MedicationStatementClaim,
   MedicationStatementClaimsFhirApiExtended,
@@ -17,6 +18,7 @@ import {
   EXAMPLE_SECTOR,
   EXAMPLE_SUBJECT_DID,
   EXAMPLE_TENANT_IDENTIFIER,
+  EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE,
   buildExampleLiveMedicationCases,
   EXAMPLE_SMART_PRESENTATION_SUBMISSION,
   buildExampleCommunicationIngestionPayload,
@@ -48,6 +50,7 @@ function env(name, fallback = '') {
 
 const RUN = env('RUN_LIVE_GW_E2E', '0') === '1';
 const RUN_IPS_INGESTION = env('RUN_LIVE_GW_E2E_IPS_INGESTION', '0') === '1';
+const RUN_INDIVIDUAL_LIFECYCLE = env('RUN_LIVE_GW_E2E_INDIVIDUAL_LIFECYCLE', '0') === '1';
 const DEBUG = env('LIVE_GW_NODE_E2E_DEBUG', env('LIVE_GW_E2E_DEBUG', '0')) === '1';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const runId = new Date().toISOString().replace(/[:.]/g, '-');
@@ -273,6 +276,34 @@ test('LIVE actor-scoped node runtime chain on GW', { skip: !RUN }, async () => {
   });
   debug.record('smart-token', { response: smart });
   assert.ok(smart.accessToken, 'Individual controller facade must obtain a SMART token.');
+
+  if (RUN_INDIVIDUAL_LIFECYCLE) {
+    const individualLifecycleClaims = {
+      ...cloneExample(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims),
+      [ClaimsOrganizationSchemaorg.alternateName]: individualAltName,
+      [ClaimsOrganizationSchemaorg.ownerEmail]: individualControllerEmail,
+    };
+
+    const disable = await individualControllerSession.asIndividualController().disableIndividualOrganization(
+      ctx,
+      {
+        organizationClaims: individualLifecycleClaims,
+      },
+      pollOptions,
+    );
+    debug.record('individual-disable', { response: disable });
+    assert.equal(disable.poll.status, 200, 'Individual controller facade must disable the hosted subject organization.');
+
+    const purge = await individualControllerSession.asIndividualController().purgeIndividualOrganization(
+      ctx,
+      {
+        organizationClaims: individualLifecycleClaims,
+      },
+      pollOptions,
+    );
+    debug.record('individual-purge', { response: purge });
+    assert.equal(purge.poll.status, 200, 'Individual controller facade must purge the hosted subject organization after disable.');
+  }
 });
 
 test('LIVE communication ingestion through individual controller facade persists DocumentReference baseline', { skip: !(RUN && RUN_IPS_INGESTION) }, async () => {

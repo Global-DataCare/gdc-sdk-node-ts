@@ -11,6 +11,7 @@ import {
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
 import type { RouteContext } from '../individual-onboarding.js';
 import type {
+  ClinicalBundleSearchInput,
   CommunicationIngestionInput,
   DigitalTwinGenerationInput,
   GrantProfessionalAccessInput,
@@ -45,6 +46,22 @@ export class PersonalSdk {
   /** Triggers digital twin generation from subject data. */
   public generateDigitalTwinFromSubjectData(ctx: RouteContext, input: DigitalTwinGenerationInput): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'generateDigitalTwinFromSubjectData')(ctx, input);
+  }
+
+  /** Searches indexed clinical bundles for the current subject/controller context. */
+  public searchClinicalBundle(
+    ctx: RouteContext,
+    input: ClinicalBundleSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchClinicalBundle')(ctx, input);
+  }
+
+  /** Returns the latest IPS-oriented bundle for one subject. */
+  public getLatestIps(
+    ctx: RouteContext,
+    input: Omit<ClinicalBundleSearchInput, 'includedTypes'>,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'getLatestIps')(ctx, input);
   }
 
   /** Requests SMART/OpenID token with simplified exchange flow. */

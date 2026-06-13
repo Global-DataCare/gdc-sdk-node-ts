@@ -17,6 +17,7 @@ import type { NodeCapability } from '../session.js';
 import type {
   OrganizationEmployeeCreationInput,
   OrganizationEmployeeLifecycleInput,
+  OrganizationEmployeeSearchInput,
 } from '../resource-operations.js';
 
 /**
@@ -68,6 +69,16 @@ export class OrganizationControllerSdk {
   ): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationDisableEmployee, ActorKinds.OrganizationController, 'disableEmployee');
     return requireClientMethod(this.client, 'disableEmployee')(ctx, input, pollOptions);
+  }
+
+  /**
+   * Searches employees/professionals under the current organization tenant.
+   */
+  public searchOrganizationEmployees(
+    ctx: RouteContext,
+    input: OrganizationEmployeeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchOrganizationEmployees')(ctx, input);
   }
 
   /**
