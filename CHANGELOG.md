@@ -2,6 +2,62 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.1] - 2026-06-13
+
+### Changed
+- Updated published shared dependency targets to:
+  - `gdc-common-utils-ts@^1.23.0`
+  - `gdc-sdk-core-ts@^0.10.2`
+- Replaced the previous workspace-linked install state in `package-lock.json`
+  with the published npm artifacts for:
+  - `gdc-common-utils-ts@1.23.0`
+  - `gdc-sdk-core-ts@0.10.2`
+  so the release artifact is reproducible outside the monorepo and no longer
+  depends on local `file:../...` links.
+- Aligned the runtime package with the now-published shared invoice and
+  charge-item claims baseline available through `gdc-common-utils-ts@1.23.0`,
+  including:
+  - canonical `Invoice.*` claim keys
+  - canonical `ChargeItem.*` claim keys
+  - repeated invoice + charge-item row builders
+  - contextualized `org.hl7.fhir.api.*` invoice/charge-item variants
+  - invoice `resource.meta.claims` projection support
+- Aligned the runtime package with the now-published
+  `gdc-sdk-core-ts@0.10.2` facade baseline so Node runtime releases consume the
+  same published neutral surface already merged to `sdk-core/main`, including:
+  - lifecycle facade updates
+  - license facade updates
+  - shared builder/contract exports now packaged in the published tarball
+- Kept the runtime source behavior from `0.11.0` intact in this patch release:
+  - public organization order confirmation support remains as introduced in
+    `0.11.0`
+  - live GW billing/transport validation flows from the integration branch are
+    now being released to `main` together with the dependency alignment
+  - no new runtime API names were introduced beyond the already completed
+    `0.11.0` branch surface
+
+### Branch Content Merged To Main In This Release Train
+- This release is not only a dependency bump on top of old `main`.
+  It also carries the already-implemented branch work that had not yet been
+  merged to `main`, including:
+  - organization-side order confirmation support
+  - expanded commercial/license search and readback flows
+  - related-person lifecycle support for individual-member flows
+  - live GW transport/execution helper coverage
+  - live GW invoice/order readback validation
+- The intent of `0.11.1` is therefore:
+  - publish the branch functionality to `main`
+  - align the package to the published shared dependency versions
+  - leave the npm artifact in a clean non-workspace-linked state
+
+### Testing
+- `npm install gdc-common-utils-ts@^1.23.0 gdc-sdk-core-ts@^0.10.2`
+- `npm test`
+- `npm run test:e2e:live-gw` or one of the targeted live GW variants once GW
+  CORE is running
+- `npm run test:e2e:live-gw:all` when validating both supported transport
+  profiles against a live GW CORE target
+
 ## [0.11.0] - 2026-06-13
 
 ### Added
