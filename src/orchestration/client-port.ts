@@ -2,6 +2,11 @@
 // Always create JSDoc, do not use strings inline in keys nor values, use types instead, and reuse the data test examples.
 import type { ControllerBindingInput } from 'gdc-common-utils-ts/models';
 import type {
+  LicenseListRuntimeSearchInput,
+  LicenseOfferRuntimeSearchInput,
+  LicenseOrderRuntimeSearchInput,
+} from '../resource-operations.js';
+import type {
   AsyncPollRequest,
   OrganizationActivationServiceOptions,
   PollOptions,
@@ -78,6 +83,30 @@ export type RuntimeClient = {
     ctx: RouteContext,
     input: OrganizationEmployeeSearchInput,
   ) => Promise<SubmitAndPollResult>;
+  searchOrganizationLicenses?: (
+    ctx: RouteContext,
+    input: LicenseListRuntimeSearchInput,
+  ) => Promise<SubmitAndPollResult>;
+  listOrganizationLicenses?: (
+    ctx: RouteContext,
+    input?: LicenseListRuntimeSearchInput,
+  ) => Promise<SubmitAndPollResult>;
+  searchOrganizationLicenseOffers?: (
+    ctx: RouteContext,
+    input: LicenseOfferRuntimeSearchInput,
+  ) => Promise<SubmitAndPollResult>;
+  listOrganizationLicenseOffers?: (
+    ctx: RouteContext,
+    input?: LicenseOfferRuntimeSearchInput,
+  ) => Promise<SubmitAndPollResult>;
+  searchOrganizationLicenseOrders?: (
+    ctx: RouteContext,
+    input: LicenseOrderRuntimeSearchInput,
+  ) => Promise<SubmitAndPollResult>;
+  listOrganizationLicenseOrders?: (
+    ctx: RouteContext,
+    input?: LicenseOrderRuntimeSearchInput,
+  ) => Promise<SubmitAndPollResult>;
   disableEmployee?: (
     ctx: RouteContext,
     input: OrganizationEmployeeLifecycleInput,
@@ -148,6 +177,30 @@ export type RuntimeClient = {
     ctx: RouteContext,
     input: GrantProfessionalAccessInput,
   ) => Promise<GrantProfessionalAccessResult>;
+  searchIndividualLicenses?: (
+    ctx: RouteContext,
+    input: LicenseListRuntimeSearchInput,
+  ) => Promise<SubmitAndPollResult>;
+  listIndividualLicenses?: (
+    ctx: RouteContext,
+    input?: LicenseListRuntimeSearchInput,
+  ) => Promise<SubmitAndPollResult>;
+  searchIndividualLicenseOffers?: (
+    ctx: RouteContext,
+    input: LicenseOfferRuntimeSearchInput,
+  ) => Promise<SubmitAndPollResult>;
+  listIndividualLicenseOffers?: (
+    ctx: RouteContext,
+    input?: LicenseOfferRuntimeSearchInput,
+  ) => Promise<SubmitAndPollResult>;
+  searchIndividualLicenseOrders?: (
+    ctx: RouteContext,
+    input: LicenseOrderRuntimeSearchInput,
+  ) => Promise<SubmitAndPollResult>;
+  listIndividualLicenseOrders?: (
+    ctx: RouteContext,
+    input?: LicenseOrderRuntimeSearchInput,
+  ) => Promise<SubmitAndPollResult>;
   bootstrapIndividualOrganization?: (
     input: IndividualOrganizationBootstrapInput,
   ) => Promise<IndividualOrganizationStartResult>;
@@ -192,6 +245,7 @@ export type RuntimeClient = {
  * @deprecated Prefer `RuntimeClient`.
  */
 export type NodeRuntimeClient = RuntimeClient;
+
 
 export function requireClientMethod<T extends keyof RuntimeClient>(
   client: RuntimeClient,

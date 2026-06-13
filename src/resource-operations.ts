@@ -6,7 +6,13 @@ import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-cla
 import {
   createInteroperableResourceOperationEditor,
   IndividualOrganizationLifecycleDraft,
+  LicenseOfferSearchEditor,
+  type LicenseOfferSearchDraft,
+  LicenseOrderSearchEditor,
+  type LicenseOrderSearchDraft,
   InteroperableLifecycleStatuses,
+  LicenseListSearchEditor,
+  type LicenseListSearchDraft,
 } from 'gdc-common-utils-ts';
 import type {
   BundleSearchQuery,
@@ -80,6 +86,37 @@ export type OrganizationEmployeeSearchInput = {
    * - `org.schema.Person.memberOf.taxID`
    */
   employeeClaims?: Record<string, EmployeeSearchValue>;
+  requestThid?: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+};
+
+/**
+ * Runtime search/list input for license seats exposed through actor facades.
+ *
+ * The semantic filter set comes from the shared license controller facade.
+ */
+export type LicenseListRuntimeSearchInput = {
+  licenseQuery?: Partial<LicenseListSearchDraft>;
+  requestThid?: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+};
+
+/**
+ * Runtime search/list input for commercial offer read-models exposed through
+ * actor facades.
+ */
+export type LicenseOfferRuntimeSearchInput = {
+  offerQuery?: Partial<LicenseOfferSearchDraft>;
+  requestThid?: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+};
+
+/**
+ * Runtime search/list input for commercial order/payment read-models exposed
+ * through actor facades.
+ */
+export type LicenseOrderRuntimeSearchInput = {
+  orderQuery?: Partial<LicenseOrderSearchDraft>;
   requestThid?: string;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
@@ -341,6 +378,141 @@ export async function searchOrganizationEmployeesWithDeps(
   );
 }
 
+/**
+ * Searches license seats for one organization/tenant through `License/_search`.
+ */
+export async function searchOrganizationLicensesWithDeps(
+  routeCtx: RouteContext,
+  input: LicenseListRuntimeSearchInput,
+  deps: {
+    organizationLicenseSearchPath: (ctx: RouteContext) => string;
+    organizationLicenseSearchPollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  return deps.submitAndPoll(
+    deps.organizationLicenseSearchPath(routeCtx),
+    deps.organizationLicenseSearchPollPath(routeCtx),
+    {
+      thid: input.requestThid || `organization-license-search-${createRuntimeUuid()}`,
+      body: {
+        resourceType: 'Bundle',
+        type: 'batch',
+        entry: [
+          new LicenseListSearchEditor(input.licenseQuery || {})
+            .buildSearchEntry(),
+        ],
+      },
+    },
+    input.pollOptions,
+  );
+}
+
+/**
+ * Lists license seats using the same canonical `License/_search` route with no
+ * mandatory filters.
+ */
+export async function listOrganizationLicensesWithDeps(
+  routeCtx: RouteContext,
+  input: LicenseListRuntimeSearchInput | undefined,
+  deps: Parameters<typeof searchOrganizationLicensesWithDeps>[2],
+): Promise<SubmitAndPollResult> {
+  return searchOrganizationLicensesWithDeps(routeCtx, input || {}, deps);
+}
+
+/**
+ * Searches commercial license offers for one organization/tenant through
+ * `Offer/_search`.
+ */
+export async function searchOrganizationLicenseOffersWithDeps(
+  routeCtx: RouteContext,
+  input: LicenseOfferRuntimeSearchInput,
+  deps: {
+    organizationLicenseOfferSearchPath: (ctx: RouteContext) => string;
+    organizationLicenseOfferSearchPollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  return deps.submitAndPoll(
+    deps.organizationLicenseOfferSearchPath(routeCtx),
+    deps.organizationLicenseOfferSearchPollPath(routeCtx),
+    {
+      thid: input.requestThid || `organization-license-offer-search-${createRuntimeUuid()}`,
+      body: {
+        resourceType: 'Bundle',
+        type: 'batch',
+        data: [
+          new LicenseOfferSearchEditor(input.offerQuery || {})
+            .buildSearchEntry(),
+        ],
+      },
+    },
+    input.pollOptions,
+  );
+}
+
+export async function listOrganizationLicenseOffersWithDeps(
+  routeCtx: RouteContext,
+  input: LicenseOfferRuntimeSearchInput | undefined,
+  deps: Parameters<typeof searchOrganizationLicenseOffersWithDeps>[2],
+): Promise<SubmitAndPollResult> {
+  return searchOrganizationLicenseOffersWithDeps(routeCtx, input || {}, deps);
+}
+
+/**
+ * Searches commercial license orders/payment projections for one
+ * organization/tenant through `Order/_search`.
+ */
+export async function searchOrganizationLicenseOrdersWithDeps(
+  routeCtx: RouteContext,
+  input: LicenseOrderRuntimeSearchInput,
+  deps: {
+    organizationLicenseOrderSearchPath: (ctx: RouteContext) => string;
+    organizationLicenseOrderSearchPollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  return deps.submitAndPoll(
+    deps.organizationLicenseOrderSearchPath(routeCtx),
+    deps.organizationLicenseOrderSearchPollPath(routeCtx),
+    {
+      thid: input.requestThid || `organization-license-order-search-${createRuntimeUuid()}`,
+      body: {
+        resourceType: 'Bundle',
+        type: 'batch',
+        data: [
+          new LicenseOrderSearchEditor(input.orderQuery || {})
+            .buildSearchEntry(),
+        ],
+      },
+    },
+    input.pollOptions,
+  );
+}
+
+export async function listOrganizationLicenseOrdersWithDeps(
+  routeCtx: RouteContext,
+  input: LicenseOrderRuntimeSearchInput | undefined,
+  deps: Parameters<typeof searchOrganizationLicenseOrdersWithDeps>[2],
+): Promise<SubmitAndPollResult> {
+  return searchOrganizationLicenseOrdersWithDeps(routeCtx, input || {}, deps);
+}
+
 export async function disableIndividualOrganizationWithDeps(
   routeCtx: RouteContext,
   input: IndividualOrganizationLifecycleInput,
@@ -402,6 +574,134 @@ export async function purgeIndividualOrganizationWithDeps(
     payload,
     options,
   );
+}
+
+/**
+ * Searches license seats for one individual/family controller context through
+ * the shared `License/_search` route.
+ */
+export async function searchIndividualLicensesWithDeps(
+  routeCtx: RouteContext,
+  input: LicenseListRuntimeSearchInput,
+  deps: {
+    individualLicenseSearchPath: (ctx: RouteContext) => string;
+    individualLicenseSearchPollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  return deps.submitAndPoll(
+    deps.individualLicenseSearchPath(routeCtx),
+    deps.individualLicenseSearchPollPath(routeCtx),
+    {
+      thid: input.requestThid || `individual-license-search-${createRuntimeUuid()}`,
+      body: {
+        resourceType: 'Bundle',
+        type: 'batch',
+        entry: [
+          new LicenseListSearchEditor(input.licenseQuery || {})
+            .buildSearchEntry(),
+        ],
+      },
+    },
+    input.pollOptions,
+  );
+}
+
+/**
+ * Lists license seats for the individual/family side using the same canonical
+ * search route without mandatory filters.
+ */
+export async function listIndividualLicensesWithDeps(
+  routeCtx: RouteContext,
+  input: LicenseListRuntimeSearchInput | undefined,
+  deps: Parameters<typeof searchIndividualLicensesWithDeps>[2],
+): Promise<SubmitAndPollResult> {
+  return searchIndividualLicensesWithDeps(routeCtx, input || {}, deps);
+}
+
+export async function searchIndividualLicenseOffersWithDeps(
+  routeCtx: RouteContext,
+  input: LicenseOfferRuntimeSearchInput,
+  deps: {
+    individualLicenseOfferSearchPath: (ctx: RouteContext) => string;
+    individualLicenseOfferSearchPollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  return deps.submitAndPoll(
+    deps.individualLicenseOfferSearchPath(routeCtx),
+    deps.individualLicenseOfferSearchPollPath(routeCtx),
+    {
+      thid: input.requestThid || `individual-license-offer-search-${createRuntimeUuid()}`,
+      body: {
+        resourceType: 'Bundle',
+        type: 'batch',
+        data: [
+          new LicenseOfferSearchEditor(input.offerQuery || {})
+            .buildSearchEntry(),
+        ],
+      },
+    },
+    input.pollOptions,
+  );
+}
+
+export async function listIndividualLicenseOffersWithDeps(
+  routeCtx: RouteContext,
+  input: LicenseOfferRuntimeSearchInput | undefined,
+  deps: Parameters<typeof searchIndividualLicenseOffersWithDeps>[2],
+): Promise<SubmitAndPollResult> {
+  return searchIndividualLicenseOffersWithDeps(routeCtx, input || {}, deps);
+}
+
+export async function searchIndividualLicenseOrdersWithDeps(
+  routeCtx: RouteContext,
+  input: LicenseOrderRuntimeSearchInput,
+  deps: {
+    individualLicenseOrderSearchPath: (ctx: RouteContext) => string;
+    individualLicenseOrderSearchPollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  return deps.submitAndPoll(
+    deps.individualLicenseOrderSearchPath(routeCtx),
+    deps.individualLicenseOrderSearchPollPath(routeCtx),
+    {
+      thid: input.requestThid || `individual-license-order-search-${createRuntimeUuid()}`,
+      body: {
+        resourceType: 'Bundle',
+        type: 'batch',
+        data: [
+          new LicenseOrderSearchEditor(input.orderQuery || {})
+            .buildSearchEntry(),
+        ],
+      },
+    },
+    input.pollOptions,
+  );
+}
+
+export async function listIndividualLicenseOrdersWithDeps(
+  routeCtx: RouteContext,
+  input: LicenseOrderRuntimeSearchInput | undefined,
+  deps: Parameters<typeof searchIndividualLicenseOrdersWithDeps>[2],
+): Promise<SubmitAndPollResult> {
+  return searchIndividualLicenseOrdersWithDeps(routeCtx, input || {}, deps);
 }
 
 export async function importIpsOrFhirAndUpdateIndexWithDeps(

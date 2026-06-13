@@ -17,6 +17,9 @@ import type {
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
   IpsOrFhirImportInput,
+  LicenseListRuntimeSearchInput,
+  LicenseOfferRuntimeSearchInput,
+  LicenseOrderRuntimeSearchInput,
 } from '../resource-operations.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 
@@ -62,6 +65,54 @@ export class PersonalSdk {
     input: Omit<ClinicalBundleSearchInput, 'includedTypes'>,
   ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'getLatestIps')(ctx, input);
+  }
+
+  /** Searches subject-side license seats using semantic filters. */
+  public searchLicenses(
+    ctx: RouteContext,
+    input: LicenseListRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchIndividualLicenses')(ctx, input);
+  }
+
+  /** Lists subject-side license seats with optional filters. */
+  public listLicenses(
+    ctx: RouteContext,
+    input: LicenseListRuntimeSearchInput = {},
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'listIndividualLicenses')(ctx, input);
+  }
+
+  /** Searches subject-side commercial license offers. */
+  public searchLicenseOffers(
+    ctx: RouteContext,
+    input: LicenseOfferRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchIndividualLicenseOffers')(ctx, input);
+  }
+
+  /** Lists subject-side commercial license offers. */
+  public listLicenseOffers(
+    ctx: RouteContext,
+    input: LicenseOfferRuntimeSearchInput = {},
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'listIndividualLicenseOffers')(ctx, input);
+  }
+
+  /** Searches subject-side commercial license orders/payment projections. */
+  public searchLicenseOrders(
+    ctx: RouteContext,
+    input: LicenseOrderRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchIndividualLicenseOrders')(ctx, input);
+  }
+
+  /** Lists subject-side commercial license orders/payment projections. */
+  public listLicenseOrders(
+    ctx: RouteContext,
+    input: LicenseOrderRuntimeSearchInput = {},
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'listIndividualLicenseOrders')(ctx, input);
   }
 
   /** Requests SMART/OpenID token with simplified exchange flow. */

@@ -15,6 +15,9 @@ import type { EmployeeDeviceActivationResult, EmployeeDeviceActivationRequestInp
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type { NodeCapability } from '../session.js';
 import type {
+  LicenseListRuntimeSearchInput,
+  LicenseOfferRuntimeSearchInput,
+  LicenseOrderRuntimeSearchInput,
   OrganizationEmployeeCreationInput,
   OrganizationEmployeeLifecycleInput,
   OrganizationEmployeeSearchInput,
@@ -79,6 +82,68 @@ export class OrganizationControllerSdk {
     input: OrganizationEmployeeSearchInput,
   ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'searchOrganizationEmployees')(ctx, input);
+  }
+
+  /**
+   * Searches organization-owned license seats using semantic license filters.
+   */
+  public searchLicenses(
+    ctx: RouteContext,
+    input: LicenseListRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchOrganizationLicenses')(ctx, input);
+  }
+
+  /**
+   * Lists organization-owned license seats with optional filters.
+   */
+  public listLicenses(
+    ctx: RouteContext,
+    input: LicenseListRuntimeSearchInput = {},
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'listOrganizationLicenses')(ctx, input);
+  }
+
+  /**
+   * Searches commercial license offers known for the current organization.
+   */
+  public searchLicenseOffers(
+    ctx: RouteContext,
+    input: LicenseOfferRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchOrganizationLicenseOffers')(ctx, input);
+  }
+
+  /**
+   * Lists commercial license offers known for the current organization.
+   */
+  public listLicenseOffers(
+    ctx: RouteContext,
+    input: LicenseOfferRuntimeSearchInput = {},
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'listOrganizationLicenseOffers')(ctx, input);
+  }
+
+  /**
+   * Searches commercial license orders/payment records known for the current
+   * organization.
+   */
+  public searchLicenseOrders(
+    ctx: RouteContext,
+    input: LicenseOrderRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchOrganizationLicenseOrders')(ctx, input);
+  }
+
+  /**
+   * Lists commercial license orders/payment records known for the current
+   * organization.
+   */
+  public listLicenseOrders(
+    ctx: RouteContext,
+    input: LicenseOrderRuntimeSearchInput = {},
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'listOrganizationLicenseOrders')(ctx, input);
   }
 
   /**

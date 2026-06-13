@@ -33,11 +33,23 @@ import {
   disableIndividualMemberWithDeps,
   disableIndividualOrganizationWithDeps,
   disableOrganizationEmployeeWithDeps,
+  listIndividualLicenseOffersWithDeps,
+  listIndividualLicenseOrdersWithDeps,
+  listIndividualLicensesWithDeps,
+  listOrganizationLicenseOffersWithDeps,
+  listOrganizationLicenseOrdersWithDeps,
+  listOrganizationLicensesWithDeps,
   grantProfessionalAccessWithDeps,
   ingestCommunicationAndUpdateIndexWithDeps,
   purgeIndividualMemberWithDeps,
   purgeIndividualOrganizationWithDeps,
   purgeOrganizationEmployeeWithDeps,
+  searchIndividualLicensesWithDeps,
+  searchIndividualLicenseOffersWithDeps,
+  searchIndividualLicenseOrdersWithDeps,
+  searchOrganizationLicensesWithDeps,
+  searchOrganizationLicenseOffersWithDeps,
+  searchOrganizationLicenseOrdersWithDeps,
   searchOrganizationEmployeesWithDeps,
   searchClinicalBundleWithDeps,
   searchLatestIpsWithDeps,
@@ -48,6 +60,9 @@ import {
   type GrantProfessionalAccessResult,
   type IndividualMemberLifecycleInput,
   type IndividualOrganizationLifecycleInput,
+  type LicenseListRuntimeSearchInput,
+  type LicenseOfferRuntimeSearchInput,
+  type LicenseOrderRuntimeSearchInput,
   type OrganizationEmployeeCreationInput,
   type OrganizationEmployeeLifecycleInput,
   type OrganizationEmployeeSearchInput,
@@ -359,6 +374,80 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
+   * Searches organization-owned license seats through the canonical
+   * `License/_search` route.
+   */
+  public async searchOrganizationLicenses(
+    ctx: RouteContext,
+    input: LicenseListRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return searchOrganizationLicensesWithDeps(ctx, input, {
+      organizationLicenseSearchPath: this.organizationLicenseSearchPath.bind(this),
+      organizationLicenseSearchPollPath: this.organizationLicenseSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
+   * Lists organization-owned license seats using the same `License/_search`
+   * route with optional filters.
+   */
+  public async listOrganizationLicenses(
+    ctx: RouteContext,
+    input: LicenseListRuntimeSearchInput = {},
+  ): Promise<SubmitAndPollResult> {
+    return listOrganizationLicensesWithDeps(ctx, input, {
+      organizationLicenseSearchPath: this.organizationLicenseSearchPath.bind(this),
+      organizationLicenseSearchPollPath: this.organizationLicenseSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  public async searchOrganizationLicenseOffers(
+    ctx: RouteContext,
+    input: LicenseOfferRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return searchOrganizationLicenseOffersWithDeps(ctx, input, {
+      organizationLicenseOfferSearchPath: this.organizationLicenseOfferSearchPath.bind(this),
+      organizationLicenseOfferSearchPollPath: this.organizationLicenseOfferSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  public async listOrganizationLicenseOffers(
+    ctx: RouteContext,
+    input: LicenseOfferRuntimeSearchInput = {},
+  ): Promise<SubmitAndPollResult> {
+    return listOrganizationLicenseOffersWithDeps(ctx, input, {
+      organizationLicenseOfferSearchPath: this.organizationLicenseOfferSearchPath.bind(this),
+      organizationLicenseOfferSearchPollPath: this.organizationLicenseOfferSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  public async searchOrganizationLicenseOrders(
+    ctx: RouteContext,
+    input: LicenseOrderRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return searchOrganizationLicenseOrdersWithDeps(ctx, input, {
+      organizationLicenseOrderSearchPath: this.organizationLicenseOrderSearchPath.bind(this),
+      organizationLicenseOrderSearchPollPath: this.organizationLicenseOrderSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  public async listOrganizationLicenseOrders(
+    ctx: RouteContext,
+    input: LicenseOrderRuntimeSearchInput = {},
+  ): Promise<SubmitAndPollResult> {
+    return listOrganizationLicenseOrdersWithDeps(ctx, input, {
+      organizationLicenseOrderSearchPath: this.organizationLicenseOrderSearchPath.bind(this),
+      organizationLicenseOrderSearchPollPath: this.organizationLicenseOrderSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
    * Starts the onboarding flow for an individual-oriented tenant or index.
    */
   public async startIndividualOrganization(input: IndividualOrganizationBootstrapInput): Promise<IndividualOrganizationStartResult> {
@@ -458,6 +547,80 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return disableIndividualMemberWithDeps(ctx, input, pollOptions, {
       individualRelatedPersonBatchPath: this.individualRelatedPersonBatchPath.bind(this),
       individualRelatedPersonPollPath: this.individualRelatedPersonPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
+   * Searches individual/family-side license seats through the canonical
+   * `License/_search` route.
+   */
+  public async searchIndividualLicenses(
+    ctx: RouteContext,
+    input: LicenseListRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return searchIndividualLicensesWithDeps(ctx, input, {
+      individualLicenseSearchPath: this.individualLicenseSearchPath.bind(this),
+      individualLicenseSearchPollPath: this.individualLicenseSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
+   * Lists individual/family-side license seats using the same search route
+   * with optional filters.
+   */
+  public async listIndividualLicenses(
+    ctx: RouteContext,
+    input: LicenseListRuntimeSearchInput = {},
+  ): Promise<SubmitAndPollResult> {
+    return listIndividualLicensesWithDeps(ctx, input, {
+      individualLicenseSearchPath: this.individualLicenseSearchPath.bind(this),
+      individualLicenseSearchPollPath: this.individualLicenseSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  public async searchIndividualLicenseOffers(
+    ctx: RouteContext,
+    input: LicenseOfferRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return searchIndividualLicenseOffersWithDeps(ctx, input, {
+      individualLicenseOfferSearchPath: this.individualLicenseOfferSearchPath.bind(this),
+      individualLicenseOfferSearchPollPath: this.individualLicenseOfferSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  public async listIndividualLicenseOffers(
+    ctx: RouteContext,
+    input: LicenseOfferRuntimeSearchInput = {},
+  ): Promise<SubmitAndPollResult> {
+    return listIndividualLicenseOffersWithDeps(ctx, input, {
+      individualLicenseOfferSearchPath: this.individualLicenseOfferSearchPath.bind(this),
+      individualLicenseOfferSearchPollPath: this.individualLicenseOfferSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  public async searchIndividualLicenseOrders(
+    ctx: RouteContext,
+    input: LicenseOrderRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return searchIndividualLicenseOrdersWithDeps(ctx, input, {
+      individualLicenseOrderSearchPath: this.individualLicenseOrderSearchPath.bind(this),
+      individualLicenseOrderSearchPollPath: this.individualLicenseOrderSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  public async listIndividualLicenseOrders(
+    ctx: RouteContext,
+    input: LicenseOrderRuntimeSearchInput = {},
+  ): Promise<SubmitAndPollResult> {
+    return listIndividualLicenseOrdersWithDeps(ctx, input, {
+      individualLicenseOrderSearchPath: this.individualLicenseOrderSearchPath.bind(this),
+      individualLicenseOrderSearchPollPath: this.individualLicenseOrderSearchPollPath.bind(this),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -780,6 +943,12 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public employeePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', GwCoreLifecycleAction.BatchResponse); }
   public employeeSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', '_search'); }
   public employeeSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', '_search-response'); }
+  public organizationLicenseSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'License', '_search'); }
+  public organizationLicenseSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'License', '_search-response'); }
+  public organizationLicenseOfferSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Offer', '_search'); }
+  public organizationLicenseOfferSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Offer', '_search-response'); }
+  public organizationLicenseOrderSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Order', '_search'); }
+  public organizationLicenseOrderSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Order', '_search-response'); }
   public employeePurgePath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', GwCoreLifecycleAction.Purge); }
   public employeePurgePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', `${GwCoreLifecycleAction.Purge}-response`); }
   public individualFamilyOrganizationBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.Batch); }
@@ -790,6 +959,12 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public individualFamilyOrganizationDisablePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', `${GwCoreLifecycleAction.Disable}-response`); }
   public individualFamilyOrganizationPurgePath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.Purge); }
   public individualFamilyOrganizationPurgePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', `${GwCoreLifecycleAction.Purge}-response`); }
+  public individualLicenseSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'License', '_search'); }
+  public individualLicenseSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'License', '_search-response'); }
+  public individualLicenseOfferSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Offer', '_search'); }
+  public individualLicenseOfferSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Offer', '_search-response'); }
+  public individualLicenseOrderSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Order', '_search'); }
+  public individualLicenseOrderSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Order', '_search-response'); }
   public individualFamilyOrderBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Order', '_batch'); }
   public individualFamilyOrderPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Order', '_batch-response'); }
   public individualRelatedPersonBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'RelatedPerson', '_batch'); }

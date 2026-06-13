@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  EXAMPLE_LICENSE_ACTIVE_RECORD,
   EXAMPLE_RELATED_PERSON_DISABLE_BUNDLE_ENTRY,
   EXAMPLE_RELATED_PERSON_DISABLE_INPUT,
   EXAMPLE_RELATED_PERSON_IDENTIFIER,
@@ -129,6 +130,108 @@ test('NodeHttpClient exposes current GW CORE lifecycle paths for individual and 
     client.employeePurgePath(),
     '/acme-id/cds-ES/v1/health-care/entity/org.schema/Employee/_purge',
   );
+  assert.equal(
+    client.organizationLicenseSearchPath(),
+    '/acme-id/cds-ES/v1/health-care/entity/org.schema/License/_search',
+  );
+  assert.equal(
+    client.individualLicenseSearchPath(),
+    '/acme-id/cds-ES/v1/health-care/individual/org.schema/License/_search',
+  );
+});
+
+test('NodeHttpClient searches organization-owned license seats through License/_search', async () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+    ctx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+  });
+
+  const calls = [];
+  client.submitAndPoll = async (...args) => {
+    calls.push(args);
+    return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+  };
+
+  await client.searchOrganizationLicenses(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    { licenseQuery: { serialNumbers: [EXAMPLE_LICENSE_ACTIVE_RECORD.id] } },
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], '/acme-id/cds-ES/v1/health-care/entity/org.schema/License/_search');
+  assert.equal(calls[0][1], '/acme-id/cds-ES/v1/health-care/entity/org.schema/License/_search-response');
+  assert.equal(calls[0][2].body.entry[0].type, 'License-search-request-v1.0');
+});
+
+test('NodeHttpClient searches organization-owned commercial offers through Offer/_search', async () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+    ctx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+  });
+
+  const calls = [];
+  client.submitAndPoll = async (...args) => {
+    calls.push(args);
+    return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+  };
+
+  await client.searchOrganizationLicenseOffers(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    { offerQuery: { offerIds: [EXAMPLE_LICENSE_ACTIVE_RECORD.offerId] } },
+  );
+
+  assert.equal(calls[0][0], '/acme-id/cds-ES/v1/health-care/entity/org.schema/Offer/_search');
+  assert.equal(calls[0][1], '/acme-id/cds-ES/v1/health-care/entity/org.schema/Offer/_search-response');
+  assert.equal(calls[0][2].body.data[0].type, 'Offer-search-request-v1.0');
+});
+
+test('NodeHttpClient searches organization-owned commercial orders through Order/_search', async () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+    ctx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+  });
+
+  const calls = [];
+  client.submitAndPoll = async (...args) => {
+    calls.push(args);
+    return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+  };
+
+  await client.searchOrganizationLicenseOrders(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    { orderQuery: { acceptedOfferIds: [EXAMPLE_LICENSE_ACTIVE_RECORD.offerId] } },
+  );
+
+  assert.equal(calls[0][0], '/acme-id/cds-ES/v1/health-care/entity/org.schema/Order/_search');
+  assert.equal(calls[0][1], '/acme-id/cds-ES/v1/health-care/entity/org.schema/Order/_search-response');
+  assert.equal(calls[0][2].body.data[0].type, 'Order-search-request-v1.0');
+});
+
+test('NodeHttpClient searches subject-side commercial offers and orders through Offer/_search and Order/_search', async () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+    ctx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+  });
+
+  const calls = [];
+  client.submitAndPoll = async (...args) => {
+    calls.push(args);
+    return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+  };
+
+  await client.searchIndividualLicenseOffers(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    { offerQuery: { subjectIds: [EXAMPLE_LICENSE_ACTIVE_RECORD.subjectId] } },
+  );
+  await client.searchIndividualLicenseOrders(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    { orderQuery: { subjectIds: [EXAMPLE_LICENSE_ACTIVE_RECORD.subjectId] } },
+  );
+
+  assert.equal(calls[0][0], '/acme-id/cds-ES/v1/health-care/individual/org.schema/Offer/_search');
+  assert.equal(calls[0][2].body.data[0].type, 'Offer-search-request-v1.0');
+  assert.equal(calls[1][0], '/acme-id/cds-ES/v1/health-care/individual/org.schema/Order/_search');
+  assert.equal(calls[1][2].body.data[0].type, 'Order-search-request-v1.0');
 });
 
 test('NodeHttpClient disables individual-member relationships through identifier-first RelatedPerson lifecycle resources', async () => {

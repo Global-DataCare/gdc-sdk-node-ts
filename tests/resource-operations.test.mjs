@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  EXAMPLE_LICENSE_ACTIVE_RECORD,
   EXAMPLE_EMPLOYEE_DISABLE_MESSAGE,
   EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_DISABLE_ENTRY,
@@ -35,14 +36,26 @@ import {
   createOrganizationEmployeeWithDeps,
   disableIndividualMemberWithDeps,
   disableIndividualOrganizationWithDeps,
+  listIndividualLicenseOffersWithDeps,
+  listIndividualLicenseOrdersWithDeps,
   disableOrganizationEmployeeWithDeps,
   generateDigitalTwinFromSubjectDataWithDeps,
   grantProfessionalAccessWithDeps,
   importIpsOrFhirAndUpdateIndexWithDeps,
   ingestCommunicationAndUpdateIndexWithDeps,
+  listIndividualLicensesWithDeps,
+  listOrganizationLicenseOffersWithDeps,
+  listOrganizationLicenseOrdersWithDeps,
+  listOrganizationLicensesWithDeps,
   purgeIndividualMemberWithDeps,
   purgeIndividualOrganizationWithDeps,
   purgeOrganizationEmployeeWithDeps,
+  searchIndividualLicensesWithDeps,
+  searchIndividualLicenseOffersWithDeps,
+  searchIndividualLicenseOrdersWithDeps,
+  searchOrganizationLicensesWithDeps,
+  searchOrganizationLicenseOffersWithDeps,
+  searchOrganizationLicenseOrdersWithDeps,
   searchOrganizationEmployeesWithDeps,
   searchClinicalBundleWithDeps,
   searchLatestIpsWithDeps,
@@ -109,6 +122,50 @@ test('searchOrganizationEmployeesWithDeps builds Employee bundle search payload'
     calls[0][2].body.entry[0].resource,
     buildFhirParametersResourceFromSearchParams(employeeClaims),
   );
+});
+
+test('searchOrganizationLicensesWithDeps builds canonical License bundle search payload', async () => {
+  const calls = [];
+  await searchOrganizationLicensesWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      licenseQuery: {
+        serialNumbers: [EXAMPLE_LICENSE_ACTIVE_RECORD.id],
+        active: true,
+      },
+    },
+    {
+      organizationLicenseSearchPath: () => '/license/_search',
+      organizationLicenseSearchPollPath: () => '/license/_search-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][0], '/license/_search');
+  assert.equal(calls[0][1], '/license/_search-response');
+  assert.equal(calls[0][2].body.resourceType, 'Bundle');
+  assert.equal(calls[0][2].body.entry[0].type, 'License-search-request-v1.0');
+  assert.equal(calls[0][2].body.entry[0].meta.status, 'active');
+});
+
+test('listOrganizationLicensesWithDeps reuses search route without mandatory filters', async () => {
+  const calls = [];
+  await listOrganizationLicensesWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    undefined,
+    {
+      organizationLicenseSearchPath: () => '/license/_search',
+      organizationLicenseSearchPollPath: () => '/license/_search-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][0], '/license/_search');
+  assert.equal(calls[0][2].body.entry[0].type, 'License-search-request-v1.0');
 });
 
 test('disableOrganizationEmployeeWithDeps keeps the current GW CORE DELETE-in-batch contract', async () => {
@@ -214,6 +271,203 @@ test('purgeIndividualOrganizationWithDeps uses the explicit current purge route'
   assert.deepEqual(calls[0][2].body.data[0], cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_PURGE_ENTRY));
   assert.equal(calls[0][2].body.data[0].request.method, GwCoreLifecycleRequestMethod.Post);
   assert.equal(calls[0][2].body.data[0].type, GwCoreLifecycleRequestType.IndividualOrganizationPurge);
+});
+
+test('searchIndividualLicensesWithDeps builds canonical License bundle search payload for the subject side', async () => {
+  const calls = [];
+  await searchIndividualLicensesWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      licenseQuery: {
+        subjectId: EXAMPLE_LICENSE_ACTIVE_RECORD.subjectId,
+      },
+    },
+    {
+      individualLicenseSearchPath: () => '/individual/license/_search',
+      individualLicenseSearchPollPath: () => '/individual/license/_search-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][0], '/individual/license/_search');
+  assert.equal(calls[0][1], '/individual/license/_search-response');
+  assert.equal(calls[0][2].body.entry[0].meta.subjectId, EXAMPLE_LICENSE_ACTIVE_RECORD.subjectId);
+});
+
+test('listIndividualLicensesWithDeps reuses search route without mandatory filters', async () => {
+  const calls = [];
+  await listIndividualLicensesWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    undefined,
+    {
+      individualLicenseSearchPath: () => '/individual/license/_search',
+      individualLicenseSearchPollPath: () => '/individual/license/_search-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][0], '/individual/license/_search');
+  assert.equal(calls[0][2].body.entry[0].type, 'License-search-request-v1.0');
+});
+
+test('searchOrganizationLicenseOffersWithDeps builds canonical Offer bundle search payload', async () => {
+  const calls = [];
+  await searchOrganizationLicenseOffersWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      offerQuery: {
+        offerIds: [EXAMPLE_LICENSE_ACTIVE_RECORD.offerId],
+      },
+    },
+    {
+      organizationLicenseOfferSearchPath: () => '/offer/_search',
+      organizationLicenseOfferSearchPollPath: () => '/offer/_search-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][0], '/offer/_search');
+  assert.equal(calls[0][1], '/offer/_search-response');
+  assert.equal(calls[0][2].body.data[0].type, 'Offer-search-request-v1.0');
+});
+
+test('listOrganizationLicenseOffersWithDeps reuses search route without mandatory filters', async () => {
+  const calls = [];
+  await listOrganizationLicenseOffersWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    undefined,
+    {
+      organizationLicenseOfferSearchPath: () => '/offer/_search',
+      organizationLicenseOfferSearchPollPath: () => '/offer/_search-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][2].body.data[0].type, 'Offer-search-request-v1.0');
+});
+
+test('searchOrganizationLicenseOrdersWithDeps builds canonical Order bundle search payload', async () => {
+  const calls = [];
+  await searchOrganizationLicenseOrdersWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      orderQuery: {
+        acceptedOfferIds: [EXAMPLE_LICENSE_ACTIVE_RECORD.offerId],
+      },
+    },
+    {
+      organizationLicenseOrderSearchPath: () => '/order/_search',
+      organizationLicenseOrderSearchPollPath: () => '/order/_search-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][0], '/order/_search');
+  assert.equal(calls[0][1], '/order/_search-response');
+  assert.equal(calls[0][2].body.data[0].type, 'Order-search-request-v1.0');
+});
+
+test('listOrganizationLicenseOrdersWithDeps reuses search route without mandatory filters', async () => {
+  const calls = [];
+  await listOrganizationLicenseOrdersWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    undefined,
+    {
+      organizationLicenseOrderSearchPath: () => '/order/_search',
+      organizationLicenseOrderSearchPollPath: () => '/order/_search-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][2].body.data[0].type, 'Order-search-request-v1.0');
+});
+
+test('searchIndividualLicenseOffersWithDeps builds canonical Offer bundle search payload for the subject side', async () => {
+  const calls = [];
+  await searchIndividualLicenseOffersWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      offerQuery: {},
+    },
+    {
+      individualLicenseOfferSearchPath: () => '/individual/offer/_search',
+      individualLicenseOfferSearchPollPath: () => '/individual/offer/_search-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][0], '/individual/offer/_search');
+  assert.equal(calls[0][1], '/individual/offer/_search-response');
+  assert.equal(calls[0][2].body.data[0].type, 'Offer-search-request-v1.0');
+});
+
+test('listIndividualLicenseOffersWithDeps reuses search route without mandatory filters', async () => {
+  const calls = [];
+  await listIndividualLicenseOffersWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    undefined,
+    {
+      individualLicenseOfferSearchPath: () => '/individual/offer/_search',
+      individualLicenseOfferSearchPollPath: () => '/individual/offer/_search-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][2].body.data[0].type, 'Offer-search-request-v1.0');
+});
+
+test('searchIndividualLicenseOrdersWithDeps builds canonical Order bundle search payload for the subject side', async () => {
+  const calls = [];
+  await searchIndividualLicenseOrdersWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      orderQuery: {},
+    },
+    {
+      individualLicenseOrderSearchPath: () => '/individual/order/_search',
+      individualLicenseOrderSearchPollPath: () => '/individual/order/_search-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][0], '/individual/order/_search');
+  assert.equal(calls[0][1], '/individual/order/_search-response');
+  assert.equal(calls[0][2].body.data[0].type, 'Order-search-request-v1.0');
+});
+
+test('listIndividualLicenseOrdersWithDeps reuses search route without mandatory filters', async () => {
+  const calls = [];
+  await listIndividualLicenseOrdersWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    undefined,
+    {
+      individualLicenseOrderSearchPath: () => '/individual/order/_search',
+      individualLicenseOrderSearchPollPath: () => '/individual/order/_search-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][2].body.data[0].type, 'Order-search-request-v1.0');
 });
 
 test('disableIndividualMemberWithDeps sends identifier-first lifecycle resource semantics for RelatedPerson', async () => {

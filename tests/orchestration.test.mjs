@@ -23,6 +23,12 @@ test('IndividualControllerSdk delegates to the runtime client', async () => {
     purgeIndividualMember: async (...args) => { calls.push(['purgeIndividualMember', args]); return { ok: true }; },
     disableIndividualOrganization: async (...args) => { calls.push(['disableIndividualOrganization', args]); return { ok: true }; },
     purgeIndividualOrganization: async (...args) => { calls.push(['purgeIndividualOrganization', args]); return { ok: true }; },
+    searchIndividualLicenses: async (...args) => { calls.push(['searchIndividualLicenses', args]); return { ok: true }; },
+    listIndividualLicenses: async (...args) => { calls.push(['listIndividualLicenses', args]); return { ok: true }; },
+    searchIndividualLicenseOffers: async (...args) => { calls.push(['searchIndividualLicenseOffers', args]); return { ok: true }; },
+    listIndividualLicenseOffers: async (...args) => { calls.push(['listIndividualLicenseOffers', args]); return { ok: true }; },
+    searchIndividualLicenseOrders: async (...args) => { calls.push(['searchIndividualLicenseOrders', args]); return { ok: true }; },
+    listIndividualLicenseOrders: async (...args) => { calls.push(['listIndividualLicenseOrders', args]); return { ok: true }; },
     grantProfessionalAccess: async (...args) => { calls.push(['grantProfessionalAccess', args]); return { ok: true }; },
     searchClinicalBundle: async (...args) => { calls.push(['searchClinicalBundle', args]); return { ok: true }; },
     getLatestIps: async (...args) => { calls.push(['getLatestIps', args]); return { ok: true }; },
@@ -37,11 +43,17 @@ test('IndividualControllerSdk delegates to the runtime client', async () => {
   await sdk.purgeIndividualMember({}, {});
   await sdk.disableIndividualOrganization({}, {});
   await sdk.purgeIndividualOrganization({}, {});
+  await sdk.searchLicenses({}, {});
+  await sdk.listLicenses({}, {});
+  await sdk.searchLicenseOffers({}, {});
+  await sdk.listLicenseOffers({}, {});
+  await sdk.searchLicenseOrders({}, {});
+  await sdk.listLicenseOrders({}, {});
   await sdk.grantProfessionalAccess({}, {});
   await sdk.searchClinicalBundle({}, { subject: 'did:web:subject.example' });
   await sdk.getLatestIps({}, { subject: 'did:web:subject.example' });
   await sdk.requestSmartToken({});
-  assert.equal(calls.length, 12);
+  assert.equal(calls.length, 18);
 });
 
 test('ProfessionalSdk keeps role-scoped surface separation', () => {
@@ -58,6 +70,12 @@ test('PersonalSdk delegates to the runtime client', async () => {
   const calls = [];
   const client = {
     startIndividualOrganization: async (...args) => { calls.push(['startIndividualOrganization', args]); return { ok: true }; },
+    searchIndividualLicenses: async (...args) => { calls.push(['searchIndividualLicenses', args]); return { ok: true }; },
+    listIndividualLicenses: async (...args) => { calls.push(['listIndividualLicenses', args]); return { ok: true }; },
+    searchIndividualLicenseOffers: async (...args) => { calls.push(['searchIndividualLicenseOffers', args]); return { ok: true }; },
+    listIndividualLicenseOffers: async (...args) => { calls.push(['listIndividualLicenseOffers', args]); return { ok: true }; },
+    searchIndividualLicenseOrders: async (...args) => { calls.push(['searchIndividualLicenseOrders', args]); return { ok: true }; },
+    listIndividualLicenseOrders: async (...args) => { calls.push(['listIndividualLicenseOrders', args]); return { ok: true }; },
     grantProfessionalAccess: async (...args) => { calls.push(['grantProfessionalAccess', args]); return { ok: true }; },
     searchClinicalBundle: async (...args) => { calls.push(['searchClinicalBundle', args]); return { ok: true }; },
     getLatestIps: async (...args) => { calls.push(['getLatestIps', args]); return { ok: true }; },
@@ -65,11 +83,17 @@ test('PersonalSdk delegates to the runtime client', async () => {
   };
   const sdk = new PersonalSdk(client);
   await sdk.startIndividualOrganization({});
+  await sdk.searchLicenses({}, {});
+  await sdk.listLicenses({}, {});
+  await sdk.searchLicenseOffers({}, {});
+  await sdk.listLicenseOffers({}, {});
+  await sdk.searchLicenseOrders({}, {});
+  await sdk.listLicenseOrders({}, {});
   await sdk.grantProfessionalAccess({}, {});
   await sdk.searchClinicalBundle({}, { subject: 'did:web:subject.example' });
   await sdk.getLatestIps({}, { subject: 'did:web:subject.example' });
   await sdk.requestSmartToken({});
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 11);
 });
 
 test('target node facades do not expose bootstrap helper shortcuts', () => {
@@ -99,6 +123,12 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   const client = {
     createOrganizationEmployee: async (...args) => { calls.push(['createOrganizationEmployee', args]); return { ok: true }; },
     searchOrganizationEmployees: async (...args) => { calls.push(['searchOrganizationEmployees', args]); return { ok: true }; },
+    searchOrganizationLicenses: async (...args) => { calls.push(['searchOrganizationLicenses', args]); return { ok: true }; },
+    listOrganizationLicenses: async (...args) => { calls.push(['listOrganizationLicenses', args]); return { ok: true }; },
+    searchOrganizationLicenseOffers: async (...args) => { calls.push(['searchOrganizationLicenseOffers', args]); return { ok: true }; },
+    listOrganizationLicenseOffers: async (...args) => { calls.push(['listOrganizationLicenseOffers', args]); return { ok: true }; },
+    searchOrganizationLicenseOrders: async (...args) => { calls.push(['searchOrganizationLicenseOrders', args]); return { ok: true }; },
+    listOrganizationLicenseOrders: async (...args) => { calls.push(['listOrganizationLicenseOrders', args]); return { ok: true }; },
     disableEmployee: async (...args) => { calls.push(['disableEmployee', args]); return { ok: true }; },
     disableOrganizationEmployee: async (...args) => { calls.push(['disableOrganizationEmployee', args]); return { ok: true }; },
   };
@@ -109,9 +139,15 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   const sdk = session.asOrganizationController();
   await sdk.createOrganizationEmployee({}, {});
   await sdk.searchOrganizationEmployees({}, {});
+  await sdk.searchLicenses({}, {});
+  await sdk.listLicenses({}, {});
+  await sdk.searchLicenseOffers({}, {});
+  await sdk.listLicenseOffers({}, {});
+  await sdk.searchLicenseOrders({}, {});
+  await sdk.listLicenseOrders({}, {});
   await sdk.disableEmployee({}, {});
   await sdk.disableOrganizationEmployee({}, {});
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 10);
 });
 
 test('OrganizationControllerSdk enforces employee lifecycle capabilities when materialized from NodeActorSession', async () => {

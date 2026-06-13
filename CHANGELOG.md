@@ -13,6 +13,13 @@ All notable changes to this project will be documented in this file.
     routes and request types
 - Added shared order/offer response parsing helpers in:
   - `src/order-offer-summary.ts`
+- Added public Node runtime helpers for commercial/license read-model flows:
+  - `searchLicenses(...)`
+  - `listLicenses(...)`
+  - `searchLicenseOffers(...)`
+  - `listLicenseOffers(...)`
+  - `searchLicenseOrders(...)`
+  - `listLicenseOrders(...)`
 
 ### Changed
 - Refactored individual-organization lifecycle payload building to reuse the
@@ -24,6 +31,9 @@ All notable changes to this project will be documented in this file.
   - `PersonalSdk.getLatestIps(...)`
 - Added `getLatestIps(...)` as a preferred runtime alias on the node client,
   backed by the existing latest-IPS search flow.
+- Wired the public organization/individual/personal facades through the new
+  shared license search/list surface instead of keeping commercial/license
+  readback hidden behind runtime internals.
 - Updated individual start/bootstrap wiring to consume canonical offer preview
   parsing instead of returning an empty preview placeholder.
 - Re-exported the new lifecycle and order/offer summary surfaces from the
