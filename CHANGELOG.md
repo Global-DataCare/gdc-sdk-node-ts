@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.10.0] - 2026-06-12
+## [0.10.1] - 2026-06-13
 
 ### Added
 - Added current lifecycle support for individual-member `RelatedPerson`
