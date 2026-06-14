@@ -38,6 +38,11 @@ All notable changes to this project will be documented in this file.
   - bundle editor/viewer usage
   - consent view model usage
   - conversation-first walkthroughs
+- Updated published shared dependency targets to:
+  - `gdc-common-utils-ts@^1.24.1`
+  - `gdc-sdk-core-ts@^0.11.1`
+- Refreshed the lockfile so `gdc-sdk-node-ts@0.12.1` resolves the published npm
+  artifacts for those shared packages instead of older baselines.
 
 ### Performance Notes Observed In This Release
 - A fully green clean Firestore/GCS run still takes roughly three minutes
@@ -54,6 +59,7 @@ All notable changes to this project will be documented in this file.
   next optimization pass.
 
 ### Testing
+- `npm install gdc-common-utils-ts@^1.24.1 gdc-sdk-core-ts@^0.11.1`
 - `node --check tests/live-gw-node-runtime.e2e.test.mjs`
 - `npm run test:e2e:live-gw:clean`
 
