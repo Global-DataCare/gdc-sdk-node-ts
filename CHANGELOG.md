@@ -2,6 +2,61 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.1] - 2026-06-14
+
+### Changed
+- Closed the canonical live GW E2E suite on clean Firestore/GCS runs with:
+  - fresh host id per execution
+  - fresh tenant id per execution
+  - fresh individual subject per execution
+  - real-TTY-first validation through `npm run test:e2e:live-gw:clean`
+- Reworked the live runtime suite so the clinical transport checks run as user
+  conversations before the destructive cleanup lifecycle, instead of purging the
+  hosted individual/tenant/host in the middle of the suite.
+- Consolidated the previous split clinical scenarios into conversation-shaped
+  transport tests for:
+  - `didcomm-plain`
+  - `legacy-fhir`
+  reducing duplicate setup/poll loops while keeping the same end-to-end
+  coverage of:
+  - communication ingestion
+  - `DocumentReference` projection visibility
+  - `MedicationStatement` indexing visibility
+- Tightened local polling defaults for non-blockchain live validation:
+  - `LIVE_GW_POLL_INTERVAL_MS=200` by default
+  - `LIVE_GW_POLL_TIMEOUT_MS=60000` by default
+  - centralized through `createLivePollOptions(...)`
+- Added step-level profiling inside the individual lifecycle suite so slow
+  cleanup paths are recorded in the debug JSONL output and can be ranked after a
+  run without re-instrumenting the test manually.
+- Extended the live docs and top-of-file suite JSDoc so the current runtime
+  validation does not lose the follow-up contract for the next Node `101`,
+  including:
+  - `JobManager` orchestration
+  - virtual/public API usage
+  - actor facades
+  - bundle editor/viewer usage
+  - consent view model usage
+  - conversation-first walkthroughs
+
+### Performance Notes Observed In This Release
+- A fully green clean Firestore/GCS run still takes roughly three minutes
+  because the heaviest latency is no longer the poll interval itself, but the
+  cumulative asynchronous cleanup work in the hosted lifecycle.
+- Step profiling from the clean live run showed the slowest individual-lifecycle
+  steps were:
+  - `individual-purge`
+  - `tenant-purge`
+  - `tenant-disable`
+  - `tenant-disable-while-individual-active`
+  - `ips-search`
+  These timings are now captured directly in the live debug artifacts for the
+  next optimization pass.
+
+### Testing
+- `node --check tests/live-gw-node-runtime.e2e.test.mjs`
+- `npm run test:e2e:live-gw:clean`
+
 ## [0.12.0] - 2026-06-13
 
 ### Added
