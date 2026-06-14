@@ -12,6 +12,24 @@ Teaching rule for this `101`:
 Use this before asking an AI agent to run live E2E commands, and before running
 `npm run test:e2e:live-gw`.
 
+Non-negotiable execution rule:
+
+- run the live GW suite from the user's real terminal/TTY
+- do not treat an AI agent sandbox as equivalent to the user's shell
+- localhost access, Docker access, Firestore/GCS access, and DNS resolution may
+  fail inside an agent sandbox even when they work correctly in the user's TTY
+- for release validation, the user-terminal result is the authoritative result
+- do not accept a sandbox-only result as final validation
+
+Non-negotiable isolation rule:
+
+- never do the final rerun against the same persisted host
+- never do the final rerun against the same tenant id
+- never do the final rerun against the same individual/subject id
+- if a run fails after touching Firestore/GCS state, start the next final run
+  with a fresh epoch/run id instead of retrying on top of old state
+- the clean final rule is always: new host, new tenant, new individual
+
 ## Scope
 
 - `gdc-sdk-core-ts` does not call GW by itself.
@@ -33,6 +51,16 @@ is:
 When using an AI coding agent, ask it explicitly to run the long-lived GW
 process in `TTY` and outside the sandbox.
 
+Be explicit that this applies to both sides:
+
+- GW CORE long-lived process must run in a real TTY
+- the `gdc-sdk-node-ts` live E2E command must also run from the user's real TTY
+- if the agent cannot leave its sandbox, the user should run the final live
+  command directly in their own terminal
+- if the first live run fails after creating persisted data, the agent must not
+  "rerun" on the same host/tenant/individual identifiers
+- the agent must restart the flow with fresh identifiers for the next final run
+
 Use wording like:
 
 - run `npm run api:local-demo` in TTY and keep it open
@@ -42,6 +70,14 @@ Use wording like:
 - if the Docker host port is busy, run `npm run docker:close`
 
 ## Local Process Mode
+
+Final validation discipline:
+
+- for quick local debugging, you may temporarily reuse a local process
+- for the final Firestore/GCS validation, do not reuse the same persisted host
+- the host id used by GW CORE must be fresh for that execution
+- the tenant id used by the SDK must be fresh for that execution
+- the individual subject created by the SDK must be fresh for that execution
 
 Free the default local GW port if needed:
 
@@ -85,6 +121,64 @@ Run the Node SDK live GW suite in a third terminal:
 cd /Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts
 npm run test:e2e:live-gw
 ```
+
+Canonical clean wrapper for final Firestore/GCS validation:
+
+```bash
+cd /Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts
+npm run test:e2e:live-gw:clean
+```
+
+What this wrapper does:
+
+- generates one fresh epoch/run id
+- derives a fresh `HOST_ID_VALUE`
+- derives a fresh `TENANT_ID`
+- starts `gwtemplate-node-ts` first
+- waits for `http://127.0.0.1:3000/host/ping`
+- runs the SDK live suite with the same run seed
+- stops the local GW process on exit
+
+What this wrapper does not change:
+
+- it still must run from a real user terminal/TTY
+- it must not be treated as a sandbox-safe command
+- if you want to override ids manually, you still can, but the default path is
+  to let the wrapper generate them
+
+## Next 101 To Build After Publish
+
+Do not lose this scope when the current live suite is already green and
+published.
+
+The next Node `101` must be a didactic, step-by-step walkthrough that explains
+each user action and each resulting API job clearly.
+
+Non-negotiable design rules for that next `101`:
+
+- use the public high-level user facades for each actor type
+- route async work through the `JobManager` abstraction agreed for the SDK side
+- send requests through the virtual/public API surface, not by assembling route
+  plumbing inline in the spec
+- prefer bundle editor, bundle viewer, consent view model, and actor-specific
+  facades instead of raw `Bundle.entry` manipulation inside the test
+- model user conversations, not disconnected technical subflows
+- explain each step in JSDoc and docs:
+  - what the user is doing in the UI
+  - what gets attached or submitted
+  - what the GW job is expected to do
+  - what the next actor is allowed to view or not view
+- keep final cleanup at the end of the conversation lifecycle
+
+The current live suite is allowed to stay more pragmatic so it can prove the
+runtime and unblock publish. The next `101` is where the fully explanatory,
+facade-first, `JobManager`-driven version must live.
+
+Do not downgrade this requirement:
+
+- this third terminal is the canonical place to validate the live suite
+- if an agent-run sandbox gives different connectivity results, trust the real
+  terminal run instead
 
 Run the same suite with debug artifacts:
 

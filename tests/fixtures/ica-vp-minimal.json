@@ -24,6 +24,13 @@
           },
           "id": "did:web:globaldatacare.es:health-care:organization:taxid:VATES-B00112233",
           "legalName": "ORGANIZATION LEGAL NAME",
+          "makesOffer": {
+            "category": "health-care",
+            "serviceType": [
+              "organization/Composition.cruds",
+              "organization/ResearchSubject.rs"
+            ]
+          },
           "taxID": "VATES-B00112233"
         },
         "id": "urn:globaldatacare:health-care:organization:vc:zKYrhQQducHobYkMWELfr6iKoHSzs1PyksMKH89pCu24TVHbd5igiCYJh59HqKBabtm3Ufp",

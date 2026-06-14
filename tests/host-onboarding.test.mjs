@@ -5,10 +5,17 @@ import {
   EXAMPLE_HOST_ROUTE_CONTEXT,
   EXAMPLE_LEGAL_ORGANIZATION_ORDER_INPUT,
   EXAMPLE_LEGAL_ORGANIZATION_ORDER_RESPONSE,
+  EXAMPLE_TENANT_IDENTIFIER,
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
+import { ClaimsOrganizationSchemaorg } from 'gdc-common-utils-ts/constants/schemaorg';
 
-import { confirmLegalOrganizationOrderWithDeps, NodeHttpClient } from '../dist/index.js';
+import {
+  confirmLegalOrganizationOrderWithDeps,
+  HostLifecycleRequestType,
+  NodeHttpClient,
+  submitHostedTenantLifecycleWithDeps,
+} from '../dist/index.js';
 
 test('NodeHttpClient.activateOrganizationInGatewayFromIcaProof serializes vp_token and controller at body root', async () => {
   const client = new NodeHttpClient({
@@ -73,4 +80,66 @@ test('confirmLegalOrganizationOrderWithDeps rejects missing offerId', async () =
     }),
     /requires offerId/,
   );
+});
+
+test('submitHostedTenantLifecycleWithDeps builds canonical host disable payload and routes', async () => {
+  const calls = [];
+
+  const result = await submitHostedTenantLifecycleWithDeps({
+    hostCtx: cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT),
+    input: {
+      organizationClaims: {
+        [ClaimsOrganizationSchemaorg.identifierValue]: EXAMPLE_TENANT_IDENTIFIER,
+      },
+      timeoutSeconds: 12,
+      intervalSeconds: 3,
+    },
+    requestType: HostLifecycleRequestType.Disable,
+    submitPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.sector}/organization/_disable`,
+    pollPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.sector}/organization/_disable-response`,
+    thidPrefix: 'host-disable',
+    submitAndPoll: async (...args) => {
+      calls.push(args);
+      return cloneExample(EXAMPLE_LEGAL_ORGANIZATION_ORDER_RESPONSE);
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], `/host/${EXAMPLE_HOST_ROUTE_CONTEXT.jurisdiction}/${EXAMPLE_HOST_ROUTE_CONTEXT.sector}/organization/_disable`);
+  assert.equal(calls[0][1], `/host/${EXAMPLE_HOST_ROUTE_CONTEXT.jurisdiction}/${EXAMPLE_HOST_ROUTE_CONTEXT.sector}/organization/_disable-response`);
+  assert.equal(calls[0][2].body.data[0].type, HostLifecycleRequestType.Disable);
+  assert.equal(
+    calls[0][2].body.data[0].resource.meta.claims[ClaimsOrganizationSchemaorg.identifierValue],
+    EXAMPLE_TENANT_IDENTIFIER,
+  );
+  assert.deepEqual(calls[0][3], {
+    timeoutMs: 12_000,
+    intervalMs: 3_000,
+  });
+  assert.equal(result.poll.status, 200);
+});
+
+test('submitHostedTenantLifecycleWithDeps builds canonical host purge payload and routes', async () => {
+  const calls = [];
+
+  await submitHostedTenantLifecycleWithDeps({
+    hostCtx: cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT),
+    input: {
+      organizationClaims: {
+        [ClaimsOrganizationSchemaorg.identifierValue]: EXAMPLE_TENANT_IDENTIFIER,
+      },
+    },
+    requestType: HostLifecycleRequestType.Purge,
+    submitPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.sector}/organization/_purge`,
+    pollPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.sector}/organization/_purge-response`,
+    thidPrefix: 'host-purge',
+    submitAndPoll: async (...args) => {
+      calls.push(args);
+      return cloneExample(EXAMPLE_LEGAL_ORGANIZATION_ORDER_RESPONSE);
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][2].body.data[0].type, HostLifecycleRequestType.Purge);
+  assert.match(String(calls[0][2].thid || ''), /^host-purge-/);
 });

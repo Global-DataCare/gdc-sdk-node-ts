@@ -1,6 +1,6 @@
 {
   "name": "gdc-sdk-node-ts",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "description": "Next-generation Node runtime package for the GDC SDK family",
   "license": "Apache-2.0",
   "author": "Antifraud Services Inc.",
@@ -13,6 +13,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "type-check": "tsc -p tsconfig.json --noEmit",
+    "local:close": "PORTS=3000 bash ./scripts/local-close.sh",
+    "docker:close": "PORTS=8000 bash ./scripts/local-close.sh",
     "test": "npm run build && node --test tests/*.test.mjs",
     "test:e2e:live-gw": "npm run build && RUN_LIVE_GW_E2E=1 node --test tests/live-gw-node-runtime.e2e.test.mjs",
     "test:e2e:live-gw:professional": "npm run build && RUN_LIVE_GW_E2E=1 LIVE_GW_E2E_SUITE=professional node --test tests/live-gw-node-runtime.e2e.test.mjs",
@@ -20,11 +22,12 @@
     "test:e2e:live-gw:clinical": "npm run build && RUN_LIVE_GW_E2E=1 LIVE_GW_E2E_SUITE=clinical node --test tests/live-gw-node-runtime.e2e.test.mjs",
     "test:e2e:live-gw:didcomm-plain": "npm run build && RUN_LIVE_GW_E2E=1 LIVE_GW_E2E_TRANSPORT=didcomm-plain node --test tests/live-gw-node-runtime.e2e.test.mjs",
     "test:e2e:live-gw:legacy-fhir": "npm run build && RUN_LIVE_GW_E2E=1 LIVE_GW_E2E_TRANSPORT=legacy-fhir node --test tests/live-gw-node-runtime.e2e.test.mjs",
-    "test:e2e:live-gw:all": "npm run build && RUN_LIVE_GW_E2E=1 LIVE_GW_E2E_TRANSPORT=all node --test tests/live-gw-node-runtime.e2e.test.mjs"
+    "test:e2e:live-gw:all": "npm run build && RUN_LIVE_GW_E2E=1 LIVE_GW_E2E_TRANSPORT=all node --test tests/live-gw-node-runtime.e2e.test.mjs",
+    "test:e2e:live-gw:clean": "bash ./scripts/run-live-gw-clean.sh"
   },
   "dependencies": {
-    "gdc-common-utils-ts": "^1.23.0",
-    "gdc-sdk-core-ts": "^0.10.2"
+    "gdc-common-utils-ts": "^1.24.0",
+    "gdc-sdk-core-ts": "^0.11.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",

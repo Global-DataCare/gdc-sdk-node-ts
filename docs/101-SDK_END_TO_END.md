@@ -33,6 +33,16 @@ Live-test boundary:
 - it should not be confused with the final product BFF or with the future
   app-side user job manager
 
+Live execution rule:
+
+- the authoritative live E2E run is the one executed from the user's real
+  terminal/TTY
+- AI agent sandboxes may fail for reasons unrelated to GW CORE behavior:
+  localhost restrictions, Docker isolation, DNS resolution, Firestore/GCS
+  egress, or other sandbox networking limits
+- when that happens, the user-terminal run is the result that matters for
+  release validation
+
 Current execution-mode rule:
 
 - `LIVE_GW_E2E_EXECUTION_MODE=direct` is the supported live-test mode today

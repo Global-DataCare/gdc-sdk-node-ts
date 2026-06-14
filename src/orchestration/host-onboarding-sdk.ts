@@ -3,16 +3,27 @@
 import {
   requireClientMethod,
   submitAndPollWithClient,
-  type NodeOrganizationActivationInput,
   type NodeRuntimeClient,
+  type NodeOrganizationActivationInput,
   type PollOptions,
   type SubmitAndPollResult,
   type SubmitPayload,
 } from './client-port.js';
-import type { HostRouteContext, LegalOrganizationOrderInput } from '../host-onboarding.js';
+import { ActorCapabilities, ActorKinds } from 'gdc-common-utils-ts/constants/actor-session';
+import type {
+  HostingControllerFacade,
+  HostLifecycleInput,
+  HostRouteContext,
+  LegalOrganizationOrderInput,
+} from '../host-onboarding.js';
+import type { NodeCapability } from '../session.js';
+import { assertFacadeCapability } from './capability-guard.js';
 
-export class HostOnboardingSdk {
-  constructor(private readonly client: NodeRuntimeClient) {}
+export class HostOnboardingSdk implements HostingControllerFacade {
+  constructor(
+    private readonly client: NodeRuntimeClient,
+    private readonly capabilities: readonly NodeCapability[] = [],
+  ) {}
 
   /**
    * Submits the legal organization activation proof and required declared
@@ -23,6 +34,7 @@ export class HostOnboardingSdk {
     input: NodeOrganizationActivationInput,
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.HostingActivateOrganization, ActorKinds.HostOnboarding, 'activateOrganizationInGatewayFromIcaProof');
     return requireClientMethod(this.client, 'activateOrganizationInGatewayFromIcaProof')(hostCtx, input, pollOptions);
   }
 
@@ -31,7 +43,34 @@ export class HostOnboardingSdk {
     input: LegalOrganizationOrderInput,
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.HostingConfirmOrder, ActorKinds.HostOnboarding, 'confirmLegalOrganizationOrder');
     return requireClientMethod(this.client, 'confirmLegalOrganizationOrder')(hostCtx, input, pollOptions);
+  }
+
+  /**
+   * Disables the host registration after all hosted tenants have already been
+   * purged and the hosting operator should stop publishing discovery services.
+   */
+  public disableHost(
+    hostCtx: HostRouteContext,
+    input: HostLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.HostingDisableHost, ActorKinds.HostOnboarding, 'disableHost');
+    return requireClientMethod(this.client, 'disableHost')(hostCtx, input, pollOptions);
+  }
+
+  /**
+   * Purges the already-disabled host registration once no hosted tenants
+   * remain in the registry.
+   */
+  public purgeHost(
+    hostCtx: HostRouteContext,
+    input: HostLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.HostingPurgeHost, ActorKinds.HostOnboarding, 'purgeHost');
+    return requireClientMethod(this.client, 'purgeHost')(hostCtx, input, pollOptions);
   }
 
   public submitAndPoll(

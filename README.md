@@ -24,6 +24,14 @@ Important test-harness boundary:
 - app-side job queues, offline retry, local vault/read models, and the future
   user job manager are separate follow-up concerns
 
+Important live-run rule:
+
+- the canonical live E2E result must come from the user's real terminal/TTY
+- do not assume an AI agent sandbox has equivalent localhost, Docker, DNS, or
+  GCP connectivity
+- if sandboxed runs disagree with the user's terminal, trust the user's
+  terminal for live GW validation
+
 Architectural rule:
 
 - shared contracts and actor boundaries come from `gdc-sdk-core-ts`
@@ -113,6 +121,12 @@ as the canonical runtime flow.
 Before running that suite, read:
 
 - [docs/101-LIVE_GW_LOCAL.md](./docs/101-LIVE_GW_LOCAL.md)
+
+Execution requirement:
+
+- run the live suite from a real user terminal/TTY
+- if an AI agent is assisting, it should prefer a long-lived TTY process and
+  avoid treating sandbox-local connectivity failures as product failures
 
 Teaching rule:
 

@@ -13,14 +13,18 @@ import { ActorSession, NodeActorSession, type NodeCapability } from './session.j
 import type { RuntimeClient } from './orchestration/client-port.js';
 
 const capabilityMap: Record<Capability, NodeCapability> = {
-  [ActorCapabilities.HostActivateOrganization]: ActorCapabilities.HostActivateOrganization,
-  [ActorCapabilities.HostConfirmOrder]: ActorCapabilities.HostConfirmOrder,
+  [ActorCapabilities.HostingActivateOrganization]: ActorCapabilities.HostingActivateOrganization,
+  [ActorCapabilities.HostingConfirmOrder]: ActorCapabilities.HostingConfirmOrder,
+  [ActorCapabilities.HostingDisableHost]: ActorCapabilities.HostingDisableHost,
+  [ActorCapabilities.HostingPurgeHost]: ActorCapabilities.HostingPurgeHost,
   [ActorCapabilities.OrganizationCreateEmployee]: ActorCapabilities.OrganizationCreateEmployee,
   [ActorCapabilities.OrganizationActivateDevice]: ActorCapabilities.OrganizationActivateDevice,
   [ActorCapabilities.OrganizationIssueActivationCode]: ActorCapabilities.OrganizationIssueActivationCode,
   [ActorCapabilities.OrganizationRequestSmartToken]: ActorCapabilities.OrganizationRequestSmartToken,
   [ActorCapabilities.OrganizationDisableEmployee]: ActorCapabilities.OrganizationDisableEmployee,
   [ActorCapabilities.OrganizationPurgeEmployee]: ActorCapabilities.OrganizationPurgeEmployee,
+  [ActorCapabilities.OrganizationDisableTenant]: ActorCapabilities.OrganizationDisableTenant,
+  [ActorCapabilities.OrganizationPurgeTenant]: ActorCapabilities.OrganizationPurgeTenant,
   [ActorCapabilities.IndividualBootstrap]: ActorCapabilities.IndividualBootstrap,
   [ActorCapabilities.IndividualDisable]: ActorCapabilities.IndividualDisable,
   [ActorCapabilities.IndividualPurge]: ActorCapabilities.IndividualPurge,

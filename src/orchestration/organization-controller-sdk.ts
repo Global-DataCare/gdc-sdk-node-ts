@@ -11,6 +11,7 @@ import {
 } from './client-port.js';
 import { assertFacadeCapability } from './capability-guard.js';
 import type { RouteContext } from '../individual-onboarding.js';
+import type { HostRouteContext, HostedTenantLifecycleInput } from '../host-onboarding.js';
 import type { EmployeeDeviceActivationResult, EmployeeDeviceActivationRequestInput } from '../device-activation.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type { OrganizationLicenseOrderConfirmInput } from '../organization-license-order.js';
@@ -191,6 +192,32 @@ export class OrganizationControllerSdk {
   ): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationPurgeEmployee, ActorKinds.OrganizationController, 'purgeEmployee');
     return requireClientMethod(this.client, 'purgeEmployee')(ctx, input, pollOptions);
+  }
+
+  /**
+   * Disables the hosted tenant itself through the host registry once no active
+   * employees or individual/member descendants remain.
+   */
+  public disableTenant(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationDisableTenant, ActorKinds.OrganizationController, 'disableTenant');
+    return requireClientMethod(this.client, 'disableTenant')(hostCtx, input, pollOptions);
+  }
+
+  /**
+   * Purges the hosted tenant through the host registry after tenant disable and
+   * descendant purges have both completed.
+   */
+  public purgeTenant(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationPurgeTenant, ActorKinds.OrganizationController, 'purgeTenant');
+    return requireClientMethod(this.client, 'purgeTenant')(hostCtx, input, pollOptions);
   }
 
   /**

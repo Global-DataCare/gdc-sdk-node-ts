@@ -60,7 +60,7 @@ export class ActorSession {
 
   public asHostOnboarding(): HostOnboardingSdk {
     this.assertActorKind(ActorKinds.HostOnboarding);
-    return new HostOnboardingSdk(this.requireClient());
+    return new HostOnboardingSdk(this.requireClient(), this.capabilities);
   }
 
   public asOrganizationController(): OrganizationControllerSdk {

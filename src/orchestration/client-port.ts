@@ -24,7 +24,7 @@ export type {
   SubmitResponse,
 } from 'gdc-sdk-core-ts';
 import type { EmployeeDeviceActivationResult, EmployeeDeviceActivationRequestInput } from '../device-activation.js';
-import type { HostRouteContext, LegalOrganizationOrderInput } from '../host-onboarding.js';
+import type { HostRouteContext, HostedTenantLifecycleInput, LegalOrganizationOrderInput } from '../host-onboarding.js';
 import type { IndividualOrganizationConfirmOrderInput, RouteContext } from '../individual-onboarding.js';
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
 import type { OrganizationLicenseOrderConfirmInput } from '../organization-license-order.js';
@@ -73,6 +73,26 @@ export type RuntimeClient = {
   confirmLegalOrganizationOrder?: (
     hostCtx: HostRouteContext,
     input: LegalOrganizationOrderInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  disableHost?: (
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  purgeHost?: (
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  disableTenant?: (
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  purgeTenant?: (
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
     pollOptions?: PollOptions,
   ) => Promise<SubmitAndPollResult>;
   createOrganizationEmployee?: (

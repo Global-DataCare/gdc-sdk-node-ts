@@ -1,3 +1,33 @@
+/**
+ * Canonical live GW E2E suite.
+ *
+ * Important execution rule:
+ * - run this suite from the user's real terminal/TTY
+ * - never treat agent sandbox networking as authoritative for this suite
+ * - local agent sandboxes may fail with EPERM / ECONNREFUSED / DNS restrictions
+ *   even when the same command works correctly in the user's terminal
+ * - never validate the final result from a sandbox-only run
+ *
+ * Important isolation rule:
+ * - never rerun the final lifecycle against the same persisted host/tenant/individual
+ * - the final live validation must use a fresh host id, a fresh tenant id, and
+ *   a fresh individual subject for that execution
+ * - if a previous run leaves persisted state behind, discard that run and start
+ *   again with a new epoch/run id instead of retrying on top of old state
+ *
+ * If an AI agent is driving the run, the agent should:
+ * - keep GW CORE running in a long-lived TTY session
+ * - run this suite outside sandbox restrictions when localhost/GCP access is needed
+ * - treat direct user-terminal results as the source of truth for live validation
+ * - restart from a new run id instead of doing "reruns" over the same host
+ *
+ * Follow-up after publish:
+ * - keep this suite focused on proving the runtime end-to-end
+ * - build a separate `101` Node walkthrough that uses JobManager + virtual API
+ *   + actor facades + bundle editor/viewer + consent view model
+ * - that future `101` must explain each user conversation step explicitly and
+ *   should avoid inline route plumbing in the spec body
+ */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -15,6 +45,7 @@ import {
   EXAMPLE_API_ORGANIZATION_DID,
   EXAMPLE_EMAIL_PROFESSIONAL,
   EXAMPLE_EMAIL_RELATED_PERSON,
+  EXAMPLE_HOSTED_PROVIDER_DID,
   EXAMPLE_INDEX_PROVIDER_SECTOR_DID_WEB,
   EXAMPLE_IPS_BUNDLE_NOTE_TEXT,
   EXAMPLE_LICENSE_ISSUE_INPUT,
@@ -30,6 +61,7 @@ import {
   EXAMPLE_SECTOR,
   EXAMPLE_SUBJECT_DID,
   EXAMPLE_TENANT_IDENTIFIER,
+  EXAMPLE_TENANT_DISABLE_MESSAGE,
   EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE,
   buildExampleLiveMedicationCases,
   buildExampleMedicationIpsDocumentBundle,
@@ -39,6 +71,7 @@ import {
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
 import {
+  buildIndividualDidWeb,
   buildLicenseIssueEntry,
   readInvoiceBundleSummaryFromResponseBody,
 } from 'gdc-common-utils-ts';
@@ -84,10 +117,15 @@ function env(name, fallback = '') {
   return String(process.env[name] ?? fallback).trim();
 }
 
-const RUN = env('RUN_LIVE_GW_E2E', '0') === '1';
-const RUN_ACTOR_CHAIN = env('RUN_LIVE_GW_E2E_ACTOR_CHAIN', '1') === '1';
-const RUN_IPS_INGESTION = env('RUN_LIVE_GW_E2E_IPS_INGESTION', '0') === '1';
-const RUN_INDIVIDUAL_LIFECYCLE = env('RUN_LIVE_GW_E2E_INDIVIDUAL_LIFECYCLE', '0') === '1';
+function isEnabledByDefault(name, fallback = '1') {
+  const normalized = env(name, fallback).toLowerCase();
+  return normalized !== '0' && normalized !== 'false' && normalized !== 'no';
+}
+
+const RUN = isEnabledByDefault('RUN_LIVE_GW_E2E', '1');
+const RUN_ACTOR_CHAIN = isEnabledByDefault('RUN_LIVE_GW_E2E_ACTOR_CHAIN', '1');
+const RUN_IPS_INGESTION = isEnabledByDefault('RUN_LIVE_GW_E2E_IPS_INGESTION', '1');
+const RUN_INDIVIDUAL_LIFECYCLE = isEnabledByDefault('RUN_LIVE_GW_E2E_INDIVIDUAL_LIFECYCLE', '1');
 const ACTIVE_TRANSPORT_PROFILE = normalizeLiveGwTransportProfile(
   env('LIVE_GW_E2E_TRANSPORT', LiveGwTransportProfiles.DidcommPlain),
 );
@@ -101,15 +139,35 @@ const DEBUG = env('LIVE_GW_NODE_E2E_DEBUG', env('LIVE_GW_E2E_DEBUG', '0')) === '
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const runId = new Date().toISOString().replace(/[:.]/g, '-');
 const runSlug = runId.toLowerCase();
-const suiteTenantId = env('TENANT_ID', EXAMPLE_TENANT_IDENTIFIER);
+/**
+ * Canonical isolation seed for one live execution.
+ *
+ * The suite intentionally derives fresh tenant and individual identifiers from
+ * the current run timestamp so the final validation does not reuse persisted
+ * Firestore/GCS state from an earlier execution.
+ *
+ * The host id must follow the same rule on the GW process side. Do not rerun
+ * the final lifecycle on top of an old host registry; restart GW CORE with a
+ * fresh host id for each final live validation.
+ */
+const defaultSuiteTenantId = `livee2e-${runSlug}`;
+const defaultSuiteSubjectId = `z${runSlug.replace(/[^a-z0-9]/g, '')}`;
+const suiteTenantId = env('TENANT_ID', defaultSuiteTenantId || EXAMPLE_TENANT_IDENTIFIER);
 const suiteTenantRouteId = env('TENANT_ROUTE_ID', suiteTenantId);
 const suiteJurisdiction = env('JURISDICTION', EXAMPLE_JURISDICTION);
 const suiteSector = env('SECTOR', EXAMPLE_SECTOR);
-const suiteSubjectDid = env('SUBJECT_DID', EXAMPLE_SUBJECT_DID);
+const suiteSubjectDid = env('SUBJECT_DID', buildIndividualDidWeb({
+  providerDidWeb: EXAMPLE_HOSTED_PROVIDER_DID,
+  individualId: defaultSuiteSubjectId || EXAMPLE_SUBJECT_DID,
+}));
+const suiteHostIdentifierValue = env('HOST_ID_VALUE', `host-${runSlug}`);
+const suiteHostCoverageScope = env('HOST_COVERAGE_SCOPE', env('HOST_JURISDICTION', 'EU'));
 const suiteConsentSection = env(
   'SMART_SCOPE_SECTION',
   String(EXAMPLE_LIVE_CONSENT_GRANT_INPUT.actions?.[0] || HealthcareBasicSections.PatientSummaryDocument.attributeValue),
 );
+const LOCAL_LIVE_POLL_INTERVAL_MS = Math.max(1, Number(env('LIVE_GW_POLL_INTERVAL_MS', '200')));
+const LOCAL_LIVE_POLL_TIMEOUT_MS = Math.max(1000, Number(env('LIVE_GW_POLL_TIMEOUT_MS', '60000')));
 
 assert.ok(
   isDirectExecutionMode(ACTIVE_EXECUTION_MODE),
@@ -130,6 +188,61 @@ function createDebugLogger() {
   });
 }
 
+/**
+ * Local live polling must stay tight and deterministic.
+ *
+ * In the canonical local flow there is no blockchain confirmation loop, so
+ * waiting more than one second between polls only slows down developer and
+ * integrator feedback. Blockchain-backed environments can override these
+ * values explicitly through env vars later.
+ */
+function createLivePollOptions(overrides = {}) {
+  return {
+    timeoutMs: Math.max(1000, Number(overrides.timeoutMs ?? LOCAL_LIVE_POLL_TIMEOUT_MS)),
+    intervalMs: Math.max(1, Number(overrides.intervalMs ?? LOCAL_LIVE_POLL_INTERVAL_MS)),
+  };
+}
+
+function createStepProfiler(debug, scope) {
+  const steps = [];
+
+  return {
+    async run(label, work) {
+      const startedAt = Date.now();
+      try {
+        const result = await work();
+        const durationMs = Date.now() - startedAt;
+        const entry = { label, durationMs, status: 'ok' };
+        steps.push(entry);
+        debug.record(`${scope}-step-timing`, entry);
+        return result;
+      } catch (error) {
+        const durationMs = Date.now() - startedAt;
+        const entry = {
+          label,
+          durationMs,
+          status: 'error',
+          error: error instanceof Error ? error.message : String(error),
+        };
+        steps.push(entry);
+        debug.record(`${scope}-step-timing`, entry);
+        throw error;
+      }
+    },
+    flush() {
+      const ranked = [...steps].sort((a, b) => b.durationMs - a.durationMs);
+      const totalDurationMs = steps.reduce((sum, step) => sum + step.durationMs, 0);
+      const summary = {
+        totalDurationMs,
+        steps,
+        slowestSteps: ranked.slice(0, 5),
+      };
+      debug.record(`${scope}-step-timing-summary`, summary);
+      return summary;
+    },
+  };
+}
+
 function getBatchEntries(pollBody, label) {
   const entries = pollBody?.body?.data || pollBody?.data || [];
   assert.ok(Array.isArray(entries), `${label} must return a batch-style data array.`);
@@ -145,6 +258,39 @@ function getSearchRows(pollBody, label) {
   return rows;
 }
 
+function getAcceptedOfferIdentifierFromResponseBody(body) {
+  const first = getBatchEntries(body, 'Invoice/order response')[0] || {};
+  const claims = first?.meta?.claims || {};
+  return String(
+    claims['org.schema.Order.acceptedOffer.identifier']
+    || claims['Order.acceptedOffer.identifier']
+    || '',
+  ).trim();
+}
+
+function getInvoiceProjectionIdsFromResponseBody(body) {
+  const first = getBatchEntries(body, 'Invoice/order response')[0] || {};
+  const bundle = first?.resource;
+  const entries = Array.isArray(bundle?.entry) ? bundle.entry : [];
+  let pdfDocumentId;
+  let structuredDocumentId;
+  for (const entry of entries) {
+    const resource = entry?.resource;
+    if (resource?.resourceType !== 'DocumentReference') continue;
+    const content = Array.isArray(resource?.content) ? resource.content : [];
+    const attachment = content[0]?.attachment || {};
+    const contentType = String(attachment?.contentType || '').trim();
+    if (contentType === 'application/pdf') {
+      pdfDocumentId = String(resource?.id || '').trim() || pdfDocumentId;
+      continue;
+    }
+    if (!structuredDocumentId) {
+      structuredDocumentId = String(resource?.id || '').trim() || structuredDocumentId;
+    }
+  }
+  return { pdfDocumentId, structuredDocumentId };
+}
+
 function runtimeUuid() {
   const fromCrypto = globalThis.crypto?.randomUUID?.();
   if (fromCrypto) return fromCrypto;
@@ -153,6 +299,75 @@ function runtimeUuid() {
 
 function buildRoutePath(ctx, section, format, resourceType, action) {
   return `/${encodeURIComponent(ctx.tenantId)}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/${encodeURIComponent(section)}/${encodeURIComponent(format)}/${encodeURIComponent(resourceType)}/${encodeURIComponent(action)}`;
+}
+
+function buildTenantDspaceVersionPath(ctx) {
+  return `/${encodeURIComponent(ctx.tenantId)}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/.well-known/dspace-version`;
+}
+
+function buildTenantCatalogArtifactPath(ctx) {
+  return `/${encodeURIComponent(ctx.tenantId)}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/dsp/catalog/dcat.json`;
+}
+
+function buildHostDspaceVersionPath(hostCoverageScope, hostNetwork) {
+  return `/host/cds-${encodeURIComponent(hostCoverageScope)}/v1/${encodeURIComponent(hostNetwork)}/.well-known/dspace-version`;
+}
+
+function buildHostCatalogArtifactPath(hostCoverageScope, hostNetwork) {
+  return `/host/cds-${encodeURIComponent(hostCoverageScope)}/v1/${encodeURIComponent(hostNetwork)}/dsp/catalog/dcat.json`;
+}
+
+async function fetchJsonOrText(baseUrl, relativePath, bearerToken) {
+  const response = await fetch(`${baseUrl}${relativePath}`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json, text/plain, */*',
+      ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
+    },
+  });
+  const raw = await response.text();
+  let json;
+  try {
+    json = raw ? JSON.parse(raw) : undefined;
+  } catch {
+    json = undefined;
+  }
+  return {
+    status: response.status,
+    body: json,
+    text: raw,
+  };
+}
+
+async function postJsonOrText(baseUrl, relativePath, body, bearerToken) {
+  const response = await fetch(`${baseUrl}${relativePath}`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json, text/plain, */*',
+      'Content-Type': 'application/json',
+      ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const raw = await response.text();
+  let json;
+  try {
+    json = raw ? JSON.parse(raw) : undefined;
+  } catch {
+    json = undefined;
+  }
+  return {
+    status: response.status,
+    body: json,
+    text: raw,
+  };
+}
+
+function getCatalogDatasetPublisherIds(catalogBody) {
+  const datasets = Array.isArray(catalogBody?.['dcat:dataset']) ? catalogBody['dcat:dataset'] : [];
+  return datasets
+    .map((dataset) => String(dataset?.['dcterms:publisher']?.['@id'] || '').trim())
+    .filter(Boolean);
 }
 
 async function submitAndPollDirect({ baseUrl, path: submitPath, payload, bearerToken, pollOptions }) {
@@ -176,8 +391,8 @@ async function submitAndPollDirect({ baseUrl, path: submitPath, payload, bearerT
   assert.ok(location, `Expected Location header for ${submitPath}.`);
 
   const pollUrl = new URL(location, baseUrl);
-  const timeoutMs = Math.max(1, Number(pollOptions?.timeoutMs || 120000));
-  const intervalMs = Math.max(1, Number(pollOptions?.intervalMs || 1500));
+  const timeoutMs = Math.max(1, Number(pollOptions?.timeoutMs || LOCAL_LIVE_POLL_TIMEOUT_MS));
+  const intervalMs = Math.max(1, Number(pollOptions?.intervalMs || LOCAL_LIVE_POLL_INTERVAL_MS));
   const startedAt = Date.now();
   let attempts = 0;
 
@@ -284,7 +499,7 @@ test('LIVE professional lifecycle on GW', {
   const vpToken = vpTokenEnv || buildUnsignedVpJwt(vpPayload);
   const hostCtx = { jurisdiction, sector: hostSector };
   const ctx = { tenantId: tenantRouteId, jurisdiction, sector };
-  const pollOptions = { timeoutMs: 120000, intervalMs: 1500 };
+  const pollOptions = createLivePollOptions();
 
   const pingPath = `/host/cds-${jurisdiction}/v1/${hostSector}/.well-known/ping`;
   const ping = await fetch(`${baseUrl}${pingPath}`);
@@ -294,7 +509,15 @@ test('LIVE professional lifecycle on GW', {
   const runtimeClient = createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutMs: 10_000 });
 
   const hostSession = new NodeActorSession(
-    { actorKind: ActorKinds.HostOnboarding, capabilities: [ActorCapabilities.HostActivateOrganization, ActorCapabilities.HostConfirmOrder] },
+    {
+      actorKind: ActorKinds.HostOnboarding,
+      capabilities: [
+        ActorCapabilities.HostingActivateOrganization,
+        ActorCapabilities.HostingConfirmOrder,
+        ActorCapabilities.HostingDisableHost,
+        ActorCapabilities.HostingPurgeHost,
+      ],
+    },
     runtimeClient,
   );
   const orgControllerSession = new NodeActorSession(
@@ -560,6 +783,7 @@ test('LIVE professional lifecycle on GW', {
   if (RUN_INDIVIDUAL_LIFECYCLE) {
     const individualLifecycleClaims = {
       ...cloneExample(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims),
+      [ClaimsOrganizationSchemaorg.identifier]: patientSubjectDid,
       [ClaimsOrganizationSchemaorg.alternateName]: individualAltName,
       [ClaimsOrganizationSchemaorg.ownerEmail]: individualControllerEmail,
     };
@@ -586,9 +810,7 @@ test('LIVE professional lifecycle on GW', {
   }
 });
 
-test('LIVE individual lifecycle on GW', {
-  skip: !(RUN && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Individual)),
-}, async () => {
+async function runLiveIndividualLifecycleSuite() {
   const debug = createDebugLogger();
   const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
   const vpTokenEnv = env('VP_TOKEN');
@@ -608,13 +830,24 @@ test('LIVE individual lifecycle on GW', {
   const memberRole = env('INDIVIDUAL_MEMBER_ROLE', EXAMPLE_RELATED_PERSON_ROLE);
   const ctx = { tenantId: tenantRouteId, jurisdiction, sector };
   const hostCtx = { jurisdiction, sector: hostSector };
-  const pollOptions = { timeoutMs: 120000, intervalMs: 1500 };
+  const pollOptions = createLivePollOptions();
 
   const vpPayload = loadVpPayloadFixture(vpTokenFile);
   const vpToken = vpTokenEnv || buildUnsignedVpJwt(vpPayload);
   const runtimeClient = createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutMs: 10_000 });
+  const hostDiscoveryVersionPath = buildHostDspaceVersionPath(suiteHostCoverageScope, hostSector);
+  const hostCatalogArtifactPath = buildHostCatalogArtifactPath(suiteHostCoverageScope, hostSector);
+  const profiler = createStepProfiler(debug, 'individual-suite');
   const hostSession = new NodeActorSession(
-    { actorKind: ActorKinds.HostOnboarding, capabilities: [ActorCapabilities.HostActivateOrganization, ActorCapabilities.HostConfirmOrder] },
+    {
+      actorKind: ActorKinds.HostOnboarding,
+      capabilities: [
+        ActorCapabilities.HostingActivateOrganization,
+        ActorCapabilities.HostingConfirmOrder,
+        ActorCapabilities.HostingDisableHost,
+        ActorCapabilities.HostingPurgeHost,
+      ],
+    },
     runtimeClient,
   );
   const individualControllerSession = new NodeActorSession(
@@ -633,8 +866,18 @@ test('LIVE individual lifecycle on GW', {
     },
     runtimeClient,
   );
+  const orgControllerSession = new NodeActorSession(
+    {
+      actorKind: ActorKinds.OrganizationController,
+      capabilities: [
+        ActorCapabilities.OrganizationDisableTenant,
+        ActorCapabilities.OrganizationPurgeTenant,
+      ],
+    },
+    runtimeClient,
+  );
 
-  const activation = await hostSession.asHostOnboarding().activateOrganizationInGatewayFromIcaProof(
+  const activation = await profiler.run('activate-organization', () => hostSession.asHostOnboarding().activateOrganizationInGatewayFromIcaProof(
     hostCtx,
     {
       vpToken,
@@ -655,9 +898,27 @@ test('LIVE individual lifecycle on GW', {
       },
     },
     pollOptions,
-  );
+  ));
   debug.record('individual-suite-legal-activation', { response: activation });
   assert.equal(activation.poll.status, 200, 'Host onboarding must complete before the individual lifecycle suite.');
+  const activatedTenantDid = String(
+    activation.poll.body?.data?.[0]?.meta?.claims?.['org.schema.Organization.did']
+    || '',
+  ).trim();
+
+  const hostDspaceBeforeDisable = await profiler.run('host-dspace-before-disable', () => fetchJsonOrText(baseUrl, hostDiscoveryVersionPath, bearerToken));
+  debug.record('individual-suite-host-dspace-before-disable', hostDspaceBeforeDisable);
+  assert.equal(hostDspaceBeforeDisable.status, 200, 'Host dspace-version must be published while the host remains active.');
+
+  const hostCatalogBeforeDisable = await profiler.run('host-catalog-before-disable', () => fetchJsonOrText(baseUrl, hostCatalogArtifactPath, bearerToken));
+  debug.record('individual-suite-host-catalog-before-disable', hostCatalogBeforeDisable);
+  assert.equal(hostCatalogBeforeDisable.status, 200, 'Host DCAT catalog must be published while the host remains active.');
+  if (activatedTenantDid) {
+    assert.ok(
+      getCatalogDatasetPublisherIds(hostCatalogBeforeDisable.body).includes(activatedTenantDid),
+      'Host DCAT catalog must list the activated tenant while the tenant remains operational.',
+    );
+  }
 
   const individualAltName = env(
     'INDIVIDUAL_ALTERNATE_NAME',
@@ -665,7 +926,7 @@ test('LIVE individual lifecycle on GW', {
   );
   const individualControllerEmail = env('INDIVIDUAL_CONTROLLER_EMAIL', 'controller@example.com');
   const subjectDid = suiteSubjectDid;
-  const individualStart = await individualControllerSession.asIndividualController().startIndividualOrganization({
+  const individualStart = await profiler.run('individual-start', () => individualControllerSession.asIndividualController().startIndividualOrganization({
     tenantId: tenantRouteId,
     jurisdiction,
     sector,
@@ -679,26 +940,36 @@ test('LIVE individual lifecycle on GW', {
     },
     timeoutSeconds: Math.round(pollOptions.timeoutMs / 1000),
     intervalSeconds: pollOptions.intervalMs / 1000,
-  });
+  }));
   debug.record('individual-suite-start', { response: individualStart });
   assert.equal(individualStart.registration.poll.status, 200, 'Individual lifecycle suite must create the hosted individual tenant.');
 
-  const individualOrder = await individualControllerSession.asIndividualController().confirmIndividualOrganizationOrder({
+  const individualOrder = await profiler.run('individual-order', () => individualControllerSession.asIndividualController().confirmIndividualOrganizationOrder({
     tenantId: tenantRouteId,
     jurisdiction,
     sector,
     offerId: individualStart.offerId,
     timeoutSeconds: Math.round(pollOptions.timeoutMs / 1000),
     intervalSeconds: pollOptions.intervalMs / 1000,
-  });
+  }));
   debug.record('individual-suite-order', { response: individualOrder });
   assert.equal(individualOrder.poll.status, 200, 'Individual lifecycle suite must confirm the hosted individual order.');
   {
     const invoiceSummary = readInvoiceBundleSummaryFromResponseBody(individualOrder.poll.body);
-    assert.equal(invoiceSummary.invoiceId, individualStart.offerId, 'Individual lifecycle suite must expose the invoice bundle returned by GW CORE.');
-    assert.ok(invoiceSummary.pdfDocumentId, 'Individual lifecycle suite must return a PDF invoice projection.');
-    assert.ok(invoiceSummary.structuredDocumentId, 'Individual lifecycle suite must return a structured invoice projection.');
+    const resolvedInvoiceId = invoiceSummary.invoiceId || getAcceptedOfferIdentifierFromResponseBody(individualOrder.poll.body);
+    const projectionIds = getInvoiceProjectionIdsFromResponseBody(individualOrder.poll.body);
+    assert.equal(resolvedInvoiceId, individualStart.offerId, 'Individual lifecycle suite must expose the invoice bundle returned by GW CORE.');
+    assert.ok(invoiceSummary.pdfDocumentId || projectionIds.pdfDocumentId, 'Individual lifecycle suite must return a PDF invoice projection.');
+    assert.ok(invoiceSummary.structuredDocumentId || projectionIds.structuredDocumentId, 'Individual lifecycle suite must return a structured invoice projection.');
   }
+
+  const tenantDspaceBeforeDisable = await profiler.run('tenant-dspace-before-disable', () => fetchJsonOrText(baseUrl, buildTenantDspaceVersionPath(ctx), bearerToken));
+  debug.record('individual-suite-tenant-dspace-before-disable', tenantDspaceBeforeDisable);
+  assert.equal(tenantDspaceBeforeDisable.status, 200, 'Tenant dspace-version must be published while the tenant remains active.');
+
+  const tenantCatalogBeforeDisable = await profiler.run('tenant-catalog-before-disable', () => fetchJsonOrText(baseUrl, buildTenantCatalogArtifactPath(ctx), bearerToken));
+  debug.record('individual-suite-tenant-catalog-before-disable', tenantCatalogBeforeDisable);
+  assert.equal(tenantCatalogBeforeDisable.status, 200, 'Tenant DCAT catalog must be published while the tenant remains active.');
 
   const medicationCases = buildExampleLiveMedicationCases(Date.now());
   let indexedBeforeIngestion = null;
@@ -727,14 +998,14 @@ test('LIVE individual lifecycle on GW', {
       sent: medication.effectiveDateTime,
       ipsBundleBase64: Buffer.from(JSON.stringify(medicationIpsBundle), 'utf8').toString('base64'),
     });
-    const ingestion = await individualControllerSession.asIndividualController().ingestCommunicationAndUpdateIndex(
+    const ingestion = await profiler.run(`medication-ingest-${medication.identifier}`, () => individualControllerSession.asIndividualController().ingestCommunicationAndUpdateIndex(
       ctx,
       {
         communicationPayload: ingestionPayload,
         pathFormatSegment: 'api',
         pollOptions,
       },
-    );
+    ));
     debug.record('individual-suite-ingest', {
       medicationIdentifier: medication.identifier,
       response: ingestion,
@@ -748,14 +1019,14 @@ test('LIVE individual lifecycle on GW', {
     thid: `individual-suite-ips-search-${runtimeUuid()}`,
     sent: new Date().toISOString(),
   });
-  const ipsSearch = await individualControllerSession.asIndividualController().ingestCommunicationAndUpdateIndex(
+  const ipsSearch = await profiler.run('ips-search', () => individualControllerSession.asIndividualController().ingestCommunicationAndUpdateIndex(
     ctx,
     {
       communicationPayload: ipsSearchCommunicationPayload,
       pathFormatSegment: 'org.hl7.fhir.r4',
       pollOptions,
     },
-  );
+  ));
   debug.record('individual-suite-ips-search', { response: ipsSearch });
   assert.equal(ipsSearch.poll.status, 200, 'Individual lifecycle suite must return the latest IPS document view.');
   const ipsIndexedBundle = getBatchEntries(
@@ -779,17 +1050,17 @@ test('LIVE individual lifecycle on GW', {
     name: [{ text: `${runSlug}-Doraemon` }],
     telecom: [{ value: `mailto:${memberEmail}` }],
   };
-  const relatedPersonUpsert = await individualControllerSession.asIndividualController().upsertRelatedPersonAndPoll(
+  const relatedPersonUpsert = await profiler.run('related-person-upsert', () => individualControllerSession.asIndividualController().upsertRelatedPersonAndPoll(
     ctx,
     {
       relatedPersonPayload,
       pollOptions,
     },
-  );
+  ));
   debug.record('individual-suite-relatedperson-upsert', { response: relatedPersonUpsert });
   assert.equal(relatedPersonUpsert.poll.status, 200, 'Individual lifecycle suite must upsert one family related person.');
 
-  const memberIssue = await submitAndPollDirect({
+  const memberIssue = await profiler.run('member-license-issue', () => submitAndPollDirect({
     baseUrl,
     path: buildRoutePath(ctx, 'identity', 'openid', 'License', '_issue'),
     bearerToken,
@@ -801,111 +1072,274 @@ test('LIVE individual lifecycle on GW', {
       userClass: DeviceUserClasses.Individual,
       deviceType: DeviceAppTypes.Mobile,
     }),
-  });
+  }));
   debug.record('individual-suite-member-license-issue', { response: memberIssue });
   assert.equal(memberIssue.poll.status, 200, 'Individual lifecycle suite must issue one member activation code from the individual seat pool.');
 
-  const memberConsent = await individualControllerSession.asIndividualController().grantProfessionalAccess(ctx, {
+  const memberConsent = await profiler.run('member-consent-grant', () => individualControllerSession.asIndividualController().grantProfessionalAccess(ctx, {
     ...cloneExample(EXAMPLE_LIVE_CONSENT_GRANT_INPUT),
     subjectDid,
     actor: { email: memberEmail },
     actorRole: memberRole,
     purpose: env('CONSENT_PURPOSE', 'TREAT'),
     pollOptions,
-  });
+  }));
   debug.record('individual-suite-member-consent', { response: memberConsent });
   assert.equal(memberConsent.consent.poll.status, 200, 'Individual lifecycle suite must create a consent for the invited member.');
 
-  const doctorConsent = await individualControllerSession.asIndividualController().grantProfessionalAccess(ctx, {
+  const doctorConsent = await profiler.run('doctor-consent-grant', () => individualControllerSession.asIndividualController().grantProfessionalAccess(ctx, {
     ...cloneExample(EXAMPLE_LIVE_CONSENT_GRANT_INPUT),
     subjectDid,
     actor: [doctorDid, doctorEmail],
     actorRole: env('PROFESSIONAL_ROLE', 'ISCO-08|2211'),
     purpose: env('CONSENT_PURPOSE', 'TREAT'),
     pollOptions,
-  });
+  }));
   debug.record('individual-suite-doctor-consent', { response: doctorConsent });
   assert.equal(doctorConsent.consent.poll.status, 200, 'Individual lifecycle suite must create a consent for the professional actor.');
 
   const revokedAt = env('REVOKED_CONSENT_PERIOD_END', '2026-06-01T00:00:00Z');
-  const revokedMemberConsent = await individualControllerSession.asIndividualController().submitAndPoll(
+  const revokedMemberConsent = await profiler.run('member-consent-revoke', () => individualControllerSession.asIndividualController().submitAndPoll(
     runtimeClient.individualConsentR4BatchPath(ctx),
     runtimeClient.individualConsentR4PollPath(ctx),
     buildConsentLifecyclePayload({
       consentClaims: buildRevokedConsentClaims(memberConsent.consentClaims, revokedAt),
     }),
     pollOptions,
-  );
+  ));
   debug.record('individual-suite-member-consent-revoke', { response: revokedMemberConsent });
   assert.equal(revokedMemberConsent.poll.status, 200, 'Individual lifecycle suite must revoke the member consent by closing its period.');
 
-  const revokedDoctorConsent = await individualControllerSession.asIndividualController().submitAndPoll(
+  const revokedDoctorConsent = await profiler.run('doctor-consent-revoke', () => individualControllerSession.asIndividualController().submitAndPoll(
     runtimeClient.individualConsentR4BatchPath(ctx),
     runtimeClient.individualConsentR4PollPath(ctx),
     buildConsentLifecyclePayload({
       consentClaims: buildRevokedConsentClaims(doctorConsent.consentClaims, revokedAt),
     }),
     pollOptions,
-  );
+  ));
   debug.record('individual-suite-doctor-consent-revoke', { response: revokedDoctorConsent });
   assert.equal(revokedDoctorConsent.poll.status, 200, 'Individual lifecycle suite must revoke the doctor consent by closing its period.');
 
   const relatedPersonLifecycleClaims = {
     ...cloneExample(EXAMPLE_RELATED_PERSON_DISABLE_INPUT.memberClaims),
     [ClaimsPersonSchemaorg.email]: undefined,
-    'RelatedPerson.identifier': relatedPersonIdentifier,
+    'RelatedPerson.identifier.value': relatedPersonIdentifier,
     'RelatedPerson.patient': subjectDid,
     'RelatedPerson.telecom': `mailto:${memberEmail}`,
   };
-  const disableMember = await individualControllerSession.asIndividualController().disableIndividualMember(
+  const disableMember = await profiler.run('member-disable', () => individualControllerSession.asIndividualController().disableIndividualMember(
     ctx,
     {
       memberClaims: relatedPersonLifecycleClaims,
       resourceId: relatedPersonResourceId,
     },
     pollOptions,
-  );
+  ));
   debug.record('individual-suite-member-disable', { response: disableMember });
   assert.equal(disableMember.poll.status, 200, 'Individual lifecycle suite must disable the related-person/member relationship.');
 
-  const purgeMember = await individualControllerSession.asIndividualController().purgeIndividualMember(
+  const purgeMember = await profiler.run('member-purge', () => individualControllerSession.asIndividualController().purgeIndividualMember(
     ctx,
     {
       memberClaims: relatedPersonLifecycleClaims,
       resourceId: relatedPersonResourceId,
     },
     pollOptions,
-  );
+  ));
   debug.record('individual-suite-member-purge', { response: purgeMember });
   assert.equal(purgeMember.poll.status, 200, 'Individual lifecycle suite must purge the related-person/member relationship after disable.');
 
+  const tenantLifecycleClaims = {
+    ...cloneExample(EXAMPLE_TENANT_DISABLE_MESSAGE.claims),
+    [ClaimsOrganizationSchemaorg.identifierValue]: tenantId,
+    [ClaimsOrganizationSchemaorg.taxId]: tenantId,
+  };
+  const disableTenantWhileIndividualActive = await profiler.run('tenant-disable-while-individual-active', () => orgControllerSession.asOrganizationController().disableTenant(
+    hostCtx,
+    {
+      organizationClaims: tenantLifecycleClaims,
+    },
+    pollOptions,
+  ));
+  debug.record('individual-suite-tenant-disable-while-individual-active', { response: disableTenantWhileIndividualActive });
+  {
+    const disableEntries = getBatchEntries(disableTenantWhileIndividualActive.poll.body, 'Tenant disable while individual active');
+    assert.equal(String(disableEntries[0]?.response?.status || ''), '409', 'Tenant disable must be rejected while active individuals remain.');
+  }
+
+  const purgeTenantWhileIndividualExists = await profiler.run('tenant-purge-while-individual-exists', () => orgControllerSession.asOrganizationController().purgeTenant(
+    hostCtx,
+    {
+      organizationClaims: tenantLifecycleClaims,
+    },
+    pollOptions,
+  ));
+  debug.record('individual-suite-tenant-purge-while-individual-exists', { response: purgeTenantWhileIndividualExists });
+  {
+    const purgeEntries = getBatchEntries(purgeTenantWhileIndividualExists.poll.body, 'Tenant purge while individual exists');
+    assert.equal(String(purgeEntries[0]?.response?.status || ''), '409', 'Tenant purge must be rejected while individual descendants still exist.');
+  }
+
+  const hostLifecycleClaims = {
+    '@context': 'org.schema',
+    [ClaimsOrganizationSchemaorg.identifierValue]: suiteHostIdentifierValue,
+  };
+  const disableHostWhileTenantRegistered = await profiler.run('host-disable-while-tenant-registered', () => hostSession.asHostOnboarding().disableHost(
+    hostCtx,
+    {
+      organizationClaims: hostLifecycleClaims,
+    },
+    pollOptions,
+  ));
+  debug.record('individual-suite-host-disable-while-tenant-registered', { response: disableHostWhileTenantRegistered });
+  {
+    const disableEntries = getBatchEntries(disableHostWhileTenantRegistered.poll.body, 'Host disable while tenant registered');
+    assert.equal(String(disableEntries[0]?.response?.status || ''), '409', 'Host disable must be rejected while hosted tenant registrations remain.');
+  }
+
+  const purgeHostWhileTenantRegistered = await profiler.run('host-purge-while-tenant-registered', () => hostSession.asHostOnboarding().purgeHost(
+    hostCtx,
+    {
+      organizationClaims: hostLifecycleClaims,
+    },
+    pollOptions,
+  ));
+  debug.record('individual-suite-host-purge-while-tenant-registered', { response: purgeHostWhileTenantRegistered });
+  {
+    const purgeEntries = getBatchEntries(purgeHostWhileTenantRegistered.poll.body, 'Host purge while tenant registered');
+    assert.equal(String(purgeEntries[0]?.response?.status || ''), '409', 'Host purge must be rejected while hosted tenant registrations remain.');
+  }
+
   const individualLifecycleClaims = {
     ...cloneExample(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims),
+    [ClaimsOrganizationSchemaorg.identifier]: subjectDid,
     [ClaimsOrganizationSchemaorg.alternateName]: individualAltName,
     [ClaimsOrganizationSchemaorg.ownerEmail]: individualControllerEmail,
   };
-  const disableIndividual = await individualControllerSession.asIndividualController().disableIndividualOrganization(
+  const disableIndividual = await profiler.run('individual-disable', () => individualControllerSession.asIndividualController().disableIndividualOrganization(
     ctx,
     {
       organizationClaims: individualLifecycleClaims,
     },
     pollOptions,
-  );
+  ));
   debug.record('individual-suite-disable', { response: disableIndividual });
   assert.equal(disableIndividual.poll.status, 200, 'Individual lifecycle suite must disable the hosted individual organization for cleanup.');
 
-  const purgeIndividual = await individualControllerSession.asIndividualController().purgeIndividualOrganization(
+  const purgeIndividual = await profiler.run('individual-purge', () => individualControllerSession.asIndividualController().purgeIndividualOrganization(
     ctx,
     {
       organizationClaims: individualLifecycleClaims,
     },
     pollOptions,
-  );
+  ));
   debug.record('individual-suite-purge', { response: purgeIndividual });
   assert.equal(purgeIndividual.poll.status, 200, 'Individual lifecycle suite must purge the hosted individual organization for cleanup.');
-});
 
-test('LIVE didcomm-plain communication ingestion through individual controller facade persists DocumentReference baseline', {
+  const disableTenant = await profiler.run('tenant-disable', () => orgControllerSession.asOrganizationController().disableTenant(
+    hostCtx,
+    {
+      organizationClaims: tenantLifecycleClaims,
+    },
+    pollOptions,
+  ));
+  debug.record('individual-suite-tenant-disable', { response: disableTenant });
+  assert.equal(disableTenant.poll.status, 200, 'Individual lifecycle suite must disable the hosted tenant after descendant cleanup.');
+
+  await assert.rejects(
+    individualControllerSession.asIndividualController().startIndividualOrganization({
+      tenantId: tenantRouteId,
+      jurisdiction,
+      sector,
+      alternateName: `${individualAltName}-after-disable`,
+      controllerEmail: `after-disable+${runSlug}@example.com`,
+      controllerRole: env('INDIVIDUAL_CONTROLLER_ROLE', 'RESPRSN'),
+      additionalClaims: {
+        'org.schema.Person.email': `after-disable+${runSlug}@example.com`,
+        'org.schema.Person.hasOccupation.identifier.value': env('INDIVIDUAL_CONTROLLER_ROLE', 'RESPRSN'),
+        'org.schema.Service.category': sector,
+      },
+      timeoutSeconds: Math.round(pollOptions.timeoutMs / 1000),
+      intervalSeconds: pollOptions.intervalMs / 1000,
+    }),
+    /offerId|404|403|409/i,
+    'Tenant disabled must not allow creating a new hosted individual.',
+  );
+
+  const tenantDspaceAfterDisable = await profiler.run('tenant-dspace-after-disable', () => fetchJsonOrText(baseUrl, buildTenantDspaceVersionPath(ctx), bearerToken));
+  debug.record('individual-suite-tenant-dspace-after-disable', tenantDspaceAfterDisable);
+  assert.equal(tenantDspaceAfterDisable.status, 404, 'Tenant dspace-version must disappear once the tenant is disabled.');
+
+  const tenantCatalogAfterDisable = await profiler.run('tenant-catalog-after-disable', () => fetchJsonOrText(baseUrl, buildTenantCatalogArtifactPath(ctx), bearerToken));
+  debug.record('individual-suite-tenant-catalog-after-disable', tenantCatalogAfterDisable);
+  assert.equal(tenantCatalogAfterDisable.status, 404, 'Tenant DCAT catalog must disappear once the tenant is disabled.');
+
+  const hostCatalogAfterTenantDisable = await profiler.run('host-catalog-after-tenant-disable', () => fetchJsonOrText(baseUrl, hostCatalogArtifactPath, bearerToken));
+  debug.record('individual-suite-host-catalog-after-tenant-disable', hostCatalogAfterTenantDisable);
+  assert.equal(hostCatalogAfterTenantDisable.status, 200, 'Host DCAT catalog must remain available while the host itself is still active.');
+  if (activatedTenantDid) {
+    assert.ok(
+      !getCatalogDatasetPublisherIds(hostCatalogAfterTenantDisable.body).includes(activatedTenantDid),
+      'Host DCAT catalog must stop listing the tenant once the tenant is disabled.',
+    );
+  }
+
+  const purgeTenant = await profiler.run('tenant-purge', () => orgControllerSession.asOrganizationController().purgeTenant(
+    hostCtx,
+    {
+      organizationClaims: tenantLifecycleClaims,
+    },
+    pollOptions,
+  ));
+  debug.record('individual-suite-tenant-purge', { response: purgeTenant });
+  assert.equal(purgeTenant.poll.status, 200, 'Individual lifecycle suite must purge the hosted tenant at the end of the lifecycle.');
+
+  const disableHost = await profiler.run('host-disable', () => hostSession.asHostOnboarding().disableHost(
+    hostCtx,
+    {
+      organizationClaims: hostLifecycleClaims,
+    },
+    pollOptions,
+  ));
+  debug.record('individual-suite-host-disable', { response: disableHost });
+  assert.equal(disableHost.poll.status, 200, 'Individual lifecycle suite must disable the host after all hosted tenants are purged.');
+
+  const hostDspaceAfterDisable = await profiler.run('host-dspace-after-disable', () => fetchJsonOrText(baseUrl, hostDiscoveryVersionPath, bearerToken));
+  debug.record('individual-suite-host-dspace-after-disable', hostDspaceAfterDisable);
+  assert.equal(hostDspaceAfterDisable.status, 503, 'Host dspace-version must disappear from operational discovery once the host is disabled.');
+
+  const hostCatalogAfterDisable = await profiler.run('host-catalog-after-disable', () => fetchJsonOrText(baseUrl, hostCatalogArtifactPath, bearerToken));
+  debug.record('individual-suite-host-catalog-after-disable', hostCatalogAfterDisable);
+  assert.equal(hostCatalogAfterDisable.status, 503, 'Host DCAT catalog must stop publishing once the host is disabled.');
+
+  const providerDiscoveryAfterHostDisable = await profiler.run('provider-discovery-after-host-disable', () => postJsonOrText(
+    baseUrl,
+    '/api/dataspace-discovery/providers',
+    {
+      sector,
+      providerCapability: env('HOST_PROVIDER_CAPABILITY', 'clinical/summary.index.read'),
+      jurisdiction,
+      coverageScope: suiteHostCoverageScope,
+    },
+    bearerToken,
+  ));
+  debug.record('individual-suite-host-provider-discovery-after-disable', providerDiscoveryAfterHostDisable);
+  assert.equal(providerDiscoveryAfterHostDisable.status, 503, 'Published provider discovery must become unavailable once the host is disabled.');
+
+  const purgeHost = await profiler.run('host-purge', () => hostSession.asHostOnboarding().purgeHost(
+    hostCtx,
+    {
+      organizationClaims: hostLifecycleClaims,
+    },
+    pollOptions,
+  ));
+  debug.record('individual-suite-host-purge', { response: purgeHost });
+  assert.equal(purgeHost.poll.status, 200, 'Individual lifecycle suite must purge the disabled host after discovery publication is stopped.');
+  profiler.flush();
+}
+
+test('LIVE didcomm-plain communication conversation indexes DocumentReference and MedicationStatement projections', {
   skip: !(RUN
     && RUN_IPS_INGESTION
     && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Clinical)
@@ -951,7 +1385,7 @@ test('LIVE didcomm-plain communication ingestion through individual controller f
     {
       communicationPayload: communicationIngestionPayload,
       pathFormatSegment: 'api',
-      pollOptions: { timeoutMs: 120000, intervalMs: 1500 },
+      pollOptions: createLivePollOptions(),
     },
   );
   if (ingest.poll.status === 404) {
@@ -960,7 +1394,7 @@ test('LIVE didcomm-plain communication ingestion through individual controller f
       {
         communicationPayload: communicationIngestionPayload,
         pathFormatSegment: 'org.hl7.fhir.r4',
-        pollOptions: { timeoutMs: 120000, intervalMs: 1500 },
+        pollOptions: createLivePollOptions(),
       },
     );
   }
@@ -979,7 +1413,7 @@ test('LIVE didcomm-plain communication ingestion through individual controller f
       ...buildExampleDocumentReferenceSearchPayload(subjectDid),
       thid: `search-documentreference-${Date.now()}`,
     },
-    { timeoutMs: 120000, intervalMs: 1500 },
+    createLivePollOptions(),
   );
   debug.record('documentreference-search', { response: search });
   assert.equal(search.poll.status, 200, 'DocumentReference search through facade submitAndPoll must return 200.');
@@ -992,33 +1426,8 @@ test('LIVE didcomm-plain communication ingestion through individual controller f
     });
     assert.ok(match, 'DocumentReference search after communication ingestion must include one row with matching subject and CID contenthash.');
   }
-});
-
-test('LIVE didcomm-plain communication ingestion indexes two medication statements from two bundles', {
-  skip: !(RUN
-    && RUN_IPS_INGESTION
-    && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Clinical)
-    && shouldRunLiveGwTransportProfile(ACTIVE_TRANSPORT_PROFILE, LiveGwTransportProfiles.DidcommPlain)),
-}, async () => {
-  const debug = createDebugLogger();
-  const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
-  const tenantId = suiteTenantRouteId;
-  const jurisdiction = suiteJurisdiction;
-  const sector = suiteSector;
-  const bearerToken = env('AUTH_BEARER');
-  const subjectDid = suiteSubjectDid;
-  const routeCtx = { tenantId, jurisdiction, sector };
   const professionalDid = env('PROFESSIONAL_DID', EXAMPLE_API_ORGANIZATION_DID);
-
-  const runtimeClient = createRuntimeClient({
-    baseUrl,
-    ctx: routeCtx,
-    bearerToken,
-  });
-  const individualControllerSession = new NodeActorSession(
-    { actorKind: ActorKinds.IndividualController, capabilities: [ActorCapabilities.IndividualIngestCommunication] },
-    runtimeClient,
-  );
+  const routeCtx = { tenantId, jurisdiction, sector };
 
   const cases = buildExampleLiveMedicationCases(Date.now());
 
@@ -1054,7 +1463,7 @@ test('LIVE didcomm-plain communication ingestion indexes two medication statemen
       {
         communicationPayload,
         pathFormatSegment: 'api',
-        pollOptions: { timeoutMs: 120000, intervalMs: 1500 },
+        pollOptions: createLivePollOptions(),
       },
     );
     if (ingest.poll.status === 404) {
@@ -1063,7 +1472,7 @@ test('LIVE didcomm-plain communication ingestion indexes two medication statemen
         {
           communicationPayload,
           pathFormatSegment: 'org.hl7.fhir.r4',
-          pollOptions: { timeoutMs: 120000, intervalMs: 1500 },
+          pollOptions: createLivePollOptions(),
         },
       );
     }
@@ -1090,7 +1499,7 @@ test('LIVE didcomm-plain communication ingestion indexes two medication statemen
     {
       communicationPayload: ipsSearchCommunicationPayload,
       pathFormatSegment: 'org.hl7.fhir.r4',
-      pollOptions: { timeoutMs: 120000, intervalMs: 1500 },
+      pollOptions: createLivePollOptions(),
     },
   );
   debug.record('ips-communication-search', {
@@ -1142,7 +1551,7 @@ test('LIVE didcomm-plain communication ingestion indexes two medication statemen
   }
 });
 
-test('LIVE legacy-fhir communication ingestion persists DocumentReference baseline', {
+test('LIVE legacy-fhir communication conversation indexes DocumentReference and MedicationStatement projections', {
   skip: !(RUN
     && RUN_IPS_INGESTION
     && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Clinical)
@@ -1197,7 +1606,7 @@ test('LIVE legacy-fhir communication ingestion persists DocumentReference baseli
     bearerToken,
     bundlePayload: batchBundle,
     thid: communicationPayload.thid,
-    pollOptions: { timeoutMs: 120000, intervalMs: 1500 },
+    pollOptions: createLivePollOptions(),
   });
   debug.record('legacy-fhir-communication-ingest', { transportProfile: LiveGwTransportProfiles.LegacyFhir, response: ingest });
   assert.equal(ingest.poll.status, 200, 'Legacy FHIR communication ingestion must complete.');
@@ -1214,7 +1623,7 @@ test('LIVE legacy-fhir communication ingestion persists DocumentReference baseli
       ...buildExampleDocumentReferenceSearchPayload(subjectDid),
       thid: `legacy-fhir-search-documentreference-${Date.now()}`,
     },
-    { timeoutMs: 120000, intervalMs: 1500 },
+    createLivePollOptions(),
   );
   debug.record('legacy-fhir-documentreference-search', { response: search });
   assert.equal(search.poll.status, 200, 'Legacy FHIR DocumentReference search must return 200.');
@@ -1227,36 +1636,7 @@ test('LIVE legacy-fhir communication ingestion persists DocumentReference baseli
     });
     assert.ok(match, 'Legacy FHIR DocumentReference search must include one row with matching subject and CID contenthash.');
   }
-});
-
-test('LIVE legacy-fhir communication ingestion indexes two medication statements from two bundles', {
-  skip: !(RUN
-    && RUN_IPS_INGESTION
-    && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Clinical)
-    && shouldRunLiveGwTransportProfile(ACTIVE_TRANSPORT_PROFILE, LiveGwTransportProfiles.LegacyFhir)),
-}, async () => {
-  const debug = createDebugLogger();
-  const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
-  const tenantId = suiteTenantRouteId;
-  const jurisdiction = suiteJurisdiction;
-  const sector = suiteSector;
-  const bearerToken = env('AUTH_BEARER');
-  const subjectDid = suiteSubjectDid;
-  const routeCtx = { tenantId, jurisdiction, sector };
   const professionalDid = env('PROFESSIONAL_DID', EXAMPLE_API_ORGANIZATION_DID);
-
-  const runtimeClient = createRuntimeClient({
-    baseUrl,
-    ctx: routeCtx,
-    bearerToken,
-  });
-  const individualControllerSession = new NodeActorSession(
-    { actorKind: ActorKinds.IndividualController, capabilities: [ActorCapabilities.IndividualIngestCommunication] },
-    runtimeClient,
-  );
-
-  const submitPath = buildLegacyFhirCommunicationBatchPath(routeCtx);
-  const pollPath = buildLegacyFhirCommunicationPollPath(routeCtx);
   const cases = buildExampleLiveMedicationCases(Date.now());
 
   for (const medication of cases) {
@@ -1297,7 +1677,7 @@ test('LIVE legacy-fhir communication ingestion indexes two medication statements
       bearerToken,
       bundlePayload: batchBundle,
       thid: communicationPayload.thid,
-      pollOptions: { timeoutMs: 120000, intervalMs: 1500 },
+      pollOptions: createLivePollOptions(),
     });
     debug.record('legacy-fhir-communication-ingest-medication', {
       medicationIdentifier: medication.identifier,
@@ -1322,7 +1702,7 @@ test('LIVE legacy-fhir communication ingestion indexes two medication statements
     {
       communicationPayload: ipsSearchCommunicationPayload,
       pathFormatSegment: 'org.hl7.fhir.r4',
-      pollOptions: { timeoutMs: 120000, intervalMs: 1500 },
+      pollOptions: createLivePollOptions(),
     },
   );
   debug.record('legacy-fhir-ips-communication-search', {
@@ -1368,4 +1748,10 @@ test('LIVE legacy-fhir communication ingestion indexes two medication statements
     );
     assert.ok(match, `Legacy FHIR IPS communication search must include consolidated MedicationStatement ${medication.identifier} in the medication section.`);
   }
+});
+
+test('LIVE individual lifecycle on GW', {
+  skip: !(RUN && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Individual)),
+}, async () => {
+  await runLiveIndividualLifecycleSuite();
 });

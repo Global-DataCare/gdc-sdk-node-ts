@@ -15,7 +15,14 @@ import {
 
 import { buildConsentClaimsSimpleWithCid } from 'gdc-common-utils-ts/utils/consent';
 import { pollUntilCompleteWithMethod } from './async-polling.js';
-import { confirmLegalOrganizationOrderWithDeps, type HostRouteContext } from './host-onboarding.js';
+import {
+  confirmLegalOrganizationOrderWithDeps,
+  HostLifecycleRequestType,
+  HostedTenantLifecycleRequestType,
+  submitHostedTenantLifecycleWithDeps,
+  type HostRouteContext,
+  type HostedTenantLifecycleInput,
+} from './host-onboarding.js';
 import type { NodeOrganizationActivationInput } from './orchestration/client-port.js';
 import {
   confirmIndividualOrganizationOrderWithDeps,
@@ -285,6 +292,93 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       hostCtx,
       hostRegistryOrderBatchPath: this.hostRegistryOrderBatchPath.bind(this),
       hostRegistryOrderPollPath: this.hostRegistryOrderPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+      defaultTimeoutMs: pollOptions?.timeoutMs,
+      defaultIntervalMs: pollOptions?.intervalMs,
+    });
+  }
+
+  /**
+   * Disables the host registration itself after every hosted tenant has
+   * already been purged from the host registry.
+   */
+  public async disableHost(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return submitHostedTenantLifecycleWithDeps({
+      hostCtx,
+      input,
+      requestType: HostLifecycleRequestType.Disable,
+      submitPath: this.hostRegistryOrganizationDisablePath.bind(this),
+      pollPath: this.hostRegistryOrganizationDisablePollPath.bind(this),
+      thidPrefix: 'host-disable',
+      submitAndPoll: this.submitAndPoll.bind(this),
+      defaultTimeoutMs: pollOptions?.timeoutMs,
+      defaultIntervalMs: pollOptions?.intervalMs,
+    });
+  }
+
+  /**
+   * Purges the disabled host registration after the hosted tenant registry has
+   * become empty.
+   */
+  public async purgeHost(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return submitHostedTenantLifecycleWithDeps({
+      hostCtx,
+      input,
+      requestType: HostLifecycleRequestType.Purge,
+      submitPath: this.hostRegistryOrganizationPurgePath.bind(this),
+      pollPath: this.hostRegistryOrganizationPurgePollPath.bind(this),
+      thidPrefix: 'host-purge',
+      submitAndPoll: this.submitAndPoll.bind(this),
+      defaultTimeoutMs: pollOptions?.timeoutMs,
+      defaultIntervalMs: pollOptions?.intervalMs,
+    });
+  }
+
+  /**
+   * Disables one hosted tenant through the host registry after its descendants
+   * have already been disabled/purged.
+   */
+  public async disableTenant(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return submitHostedTenantLifecycleWithDeps({
+      hostCtx,
+      input,
+      requestType: HostedTenantLifecycleRequestType.Disable,
+      submitPath: this.hostRegistryOrganizationDisablePath.bind(this),
+      pollPath: this.hostRegistryOrganizationDisablePollPath.bind(this),
+      thidPrefix: 'tenant-disable',
+      submitAndPoll: this.submitAndPoll.bind(this),
+      defaultTimeoutMs: pollOptions?.timeoutMs,
+      defaultIntervalMs: pollOptions?.intervalMs,
+    });
+  }
+
+  /**
+   * Purges one already-disabled hosted tenant through the host registry.
+   */
+  public async purgeTenant(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return submitHostedTenantLifecycleWithDeps({
+      hostCtx,
+      input,
+      requestType: HostedTenantLifecycleRequestType.Purge,
+      submitPath: this.hostRegistryOrganizationPurgePath.bind(this),
+      pollPath: this.hostRegistryOrganizationPurgePollPath.bind(this),
+      thidPrefix: 'tenant-purge',
       submitAndPoll: this.submitAndPoll.bind(this),
       defaultTimeoutMs: pollOptions?.timeoutMs,
       defaultIntervalMs: pollOptions?.intervalMs,
@@ -964,6 +1058,10 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
 
   public hostRegistryOrganizationActivatePath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', '_activate'); }
   public hostRegistryOrganizationActivatePollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', '_activate-response'); }
+  public hostRegistryOrganizationDisablePath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.Disable); }
+  public hostRegistryOrganizationDisablePollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', `${GwCoreLifecycleAction.Disable}-response`); }
+  public hostRegistryOrganizationPurgePath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.Purge); }
+  public hostRegistryOrganizationPurgePollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', `${GwCoreLifecycleAction.Purge}-response`); }
   public hostRegistryOrderBatchPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Order', '_batch'); }
   public hostRegistryOrderPollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Order', '_batch-response'); }
   public employeeBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', GwCoreLifecycleAction.Batch); }

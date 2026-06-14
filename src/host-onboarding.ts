@@ -1,103 +1,23 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
-import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
-import { resolvePollOptionsFromSeconds } from './poll-options.js';
-
 /**
- * Current host-registry route context for existing host endpoints.
+ * Compatibility re-export.
  *
- * This is a routing object for host registry calls. It is not the same thing as
- * a host discovery descriptor.
+ * The canonical host/hosting facade contract now lives in `gdc-sdk-core-ts` so
+ * browser and Node runtimes can share the same orchestration surface. This
+ * file stays as a stable import path for existing Node consumers.
  */
-export type HostRouteContext = {
-  jurisdiction: string;
-  hostNetwork?: string;
-  /** @deprecated Use `hostNetwork`. */
-  sector?: string;
-  controllerDid?: string;
-  hostDid?: string;
-};
+export {
+  confirmLegalOrganizationOrderWithDeps,
+  HostLifecycleRequestType,
+  HostedTenantLifecycleRequestType,
+  submitHostedTenantLifecycleWithDeps,
+} from 'gdc-sdk-core-ts';
 
-/**
- * Input for legal-organization order confirmation in the host registry.
- */
-export type LegalOrganizationOrderInput = {
-  offerId: string;
-  jurisdiction?: string;
-  hostNetwork?: string;
-  /** @deprecated Use `hostNetwork`. */
-  sector?: string;
-  dataType?: string;
-  additionalClaims?: Record<string, unknown>;
-  timeoutSeconds?: number;
-  intervalSeconds?: number;
-};
-
-type ConfirmLegalOrganizationOrderDeps = {
-  input: LegalOrganizationOrderInput;
-  hostCtx: HostRouteContext;
-  defaultTimeoutMs?: number;
-  defaultIntervalMs?: number;
-  hostRegistryOrderBatchPath: (ctx: HostRouteContext) => string;
-  hostRegistryOrderPollPath: (ctx: HostRouteContext) => string;
-  submitAndPoll: (
-    submitPath: string,
-    pollPath: string,
-    payload: { thid?: string } & Record<string, unknown>,
-    options?: PollOptions,
-  ) => Promise<SubmitAndPollResult>;
-};
-
-export async function confirmLegalOrganizationOrderWithDeps(
-  deps: ConfirmLegalOrganizationOrderDeps,
-): Promise<SubmitAndPollResult> {
-  const offerId = String(deps.input.offerId || '').trim();
-  if (!offerId) {
-    throw new Error('confirmLegalOrganizationOrder requires offerId.');
-  }
-
-  const claims: Record<string, unknown> = {
-    '@context': 'org.schema',
-    'Order.acceptedOffer.identifier': offerId,
-    ...(deps.input.additionalClaims || {}),
-  };
-
-  const payload = {
-    jti: `jti-${createRuntimeUuid()}`,
-    iss: String(deps.hostCtx.controllerDid || '').trim() || undefined,
-    aud: String(deps.hostCtx.hostDid || '').trim() || undefined,
-    type: 'application/didcomm-plain+json',
-    thid: `order-${createRuntimeUuid()}`,
-    body: {
-      data: [{
-        type: deps.input.dataType || 'Organization-order-request-v1.0',
-        meta: { claims },
-        resource: { meta: { claims } },
-      }],
-    },
-  };
-
-  const pollOptions = resolvePollOptionsFromSeconds(
-    deps.input.timeoutSeconds,
-    deps.input.intervalSeconds,
-    {
-      timeoutMs: deps.defaultTimeoutMs,
-      intervalMs: deps.defaultIntervalMs,
-    },
-  );
-
-  return deps.submitAndPoll(
-    deps.hostRegistryOrderBatchPath(deps.hostCtx),
-    deps.hostRegistryOrderPollPath(deps.hostCtx),
-    payload,
-    pollOptions,
-  );
-}
-
-function createRuntimeUuid(): string {
-  const fromCrypto = globalThis.crypto?.randomUUID?.();
-  if (fromCrypto) {
-    return fromCrypto;
-  }
-  return `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
+export type {
+  HostingControllerFacade,
+  HostLifecycleInput,
+  HostRouteContext,
+  HostedTenantLifecycleInput,
+  LegalOrganizationOrderInput,
+} from 'gdc-sdk-core-ts';

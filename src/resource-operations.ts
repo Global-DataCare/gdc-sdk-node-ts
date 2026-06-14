@@ -752,8 +752,8 @@ export async function disableIndividualMemberWithDeps(
   };
   const resource = createInteroperableResourceOperationEditor()
     .setResourceType(ResourceTypesFhirR4.RelatedPerson)
-    .setIdentifierClaimKey(RelatedPersonClaim.Identifier)
-    .setBusinessIdentifier(String(claims[RelatedPersonClaim.Identifier] || '').trim())
+    .setIdentifierClaimKey(RelatedPersonClaim.IdentifierValue)
+    .setBusinessIdentifier(String(claims[RelatedPersonClaim.IdentifierValue] || claims[RelatedPersonClaim.Identifier] || '').trim())
     .setClaims(claims)
     .setLifecycleStatus(InteroperableLifecycleStatuses.Inactive)
     .buildLifecycleResource();
@@ -801,8 +801,8 @@ export async function purgeIndividualMemberWithDeps(
   };
   const resource = createInteroperableResourceOperationEditor()
     .setResourceType(ResourceTypesFhirR4.RelatedPerson)
-    .setIdentifierClaimKey(RelatedPersonClaim.Identifier)
-    .setBusinessIdentifier(String(claims[RelatedPersonClaim.Identifier] || '').trim())
+    .setIdentifierClaimKey(RelatedPersonClaim.IdentifierValue)
+    .setBusinessIdentifier(String(claims[RelatedPersonClaim.IdentifierValue] || claims[RelatedPersonClaim.Identifier] || '').trim())
     .setClaims(claims)
     .setLifecycleStatus(InteroperableLifecycleStatuses.Purged)
     .buildLifecycleResource();

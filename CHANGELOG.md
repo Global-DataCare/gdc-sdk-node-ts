@@ -2,6 +2,79 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0] - 2026-06-13
+
+### Added
+- Added public host and hosted-tenant lifecycle support to the Node runtime in:
+  - `src/node-runtime-client.ts`
+  - `src/orchestration/organization-controller-sdk.ts`
+- Added runtime support for:
+  - `disableHost(...)`
+  - `purgeHost(...)`
+  - `disableTenant(...)`
+  - `purgeTenant(...)`
+- Added local-process helper scripts for live GW validation in:
+  - `scripts/local-close.sh`
+  - `scripts/run-live-gw-clean.sh`
+- Added canonical host/tenant lifecycle coverage in:
+  - `tests/host-onboarding.test.mjs`
+
+### Changed
+- Rebased the Node host-onboarding surface onto the shared
+  `gdc-sdk-core-ts@^0.11.0` hosting facade so the Node runtime keeps a stable
+  compatibility import while the canonical orchestration contract now lives in
+  the shared neutral package:
+  - `src/host-onboarding.ts`
+- Updated the node actor-session bridge to the canonical host/tenant
+  capabilities introduced by `gdc-common-utils-ts@^1.24.0`, including:
+  - `HostingActivateOrganization`
+  - `HostingConfirmOrder`
+  - `HostingDisableHost`
+  - `HostingPurgeHost`
+  - `OrganizationDisableTenant`
+  - `OrganizationPurgeTenant`
+- Expanded the live GW runtime and docs so final validation is explicitly
+  real-terminal/TTY-first, clean-run-first, and capable of asserting:
+  - tenant disable/purge conflict behavior while descendants still exist
+  - host disable/purge conflict behavior while hosted tenants still exist
+  - tenant publication removal after tenant disable
+  - host publication removal after host disable
+  - consolidated DocumentReference and MedicationStatement indexing checks for
+    both `didcomm-plain` and `legacy-fhir`
+- Refined runtime orchestration, routing, and session wiring around the host
+  lifecycle surface in:
+  - `src/orchestration/client-port.ts`
+  - `src/orchestration/host-onboarding-sdk.ts`
+  - `src/resource-operations.ts`
+  - `src/session.ts`
+  - `src/gdc-session-bridge.ts`
+- Updated published shared dependency targets to:
+  - `gdc-common-utils-ts@^1.24.0`
+  - `gdc-sdk-core-ts@^0.11.0`
+- Restored the lockfile to published npm artifacts instead of local
+  `file:../...` links so the release tarball is reproducible outside the
+  workspace.
+
+### Shared Surface Brought In By Published Dependencies
+- `gdc-sdk-core-ts@^0.11.0` now provides the shared hosting facade baseline
+  consumed by the Node runtime, including:
+  - canonical `HostingControllerFacade`
+  - canonical host route/input contracts
+  - canonical host/tenant lifecycle request-type helpers
+- `gdc-common-utils-ts@^1.24.0` now provides the shared actor/capability and
+  lifecycle baseline consumed by the Node runtime, including:
+  - canonical `Hosting...` actor capabilities
+  - canonical tenant lifecycle capability names
+  - tenant lifecycle request constants
+  - hosted individual/member DID and related-person identifier updates reused
+    by the live runtime flows
+
+### Testing
+- `npm install gdc-common-utils-ts@^1.24.0 gdc-sdk-core-ts@^0.11.0`
+- `npm run build`
+- `npm test`
+- `npm run test:e2e:live-gw:clean`
+
 ## [0.11.1] - 2026-06-13
 
 ### Changed
