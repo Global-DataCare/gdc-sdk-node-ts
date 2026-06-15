@@ -22,6 +22,8 @@ import {
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
 import {
+  buildCommunicationParticipantSearchBundle,
+  buildExampleCommunicationParticipantSearchInput,
   buildFhirParametersResourceFromSearchParams,
   ClaimsPersonSchemaorg,
   EmployeeBatchEntryTypes,
@@ -58,6 +60,7 @@ import {
   searchOrganizationLicenseOrdersWithDeps,
   searchOrganizationEmployeesWithDeps,
   searchClinicalBundleWithDeps,
+  searchCommunicationParticipantsWithDeps,
   searchLatestIpsWithDeps,
   upsertRelatedPersonAndPollWithDeps,
   GwCoreLifecycleRequestMethod,
@@ -618,6 +621,41 @@ test('generateDigitalTwinFromSubjectDataWithDeps selects api route when requeste
     },
   );
   assert.equal(calls[0][0], '/dt/api/_batch');
+});
+
+test('searchCommunicationParticipantsWithDeps builds canonical search bundle payload', async () => {
+  const calls = [];
+  const input = buildExampleCommunicationParticipantSearchInput();
+
+  await searchCommunicationParticipantsWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      searchParams: input.searchParams,
+      subject: input.subject,
+      userActorId: input.userActorId,
+      targetActorId: input.targetActorId,
+    },
+    {
+      communicationSearchPath: () => '/communication/_search',
+      communicationSearchPollPath: () => '/communication/_search-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+
+  assert.equal(calls[0][0], '/communication/_search');
+  assert.equal(calls[0][1], '/communication/_search-response');
+  assert.deepEqual(
+    calls[0][2].body,
+    buildCommunicationParticipantSearchBundle({
+      searchParams: input.searchParams,
+      subject: input.subject,
+      userActorId: input.userActorId,
+      targetActorId: input.targetActorId,
+    }),
+  );
 });
 
 test('searchClinicalBundleWithDeps builds canonical bundle search query with filters', async () => {

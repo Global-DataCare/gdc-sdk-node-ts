@@ -29,6 +29,7 @@ test('IndividualControllerSdk delegates to the runtime client', async () => {
     listIndividualLicenseOffers: async (...args) => { calls.push(['listIndividualLicenseOffers', args]); return { ok: true }; },
     searchIndividualLicenseOrders: async (...args) => { calls.push(['searchIndividualLicenseOrders', args]); return { ok: true }; },
     listIndividualLicenseOrders: async (...args) => { calls.push(['listIndividualLicenseOrders', args]); return { ok: true }; },
+    searchCommunicationParticipants: async (...args) => { calls.push(['searchCommunicationParticipants', args]); return { ok: true }; },
     grantProfessionalAccess: async (...args) => { calls.push(['grantProfessionalAccess', args]); return { ok: true }; },
     searchClinicalBundle: async (...args) => { calls.push(['searchClinicalBundle', args]); return { ok: true }; },
     getLatestIps: async (...args) => { calls.push(['getLatestIps', args]); return { ok: true }; },
@@ -49,11 +50,12 @@ test('IndividualControllerSdk delegates to the runtime client', async () => {
   await sdk.listLicenseOffers({}, {});
   await sdk.searchLicenseOrders({}, {});
   await sdk.listLicenseOrders({}, {});
+  await sdk.searchCommunicationParticipants({}, {});
   await sdk.grantProfessionalAccess({}, {});
   await sdk.searchClinicalBundle({}, { subject: 'did:web:subject.example' });
   await sdk.getLatestIps({}, { subject: 'did:web:subject.example' });
   await sdk.requestSmartToken({});
-  assert.equal(calls.length, 18);
+  assert.equal(calls.length, 19);
 });
 
 test('ProfessionalSdk keeps role-scoped surface separation', () => {
@@ -76,6 +78,7 @@ test('PersonalSdk delegates to the runtime client', async () => {
     listIndividualLicenseOffers: async (...args) => { calls.push(['listIndividualLicenseOffers', args]); return { ok: true }; },
     searchIndividualLicenseOrders: async (...args) => { calls.push(['searchIndividualLicenseOrders', args]); return { ok: true }; },
     listIndividualLicenseOrders: async (...args) => { calls.push(['listIndividualLicenseOrders', args]); return { ok: true }; },
+    searchCommunicationParticipants: async (...args) => { calls.push(['searchCommunicationParticipants', args]); return { ok: true }; },
     grantProfessionalAccess: async (...args) => { calls.push(['grantProfessionalAccess', args]); return { ok: true }; },
     searchClinicalBundle: async (...args) => { calls.push(['searchClinicalBundle', args]); return { ok: true }; },
     getLatestIps: async (...args) => { calls.push(['getLatestIps', args]); return { ok: true }; },
@@ -89,11 +92,12 @@ test('PersonalSdk delegates to the runtime client', async () => {
   await sdk.listLicenseOffers({}, {});
   await sdk.searchLicenseOrders({}, {});
   await sdk.listLicenseOrders({}, {});
+  await sdk.searchCommunicationParticipants({}, {});
   await sdk.grantProfessionalAccess({}, {});
   await sdk.searchClinicalBundle({}, { subject: 'did:web:subject.example' });
   await sdk.getLatestIps({}, { subject: 'did:web:subject.example' });
   await sdk.requestSmartToken({});
-  assert.equal(calls.length, 11);
+  assert.equal(calls.length, 12);
 });
 
 test('target node facades do not expose bootstrap helper shortcuts', () => {

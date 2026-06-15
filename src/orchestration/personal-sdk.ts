@@ -13,6 +13,7 @@ import type { RouteContext } from '../individual-onboarding.js';
 import type {
   ClinicalBundleSearchInput,
   CommunicationIngestionInput,
+  CommunicationParticipantRuntimeSearchInput,
   DigitalTwinGenerationInput,
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
@@ -44,6 +45,14 @@ export class PersonalSdk {
   /** Ingests canonical Communication and waits for projection completion. */
   public ingestCommunicationAndUpdateIndex(ctx: RouteContext, input: CommunicationIngestionInput): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /** Searches indexed communication channel records by subject and participant identifiers. */
+  public searchCommunicationParticipants(
+    ctx: RouteContext,
+    input: CommunicationParticipantRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchCommunicationParticipants')(ctx, input);
   }
 
   /** Triggers digital twin generation from subject data. */

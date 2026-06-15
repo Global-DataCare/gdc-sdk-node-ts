@@ -9,7 +9,11 @@ import {
   EXAMPLE_TENANT_ROUTE_CONTEXT,
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
-import { InteroperableLifecycleStatuses } from 'gdc-common-utils-ts';
+import {
+  buildCommunicationParticipantSearchBundle,
+  buildExampleCommunicationParticipantSearchInput,
+  InteroperableLifecycleStatuses,
+} from 'gdc-common-utils-ts';
 import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
 
 import { NodeHttpClient } from '../dist/index.js';
@@ -138,6 +142,10 @@ test('NodeHttpClient exposes current GW CORE lifecycle paths for individual and 
     client.individualLicenseSearchPath(),
     '/acme-id/cds-ES/v1/health-care/individual/org.schema/License/_search',
   );
+  assert.equal(
+    client.individualCommunicationSearchPath(),
+    '/acme-id/cds-ES/v1/health-care/individual/org.hl7.fhir.r4/Communication/_search',
+  );
 });
 
 test('NodeHttpClient searches organization-owned license seats through License/_search', async () => {
@@ -258,6 +266,42 @@ test('NodeHttpClient searches subject-side commercial offers and orders through 
   assert.equal(calls[0][2].body.data[0].type, 'Offer-search-request-v1.0');
   assert.equal(calls[1][0], '/acme-id/cds-ES/v1/health-care/individual/org.schema/Order/_search');
   assert.equal(calls[1][2].body.data[0].type, 'Order-search-request-v1.0');
+});
+
+test('NodeHttpClient searches communication participants through Communication/_search', async () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+    ctx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+  });
+
+  const calls = [];
+  client.submitAndPoll = async (...args) => {
+    calls.push(args);
+    return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+  };
+
+  const input = buildExampleCommunicationParticipantSearchInput();
+  await client.searchCommunicationParticipants(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      searchParams: input.searchParams,
+      subject: input.subject,
+      userActorId: input.userActorId,
+      targetActorId: input.targetActorId,
+    },
+  );
+
+  assert.equal(calls[0][0], '/acme-id/cds-ES/v1/health-care/individual/org.hl7.fhir.r4/Communication/_search');
+  assert.equal(calls[0][1], '/acme-id/cds-ES/v1/health-care/individual/org.hl7.fhir.r4/Communication/_search-response');
+  assert.deepEqual(
+    calls[0][2].body,
+    buildCommunicationParticipantSearchBundle({
+      searchParams: input.searchParams,
+      subject: input.subject,
+      userActorId: input.userActorId,
+      targetActorId: input.targetActorId,
+    }),
+  );
 });
 
 test('NodeHttpClient disables individual-member relationships through identifier-first RelatedPerson lifecycle resources', async () => {

@@ -4,6 +4,7 @@ import { HealthcareBasicSections, ResourceTypesFhirR4 } from 'gdc-common-utils-t
 import { Format } from 'gdc-common-utils-ts/constants/Schemas';
 import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
 import {
+  buildCommunicationParticipantSearchBundle,
   createInteroperableResourceOperationEditor,
   IndividualOrganizationLifecycleDraft,
   LicenseOfferSearchEditor,
@@ -174,6 +175,37 @@ export type CommunicationIngestionInput = {
   pathFormatSegment?: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4' | 'api' | 'r4' | 'fhir.r4';
   autoConvertClaimsToFhirR4?: boolean;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
+};
+
+/**
+ * Runtime participant query for `Communication/_search`.
+ *
+ * Search semantics:
+ * - `subject` scopes which individual communication sections to inspect
+ * - `userActorId` and `targetActorId` both match sender OR any recipient
+ * - `senderActorId` and `recipientActorId` constrain one side explicitly
+ * - `actorId` is the generic sender-or-recipient filter
+ * - `*` means "all" for the corresponding operand
+ *
+ * Canonical prefixes are normalized by shared `gdc-common-utils-ts` helpers:
+ * - `did:`
+ * - `email:` / `mailto:`
+ * - `tel:` / `phone:`
+ */
+export type CommunicationParticipantRuntimeSearchInput = {
+  searchParams?: Record<string, string | number | boolean | Array<string | number | boolean> | undefined>;
+  subject?: string | string[];
+  actorId?: string | string[];
+  senderActorId?: string | string[];
+  recipientActorId?: string | string[];
+  userActorId?: string | string[];
+  targetActorId?: string | string[];
+  periodStart?: string;
+  periodEnd?: string;
+  requestThid?: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+  page?: number;
+  count?: number;
 };
 
 export type ClinicalDateRange = DateRange;
@@ -889,6 +921,45 @@ export async function ingestCommunicationAndUpdateIndexWithDeps(
     deps.individualCommunicationBatchPath(routeCtx, pathFormatSegment),
     deps.individualCommunicationPollPath(routeCtx, pathFormatSegment),
     convertedPayload,
+    input.pollOptions,
+  );
+}
+
+export async function searchCommunicationParticipantsWithDeps(
+  routeCtx: RouteContext,
+  input: CommunicationParticipantRuntimeSearchInput,
+  deps: {
+    communicationSearchPath: (ctx: RouteContext) => string;
+    communicationSearchPollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  const payload = {
+    thid: input.requestThid || `communication-search-${createRuntimeUuid()}`,
+    body: buildCommunicationParticipantSearchBundle({
+      searchParams: input.searchParams,
+      subject: input.subject,
+      actorId: input.actorId,
+      senderActorId: input.senderActorId,
+      recipientActorId: input.recipientActorId,
+      userActorId: input.userActorId,
+      targetActorId: input.targetActorId,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      page: input.page,
+      count: input.count,
+    }),
+  };
+
+  return deps.submitAndPoll(
+    deps.communicationSearchPath(routeCtx),
+    deps.communicationSearchPollPath(routeCtx),
+    payload,
     input.pollOptions,
   );
 }

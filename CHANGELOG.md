@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- Added runtime support for canonical `Communication/_search` submission using
+  the shared communication-search bundle contract and exposed it through the
+  actor-facing SDK surfaces:
+  - `src/resource-operations.ts`
+  - `src/node-runtime-client.ts`
+  - `src/orchestration/client-port.ts`
+  - `src/orchestration/personal-sdk.ts`
+  - `src/orchestration/professional-sdk.ts`
+  - `src/orchestration/individual-controller-sdk.ts`
+- Added runtime coverage for the new communication search flow in:
+  - `tests/resource-operations.test.mjs`
+  - `tests/node-runtime-client.test.mjs`
+  - `tests/orchestration.test.mjs`
+
+### Changed
+- Switched the communication search runtime payload from a raw `Parameters`
+  body to the canonical shared `search` bundle envelope so the Node runtime
+  stays aligned with GW/core shared helpers.
+
 ## [0.12.1] - 2026-06-14
 
 ### Changed

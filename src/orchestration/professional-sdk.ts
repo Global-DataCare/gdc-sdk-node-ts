@@ -12,6 +12,7 @@ import type { RouteContext } from '../individual-onboarding.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type {
   CommunicationIngestionInput,
+  CommunicationParticipantRuntimeSearchInput,
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
 } from '../resource-operations.js';
@@ -51,6 +52,17 @@ export class ProfessionalSdk {
    */
   public ingestCommunicationAndUpdateIndex(ctx: RouteContext, input: CommunicationIngestionInput): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /**
+   * Searches indexed communication channel records by subject and participant
+   * identifiers.
+   */
+  public searchCommunicationParticipants(
+    ctx: RouteContext,
+    input: CommunicationParticipantRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchCommunicationParticipants')(ctx, input);
   }
 
   /**
