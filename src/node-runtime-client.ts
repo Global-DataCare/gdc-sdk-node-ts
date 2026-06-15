@@ -49,6 +49,7 @@ import {
   listOrganizationLicensesWithDeps,
   grantProfessionalAccessWithDeps,
   ingestCommunicationAndUpdateIndexWithDeps,
+  searchCommunicationParticipantsWithDeps,
   purgeIndividualMemberWithDeps,
   purgeIndividualOrganizationWithDeps,
   purgeOrganizationEmployeeWithDeps,
@@ -63,6 +64,7 @@ import {
   searchLatestIpsWithDeps,
   upsertRelatedPersonAndPollWithDeps,
   type CommunicationIngestionInput,
+  type CommunicationParticipantRuntimeSearchInput,
   type ClinicalBundleSearchInput,
   type GrantProfessionalAccessInput,
   type GrantProfessionalAccessResult,
@@ -838,6 +840,21 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
+   * Searches communication channel records by subject and participant
+   * identifiers through `Communication/_search`.
+   */
+  public async searchCommunicationParticipants(
+    ctx: RouteContext,
+    input: CommunicationParticipantRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return searchCommunicationParticipantsWithDeps(ctx, input, {
+      communicationSearchPath: this.individualCommunicationSearchPath.bind(this),
+      communicationSearchPollPath: this.individualCommunicationSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
    * Alias for `ingestCommunicationAndUpdateIndex(...)`.
    *
    * @param ctx Route context containing tenant/jurisdiction/sector.
@@ -1100,6 +1117,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public individualConsentR4PollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Consent', '_batch-response'); }
   public individualCommunicationBatchPath(ctx: RouteContext, format: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4'): string { return this.v1Path(ctx, 'individual', format, 'Communication', '_batch'); }
   public individualCommunicationPollPath(ctx: RouteContext, format: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4'): string { return this.v1Path(ctx, 'individual', format, 'Communication', '_batch-response'); }
+  public individualCommunicationSearchPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Communication', '_search'); }
+  public individualCommunicationSearchPollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Communication', '_search-response'); }
   public individualBundleSearchPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Bundle', '_search'); }
   public individualBundleSearchPollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Bundle', '_search-response'); }
   public identityTokenExchangePath(ctx: RouteContext): string {

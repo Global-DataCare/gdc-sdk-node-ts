@@ -31,6 +31,7 @@ import type { OrganizationLicenseOrderConfirmInput } from '../organization-licen
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type {
   CommunicationIngestionInput,
+  CommunicationParticipantRuntimeSearchInput,
   ClinicalBundleSearchInput,
   DigitalTwinGenerationInput,
   GrantProfessionalAccessInput,
@@ -198,6 +199,10 @@ export type RuntimeClient = {
   ingestCommunicationAndUpdateIndex?: (
     ctx: RouteContext,
     input: CommunicationIngestionInput,
+  ) => Promise<SubmitAndPollResult>;
+  searchCommunicationParticipants?: (
+    ctx: RouteContext,
+    input: CommunicationParticipantRuntimeSearchInput,
   ) => Promise<SubmitAndPollResult>;
   grantProfessionalAccess?: (
     ctx: RouteContext,

@@ -16,6 +16,7 @@ import type { NodeCapability } from '../session.js';
 import type {
   ClinicalBundleSearchInput,
   CommunicationIngestionInput,
+  CommunicationParticipantRuntimeSearchInput,
   DigitalTwinGenerationInput,
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
@@ -168,6 +169,17 @@ export class IndividualControllerSdk {
   public ingestCommunicationAndUpdateIndex(ctx: RouteContext, input: CommunicationIngestionInput): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualIngestCommunication, ActorKinds.IndividualController, 'ingestCommunicationAndUpdateIndex');
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /**
+   * Searches indexed communication channel records by subject and participant
+   * identifiers.
+   */
+  public searchCommunicationParticipants(
+    ctx: RouteContext,
+    input: CommunicationParticipantRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchCommunicationParticipants')(ctx, input);
   }
 
   /**
