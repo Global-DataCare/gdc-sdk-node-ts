@@ -9,6 +9,7 @@ import {
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
 import { ClaimsOrganizationSchemaorg } from 'gdc-common-utils-ts/constants/schemaorg';
+import { OrganizationLifecycleEditor } from 'gdc-common-utils-ts';
 
 import {
   confirmLegalOrganizationOrderWithDeps,
@@ -84,13 +85,13 @@ test('confirmLegalOrganizationOrderWithDeps rejects missing offerId', async () =
 
 test('submitHostedTenantLifecycleWithDeps builds canonical host disable payload and routes', async () => {
   const calls = [];
+  const organizationEditor = new OrganizationLifecycleEditor()
+    .setIdentifierValue(EXAMPLE_TENANT_IDENTIFIER);
 
   const result = await submitHostedTenantLifecycleWithDeps({
     hostCtx: cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT),
     input: {
-      organizationClaims: {
-        [ClaimsOrganizationSchemaorg.identifierValue]: EXAMPLE_TENANT_IDENTIFIER,
-      },
+      organizationEditor,
       timeoutSeconds: 12,
       intervalSeconds: 3,
     },
@@ -121,13 +122,13 @@ test('submitHostedTenantLifecycleWithDeps builds canonical host disable payload 
 
 test('submitHostedTenantLifecycleWithDeps builds canonical host purge payload and routes', async () => {
   const calls = [];
+  const organizationEditor = new OrganizationLifecycleEditor()
+    .setIdentifierValue(EXAMPLE_TENANT_IDENTIFIER);
 
   await submitHostedTenantLifecycleWithDeps({
     hostCtx: cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT),
     input: {
-      organizationClaims: {
-        [ClaimsOrganizationSchemaorg.identifierValue]: EXAMPLE_TENANT_IDENTIFIER,
-      },
+      organizationEditor,
     },
     requestType: HostLifecycleRequestType.Purge,
     submitPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.sector}/organization/_purge`,

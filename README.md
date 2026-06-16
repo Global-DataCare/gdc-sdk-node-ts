@@ -1,5 +1,9 @@
 # gdc-sdk-node-ts
 
+See [ARCHITECTURE.md](./ARCHITECTURE.md) and
+[CONTRIBUTING.md](./CONTRIBUTING.md) before adding node runtime facades,
+execution adapters, or orchestration tests.
+
 Node runtime package for consuming the shared GDC SDK contracts against real
 gateway backends.
 

@@ -6,15 +6,14 @@ import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-cla
 import {
   buildCommunicationParticipantSearchBundle,
   createInteroperableResourceOperationEditor,
-  IndividualOrganizationLifecycleDraft,
+  IndividualOrganizationLifecycleEditor,
   LicenseOfferSearchEditor,
-  type LicenseOfferSearchDraft,
   LicenseOrderSearchEditor,
-  type LicenseOrderSearchDraft,
   InteroperableLifecycleStatuses,
   LicenseListSearchEditor,
-  type LicenseListSearchDraft,
 } from 'gdc-common-utils-ts';
+import type { LicenseOfferSearchState, LicenseOrderSearchState } from 'gdc-common-utils-ts/utils/license-commercial-search';
+import type { LicenseListSearchState } from 'gdc-common-utils-ts/utils/license-list-search';
 import type {
   BundleSearchQuery,
   CommunicationInput,
@@ -97,7 +96,7 @@ export type OrganizationEmployeeSearchInput = {
  * The semantic filter set comes from the shared license controller facade.
  */
 export type LicenseListRuntimeSearchInput = {
-  licenseQuery?: Partial<LicenseListSearchDraft>;
+  licenseQuery?: Partial<LicenseListSearchState>;
   requestThid?: string;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
@@ -107,7 +106,7 @@ export type LicenseListRuntimeSearchInput = {
  * actor facades.
  */
 export type LicenseOfferRuntimeSearchInput = {
-  offerQuery?: Partial<LicenseOfferSearchDraft>;
+  offerQuery?: Partial<LicenseOfferSearchState>;
   requestThid?: string;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
@@ -117,7 +116,7 @@ export type LicenseOfferRuntimeSearchInput = {
  * through actor facades.
  */
 export type LicenseOrderRuntimeSearchInput = {
-  orderQuery?: Partial<LicenseOrderSearchDraft>;
+  orderQuery?: Partial<LicenseOrderSearchState>;
   requestThid?: string;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
@@ -134,7 +133,12 @@ export type IndividualOrganizationLifecycleInput = {
    * Canonical claims used by GW CORE to locate the hosted individual/family
    * registration.
    */
-  organizationClaims: Record<string, unknown>;
+  organizationClaims?: Record<string, unknown>;
+  /**
+   * Preferred high-level shared editor for lifecycle callers that want to
+   * avoid assembling raw claims inline.
+   */
+  organizationEditor?: IndividualOrganizationLifecycleEditor;
   /**
    * Optional canonical resource id when already known by the caller.
    */
@@ -567,6 +571,7 @@ export async function disableIndividualOrganizationWithDeps(
     routeCtx,
     requestType: input.dataType || GwCoreLifecycleRequestType.IndividualOrganizationDisable,
     organizationClaims: input.organizationClaims,
+    organizationEditor: input.organizationEditor,
     resourceId: input.resourceId,
     thidPrefix: 'individual-organization-disable',
   });
@@ -597,6 +602,7 @@ export async function purgeIndividualOrganizationWithDeps(
     routeCtx,
     requestType: input.dataType || GwCoreLifecycleRequestType.IndividualOrganizationPurge,
     organizationClaims: input.organizationClaims,
+    organizationEditor: input.organizationEditor,
     resourceId: input.resourceId,
     thidPrefix: 'individual-organization-purge',
   });
@@ -1173,6 +1179,7 @@ function buildIndividualOrganizationLifecyclePayload(input: {
   routeCtx: RouteContext;
   requestType: string;
   organizationClaims: Record<string, unknown> | undefined;
+  organizationEditor?: IndividualOrganizationLifecycleEditor;
   resourceId?: string;
   thidPrefix: string;
 }): {
@@ -1190,9 +1197,11 @@ function buildIndividualOrganizationLifecyclePayload(input: {
     }>;
   };
 } {
-  const claims = input.organizationClaims || {};
-  const payload = new IndividualOrganizationLifecycleDraft()
-    .setClaims(claims)
+  const payload = input.organizationEditor
+    ? new IndividualOrganizationLifecycleEditor(input.organizationEditor.getState())
+    : new IndividualOrganizationLifecycleEditor().setClaims(input.organizationClaims || {});
+
+  payload
     .setRequestType(input.requestType)
     .setThreadId(`${input.thidPrefix}-${createRuntimeUuid()}`);
 

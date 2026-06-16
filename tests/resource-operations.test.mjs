@@ -25,10 +25,12 @@ import {
   buildCommunicationParticipantSearchBundle,
   buildExampleCommunicationParticipantSearchInput,
   buildFhirParametersResourceFromSearchParams,
+  ClaimsOrganizationSchemaorg,
   ClaimsPersonSchemaorg,
   EmployeeBatchEntryTypes,
   EmployeeBundleMethods,
   EmployeeBundleRoutes,
+  IndividualOrganizationLifecycleEditor,
   InteroperableLifecycleStatuses,
 } from 'gdc-common-utils-ts';
 import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
@@ -222,10 +224,14 @@ test('purgeOrganizationEmployeeWithDeps uses the explicit current purge route', 
 
 test('disableIndividualOrganizationWithDeps uses the explicit current disable route', async () => {
   const calls = [];
+  const organizationEditor = new IndividualOrganizationLifecycleEditor()
+    .setIdentifier(String(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims[ClaimsOrganizationSchemaorg.identifier]))
+    .setAlternateName(String(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims[ClaimsOrganizationSchemaorg.alternateName]))
+    .setOwnerEmail(String(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims[ClaimsOrganizationSchemaorg.ownerEmail]));
   await disableIndividualOrganizationWithDeps(
     cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
     {
-      organizationClaims: cloneExample(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims),
+      organizationEditor,
       resourceId: 'individual-org-1',
     },
     { timeoutMs: 1000, intervalMs: 1 },
@@ -254,10 +260,14 @@ test('disableIndividualOrganizationWithDeps uses the explicit current disable ro
 
 test('purgeIndividualOrganizationWithDeps uses the explicit current purge route', async () => {
   const calls = [];
+  const organizationEditor = new IndividualOrganizationLifecycleEditor()
+    .setIdentifier(String(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims[ClaimsOrganizationSchemaorg.identifier]))
+    .setAlternateName(String(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims[ClaimsOrganizationSchemaorg.alternateName]))
+    .setOwnerEmail(String(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims[ClaimsOrganizationSchemaorg.ownerEmail]));
   await purgeIndividualOrganizationWithDeps(
     cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
     {
-      organizationClaims: cloneExample(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims),
+      organizationEditor,
     },
     { timeoutMs: 1000, intervalMs: 1 },
     {

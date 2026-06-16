@@ -32,6 +32,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { IndividualOrganizationLifecycleEditor, OrganizationLifecycleEditor } from 'gdc-common-utils-ts';
 import { HealthcareBasicSections } from 'gdc-common-utils-ts/constants';
 import { DeviceAppTypes, DeviceUserClasses } from 'gdc-common-utils-ts/constants/device';
 import { ClaimsOrganizationSchemaorg, ClaimsPersonSchemaorg } from 'gdc-common-utils-ts/constants/schemaorg';
@@ -781,17 +782,15 @@ test('LIVE professional lifecycle on GW', {
   assert.ok(smart.accessToken, 'Individual controller facade must obtain a SMART token.');
 
   if (RUN_INDIVIDUAL_LIFECYCLE) {
-    const individualLifecycleClaims = {
-      ...cloneExample(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims),
-      [ClaimsOrganizationSchemaorg.identifier]: patientSubjectDid,
-      [ClaimsOrganizationSchemaorg.alternateName]: individualAltName,
-      [ClaimsOrganizationSchemaorg.ownerEmail]: individualControllerEmail,
-    };
+    const individualLifecycleEditor = new IndividualOrganizationLifecycleEditor()
+      .setIdentifier(patientSubjectDid)
+      .setAlternateName(individualAltName)
+      .setOwnerEmail(individualControllerEmail);
 
     const disable = await individualControllerSession.asIndividualController().disableIndividualOrganization(
       ctx,
       {
-        organizationClaims: individualLifecycleClaims,
+        organizationEditor: individualLifecycleEditor,
       },
       pollOptions,
     );
@@ -801,7 +800,7 @@ test('LIVE professional lifecycle on GW', {
     const purge = await individualControllerSession.asIndividualController().purgeIndividualOrganization(
       ctx,
       {
-        organizationClaims: individualLifecycleClaims,
+        organizationEditor: individualLifecycleEditor,
       },
       pollOptions,
     );
@@ -1150,15 +1149,14 @@ async function runLiveIndividualLifecycleSuite() {
   debug.record('individual-suite-member-purge', { response: purgeMember });
   assert.equal(purgeMember.poll.status, 200, 'Individual lifecycle suite must purge the related-person/member relationship after disable.');
 
-  const tenantLifecycleClaims = {
-    ...cloneExample(EXAMPLE_TENANT_DISABLE_MESSAGE.claims),
-    [ClaimsOrganizationSchemaorg.identifierValue]: tenantId,
-    [ClaimsOrganizationSchemaorg.taxId]: tenantId,
-  };
+  const tenantLifecycleEditor = new OrganizationLifecycleEditor()
+    .setIdentifier(String(cloneExample(EXAMPLE_TENANT_DISABLE_MESSAGE.claims)[ClaimsOrganizationSchemaorg.identifier]))
+    .setIdentifierValue(tenantId)
+    .setTaxId(tenantId);
   const disableTenantWhileIndividualActive = await profiler.run('tenant-disable-while-individual-active', () => orgControllerSession.asOrganizationController().disableTenant(
     hostCtx,
     {
-      organizationClaims: tenantLifecycleClaims,
+      organizationEditor: tenantLifecycleEditor,
     },
     pollOptions,
   ));
@@ -1171,7 +1169,7 @@ async function runLiveIndividualLifecycleSuite() {
   const purgeTenantWhileIndividualExists = await profiler.run('tenant-purge-while-individual-exists', () => orgControllerSession.asOrganizationController().purgeTenant(
     hostCtx,
     {
-      organizationClaims: tenantLifecycleClaims,
+      organizationEditor: tenantLifecycleEditor,
     },
     pollOptions,
   ));
@@ -1181,14 +1179,12 @@ async function runLiveIndividualLifecycleSuite() {
     assert.equal(String(purgeEntries[0]?.response?.status || ''), '409', 'Tenant purge must be rejected while individual descendants still exist.');
   }
 
-  const hostLifecycleClaims = {
-    '@context': 'org.schema',
-    [ClaimsOrganizationSchemaorg.identifierValue]: suiteHostIdentifierValue,
-  };
+  const hostLifecycleEditor = new OrganizationLifecycleEditor()
+    .setIdentifierValue(suiteHostIdentifierValue);
   const disableHostWhileTenantRegistered = await profiler.run('host-disable-while-tenant-registered', () => hostSession.asHostOnboarding().disableHost(
     hostCtx,
     {
-      organizationClaims: hostLifecycleClaims,
+      organizationEditor: hostLifecycleEditor,
     },
     pollOptions,
   ));
@@ -1201,7 +1197,7 @@ async function runLiveIndividualLifecycleSuite() {
   const purgeHostWhileTenantRegistered = await profiler.run('host-purge-while-tenant-registered', () => hostSession.asHostOnboarding().purgeHost(
     hostCtx,
     {
-      organizationClaims: hostLifecycleClaims,
+      organizationEditor: hostLifecycleEditor,
     },
     pollOptions,
   ));
@@ -1211,16 +1207,14 @@ async function runLiveIndividualLifecycleSuite() {
     assert.equal(String(purgeEntries[0]?.response?.status || ''), '409', 'Host purge must be rejected while hosted tenant registrations remain.');
   }
 
-  const individualLifecycleClaims = {
-    ...cloneExample(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims),
-    [ClaimsOrganizationSchemaorg.identifier]: subjectDid,
-    [ClaimsOrganizationSchemaorg.alternateName]: individualAltName,
-    [ClaimsOrganizationSchemaorg.ownerEmail]: individualControllerEmail,
-  };
+  const individualLifecycleEditor = new IndividualOrganizationLifecycleEditor()
+    .setIdentifier(subjectDid)
+    .setAlternateName(individualAltName)
+    .setOwnerEmail(individualControllerEmail);
   const disableIndividual = await profiler.run('individual-disable', () => individualControllerSession.asIndividualController().disableIndividualOrganization(
     ctx,
     {
-      organizationClaims: individualLifecycleClaims,
+      organizationEditor: individualLifecycleEditor,
     },
     pollOptions,
   ));
@@ -1230,7 +1224,7 @@ async function runLiveIndividualLifecycleSuite() {
   const purgeIndividual = await profiler.run('individual-purge', () => individualControllerSession.asIndividualController().purgeIndividualOrganization(
     ctx,
     {
-      organizationClaims: individualLifecycleClaims,
+      organizationEditor: individualLifecycleEditor,
     },
     pollOptions,
   ));
@@ -1240,7 +1234,7 @@ async function runLiveIndividualLifecycleSuite() {
   const disableTenant = await profiler.run('tenant-disable', () => orgControllerSession.asOrganizationController().disableTenant(
     hostCtx,
     {
-      organizationClaims: tenantLifecycleClaims,
+      organizationEditor: tenantLifecycleEditor,
     },
     pollOptions,
   ));
@@ -1288,7 +1282,7 @@ async function runLiveIndividualLifecycleSuite() {
   const purgeTenant = await profiler.run('tenant-purge', () => orgControllerSession.asOrganizationController().purgeTenant(
     hostCtx,
     {
-      organizationClaims: tenantLifecycleClaims,
+      organizationEditor: tenantLifecycleEditor,
     },
     pollOptions,
   ));
@@ -1298,7 +1292,7 @@ async function runLiveIndividualLifecycleSuite() {
   const disableHost = await profiler.run('host-disable', () => hostSession.asHostOnboarding().disableHost(
     hostCtx,
     {
-      organizationClaims: hostLifecycleClaims,
+      organizationEditor: hostLifecycleEditor,
     },
     pollOptions,
   ));
@@ -1330,7 +1324,7 @@ async function runLiveIndividualLifecycleSuite() {
   const purgeHost = await profiler.run('host-purge', () => hostSession.asHostOnboarding().purgeHost(
     hostCtx,
     {
-      organizationClaims: hostLifecycleClaims,
+      organizationEditor: hostLifecycleEditor,
     },
     pollOptions,
   ));

@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-06-15
+
+### Added
+- Added canonical v2 architecture and contribution rules for the node/server
+  actor-aware runtime layer:
+  - `ARCHITECTURE.md`
+  - `CONTRIBUTING.md`
+
+### Changed
+- Rebased runtime resource/lifecycle orchestration onto the shared v2
+  `Editor` / `State` surface and operation-first naming:
+  - `src/resource-operations.ts`
+  - `tests/resource-operations.test.mjs`
+  - `tests/host-onboarding.test.mjs`
+  - `tests/live-gw-node-runtime.e2e.test.mjs`
+- Documented the v2 runtime rule that canonical shared high-level `get...` /
+  `set...` methods must be defined in `gdc-common-utils-ts` before being
+  consumed in node actor/runtime flows.
+- Updated dependency targets to:
+  - `gdc-common-utils-ts@^2.0.0`
+  - `gdc-sdk-core-ts@^2.0.0`
+
+### Breaking
+- Node consumers must align with the v2 shared `Editor` / `State` terminology
+  and with `prepare...` operation-family naming where applicable.
+- Node runtime wrappers must stop introducing first-class shared semantic
+  accessors locally when those `get...` / `set...` methods belong in
+  `gdc-common-utils-ts`.
+
 ### Added
 - Added runtime support for canonical `Communication/_search` submission using
   the shared communication-search bundle contract and exposed it through the
