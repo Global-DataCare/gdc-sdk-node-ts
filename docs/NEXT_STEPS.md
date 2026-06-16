@@ -26,10 +26,94 @@ Before evolving local app-side orchestration, validate these phases in order:
 3. deploy the validated GW CORE runtime online
 4. rerun the same live lifecycle against the remote environment
 
-## Full lifecycle still pending
+## Live suite taxonomy after platform validation
+
+After the GW CORE platform lifecycle is validated, live tests should be split
+into separate families instead of mixing everything into one destructive
+platform scenario.
+
+### 1. Platform lifecycle E2E
+
+This suite validates GW CORE as platform/runtime:
+
+- host/bootstrap
+- tenant/bootstrap
+- employee/professional lifecycle
+- individual lifecycle
+- final cleanup of platform state
+
+This is not the same as one profile-runtime use case.
+
+### 2. Actor profile-runtime E2E
+
+These suites start with one actor already operating in its expected runtime
+context, for example:
+
+- organization controller already managing the tenant organization
+- individual controller already managing the individual organization
+- professional already operating under an organization
+- family member already operating under an individual relationship
+
+These suites should begin with `loadProfile(...)` and then validate only that
+actor's allowed operations.
+
+### 3. Actor dialogue/interoperability E2E
+
+These suites validate real inter-actor business flows where one actor creates
+the state required by another actor.
+
+Examples:
+
+- controller grants consent and then professional reads allowed data
+- controller creates/invites a member and then member accesses the allowed view
+- professional creates clinical data and then controller/subject reads indexed
+  results
+
+These are not isolated actor tests. They are dialogue tests where data created
+by one actor is intentionally consumed by another.
+
+### Cleanup rule
+
+For actor and dialogue suites:
+
+- `disable` / `purge` should happen at the end of the scenario that created the
+  resources
+- they are cleanup/finalization steps of that scenario
+- they should not force the suite to begin with the full GW CORE platform
+  lifecycle
+
+Only the platform lifecycle suite should treat host/tenant/employee/individual
+destruction as the primary subject of the test.
+
+## Immediate profile-runtime target
+
+The next concrete target is still the current individual-controller baseline on
+top of the new v2 profile runtime, but it should be treated as the first
+actor-profile suite, not as part of the GW CORE lifecycle suite.
+
+That first actor-profile suite now has a standalone test file:
+
+- `tests/live-profile-runtime-individual.e2e.test.mjs`
+
+It should validate, in order:
+
+1. `loadProfile(...)` backend
+2. `startIndividualOrganization(...)`
+3. `confirmIndividualOrganizationOrder(...)`
+4. the current canonical index/`Composition` read path, after proving which
+   runtime helper is the real source of truth today:
+   - `getLatestIps(...)`
+   - or `searchClinicalBundle(...)`
+5. scenario-owned `disable` / `purge` cleanup at the end, only if that actor
+   flow created lifecycle state that must be cleaned
+
+Do not freeze the final public wording for that read step until the current GW
+CORE runtime proves which route/shape is canonical.
+
+## Full dialogue lifecycle still pending
 
 The current live suites already prove important slices in `mem`, but they still
-do not cover the full user-dialogue lifecycle as one root scenario.
+do not cover the full inter-actor user-dialogue lifecycle as one root scenario.
 
 The intended canonical order is:
 
@@ -208,3 +292,81 @@ Use these terms consistently:
   - future app-side orchestration and queue layer
 
 Do not use those three names as if they were interchangeable.
+
+## Continuation TODO
+
+Use this section to resume the v2 profile-runtime work in another thread
+without rebuilding context from scratch.
+
+### Current completed state
+
+- `sdk-core` already defines the neutral profile-runtime contract:
+  - `ProfileLoadRequest`
+  - `SubjectIndexConnectionRequest`
+  - `SubjectIndexCompositionRequest`
+  - `IJobManager`
+- `sdk-node` already implements:
+  - `DirectBackendProfileRuntime`
+  - `createJobManagerInMemory(...)`
+  - `closeProfile(...)` / `closeBackendProfile(...)`
+  - `IndividualControllerBackendRuntime`
+- standalone actor-profile live suite already exists:
+  - `tests/live-profile-runtime-individual.e2e.test.mjs`
+- GW CORE platform lifecycle suite still exists separately:
+  - `tests/live-gw-node-runtime.e2e.test.mjs`
+
+### Immediate next implementation targets
+
+1. Execute `tests/live-profile-runtime-individual.e2e.test.mjs` from a real
+   terminal/TTY against the current GW CORE runtime and capture the exact
+   failures.
+2. Fix any contract drift found in:
+   - `loadProfile(...)`
+   - `startIndividualOrganization(...)`
+   - `confirmIndividualOrganizationOrder(...)`
+   - subject-index read helper
+3. Freeze which read helper is canonical for the actor-profile suite:
+   - `getLatestIps(...)`
+   - or `searchClinicalBundle(...)`
+4. Add the next standalone actor-profile suite:
+   - `tests/live-profile-runtime-professional.e2e.test.mjs`
+5. Add the first actor-dialogue suite:
+   - controller grants consent
+   - professional reads allowed data
+   - cleanup with scenario-owned `disable` / `purge` only at the end
+
+### Important constraints for the next agent
+
+- Do not merge profile-runtime actor suites back into the GW CORE platform
+  lifecycle suite.
+- Actor-profile suites start from one already operational tenant/runtime
+  context.
+- Dialogue suites may reuse setup helpers, but the business focus is the actor
+  interaction, not host/tenant lifecycle.
+- `disable` / `purge` belong at the end of the actor/dialogue scenario that
+  created the state.
+- Keep reusing shared examples from `gdc-common-utils-ts`; do not add ad-hoc
+  literals in new `101` tests or live suites unless strictly necessary.
+
+### Minimal handoff package for the next thread
+
+The next agent should be given these files first:
+
+- `gdc-sdk-node-ts/docs/NEXT_STEPS.md`
+- `gdc-sdk-node-ts/ARCHITECTURE.md`
+- `gdc-sdk-node-ts/README.md`
+- `gdc-sdk-node-ts/src/backend-profile-runtime.ts`
+- `gdc-sdk-node-ts/src/individual-controller-backend-runtime.ts`
+- `gdc-sdk-node-ts/tests/101-backend-profile-runtime.test.mjs`
+- `gdc-sdk-node-ts/tests/101-individual-controller-backend-runtime.test.mjs`
+- `gdc-sdk-node-ts/tests/live-profile-runtime-individual.e2e.test.mjs`
+- `gdc-sdk-node-ts/tests/live-gw-node-runtime.e2e.test.mjs`
+- `gdc-sdk-node-ts/docs/V2_INDIVIDUAL_REGISTRATION_RECONCILIATION.md`
+
+And this short instruction:
+
+- continue the standalone profile-runtime E2E work
+- start by running/fixing `live-profile-runtime-individual.e2e.test.mjs`
+- keep platform lifecycle and actor/dialogue suites separated
+- next deliverables are one stable individual actor-profile suite, one
+  professional actor-profile suite, and one first consent dialogue suite

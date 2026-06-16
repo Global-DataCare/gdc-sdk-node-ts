@@ -4,6 +4,8 @@ export * from 'gdc-sdk-core-ts';
 export * from './runtime-contracts.js';
 export * from './identity-bootstrap.js';
 export * from './async-polling.js';
+export * from './backend-profile-runtime.js';
+export * from './individual-controller-backend-runtime.js';
 export * from './poll-options.js';
 export * from './host-onboarding.js';
 export * from './individual-start.js';

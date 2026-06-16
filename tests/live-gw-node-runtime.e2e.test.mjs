@@ -23,6 +23,14 @@
  *
  * Follow-up after publish:
  * - keep this suite focused on proving the runtime end-to-end
+ * - add one explicit v2 profile-runtime live slice for:
+ *   - `loadProfile(...)`
+ *   - `startIndividualOrganization(...)`
+ *   - `confirmIndividualOrganizationOrder(...)`
+ *   - the current canonical index/`Composition` read helper
+ * - do not freeze the final read-step wording until current GW CORE proves
+ *   whether `getLatestIps(...)` or `searchClinicalBundle(...)` is the
+ *   canonical public helper for that slice
  * - build a separate `101` Node walkthrough that uses JobManager + virtual API
  *   + actor facades + bundle editor/viewer + consent view model
  * - that future `101` must explain each user conversation step explicitly and
@@ -30,6 +38,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { IndividualOrganizationLifecycleEditor, OrganizationLifecycleEditor } from 'gdc-common-utils-ts';
@@ -54,6 +63,13 @@ import {
   EXAMPLE_LIVE_GW_BASE_URL_LOCAL,
   EXAMPLE_LIVE_CONSENT_GRANT_INPUT,
   EXAMPLE_LIVE_EMPLOYEE_INPUT,
+  EXAMPLE_PROFILE_APP_TYPE_FAMILY,
+  EXAMPLE_PROFILE_CONNECTION_PIN_PASSWORD,
+  EXAMPLE_PROFILE_CONNECTION_SECRET_KIND_PIN_PASSWORD,
+  EXAMPLE_PROFILE_KEY_ACCESS_MODE_SERVER,
+  EXAMPLE_PROFILE_LOCAL_PIN_PASSWORD_BACKEND,
+  EXAMPLE_PROFILE_PROVIDER_DID,
+  EXAMPLE_PROFILE_RUNTIME_CLASS_SERVER,
   EXAMPLE_REGISTERED_SUBJECT_ALTERNATE_NAME,
   EXAMPLE_RELATED_PERSON_DISABLE_INPUT,
   EXAMPLE_RELATED_PERSON_FHIR_RESOURCE,
@@ -84,7 +100,19 @@ import {
   getBundleDocumentResources,
 } from '../../gdc-common-utils-ts/dist/utils/bundle-document-builder.js';
 
-import { ActorCapabilities, ActorKinds, NodeActorSession } from '../dist/index.js';
+import {
+  ActorCapabilities,
+  ActorKinds,
+  BackendSubjectIndexReadModes,
+  DirectBackendProfileRuntime,
+  IndividualControllerBackendRuntime,
+  NodeActorSession,
+  connectBackendToSubjectIndex,
+  getBackendSubjectIndexComposition,
+  prepareConnectToSubjectIndex,
+  prepareGetSubjectIndexComposition,
+  prepareLoadProfile,
+} from '../dist/index.js';
 import {
   buildUnsignedJwt,
   buildUnsignedVpJwt,
@@ -127,6 +155,7 @@ const RUN = isEnabledByDefault('RUN_LIVE_GW_E2E', '1');
 const RUN_ACTOR_CHAIN = isEnabledByDefault('RUN_LIVE_GW_E2E_ACTOR_CHAIN', '1');
 const RUN_IPS_INGESTION = isEnabledByDefault('RUN_LIVE_GW_E2E_IPS_INGESTION', '1');
 const RUN_INDIVIDUAL_LIFECYCLE = isEnabledByDefault('RUN_LIVE_GW_E2E_INDIVIDUAL_LIFECYCLE', '1');
+const RUN_PROFILE_RUNTIME = isEnabledByDefault('RUN_LIVE_GW_E2E_PROFILE_RUNTIME', '1');
 const ACTIVE_TRANSPORT_PROFILE = normalizeLiveGwTransportProfile(
   env('LIVE_GW_E2E_TRANSPORT', LiveGwTransportProfiles.DidcommPlain),
 );
@@ -187,6 +216,48 @@ function createDebugLogger() {
       path.join(__dirname, '..', 'test-results', `live-gw-http-trace-${runId}.jsonl`),
     ),
   });
+}
+
+function readHttpTraceEntries(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) {
+    return [];
+  }
+  return fs.readFileSync(filePath, 'utf8')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
+function assertLatestActivateTraceHasPlaintextTransportMeta({
+  jurisdiction,
+  hostSector,
+  controller,
+}) {
+  const traceFilePath = String(process.env.SDK_HTTP_TRACE_FILE || '').trim();
+  const expectedPath = `/host/cds-${jurisdiction}/v1/${hostSector}/registry/org.schema/Organization/_activate`;
+  const activationEntries = readHttpTraceEntries(traceFilePath)
+    .filter((entry) => String(entry?.request?.url || '').includes(expectedPath));
+  assert.ok(activationEntries.length > 0, `HTTP trace must contain an activation request for ${expectedPath}.`);
+
+  const latest = activationEntries[activationEntries.length - 1];
+  const protectedHeader = latest?.request?.body?.meta?.jws?.protected;
+  const jweHeader = latest?.request?.body?.meta?.jwe?.header;
+  assert.equal(
+    protectedHeader?.kid,
+    controller?.publicKeyJwk?.kid,
+    'Plaintext activation trace must mirror controller.publicKeyJwk.kid into meta.jws.protected.kid.',
+  );
+  assert.deepEqual(
+    protectedHeader?.jwk,
+    controller?.publicKeyJwk,
+    'Plaintext activation trace must mirror controller.publicKeyJwk into meta.jws.protected.jwk.',
+  );
+  assert.equal(
+    jweHeader?.skid,
+    controller?.jwks?.keys?.[0]?.kid,
+    'Plaintext activation trace must mirror controller jwks encryption kid into meta.jwe.header.skid.',
+  );
 }
 
 /**
@@ -571,6 +642,11 @@ test('LIVE professional lifecycle on GW', {
   );
   debug.record('legal-activation', { response: activation });
   assert.equal(activation.poll.status, 200, 'Host onboarding facade must complete organization activation.');
+  assertLatestActivateTraceHasPlaintextTransportMeta({
+    jurisdiction,
+    hostSector,
+    controller: EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller,
+  });
   assert.ok(
     ['200', '201', '409'].includes(String(activation.poll.body?.data?.[0]?.response?.status || '')),
     'Host onboarding facade must return an inner activation response.status of 200/201/409.',
@@ -900,6 +976,11 @@ async function runLiveIndividualLifecycleSuite() {
   ));
   debug.record('individual-suite-legal-activation', { response: activation });
   assert.equal(activation.poll.status, 200, 'Host onboarding must complete before the individual lifecycle suite.');
+  assertLatestActivateTraceHasPlaintextTransportMeta({
+    jurisdiction,
+    hostSector,
+    controller: EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller,
+  });
   const activatedTenantDid = String(
     activation.poll.body?.data?.[0]?.meta?.claims?.['org.schema.Organization.did']
     || '',
@@ -1744,8 +1825,203 @@ test('LIVE legacy-fhir communication conversation indexes DocumentReference and 
   }
 });
 
+async function runLiveProfileRuntimeIndividualSuite() {
+  const debug = createDebugLogger();
+  const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
+  const vpTokenEnv = env('VP_TOKEN');
+  const vpTokenFile = env(
+    'VP_TOKEN_FILE',
+    path.join(__dirname, 'fixtures', 'ica-vp-minimal.json'),
+  );
+  const tenantId = suiteTenantId;
+  const tenantRouteId = suiteTenantRouteId;
+  const jurisdiction = suiteJurisdiction;
+  const sector = suiteSector;
+  const hostSector = env('HOST_REGISTRY_SECTOR', 'test');
+  const bearerToken = env('AUTH_BEARER', 'dummy');
+  const ctx = { tenantId: tenantRouteId, jurisdiction, sector };
+  const hostCtx = { jurisdiction, sector: hostSector };
+  const pollOptions = createLivePollOptions();
+  const profiler = createStepProfiler(debug, 'profile-runtime-suite');
+  const vpPayload = loadVpPayloadFixture(vpTokenFile);
+  const vpToken = vpTokenEnv || buildUnsignedVpJwt(vpPayload);
+  const runtimeClient = createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutMs: 10_000 });
+  const hostSession = new NodeActorSession(
+    {
+      actorKind: ActorKinds.HostOnboarding,
+      capabilities: [
+        ActorCapabilities.HostingActivateOrganization,
+        ActorCapabilities.HostingConfirmOrder,
+        ActorCapabilities.HostingDisableHost,
+        ActorCapabilities.HostingPurgeHost,
+      ],
+    },
+    runtimeClient,
+  );
+  const profileRuntime = new DirectBackendProfileRuntime({
+    facadeClient: runtimeClient,
+    defaultRouteContext: ctx,
+    subjectIndexReadMode: BackendSubjectIndexReadModes.LatestIps,
+  });
+  const individualRuntime = new IndividualControllerBackendRuntime(profileRuntime);
+
+  const activation = await profiler.run('activate-organization', () => hostSession.asHostOnboarding().activateOrganizationInGatewayFromIcaProof(
+    hostCtx,
+    {
+      vpToken,
+      controller: cloneExample(EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller),
+      additionalClaims: {
+        ...cloneExample(EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.additionalClaims),
+        'org.schema.Organization.alternateName': tenantRouteId,
+        'org.schema.Organization.legalName': env('ORG_LEGAL_NAME', 'TEST LEGAL ORGANIZATION SL'),
+        'org.schema.Organization.identifier.additionalType': env('ORG_IDENTIFIER_TYPE', 'taxID'),
+        'org.schema.Organization.identifier.value': tenantId,
+        'org.schema.Organization.address.addressCountry': jurisdiction,
+        'org.schema.Organization.taxID': tenantId,
+        'org.schema.Person.email': env('CONTROLLER_EMAIL', 'controller@example.com'),
+        'org.schema.Person.hasOccupation.identifier.value': env('CONTROLLER_ROLE', 'RESPRSN'),
+        'org.schema.Service.category': sector,
+        'org.schema.Service.identifier': env('SERVICE_IDENTIFIER_DID', 'did:web:provider.example.org'),
+        'org.schema.Service.url': env('SERVICE_URL', 'https://provider.example.org'),
+      },
+    },
+    pollOptions,
+  ));
+  debug.record('profile-runtime-suite-legal-activation', { response: activation });
+  assert.equal(activation.poll.status, 200, 'Profile runtime suite must activate the organization before loading the backend profile.');
+  assertLatestActivateTraceHasPlaintextTransportMeta({
+    jurisdiction,
+    hostSector,
+    controller: EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller,
+  });
+
+  const individualAltName = env(
+    'INDIVIDUAL_ALTERNATE_NAME',
+    `${runSlug}-${EXAMPLE_REGISTERED_SUBJECT_ALTERNATE_NAME}`,
+  );
+  const individualControllerEmail = env('INDIVIDUAL_CONTROLLER_EMAIL', 'controller@example.com');
+  const individualControllerRole = env('INDIVIDUAL_CONTROLLER_ROLE', 'RESPRSN');
+  const subjectDid = suiteSubjectDid;
+  const profileDid = env('INDIVIDUAL_CONTROLLER_PROFILE_DID', EXAMPLE_PROFILE_PROVIDER_DID);
+  const loadRequest = prepareLoadProfile({
+    actorKind: ActorKinds.IndividualController,
+    providerDid: EXAMPLE_PROFILE_PROVIDER_DID,
+    runtimeClass: EXAMPLE_PROFILE_RUNTIME_CLASS_SERVER,
+    keyAccessMode: EXAMPLE_PROFILE_KEY_ACCESS_MODE_SERVER,
+    actorRole: individualControllerRole,
+    profileId: individualControllerEmail,
+    profileDid,
+    subjectDid,
+    email: individualControllerEmail,
+    appType: EXAMPLE_PROFILE_APP_TYPE_FAMILY,
+    localPinPassword: EXAMPLE_PROFILE_LOCAL_PIN_PASSWORD_BACKEND,
+  });
+  const profile = await profiler.run('load-profile', () => individualRuntime.loadProfile(loadRequest));
+  debug.record('profile-runtime-suite-load-profile', {
+    descriptor: profile.profile.descriptor,
+    actorKind: profile.session.actorKind,
+  });
+  assert.equal(profile.session.actorKind, ActorKinds.IndividualController, 'Profile runtime suite must materialize one individual-controller facade from loadProfile(...).');
+
+  const individualStart = await profiler.run('individual-start', () => individualRuntime.startIndividualOrganization(
+    profile,
+    {
+      tenantId: tenantRouteId,
+      jurisdiction,
+      sector,
+      alternateName: individualAltName,
+      controllerEmail: individualControllerEmail,
+      controllerRole: individualControllerRole,
+      additionalClaims: {
+        'org.schema.Person.email': individualControllerEmail,
+        'org.schema.Person.hasOccupation.identifier.value': individualControllerRole,
+        'org.schema.Service.category': sector,
+      },
+      timeoutSeconds: Math.round(pollOptions.timeoutMs / 1000),
+      intervalSeconds: pollOptions.intervalMs / 1000,
+    },
+  ));
+  debug.record('profile-runtime-suite-start', { response: individualStart });
+  assert.equal(individualStart.registration.poll.status, 200, 'Profile runtime suite must start the hosted individual registration through the loaded profile facade.');
+
+  const individualOrder = await profiler.run('individual-order', () => individualRuntime.confirmIndividualOrganizationOrder(
+    profile,
+    {
+      tenantId: tenantRouteId,
+      jurisdiction,
+      sector,
+      offerId: individualStart.offerId,
+      timeoutSeconds: Math.round(pollOptions.timeoutMs / 1000),
+      intervalSeconds: pollOptions.intervalMs / 1000,
+    },
+  ));
+  debug.record('profile-runtime-suite-order', { response: individualOrder });
+  assert.equal(individualOrder.poll.status, 200, 'Profile runtime suite must confirm the hosted individual order through the loaded profile facade.');
+
+  const medication = buildExampleLiveMedicationCases(Date.now())[0];
+  const medicationIpsBundle = buildExampleMedicationIpsDocumentBundle({
+    subjectDid,
+    medication,
+  });
+  const ingestionPayload = buildExampleCommunicationIngestionPayload({
+    subjectDid,
+    sent: medication.effectiveDateTime,
+    ipsBundleBase64: Buffer.from(JSON.stringify(medicationIpsBundle), 'utf8').toString('base64'),
+  });
+  const ingestion = await profiler.run('medication-ingest', () => profile.sdk.ingestCommunicationAndUpdateIndex(
+    ctx,
+    {
+      communicationPayload: ingestionPayload,
+      pathFormatSegment: 'api',
+      pollOptions,
+    },
+  ));
+  debug.record('profile-runtime-suite-ingest', { response: ingestion });
+  assert.equal(ingestion.poll.status, 200, 'Profile runtime suite must ingest one IPS payload before asserting the current index read helper.');
+
+  const connection = await profiler.run('connect-subject-index', () => connectBackendToSubjectIndex(
+    profileRuntime,
+    prepareConnectToSubjectIndex({
+      subjectId: subjectDid,
+      userId: profileDid,
+      userRoleCode: individualControllerRole,
+      secretKind: EXAMPLE_PROFILE_CONNECTION_SECRET_KIND_PIN_PASSWORD,
+      connectionPinPassword: EXAMPLE_PROFILE_CONNECTION_PIN_PASSWORD,
+    }),
+  ));
+  debug.record('profile-runtime-suite-connect', { response: connection });
+  assert.ok(
+    connection.status === 'connected' || connection.status === 'already-connected',
+    'Profile runtime suite must connect the loaded profile to the subject index or detect an already-connected relation.',
+  );
+
+  const composition = await profiler.run('read-subject-index', () => getBackendSubjectIndexComposition(
+    profileRuntime,
+    prepareGetSubjectIndexComposition({
+      subjectId: subjectDid,
+      userId: profileDid,
+      userRoleCode: individualControllerRole,
+    }),
+  ));
+  debug.record('profile-runtime-suite-composition', { response: composition });
+  assert.ok(
+    composition.composition,
+    'Profile runtime suite must return one current GW CORE index payload through the profile-runtime read helper.',
+  );
+
+  profiler.flush();
+}
+
 test('LIVE individual lifecycle on GW', {
   skip: !(RUN && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Individual)),
 }, async () => {
   await runLiveIndividualLifecycleSuite();
+});
+
+test('LIVE backend profile runtime individual-controller flow on GW', {
+  skip: !(RUN
+    && RUN_PROFILE_RUNTIME
+    && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Individual)),
+}, async () => {
+  await runLiveProfileRuntimeIndividualSuite();
 });

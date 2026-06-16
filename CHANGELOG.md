@@ -4,6 +4,79 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Updated `activateOrganizationInGatewayFromIcaProof(...)` so plaintext
+  activation requests mirror controller communication key metadata into
+  `meta.jws.protected` / `meta.jwe.header` using the same shared transport
+  contract documented in `gdc-common-utils-ts`:
+  - `src/node-runtime-client.ts`
+- Added runtime and live-trace coverage for plaintext activation metadata
+  generation:
+  - `tests/host-onboarding.test.mjs`
+  - `tests/live-gw-node-runtime.e2e.test.mjs`
+- Re-exported the new backend runtime entry points from the package root and
+  added explicit live-test script entry points for profile-runtime/dialogue
+  suites:
+  - `src/index.ts`
+  - `package.json`
+- Switched `ConsentInteroperableClaims` to an explicit type-only re-export so
+  the node package surface stays clean under ESM/type-aware consumers:
+  - `src/consent-claim-helpers.ts`
+- Refined node runtime architecture/docs so backend `JobManager` / queue /
+  vault ownership and the actor-profile live-suite split are explicit:
+  - `ARCHITECTURE.md`
+  - `CONTRIBUTING.md`
+  - `README.md`
+  - `docs/NEXT_STEPS.md`
+- Updated the shared dependency target to `gdc-common-utils-ts@^2.0.1`.
+
+### Added
+- Added the first backend-generic profile runtime slice on top of the shared v2
+  `sdk-core` contracts so backend consumers can converge on one actor-aware
+  flow for:
+  - `loadProfile(...)`
+  - `registerTrustedDevice(...)`
+  - `connectToSubjectIndex(...)`
+  - `getSubjectIndexComposition(...)`
+  in:
+  - `src/backend-profile-runtime.ts`
+  - `tests/101-backend-profile-runtime.test.mjs`
+- Added backend profile-session helpers so one loaded backend profile can
+  immediately materialize actor-specific facades through injected runtime
+  clients, including:
+  - `requireBackendActorSession(...)`
+  - `requireBackendIndividualControllerSession(...)`
+  in:
+  - `src/backend-profile-runtime.ts`
+  - `tests/101-backend-profile-runtime.test.mjs`
+- Added the first backend individual-controller use-case wrapper on top of the
+  generic profile runtime, covering:
+  - `loadProfile(...)`
+  - `startIndividualOrganization(...)`
+  - `confirmIndividualOrganizationOrder(...)`
+  - `searchClinicalBundle(...)`
+  - `getLatestIps(...)`
+  in:
+  - `src/individual-controller-backend-runtime.ts`
+  - `tests/101-individual-controller-backend-runtime.test.mjs`
+- Added one direct backend profile runtime implementation over the current
+  injected `RuntimeClient`, so authenticated backend callers can already use
+  `loadProfile(...)` without waiting for the future persistent profile/KMS/job
+  manager runtime:
+  - `src/backend-profile-runtime.ts`
+  - `tests/101-backend-profile-runtime.test.mjs`
+- Added in-memory profile-session runtime functionality for backend callers:
+  - `createJobManagerInMemory(...)`
+  - `closeProfile(...)` / `closeBackendProfile(...)`
+  - draft job creation/query/submit in the `101` backend walkthrough
+  in:
+  - `src/backend-profile-runtime.ts`
+  - `tests/101-backend-profile-runtime.test.mjs`
+- Added one separate live GW E2E slice for the profile-runtime individual
+  baseline, entering through `loadProfile(...)` before the current individual
+  registration/order/index flow:
+  - `tests/live-gw-node-runtime.e2e.test.mjs`
+
 ## [2.0.0] - 2026-06-15
 
 ### Added

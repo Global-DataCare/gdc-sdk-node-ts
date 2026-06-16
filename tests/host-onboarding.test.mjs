@@ -40,6 +40,9 @@ test('NodeHttpClient.activateOrganizationInGatewayFromIcaProof serializes vp_tok
   assert.equal(calls[0][0], '/host/activate');
   assert.equal(calls[0][1], '/host/activate-response');
   assert.equal(calls[0][2].type, 'application/api+json');
+  assert.equal(calls[0][2].meta.jws.protected.kid, EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller.publicKeyJwk.kid);
+  assert.deepEqual(calls[0][2].meta.jws.protected.jwk, EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller.publicKeyJwk);
+  assert.equal(calls[0][2].meta.jwe.header.skid, EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller.jwks.keys[0].kid);
   assert.equal(calls[0][2].body.vp_token, EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.vpToken);
   assert.deepEqual(calls[0][2].body.controller, EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller);
   assert.equal(calls[0][2].body.data[0].type, 'Organization-activation-request-v1.0');
