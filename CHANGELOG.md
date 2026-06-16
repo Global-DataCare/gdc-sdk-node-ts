@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- Bumped the package patch version from `2.0.0` to `2.0.1`.
+- Updated dependency targets to:
+  - `gdc-common-utils-ts@^2.0.2`
+  - `gdc-sdk-core-ts@^2.0.1`
 - Updated `activateOrganizationInGatewayFromIcaProof(...)` so plaintext
   activation requests mirror controller communication key metadata into
   `meta.jws.protected` / `meta.jwe.header` using the same shared transport
@@ -76,6 +80,10 @@ All notable changes to this project will be documented in this file.
   baseline, entering through `loadProfile(...)` before the current individual
   registration/order/index flow:
   - `tests/live-gw-node-runtime.e2e.test.mjs`
+
+### Testing
+- `npm run type-check`
+- `npm test`
 
 ## [2.0.0] - 2026-06-15
 
