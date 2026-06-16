@@ -14,6 +14,7 @@ import {
 } from 'gdc-sdk-core-ts';
 
 import { buildConsentClaimsSimpleWithCid } from 'gdc-common-utils-ts/utils/consent';
+import { buildDidcommPlaintextTransportMetadata } from 'gdc-common-utils-ts/utils/activation-request';
 import { pollUntilCompleteWithMethod } from './async-polling.js';
 import {
   confirmLegalOrganizationOrderWithDeps,
@@ -239,6 +240,18 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   /**
    * Activates a legal organization in the gateway host registry using an ICA
    * proof token already obtained by the caller.
+   *
+   * Plaintext transport note:
+   * - this Node runtime currently submits `_activate` as
+   *   `application/didcomm-plaintext+json`
+   * - because there is no real outer JWS/JWE envelope in that mode, the
+   *   runtime mirrors the technical communication metadata derived from
+   *   `controller.publicKeyJwk` / `controller.jwks` into `meta.jws.protected`
+   *   and `meta.jwe.header`
+   * - secure JOSE transports should carry those values in the real protected
+   *   headers instead of plaintext `meta`
+   * - this mirrored metadata is transport fallback only; the canonical
+   *   activation contract remains `body.vp_token` plus `body.controller.*`
    */
   public async activateOrganizationInGatewayFromIcaProof(
     hostCtx: HostRouteContext,
@@ -253,11 +266,16 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       additionalClaims: input.additionalClaims,
     });
     const serviceClaims = activationDraft.buildServiceClaims();
+    const transportMeta = buildDidcommPlaintextTransportMetadata({
+      controller: input.controller,
+      contentType: 'application/didcomm-plaintext+json',
+    });
     const payload: SubmitPayload = {
       thid,
       iss: String(hostCtx.controllerDid || '').trim() || undefined,
       aud: String(hostCtx.hostDid || '').trim() || undefined,
       type: 'application/api+json',
+      ...(transportMeta ? { meta: transportMeta } : {}),
       body: {
         vp_token: input.vpToken,
         ...(input.controller ? { controller: input.controller } : {}),

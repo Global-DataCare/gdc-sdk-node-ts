@@ -42,5 +42,8 @@ export {
   setPurposes,
   setRoles,
   setSections,
-  type ConsentInteroperableClaims,
+} from 'gdc-sdk-core-ts';
+
+export type {
+  ConsentInteroperableClaims,
 } from 'gdc-sdk-core-ts';

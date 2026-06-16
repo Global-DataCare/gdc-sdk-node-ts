@@ -12,6 +12,8 @@ This repository is the canonical place for:
 - route/path binding to current GW contracts
 - actor/profile runtimes for server-side execution in the name of a concrete actor
 - server-side facades acting on behalf of concrete users or actors
+- backend-generic profile loading, trusted-device, and subject-index runtime implementations
+- backend queue/outbox/vault implementations for actor-aware runtime execution
 
 This repository is not the place for:
 
@@ -27,6 +29,7 @@ Put code here when it:
 - depends on real route binding, transport, polling, or execution context
 - acts as a server-side facade in the name of a concrete actor
 - implements actor-profile runtime concerns such as profile loading, session/runtime state, or job execution
+- implements concrete runtime queue, outbox, and vault behavior for backend execution
 
 Do not put code here when it:
 
@@ -79,13 +82,60 @@ It may load one actor profile, apply the actor's capability surface from
 
 Its boundary is runtime execution, not reusable semantic modeling.
 
+The intended backend runtime decomposition is:
+
+- `loadProfile(...)`
+- `closeProfile(...)`
+- `JobManager`
+- backend `Outbox`
+- backend `Queue`
+- backend `Vault...` adapter
+
+Rules:
+
+- `JobManager` is common by responsibility across runtimes; do not rename it
+  as if memory/server were its primary identity
+- backend-specific details should be specialized at the adapter/factory layer,
+  for example:
+  - `createJobManagerInMemory(...)`
+  - `VaultMemory`
+  - future `createServerQueueInMemory(...)`
+- the queue belongs to the backend runtime/device/server, not to the shared
+  semantic model
+- `JobManager` owns profile/session work state; the queue owns scheduling and
+  execution; the vault owns persistence
+
+For the current backend call/session model:
+
+- `loadProfile(profilePinPassword)` starts the actor session
+- backend runtime may use `VaultMemory` when no durable persistence is needed
+- messages/jobs may be sent to GW CORE immediately
+- `closeProfile(...)` ends the session and clears memory-owned runtime state
+
 ## Test And Example Policy
 
 High-level tests should show actor/runtime behavior with as little plumbing as
 possible, while still proving node orchestration.
 
+Live E2E suites should be split by purpose:
+
+- platform lifecycle suites
+- actor profile-runtime suites
+- actor dialogue/interoperability suites
+
+Do not collapse those into one giant test with mixed intent.
+
+Important cleanup rule:
+
+- actor and dialogue suites may create data that another actor consumes
+- in those suites, `disable` / `purge` happen at the end as cleanup for the
+  scenario that created the state
+- only platform lifecycle suites should treat destructive lifecycle from host
+  downward as the primary subject of the test
+
 Preferred anchors:
 
+- [tests/101-backend-profile-runtime.test.mjs](/Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts/tests/101-backend-profile-runtime.test.mjs:1)
 - [tests/orchestration.test.mjs](/Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts/tests/orchestration.test.mjs:1)
 - [tests/gdc-session-bridge.test.mjs](/Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts/tests/gdc-session-bridge.test.mjs:1)
 - [tests/resource-operations.test.mjs](/Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts/tests/resource-operations.test.mjs:1)

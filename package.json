@@ -23,10 +23,13 @@
     "test:e2e:live-gw:didcomm-plain": "npm run build && RUN_LIVE_GW_E2E=1 LIVE_GW_E2E_TRANSPORT=didcomm-plain node --test tests/live-gw-node-runtime.e2e.test.mjs",
     "test:e2e:live-gw:legacy-fhir": "npm run build && RUN_LIVE_GW_E2E=1 LIVE_GW_E2E_TRANSPORT=legacy-fhir node --test tests/live-gw-node-runtime.e2e.test.mjs",
     "test:e2e:live-gw:all": "npm run build && RUN_LIVE_GW_E2E=1 LIVE_GW_E2E_TRANSPORT=all node --test tests/live-gw-node-runtime.e2e.test.mjs",
+    "test:e2e:live-profile-runtime:individual": "npm run build && RUN_LIVE_PROFILE_RUNTIME_E2E=1 node --test tests/live-profile-runtime-individual.e2e.test.mjs",
+    "test:e2e:live-profile-runtime:professional": "npm run build && RUN_LIVE_PROFILE_RUNTIME_PROFESSIONAL_E2E=1 node --test tests/live-profile-runtime-professional.e2e.test.mjs",
+    "test:e2e:live-dialogue:consent-professional": "npm run build && RUN_LIVE_DIALOGUE_CONSENT_PROFESSIONAL_E2E=1 node --test tests/live-dialogue-consent-professional-access.e2e.test.mjs",
     "test:e2e:live-gw:clean": "bash ./scripts/run-live-gw-clean.sh"
   },
   "dependencies": {
-    "gdc-common-utils-ts": "^2.0.0",
+    "gdc-common-utils-ts": "^2.0.1",
     "gdc-sdk-core-ts": "^2.0.0"
   },
   "devDependencies": {

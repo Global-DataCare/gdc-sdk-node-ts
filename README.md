@@ -4,6 +4,12 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) and
 [CONTRIBUTING.md](./CONTRIBUTING.md) before adding node runtime facades,
 execution adapters, or orchestration tests.
 
+Short rule:
+
+- `101` tests must read like executable tutorials
+- shared fixtures/types belong in `gdc-common-utils-ts`, not as local literals
+  in node runtime tests
+
 Node runtime package for consuming the shared GDC SDK contracts against real
 gateway backends.
 
@@ -50,6 +56,22 @@ If you are integrating this package for the first time, open these in order:
 1. [gdc-sdk-core-ts/docs/101-SDK_PACKAGE_BOUNDARIES.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-SDK_PACKAGE_BOUNDARIES.md)
    Why `core`, `node`, and `front` are separate packages, what belongs in each
    one, and why actor-scoped facades must stay aligned across runtimes.
+1. [tests/101-backend-profile-runtime.test.mjs](./tests/101-backend-profile-runtime.test.mjs)
+   Minimal backend-generic walkthrough for loading one actor profile,
+   registering one trusted device/runtime context, connecting to one subject
+   index, reading one subject index composition, and then materializing the
+   `IndividualController` facade from the loaded backend session.
+   That walkthrough now uses the concrete direct backend runtime over the
+   injected `RuntimeClient`, not only one abstract adapter mock, and now also
+   demonstrates in-memory `JobManager` usage plus `closeProfile(...)`.
+1. [tests/101-individual-controller-backend-runtime.test.mjs](./tests/101-individual-controller-backend-runtime.test.mjs)
+   First pragmatic backend wrapper over the generic profile runtime for the
+   current individual-controller CORE baseline:
+   load profile, start registration, confirm order, and search the clinical
+   index.
+1. [docs/V2_INDIVIDUAL_REGISTRATION_RECONCILIATION.md](./docs/V2_INDIVIDUAL_REGISTRATION_RECONCILIATION.md)
+   Reconciles the old consumer flow with the current CORE registration baseline
+   and separates the stable registration base from later product extensions.
 1. [docs/101-SDK_END_TO_END.md](./docs/101-SDK_END_TO_END.md)
   Ordered onboarding guide with end-to-end journeys, copy/paste snippets, and
   the recommended reading path for new backend integrators.
@@ -93,6 +115,22 @@ If you need the shortest path:
 - dataspace discovery and fallback/cache boundary:
   [docs/101-DISCOVERY.md](./docs/101-DISCOVERY.md)
 
+Immediate live validation target:
+
+- the next profile-runtime validation must be treated as an actor-profile suite,
+  not as a replay of the GW CORE platform lifecycle
+- the standalone current entry point for that is:
+  [tests/live-profile-runtime-individual.e2e.test.mjs](tests/live-profile-runtime-individual.e2e.test.mjs)
+- it should begin with `loadProfile(...)` for the target actor and then prove:
+  - `startIndividualOrganization(...)`
+  - `confirmIndividualOrganizationOrder(...)`
+  - the canonical current index/`Composition` read helper
+- if that actor flow creates lifecycle-owned state, `disable` / `purge` belong
+  at the end of that scenario as cleanup
+- until that live proof exists, treat `getLatestIps(...)` and
+  `searchClinicalBundle(...)` as candidate read contracts, not yet final
+  wording
+
 ## Executable Usage Examples
 
 Open these tests when you want to see exact method calls and exact inputs:
@@ -111,6 +149,9 @@ Open these tests when you want to see exact method calls and exact inputs:
   SMART token request flow.
 - [tests/live-gw-node-runtime.e2e.test.mjs](tests/live-gw-node-runtime.e2e.test.mjs)
   End-to-end runtime wiring against a real GW environment.
+- [tests/live-profile-runtime-individual.e2e.test.mjs](tests/live-profile-runtime-individual.e2e.test.mjs)
+  Standalone actor-profile E2E for the individual controller on an already
+  operational tenant, including scenario-owned cleanup.
 - [tests/101-dataspace-resolver.test.mjs](tests/101-dataspace-resolver.test.mjs)
   Minimal `HttpDataspaceResolver` 101 with one host and one published provider.
 - [tests/101-default-first-dataspace-discovery.test.mjs](tests/101-default-first-dataspace-discovery.test.mjs)

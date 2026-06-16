@@ -14,6 +14,24 @@ in `gdc-common-utils-ts` or `gdc-sdk-core-ts`.
 Do not add canonical shared `get...` / `set...` methods here; those must be
 defined in `gdc-common-utils-ts` first.
 
+For actor runtime work in `sdk-node`, keep this split explicit:
+
+- `JobManager` = common profile/session orchestration concept
+- `Outbox` = logical pending work owned by the profile/runtime
+- `Queue` = backend scheduling/execution layer
+- `Vault...` = persistence adapter
+- `loadProfile(...)` / `closeProfile(...)` = runtime lifecycle entry/exit
+
+Concrete backend implementations belong here, but keep the specialization at
+the end of the name, for example:
+
+- `createJobManagerInMemory(...)`
+- `VaultMemory`
+- future `createServerQueueInMemory(...)`
+
+Do not rename the common abstraction itself as if memory/server were its
+primary identity.
+
 ## Test Rule
 
 Keep node tests as high-level as possible for the actor flow being exercised.
