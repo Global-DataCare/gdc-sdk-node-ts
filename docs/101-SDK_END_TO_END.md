@@ -473,11 +473,29 @@ Use this when the integrator already has:
 
 - `vpToken` from ICA or trust bootstrap
 - presenter signing key id used to sign the VP
-- controller alias such as `mailto:`
+- controller alias only when the caller must still pass explicit demo bootstrap
+  material
 - controller DID if the request must carry explicit controller bootstrap material
 - public signing key
 - public auxiliary keys
 - business registration claims
+
+Normal production expectation:
+
+- the ICA-issued representative VC should already carry:
+  - `credentialSubject.sameAs`
+  - `credentialSubject.hasCredential.material`
+- in that case, the client should treat `controller.sameAs` as optional and
+  only send the normal activation input plus business claims
+
+Demo/local fallback only:
+
+- if the ICA VC still does not carry the representative contact/binding data,
+  the caller may pass:
+  - `additionalClaims[ClaimsPersonSchemaorg.email]` for GW admin bootstrap
+  - `controller.sameAs` only as an explicit temporary bootstrap alias
+- for email-based identity, canonical `sameAs` is `urn:multibase:z...`, not
+  `mailto:...`
 
 If your team needs the exact VP construction steps before this call, open
 `gdc-common-utils-ts/docs/101-VP_TOKEN.md`. That file explains how to:
@@ -492,10 +510,11 @@ Copy/paste example:
 ```ts
 const orgControllerDid = 'did:web:people.acme.org:controllers:primary';
 const emailControllerOrg = 'legal.rep@acme.org';
+const controllerSameAs = normalizeSameAsHash(emailControllerOrg);
 
 const controllerBinding = buildControllerBindingInput({
   did: orgControllerDid,
-  sameAs: `mailto:${emailControllerOrg}`,
+  sameAs: controllerSameAs,
   publicSignKey,
   publicKeys,
 });
@@ -523,6 +542,8 @@ const organizationActivation = await professionalSdk.activateOrganizationInGatew
       [ClaimsOrganizationSchemaorg.numberOfEmployees]: 25,
       [ClaimsOrganizationSchemaorg.addressCountry]: hostOnboardingRoute.jurisdiction,
       [ClaimsOrganizationSchemaorg.taxId]: 'VATES-B00112233',
+      // Demo/local fallback only. In production the ICA VC should already
+      // carry representative sameAs / hasCredential.material from signed input.
       [ClaimsPersonSchemaorg.email]: emailControllerOrg,
       [ClaimsPersonSchemaorg.hasOccupationalRoleValue]: 'RESPRSN',
       [ClaimsServiceSchemaorg.category]: tenantContext.sector,
