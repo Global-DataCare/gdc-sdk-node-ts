@@ -25,7 +25,7 @@
    - live/e2e `101` suites may accept env overrides, but their default copy/paste path must use named high-level helpers instead of hand-built VC/VP/request payloads
    - every new high-level helper has one matching `101`-style test or doc anchor in its owning package
    - the canonical top-level programming model is `loadProfile(...) -> unlock with PIN/secret -> session -> actor facade -> common-utils helpers`
-   - the same top-level model must work for browser/frontend, backend/BFF, and voice/telephone assistant channels; only the runtime adapter changes
+   - the same top-level model must work for browser/frontend, backend/BFF, and conversational/assisted channels; only the runtime adapter changes
    - `profile`/`session` is the top-level integration entrypoint, while employee/consent/IPS/medication editors and viewers remain owned by `common-utils`
 4. Track the concrete node-repo surfaces that must be rewritten to follow that rule:
    - `tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
@@ -82,7 +82,7 @@
    - query/filter consolidated resources by clinical date/date range
    - expose `code.text` and narrative/XHTML availability in business DTOs
    - generate fallback render DTOs when XHTML must be derived from `meta.claims`
-   - add one high-level bundle summary helper suitable for call-center/web/app menus:
+   - add one high-level bundle summary helper suitable for assisted-channel/web/app menus:
      medication count, condition count, allergy count, note count, narrative/XHTML count
    - keep explicit room for future localized XHTML generation when a resource lacks `text.div`
 17. Add dataspace resolver abstraction and BFF-oriented discovery DTOs:
@@ -90,16 +90,16 @@
    - `resolvePublishedProviders(...)`
    - host-catalog-driven provider discovery for individuals
 18. Follow `docs/101-DISCOVERY.md` for the current dataspace discovery guide.
-19. Align the backend/profile `101` surface with the real UHC channel flows:
-   - `uhc-voice-core-ts/flow-personal-phone-assistance.md` is the current source for real voice menu contracts
-   - `uhc-unid-chat-node/src/application/flows/voiceDataEntryFlow.ts` owns current menu/field runtime behavior
+19. Align the backend/profile `101` surface with real multi-channel flows:
+   - keep one generic source of truth for menu-oriented assisted-channel contracts
+   - keep one generic source of truth for menu/field runtime behavior
    - `docs/101-PROFILE-ORCHESTRATION.md` is the current map of which `gdc-common-utils-ts` `101` owns each high-level editor/viewer/builder and how profiles must be chained in `sdk-node`
    - add one `101` path for individual-controller menu use cases:
      load protected profile, list related/managed individuals, choose one by array item or alias, read section summaries, edit medications through high-level editors
    - add one `101` path for professional menu use cases:
      load protected profile, request SMART access, search one document/bundle, summarize sections, read XHTML/narrative when present
    - channel apps must stay thin:
-     `uhc-unid-chat-node` and voice/web/expo should consume these facades, not rebuild GW payloads
+     web/mobile/backend/conversational clients should consume these facades, not rebuild GW payloads
 20. Rewrite the backend/profile `101` tests by importing the teaching sequence from existing `common-utils` `101` files instead of inventing fresh slices:
    - onboarding: `101-individual-onboarding-claims.test.ts`
    - legal tenant activation: `101-legal-organization-onboarding-editor.test.ts`
