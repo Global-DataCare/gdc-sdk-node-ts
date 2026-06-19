@@ -788,8 +788,8 @@ async function submitAndPollDirect({ baseUrl, path: submitPath, payload, bearerT
   const submitResponse = await fetch(`${baseUrl}${submitPath}`, {
     method: 'POST',
     headers: {
-      Accept: 'application/json, application/didcomm-plaintext+json, */*',
-      'Content-Type': 'application/didcomm-plaintext+json',
+      Accept: 'application/json, application/didcomm-plain+json, */*',
+      'Content-Type': 'application/didcomm-plain+json',
       ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
     },
     body: JSON.stringify(payload),
@@ -815,7 +815,7 @@ async function submitAndPollDirect({ baseUrl, path: submitPath, payload, bearerT
     const pollResponse = await fetch(pollUrl, {
       method: 'POST',
       headers: {
-        Accept: 'application/json, application/didcomm-plaintext+json, */*',
+        Accept: 'application/json, application/didcomm-plain+json, */*',
         'Content-Type': 'application/json',
         ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
       },
