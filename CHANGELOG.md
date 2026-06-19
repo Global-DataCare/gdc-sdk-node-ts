@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - Updated the shared dependency target to `gdc-common-utils-ts@^2.0.6`.
+- Updated the shared dependency target to `gdc-sdk-core-ts@^2.0.4`.
 - Switched the node runtime DIDComm plaintext transport examples/tests to the
   canonical `application/didcomm-plain+json` media type.
 
