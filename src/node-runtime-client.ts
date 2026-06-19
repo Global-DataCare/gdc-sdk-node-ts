@@ -329,7 +329,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    *
    * Plaintext transport note:
    * - this Node runtime currently submits `_activate` as
-   *   `application/didcomm-plaintext+json`
+   *   `application/didcomm-plain+json`
    * - because there is no real outer JWS/JWE envelope in that mode, the
    *   runtime mirrors the technical communication metadata derived from
    *   `controller.publicKeyJwk` / `controller.jwks` into `meta.jws.protected`
@@ -354,7 +354,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     const serviceClaims = activationDraft.buildServiceClaims();
     const transportMeta = buildDidcommPlaintextTransportMetadata({
       controller: input.controller,
-      contentType: 'application/didcomm-plaintext+json',
+      contentType: 'application/didcomm-plain+json',
     });
     const payload: SubmitPayload = {
       thid,
