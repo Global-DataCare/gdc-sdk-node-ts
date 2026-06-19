@@ -46,7 +46,7 @@ import {
 } from '../dist/index.js';
 import {
   buildUnsignedJwt,
-  buildUnsignedVpJwt,
+  buildUnsignedProfessionalSmartVpJwt,
 } from './helpers/vp-token-fixture.mjs';
 import {
   createRuntimeClient,
@@ -153,19 +153,10 @@ test('LIVE professional profile runtime flow on existing tenant', {
   );
   const professionalVpToken = env(
     'PROFESSIONAL_VP_TOKEN',
-    buildUnsignedVpJwt({
-      vp: {
-        holder: professionalClientId,
-        verifiableCredential: [
-          {
-            type: ['VerifiableCredential', 'EmployeeCredential'],
-            credentialSubject: {
-              id: professionalActorDid,
-              hasOccupation: env('PROFESSIONAL_SUBJECT_OCCUPATION', professionalRole),
-            },
-          },
-        ],
-      },
+    buildUnsignedProfessionalSmartVpJwt({
+      clientId: professionalClientId,
+      actorDid: professionalActorDid,
+      role: env('PROFESSIONAL_SUBJECT_OCCUPATION', professionalRole),
     }),
   );
   const bearerToken = env('AUTH_BEARER', professionalIdToken);

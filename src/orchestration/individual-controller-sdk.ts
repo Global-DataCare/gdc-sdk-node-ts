@@ -9,7 +9,10 @@ import {
   type SubmitAndPollResult,
   type SubmitPayload,
 } from './client-port.js';
+import type { FamilyOrganizationSummary } from 'gdc-common-utils-ts/utils/family-organization-summary';
 import { assertFacadeCapability } from './capability-guard.js';
+import type { EnsureFamilyOrganizationRegistrationInput, EnsureFamilyOrganizationRegistrationResult } from '../family-organization-registration.js';
+import type { FamilyOrganizationSearchInput } from '../family-organization-search.js';
 import type { IndividualOrganizationConfirmOrderInput, RouteContext } from '../individual-onboarding.js';
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
 import type { NodeCapability } from '../session.js';
@@ -26,6 +29,8 @@ import type {
   LicenseListRuntimeSearchInput,
   LicenseOfferRuntimeSearchInput,
   LicenseOrderRuntimeSearchInput,
+  RevokeProfessionalAccessInput,
+  RevokeProfessionalAccessResult,
   RelatedPersonUpsertInput,
 } from '../resource-operations.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
@@ -51,6 +56,28 @@ export class IndividualControllerSdk {
   public startIndividualOrganization(input: IndividualOrganizationBootstrapInput): Promise<IndividualOrganizationStartResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualBootstrap, ActorKinds.IndividualController, 'startIndividualOrganization');
     return requireClientMethod(this.client, 'startIndividualOrganization')(input);
+  }
+
+  /**
+   * Searches one existing family/individual registration by the phone-first
+   * business key used by channel apps.
+   */
+  public searchFamilyOrganization(
+    ctx: RouteContext,
+    input: FamilyOrganizationSearchInput,
+  ): Promise<FamilyOrganizationSummary | null> {
+    return requireClientMethod(this.client, 'searchFamilyOrganization')(ctx, input);
+  }
+
+  /**
+   * Searches one existing family/individual registration and starts the
+   * bootstrap flow only when the registration is still missing.
+   */
+  public ensureFamilyOrganizationRegistration(
+    ctx: RouteContext,
+    input: EnsureFamilyOrganizationRegistrationInput,
+  ): Promise<EnsureFamilyOrganizationRegistrationResult> {
+    return requireClientMethod(this.client, 'ensureFamilyOrganizationRegistration')(ctx, input);
   }
 
   /**
@@ -145,6 +172,17 @@ export class IndividualControllerSdk {
   public grantProfessionalAccess(ctx: RouteContext, input: GrantProfessionalAccessInput): Promise<GrantProfessionalAccessResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.ConsentGrantProfessionalAccess, ActorKinds.IndividualController, 'grantProfessionalAccess');
     return requireClientMethod(this.client, 'grantProfessionalAccess')(ctx, input);
+  }
+
+  /**
+   * Closes an existing professional consent by setting its period end.
+   */
+  public revokeProfessionalAccess(
+    ctx: RouteContext,
+    input: RevokeProfessionalAccessInput,
+  ): Promise<RevokeProfessionalAccessResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.ConsentGrantProfessionalAccess, ActorKinds.IndividualController, 'revokeProfessionalAccess');
+    return requireClientMethod(this.client, 'revokeProfessionalAccess')(ctx, input);
   }
 
   /**

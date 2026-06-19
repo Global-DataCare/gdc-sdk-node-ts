@@ -51,6 +51,10 @@ Current execution-mode rule:
 
 If you need lower-level runtime details after this guide, open:
 
+- [../tests/101-live-full-cycle-bff-runtime.e2e.test.mjs](../tests/101-live-full-cycle-bff-runtime.e2e.test.mjs)
+  Executable live tutorial for the full backend/BFF dependency chain:
+  host/tenant, professional employee, individual, consent, SMART, read,
+  cleanup.
 - [101-SDK_INTEGRATION.md](./101-SDK_INTEGRATION.md)
 - [gdc-sdk-core-ts/docs/101-SDK_FLOWS.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-SDK_FLOWS.md)
 - [gdc-common-utils-ts/docs/101-CONSENT_ACCESS.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/101-CONSENT_ACCESS.md)

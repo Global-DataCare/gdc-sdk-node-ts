@@ -26,6 +26,8 @@ import { createActorSessionsFromFacades } from './gdc-session-bridge.js';
 import type { ActorSession } from './session.js';
 import type { RuntimeClient } from './orchestration/client-port.js';
 import { IndividualControllerSdk } from './orchestration/individual-controller-sdk.js';
+import { OrganizationControllerSdk } from './orchestration/organization-controller-sdk.js';
+import { ProfessionalSdk } from './orchestration/professional-sdk.js';
 import type { RouteContext } from './individual-onboarding.js';
 
 /**
@@ -80,6 +82,18 @@ export type BackendIndividualControllerProfile = {
   profile: BackendLoadedActorProfile;
   session: ActorSession;
   sdk: IndividualControllerSdk;
+};
+
+export type BackendOrganizationControllerProfile = {
+  profile: BackendLoadedActorProfile;
+  session: ActorSession;
+  sdk: OrganizationControllerSdk;
+};
+
+export type BackendProfessionalProfile = {
+  profile: BackendLoadedActorProfile;
+  session: ActorSession;
+  sdk: ProfessionalSdk;
 };
 
 /**
@@ -396,6 +410,20 @@ export class DirectBackendProfileRuntime implements BackendProfileRuntimeClient 
 }
 
 /**
+ * Preferred developer-facing factory for the current backend profile runtime.
+ *
+ * Use this helper in tutorials and app/BFF code when you already have one
+ * configured runtime client and want the canonical
+ * `loadProfile(...) -> session -> actor facade` entrypoint without exposing the
+ * concrete class name in every example.
+ */
+export function createBackendProfileRuntime(
+  options: DirectBackendProfileRuntimeOptions,
+): BackendProfileRuntimeClient {
+  return new DirectBackendProfileRuntime(options);
+}
+
+/**
  * Minimal in-memory `JobManager` for backend runtimes that do not need durable
  * persistence during one live session.
  */
@@ -664,6 +692,44 @@ export function requireBackendIndividualControllerSdk(
 }
 
 /**
+ * Returns the organization-controller session from one loaded backend profile.
+ */
+export function requireBackendOrganizationControllerSession(
+  profile: BackendLoadedActorProfile,
+): ActorSession {
+  return requireBackendActorSession(profile, ActorKinds.OrganizationController);
+}
+
+/**
+ * Materializes the organization-controller facade directly from one loaded
+ * backend profile.
+ */
+export function requireBackendOrganizationControllerSdk(
+  profile: BackendLoadedActorProfile,
+): OrganizationControllerSdk {
+  return requireBackendOrganizationControllerSession(profile).asOrganizationController();
+}
+
+/**
+ * Returns the professional session from one loaded backend profile.
+ */
+export function requireBackendProfessionalSession(
+  profile: BackendLoadedActorProfile,
+): ActorSession {
+  return requireBackendActorSession(profile, ActorKinds.Professional);
+}
+
+/**
+ * Materializes the professional facade directly from one loaded backend
+ * profile.
+ */
+export function requireBackendProfessionalSdk(
+  profile: BackendLoadedActorProfile,
+): ProfessionalSdk {
+  return requireBackendProfessionalSession(profile).asProfessional();
+}
+
+/**
  * Loads one backend profile and resolves the individual-controller session in
  * one step.
  *
@@ -681,6 +747,39 @@ export async function loadBackendIndividualControllerProfile(
     profile,
     session,
     sdk: session.asIndividualController(),
+  };
+}
+
+/**
+ * Loads one backend profile and resolves the organization-controller session in
+ * one step.
+ */
+export async function loadBackendOrganizationControllerProfile(
+  client: BackendProfileRuntimeClient,
+  input: ProfileLoadRequest,
+): Promise<BackendOrganizationControllerProfile> {
+  const profile = await loadBackendProfile(client, input);
+  const session = requireBackendOrganizationControllerSession(profile);
+  return {
+    profile,
+    session,
+    sdk: session.asOrganizationController(),
+  };
+}
+
+/**
+ * Loads one backend profile and resolves the professional session in one step.
+ */
+export async function loadBackendProfessionalProfile(
+  client: BackendProfileRuntimeClient,
+  input: ProfileLoadRequest,
+): Promise<BackendProfessionalProfile> {
+  const profile = await loadBackendProfile(client, input);
+  const session = requireBackendProfessionalSession(profile);
+  return {
+    profile,
+    session,
+    sdk: session.asProfessional(),
   };
 }
 

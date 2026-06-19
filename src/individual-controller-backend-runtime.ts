@@ -1,8 +1,11 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
 import type { SubmitAndPollResult } from 'gdc-sdk-core-ts';
+import type { FamilyOrganizationSummary } from 'gdc-common-utils-ts/utils/family-organization-summary';
 import type { IndividualOrganizationConfirmOrderInput, RouteContext } from './individual-onboarding.js';
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from './individual-start.js';
+import type { EnsureFamilyOrganizationRegistrationInput, EnsureFamilyOrganizationRegistrationResult } from './family-organization-registration.js';
+import type { FamilyOrganizationSearchInput } from './family-organization-search.js';
 import type { ClinicalBundleSearchInput } from './resource-operations.js';
 import {
   loadBackendIndividualControllerProfile,
@@ -47,6 +50,30 @@ export class IndividualControllerBackendRuntime {
     input: IndividualOrganizationBootstrapInput,
   ): Promise<IndividualOrganizationStartResult> {
     return profile.sdk.startIndividualOrganization(input);
+  }
+
+  /**
+   * Searches one existing family/individual registration before deciding
+   * whether the backend should create or resume it.
+   */
+  public searchFamilyOrganization(
+    profile: BackendIndividualControllerProfile,
+    ctx: RouteContext,
+    input: FamilyOrganizationSearchInput,
+  ): Promise<FamilyOrganizationSummary | null> {
+    return profile.sdk.searchFamilyOrganization(ctx, input);
+  }
+
+  /**
+   * High-level onboarding gate for channel apps:
+   * search the registration first and only bootstrap when still missing.
+   */
+  public ensureFamilyOrganizationRegistration(
+    profile: BackendIndividualControllerProfile,
+    ctx: RouteContext,
+    input: EnsureFamilyOrganizationRegistrationInput,
+  ): Promise<EnsureFamilyOrganizationRegistrationResult> {
+    return profile.sdk.ensureFamilyOrganizationRegistration(ctx, input);
   }
 
   /**

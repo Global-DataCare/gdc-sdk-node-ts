@@ -38,3 +38,24 @@ Keep node tests as high-level as possible for the actor flow being exercised.
 
 Prefer shared fixtures/examples from `gdc-common-utils-ts` and avoid inline
 literals unless the test is explicitly about node-only runtime behavior.
+
+## Live E2E Validation Order
+
+Do not skip validation stages when changing runtime flows, live suites, Docker
+packaging, or deployment wiring.
+
+Required order:
+
+1. real-terminal local process E2E
+2. local Docker image E2E
+3. staging E2E
+4. only then production image/deploy work
+
+Practical rule:
+
+- first prove the flow from a real local TTY against local processes
+- then prove the same flow against the local Docker image/container
+- then prove the same flow against staging
+- do not treat staging as the first debugging environment
+- do not prepare or promote production deployment work before the staging live
+  E2E is green

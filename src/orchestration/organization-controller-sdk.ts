@@ -4,6 +4,8 @@ import { ActorCapabilities, ActorKinds } from 'gdc-common-utils-ts/constants/act
 import {
   requireClientMethod,
   submitAndPollWithClient,
+  type NodeOrganizationDidBindingInput,
+  type NodeLegalOrganizationVerificationTransactionInput,
   type NodeRuntimeClient,
   type PollOptions,
   type SubmitAndPollResult,
@@ -39,6 +41,41 @@ export class OrganizationControllerSdk {
     private readonly client: NodeRuntimeClient,
     private readonly capabilities?: readonly NodeCapability[],
   ) {}
+
+  /**
+   * Starts the host-side legal-organization verification transaction that GW
+   * CORE forwards to ICA `_verify`.
+   *
+   * This is intentionally distinct from the older host `_activate` step:
+   * - `_transaction` carries signed evidence and controller business binding
+   * - `_transaction` is complete on its own for the new flow
+   * - `_activate` remains only for the legacy ICA `_verify` compatibility path
+   */
+  public submitLegalOrganizationVerificationTransaction(
+    hostCtx: HostRouteContext,
+    input: NodeLegalOrganizationVerificationTransactionInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'submitLegalOrganizationVerificationTransaction')(hostCtx, input, pollOptions);
+  }
+
+  /**
+   * Binds the current tenant organization DID document to one public alias
+   * view.
+   *
+   * Contract:
+   * - the tenant path identifies the organization
+   * - `organization.url`, when present, provides the public aliases/domains to
+   *   bind
+   * - `controller.sameAs` is optional corroborating identity evidence
+   */
+  public submitOrganizationDidBinding(
+    ctx: RouteContext,
+    input: NodeOrganizationDidBindingInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'submitOrganizationDidBinding')(ctx, input, pollOptions);
+  }
 
   /**
    * Creates an employee/professional under the current organization tenant.

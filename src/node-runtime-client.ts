@@ -2,11 +2,19 @@
 // Always create JSDoc, do not use strings inline in keys nor values, use types instead, and reuse the data test examples.
 import fs from 'node:fs';
 import path from 'node:path';
+import type { BundleJsonApi } from 'gdc-common-utils-ts/models/bundle';
+import {
+  DIDCOMM_DEFAULT_ACCEPT_HEADER,
+  DIDCOMM_PLAINTEXT_JSON_MEDIA_TYPE,
+} from 'gdc-common-utils-ts/utils/didcomm-submit';
+import type { OrganizationDidBindingInput } from 'gdc-sdk-core-ts';
 import type {
   AppInfo,
   OrganizationActivationDraft,
 } from 'gdc-sdk-core-ts';
 import {
+  buildLegalOrganizationVerificationGatewayRequestBundle,
+  buildOrganizationDidBindingBundle,
   buildAppHeaders,
   createBootstrapFacade,
   resolveAppInfo,
@@ -24,12 +32,21 @@ import {
   type HostRouteContext,
   type HostedTenantLifecycleInput,
 } from './host-onboarding.js';
-import type { NodeOrganizationActivationInput } from './orchestration/client-port.js';
+import type {
+  NodeLegalOrganizationVerificationTransactionInput,
+  NodeOrganizationDidBindingInput,
+  NodeOrganizationActivationInput,
+} from './orchestration/client-port.js';
 import {
   confirmIndividualOrganizationOrderWithDeps,
   type IndividualOrganizationConfirmOrderInput,
   type RouteContext,
 } from './individual-onboarding.js';
+import {
+  ensureFamilyOrganizationRegistrationWithDeps,
+  type EnsureFamilyOrganizationRegistrationInput,
+} from './family-organization-registration.js';
+import { searchFamilyOrganizationWithDeps, type FamilyOrganizationSearchInput } from './family-organization-search.js';
 import { requestSmartTokenWithDeps, type SmartTokenRequestInput } from './smart-token.js';
 import {
   extractOfferIdFromResponseBody,
@@ -50,6 +67,7 @@ import {
   listOrganizationLicensesWithDeps,
   grantProfessionalAccessWithDeps,
   ingestCommunicationAndUpdateIndexWithDeps,
+  revokeProfessionalAccessWithDeps,
   searchCommunicationParticipantsWithDeps,
   purgeIndividualMemberWithDeps,
   purgeIndividualOrganizationWithDeps,
@@ -77,6 +95,8 @@ import {
   type OrganizationEmployeeCreationInput,
   type OrganizationEmployeeLifecycleInput,
   type OrganizationEmployeeSearchInput,
+  type RevokeProfessionalAccessInput,
+  type RevokeProfessionalAccessResult,
   type RelatedPersonUpsertInput,
 } from './resource-operations.js';
 import type { LegalOrganizationOrderInput } from './host-onboarding.js';
@@ -215,7 +235,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * Submits a batch payload to a gateway batch endpoint.
    */
   public async submitBatch(path: string, payload: SubmitPayload): Promise<SubmitResponse> {
-    return this.postJson(path, payload, 'application/didcomm-plaintext+json');
+    return this.postJson(path, payload, DIDCOMM_PLAINTEXT_JSON_MEDIA_TYPE);
   }
 
   /**
@@ -235,6 +255,72 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
     return submitAndPollWithMethods(this, submitPath, pollPath, payload, pollOptions);
+  }
+
+  /**
+   * Starts the host-side legal-organization verification transaction that GW
+   * CORE forwards to ICA `_verify`.
+   *
+   * Runtime ownership:
+   * - builds the canonical shared business bundle from `sdk-core/common-utils`
+   * - keeps communication/runtime transport concerns at the outer message layer
+   * - keeps the controller business key inside the submitted bundle payload
+   *
+   * Flow separation:
+   * - `_transaction` is the new host onboarding step
+   * - this runtime does not chain `_activate` after `_transaction`
+   * - `_activate` remains available only for the older ICA `_verify` based flow
+   */
+  public async submitLegalOrganizationVerificationTransaction(
+    hostCtx: HostRouteContext,
+    input: NodeLegalOrganizationVerificationTransactionInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    const thid = `organization-verification-transaction-${runtimeUuid()}`;
+    const jti = `organization-verification-transaction-jti-${runtimeUuid()}`;
+    const verificationBundle = buildLegalOrganizationVerificationGatewayRequestBundle(input);
+    const payload = this.wrapBundleAsGatewayTransactionMessage({
+      thid,
+      jti,
+      hostCtx,
+      bundle: verificationBundle,
+    });
+    return this.submitAndPoll(
+      this.hostRegistryOrganizationTransactionPath(hostCtx),
+      this.hostRegistryOrganizationTransactionPollPath(hostCtx),
+      payload,
+      pollOptions,
+    );
+  }
+
+  /**
+   * Submits one tenant-scoped DID document binding request.
+   *
+   * Binding semantics:
+   * - the tenant path identifies the existing organization
+   * - `organization.url` carries the public alias/domain list
+   * - `controller.sameAs` is optional corroborating identity material
+   * - the flow does not rotate or replace organization public keys
+   */
+  public async submitOrganizationDidBinding(
+    ctx: RouteContext,
+    input: NodeOrganizationDidBindingInput | OrganizationDidBindingInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    const thid = `organization-did-binding-${runtimeUuid()}`;
+    const jti = `organization-did-binding-jti-${runtimeUuid()}`;
+    const payload: SubmitPayload = {
+      jti,
+      thid,
+      type: 'application/api+json',
+      body: buildOrganizationDidBindingBundle(input),
+    };
+    return this.submitAndPoll(
+      this.organizationDidBindingPath(ctx),
+      this.organizationDidBindingPollPath(ctx),
+      payload,
+      pollOptions,
+    );
   }
 
   /**
@@ -605,6 +691,46 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
+   * Searches one existing family/individual registration by controller phone +
+   * usualname, with optional birth-date disambiguation.
+   */
+  public async searchFamilyOrganization(
+    ctx: RouteContext,
+    input: FamilyOrganizationSearchInput,
+  ) {
+    return searchFamilyOrganizationWithDeps({
+      routeCtx: ctx,
+      input,
+      defaultTimeoutMs: 20_000,
+      defaultIntervalMs: 1_000,
+      individualFamilyOrganizationSearchPath: this.individualFamilyOrganizationSearchPath.bind(this),
+      individualFamilyOrganizationSearchPollPath: this.individualFamilyOrganizationSearchPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
+   * Searches one existing family/individual registration and starts the
+   * bootstrap flow only when the registration does not already exist.
+   */
+  public async ensureFamilyOrganizationRegistration(
+    ctx: RouteContext,
+    input: EnsureFamilyOrganizationRegistrationInput,
+  ) {
+    return ensureFamilyOrganizationRegistrationWithDeps({
+      routeCtx: ctx,
+      input,
+      defaultTimeoutMs: 20_000,
+      defaultIntervalMs: 1_000,
+      individualFamilyOrganizationSearchPath: this.individualFamilyOrganizationSearchPath.bind(this),
+      individualFamilyOrganizationSearchPollPath: this.individualFamilyOrganizationSearchPollPath.bind(this),
+      individualFamilyOrganizationBatchPath: this.individualFamilyOrganizationTransactionPath.bind(this),
+      individualFamilyOrganizationPollPath: this.individualFamilyOrganizationTransactionPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
    * Confirms the order returned by `startIndividualOrganization(...)`.
    */
   public async confirmIndividualOrganizationOrder(input: IndividualOrganizationConfirmOrderInput): Promise<SubmitAndPollResult> {
@@ -793,6 +919,21 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   ): Promise<GrantProfessionalAccessResult> {
     return grantProfessionalAccessWithDeps(ctx, input, {
       buildConsentClaimsWithCid: this.buildConsentClaimsWithCid.bind(this),
+      individualConsentR4BatchPath: this.individualConsentR4BatchPath.bind(this),
+      individualConsentR4PollPath: this.individualConsentR4PollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
+   * Closes an existing professional consent by setting its period end and
+   * resubmitting the updated consent resource.
+   */
+  public async revokeProfessionalAccess(
+    ctx: RouteContext,
+    input: RevokeProfessionalAccessInput,
+  ): Promise<RevokeProfessionalAccessResult> {
+    return revokeProfessionalAccessWithDeps(ctx, input, {
       individualConsentR4BatchPath: this.individualConsentR4BatchPath.bind(this),
       individualConsentR4PollPath: this.individualConsentR4PollPath.bind(this),
       submitAndPoll: this.submitAndPoll.bind(this),
@@ -1002,7 +1143,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     const headers: Record<string, string> = {
       ...this.defaultHeaders,
       'Content-Type': contentType,
-      Accept: 'application/json, application/didcomm-plaintext+json, */*',
+      Accept: DIDCOMM_DEFAULT_ACCEPT_HEADER,
     };
     if (this.bearerToken) headers.Authorization = `Bearer ${this.bearerToken}`;
     return headers;
@@ -1079,18 +1220,70 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     );
   }
 
+  /**
+   * Reuses the shared bundle business contract while keeping attachment
+   * transport fields at the DIDComm/plaintext message layer expected by GW.
+   */
+  private wrapBundleAsGatewayTransactionMessage(input: Readonly<{
+    thid: string;
+    jti: string;
+    hostCtx: HostRouteContext;
+    bundle: BundleJsonApi;
+  }>): SubmitPayload {
+    const rawBundle = ((input.bundle || {}) as unknown) as Record<string, unknown>;
+    const attachments = Array.isArray(rawBundle.attachments) ? rawBundle.attachments : undefined;
+    const { attachments: _ignoredAttachments, ...body } = rawBundle;
+    return {
+      jti: input.jti,
+      thid: input.thid,
+      iss: String(input.hostCtx.controllerDid || '').trim() || undefined,
+      aud: String(input.hostCtx.hostDid || '').trim() || undefined,
+      type: 'application/api+json',
+      body,
+      ...(attachments && attachments.length > 0 ? { attachments } : {}),
+    };
+  }
+
   private hostRegistryPath(ctx: HostRouteContext | undefined, resourceType: string, action: string): string {
     const hostCtx = this.requireHostRouteContext(ctx);
     return `/host/cds-${encodeURIComponent(hostCtx.jurisdiction)}/v1/${encodeURIComponent(hostCtx.hostNetwork || '')}/registry/org.schema/${encodeURIComponent(resourceType)}/${encodeURIComponent(action)}`;
   }
+  /**
+   * Resolves the host route segment without forcing callers to remember whether
+   * the same raw string is named `hostNetwork` or `sector` in a given layer.
+   *
+   * Step by step:
+   * - host routes use `/host/cds-{jurisdiction}/v1/{host-network}`
+   * - tenant routes use `/{tenantId}/cds-{jurisdiction}/v1/{tenant-sector}`
+   * - older live tests and adapters sometimes passed the host segment under
+   *   `sector`, which is semantically wrong for host routes
+   * - new code should prefer `hostNetwork`
+   * - compatibility code may pass `hostNetworkOrTenantSector`
+   */
   private requireHostRouteContext(ctx?: HostRouteContext): HostRouteContext {
-    const runtimeCtx = (this.ctx || {}) as { jurisdiction?: string; sector?: string; hostNetwork?: string };
-    const jurisdiction = String(ctx?.jurisdiction || this.ctx?.jurisdiction || '').trim();
-    const hostNetwork = String(ctx?.hostNetwork || ctx?.sector || runtimeCtx.hostNetwork || runtimeCtx.sector || '').trim();
+    const hostCtx = (ctx || {}) as HostRouteContext & { hostNetworkOrTenantSector?: string };
+    const runtimeCtx = (this.ctx || {}) as {
+      jurisdiction?: string;
+      sector?: string;
+      hostNetwork?: string;
+      hostNetworkOrTenantSector?: string;
+    };
+    const jurisdiction = String(hostCtx.jurisdiction || this.ctx?.jurisdiction || '').trim();
+    const hostNetwork = String(
+      hostCtx.hostNetwork
+      || hostCtx.hostNetworkOrTenantSector
+      || hostCtx.sector
+      || runtimeCtx.hostNetwork
+      || runtimeCtx.hostNetworkOrTenantSector
+      || runtimeCtx.sector
+      || '',
+    ).trim();
     if (!jurisdiction || !hostNetwork) throw new Error('Host route context is required.');
     return { jurisdiction, hostNetwork };
   }
 
+  public hostRegistryOrganizationTransactionPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.Transaction); }
+  public hostRegistryOrganizationTransactionPollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.TransactionResponse); }
   public hostRegistryOrganizationActivatePath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', '_activate'); }
   public hostRegistryOrganizationActivatePollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', '_activate-response'); }
   public hostRegistryOrganizationDisablePath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.Disable); }
@@ -1105,6 +1298,14 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public employeeSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', '_search-response'); }
   public organizationLicenseSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'License', '_search'); }
   public organizationLicenseSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'License', '_search-response'); }
+  public organizationDidBindingPath(ctx?: RouteContext): string {
+    const resolved = this.requireRouteContext(ctx);
+    return `/${encodeURIComponent(resolved.tenantId)}/cds-${encodeURIComponent(resolved.jurisdiction)}/v1/${encodeURIComponent(resolved.sector)}/did/document/_binding`;
+  }
+  public organizationDidBindingPollPath(ctx?: RouteContext): string {
+    const resolved = this.requireRouteContext(ctx);
+    return `/${encodeURIComponent(resolved.tenantId)}/cds-${encodeURIComponent(resolved.jurisdiction)}/v1/${encodeURIComponent(resolved.sector)}/did/document/_binding-response`;
+  }
   public organizationLicenseOfferSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Offer', '_search'); }
   public organizationLicenseOfferSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Offer', '_search-response'); }
   public organizationLicenseOrderSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Order', '_search'); }
@@ -1113,6 +1314,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public employeePurgePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', `${GwCoreLifecycleAction.Purge}-response`); }
   public individualFamilyOrganizationBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.Batch); }
   public individualFamilyOrganizationPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.BatchResponse); }
+  public individualFamilyOrganizationSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', '_search'); }
+  public individualFamilyOrganizationSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', '_search-response'); }
   public individualFamilyOrganizationTransactionPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.Transaction); }
   public individualFamilyOrganizationTransactionPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.TransactionResponse); }
   public individualFamilyOrganizationDisablePath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.Disable); }

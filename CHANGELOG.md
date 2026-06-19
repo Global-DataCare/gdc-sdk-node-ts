@@ -4,11 +4,100 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.0.3] - 2026-06-18
+
+### Added
+- Added backend/profile workspace runtime helpers and orchestration entry
+  points so higher-level BFF flows can execute organization, professional, and
+  individual profile steps without dropping to raw client plumbing:
+  - `src/backend-profile-runtime.ts`
+  - `src/organization-controller-backend-runtime.ts`
+  - `src/professional-backend-runtime.ts`
+  - `src/profile-workspace.ts`
+  - `src/orchestration/client-port.ts`
+  - `src/orchestration/organization-controller-sdk.ts`
+- Added the clean live host-transaction runner and the full-cycle runtime `101`
+  coverage/docs for local TTY verification:
+  - `scripts/run-live-gw-host-transaction-clean.sh`
+  - `tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
+  - `tests/101-profile-workspace-runtime.test.mjs`
+  - `docs/101-PROFILE-ORCHESTRATION.md`
+
 ### Changed
-- Bumped the package patch version from `2.0.0` to `2.0.1`.
+- Updated the package to consume `gdc-common-utils-ts@^2.0.5`.
+- Updated the node runtime client and live GW suite so host-side
+  `Organization/_transaction` uses shared DIDComm submit constants and keeps
+  host-route jurisdiction separate from tenant jurisdiction:
+  - `src/node-runtime-client.ts`
+  - `tests/live-gw-node-runtime.e2e.test.mjs`
+- Refreshed package docs, contribution notes, TODOs, and orchestration tests to
+  match the new backend/profile runtime surface:
+  - `README.md`
+  - `CONTRIBUTING.md`
+  - `TODO.md`
+  - `docs/101-LIVE_GW_LOCAL.md`
+  - `docs/101-SDK_END_TO_END.md`
+
+### Testing
+- `npm run build`
+
+### Added
+- Added the canonical live full-cycle backend/BFF `101` so integrators can now
+  exercise the real dependency chain in one executable walkthrough:
+  - host/tenant activation
+  - professional employee provisioning
+  - individual-controller profile load
+  - individual bootstrap and order confirmation
+  - clinical ingestion
+  - consent grant
+  - professional SMART token request
+  - professional IPS read
+  - cleanup of consent, individual, employee, tenant, and host
+  in:
+  - `tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
+- Added dedicated scripts for the new live `101`:
+  - `test:e2e:101:live-full-cycle`
+  in:
+  - `package.json`
+- Added backend/professional high-level helpers so backend consumers and the
+  live `101` no longer need to drop to raw runtime plumbing for the current
+  professional read flow:
+  - `loadBackendProfessionalProfile(...)`
+  - `ProfessionalSdk.searchClinicalBundle(...)`
+  - `ProfessionalSdk.getLatestIps(...)`
+  - `IndividualControllerSdk.revokeProfessionalAccess(...)`
+  in:
+  - `src/backend-profile-runtime.ts`
+  - `src/orchestration/professional-sdk.ts`
+  - `src/orchestration/individual-controller-sdk.ts`
+  - `src/node-runtime-client.ts`
+  - `src/resource-operations.ts`
+
+### Changed
+- Repositioned the new live full-cycle `101` as the primary integrator-facing
+  walkthrough in:
+  - `README.md`
+  - `docs/101-LIVE_GW_LOCAL.md`
+  - `docs/101-SDK_END_TO_END.md`
+- Reworked the professional leg of the live full-cycle `101` so the clinical
+  read now goes through the high-level `ProfessionalSdk` instead of a direct
+  `NodeHttpClient` call, and the host activation leg now reuses the validated
+  shared legal-organization onboarding validation plus
+  `OrganizationControllerSdk` transaction input instead of `bootstrap`:
+  - `tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
+
+### Testing
+- `npm run build`
+- `node --test tests/orchestration.test.mjs tests/resource-operations.test.mjs tests/101-backend-profile-runtime.test.mjs`
+- `RUN_LIVE_101_FULL_CYCLE_E2E=0 node --test tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
+
+## [2.0.2] - 2026-06-18
+
+### Changed
+- Bumped the package patch version from `2.0.1` to `2.0.2`.
 - Updated dependency targets to:
-  - `gdc-common-utils-ts@^2.0.2`
-  - `gdc-sdk-core-ts@^2.0.1`
+  - `gdc-common-utils-ts@^2.0.4`
+  - `gdc-sdk-core-ts@^2.0.3`
 - Updated `activateOrganizationInGatewayFromIcaProof(...)` so plaintext
   activation requests mirror controller communication key metadata into
   `meta.jws.protected` / `meta.jwe.header` using the same shared transport

@@ -60,6 +60,7 @@ import {
   EXAMPLE_IPS_BUNDLE_NOTE_TEXT,
   EXAMPLE_LICENSE_ISSUE_INPUT,
   EXAMPLE_JURISDICTION,
+  EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE,
   EXAMPLE_LIVE_GW_BASE_URL_LOCAL,
   EXAMPLE_LIVE_CONSENT_GRANT_INPUT,
   EXAMPLE_LIVE_EMPLOYEE_INPUT,
@@ -105,6 +106,7 @@ import {
   ActorKinds,
   BackendSubjectIndexReadModes,
   DirectBackendProfileRuntime,
+  extractOfferIdFromResponseBody,
   IndividualControllerBackendRuntime,
   NodeActorSession,
   connectBackendToSubjectIndex,
@@ -115,6 +117,7 @@ import {
 } from '../dist/index.js';
 import {
   buildUnsignedJwt,
+  buildUnsignedProfessionalSmartVpJwt,
   buildUnsignedVpJwt,
   loadVpPayloadFixture,
 } from './helpers/vp-token-fixture.mjs';
@@ -156,6 +159,7 @@ const RUN_ACTOR_CHAIN = isEnabledByDefault('RUN_LIVE_GW_E2E_ACTOR_CHAIN', '1');
 const RUN_IPS_INGESTION = isEnabledByDefault('RUN_LIVE_GW_E2E_IPS_INGESTION', '1');
 const RUN_INDIVIDUAL_LIFECYCLE = isEnabledByDefault('RUN_LIVE_GW_E2E_INDIVIDUAL_LIFECYCLE', '1');
 const RUN_PROFILE_RUNTIME = isEnabledByDefault('RUN_LIVE_GW_E2E_PROFILE_RUNTIME', '1');
+const RUN_HOST_VERIFICATION_TRANSACTION = isEnabledByDefault('RUN_LIVE_GW_E2E_HOST_VERIFICATION_TRANSACTION', '0');
 const ACTIVE_TRANSPORT_PROFILE = normalizeLiveGwTransportProfile(
   env('LIVE_GW_E2E_TRANSPORT', LiveGwTransportProfiles.DidcommPlain),
 );
@@ -167,6 +171,11 @@ const ACTIVE_EXECUTION_MODE = normalizeLiveGwExecutionMode(
 );
 const DEBUG = env('LIVE_GW_NODE_E2E_DEBUG', env('LIVE_GW_E2E_DEBUG', '0')) === '1';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const LIVE_HOST_VERIFICATION_DEFAULT_PDF_PATH = env(
+  'LIVE_GW_HOST_VERIFICATION_PDF_PATH',
+  path.join(__dirname, '..', '..', 'examples', 'prueba-TEST-A4-multisign-fnmt.pdf'),
+);
+const LIVE_HOST_VERIFICATION_PDF_URL = env('LIVE_GW_HOST_VERIFICATION_PDF_URL');
 const runId = new Date().toISOString().replace(/[:.]/g, '-');
 const runSlug = runId.toLowerCase();
 /**
@@ -182,22 +191,151 @@ const runSlug = runId.toLowerCase();
  */
 const defaultSuiteTenantId = `livee2e-${runSlug}`;
 const defaultSuiteSubjectId = `z${runSlug.replace(/[^a-z0-9]/g, '')}`;
+const ENV_JURISDICTION = 'JURISDICTION';
+const ENV_SECTOR = 'SECTOR';
+const ENV_HOST_JURISDICTION = 'HOST_JURISDICTION';
+const ENV_HOST_NETWORK = 'HOST_NETWORK';
+const ENV_HOST_NETWORK_OR_TENANT_SECTOR = 'HOST_NETWORK_OR_TENANT_SECTOR';
+const DEFAULT_HOST_NETWORK = 'test';
 const suiteTenantId = env('TENANT_ID', defaultSuiteTenantId || EXAMPLE_TENANT_IDENTIFIER);
 const suiteTenantRouteId = env('TENANT_ROUTE_ID', suiteTenantId);
-const suiteJurisdiction = env('JURISDICTION', EXAMPLE_JURISDICTION);
-const suiteSector = env('SECTOR', EXAMPLE_SECTOR);
+/**
+ * Tenant organization jurisdiction for tenant-scoped routes.
+ *
+ * Step by step:
+ * - this belongs to the tenant onboarding/runtime slice
+ * - it is not the same value as the host coverage jurisdiction
+ * - do not force `JURISDICTION=EU` just because the host is published under
+ *   `/host/cds-EU/...`
+ * - only set this env when the live run intentionally targets a tenant route
+ *   for a specific jurisdiction
+ * - otherwise the suite falls back to the shared example value
+ */
+const suiteJurisdiction = env(ENV_JURISDICTION, EXAMPLE_JURISDICTION);
+const suiteSector = env(ENV_SECTOR, EXAMPLE_SECTOR);
 const suiteSubjectDid = env('SUBJECT_DID', buildIndividualDidWeb({
   providerDidWeb: EXAMPLE_HOSTED_PROVIDER_DID,
   individualId: defaultSuiteSubjectId || EXAMPLE_SUBJECT_DID,
 }));
 const suiteHostIdentifierValue = env('HOST_ID_VALUE', `host-${runSlug}`);
-const suiteHostCoverageScope = env('HOST_COVERAGE_SCOPE', env('HOST_JURISDICTION', 'EU'));
+/**
+ * Host discovery/publication coverage scope.
+ *
+ * Step by step:
+ * - this is the jurisdiction used by host-scoped routes and discovery docs
+ * - in deployed GW runs it should normally come from the GW runtime env
+ *   (`HOST_JURISDICTION`)
+ * - callers should not override it unless they are intentionally testing a
+ *   different host deployment profile
+ */
+const suiteHostCoverageScope = env('HOST_COVERAGE_SCOPE', env(ENV_HOST_JURISDICTION, 'EU'));
+/**
+ * Host route jurisdiction used by host-side onboarding routes such as
+ * `/host/cds-{jurisdiction}/v1/{hostNetwork}/registry/...`.
+ *
+ * Important distinction:
+ * - this is not the tenant business jurisdiction stored in onboarding claims
+ * - local demo environments often publish host routes under `ES`
+ * - shared staging/public host surfaces may publish them under `EU`
+ * - use `HOST_JURISDICTION` to avoid accidentally sending host onboarding
+ *   traffic to `/host/cds-ES/...` when the deployed host actually lives under
+ *   `/host/cds-EU/...`
+ */
+const suiteHostRouteJurisdiction = env(ENV_HOST_JURISDICTION, suiteJurisdiction);
 const suiteConsentSection = env(
   'SMART_SCOPE_SECTION',
   String(EXAMPLE_LIVE_CONSENT_GRANT_INPUT.actions?.[0] || HealthcareBasicSections.PatientSummaryDocument.attributeValue),
 );
 const LOCAL_LIVE_POLL_INTERVAL_MS = Math.max(1, Number(env('LIVE_GW_POLL_INTERVAL_MS', '200')));
 const LOCAL_LIVE_POLL_TIMEOUT_MS = Math.max(1000, Number(env('LIVE_GW_POLL_TIMEOUT_MS', '60000')));
+
+function normalizeDirectDownloadUrl(rawUrl) {
+  const trimmed = String(rawUrl || '').trim();
+  if (!trimmed) return '';
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return trimmed;
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  const isDropboxHost = hostname === 'dropbox.com'
+    || hostname.endsWith('.dropbox.com')
+    || hostname === 'www.dropbox.com';
+  if (isDropboxHost) {
+    parsed.searchParams.set('dl', '1');
+  }
+  return parsed.toString();
+}
+
+function isLocalBaseUrl(baseUrl) {
+  const normalized = String(baseUrl || '').trim().toLowerCase();
+  return normalized.includes('127.0.0.1')
+    || normalized.includes('localhost');
+}
+
+/**
+ * Shared remote environments must not disable/purge the host by default.
+ *
+ * Step by step:
+ * - local clean environments may exercise the full host teardown
+ * - shared GKE/staging environments should leave the host published so other
+ *   developers can continue using the environment
+ * - callers can still force host teardown explicitly when they know they are
+ *   running against an isolated host instance
+ */
+function shouldRunHostTeardown(baseUrl) {
+  const explicit = env('LIVE_GW_ALLOW_HOST_TEARDOWN', '');
+  if (explicit) {
+    const normalized = explicit.toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 'yes';
+  }
+  return isLocalBaseUrl(baseUrl);
+}
+
+function buildLiveHostVerificationPdfAttachment() {
+  const normalizedUrl = normalizeDirectDownloadUrl(LIVE_HOST_VERIFICATION_PDF_URL);
+  if (normalizedUrl) {
+    return {
+      id: 'signed-terms-pdf-001',
+      media_type: 'application/pdf',
+      data: {
+        links: [normalizedUrl],
+      },
+    };
+  }
+
+  const resolvedLocalPath = path.resolve(LIVE_HOST_VERIFICATION_DEFAULT_PDF_PATH);
+  return {
+    id: 'signed-terms-pdf-001',
+    media_type: 'application/pdf',
+    data: {
+      base64: fs.readFileSync(resolvedLocalPath).toString('base64'),
+    },
+  };
+}
+
+/**
+ * Resolves the host-side `{segment}` used in `/host/cds-{jurisdiction}/v1/{segment}`.
+ *
+ * Step by step:
+ * - for host routes this segment represents the host network/runtime scope
+ * - for tenant routes the analogous segment is the tenant business sector
+ * - older tests called both things `sector`, which is how mistakes like
+ *   `SECTOR=test` leaked into host onboarding runs
+ * - the canonical env for new live runs is `HOST_NETWORK`
+ * - `HOST_NETWORK_OR_TENANT_SECTOR` is accepted as an explicit bridge name
+ * - `HOST_REGISTRY_SECTOR` remains as a final legacy fallback only
+ */
+function resolveLiveHostNetworkOrTenantSector() {
+  return env(
+    ENV_HOST_NETWORK,
+    env(
+      ENV_HOST_NETWORK_OR_TENANT_SECTOR,
+      env('HOST_REGISTRY_SECTOR', DEFAULT_HOST_NETWORK),
+    ),
+  );
+}
 
 assert.ok(
   isDirectExecutionMode(ACTIVE_EXECUTION_MODE),
@@ -231,13 +369,15 @@ function readHttpTraceEntries(filePath) {
 
 function assertLatestActivateTraceHasPlaintextTransportMeta({
   jurisdiction,
-  hostSector,
+  hostNetworkOrTenantSector,
   controller,
 }) {
   const traceFilePath = String(process.env.SDK_HTTP_TRACE_FILE || '').trim();
-  const expectedPath = `/host/cds-${jurisdiction}/v1/${hostSector}/registry/org.schema/Organization/_activate`;
+  const expectedPath = `/host/cds-${jurisdiction}/v1/${hostNetworkOrTenantSector}/registry/org.schema/Organization/_activate`;
   const activationEntries = readHttpTraceEntries(traceFilePath)
-    .filter((entry) => String(entry?.request?.url || '').includes(expectedPath));
+    .filter((entry) => String(entry?.request?.url || '').includes(expectedPath))
+    .filter((entry) => !String(entry?.request?.url || '').includes(`${expectedPath}-response`))
+    .filter((entry) => entry?.request?.body?.meta?.jws?.protected);
   assert.ok(activationEntries.length > 0, `HTTP trace must contain an activation request for ${expectedPath}.`);
 
   const latest = activationEntries[activationEntries.length - 1];
@@ -273,6 +413,166 @@ function createLivePollOptions(overrides = {}) {
     timeoutMs: Math.max(1000, Number(overrides.timeoutMs ?? LOCAL_LIVE_POLL_TIMEOUT_MS)),
     intervalMs: Math.max(1, Number(overrides.intervalMs ?? LOCAL_LIVE_POLL_INTERVAL_MS)),
   };
+}
+
+function buildLiveLegalOrganizationVerificationTransactionInput({
+  tenantId,
+  tenantRouteId,
+  jurisdiction,
+  sector,
+  controllerEmail,
+  controllerRole,
+  serviceIdentifierDid,
+  serviceUrl,
+}) {
+  const exampleEntry = EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0];
+  return {
+    claims: {
+      ...cloneExample(exampleEntry.meta.claims),
+      'org.schema.Organization.alternateName': tenantRouteId,
+      'org.schema.Organization.legalName': env('ORG_LEGAL_NAME', 'TEST LEGAL ORGANIZATION SL'),
+      'org.schema.Organization.identifier.additionalType': env('ORG_IDENTIFIER_TYPE', 'taxID'),
+      'org.schema.Organization.identifier.value': tenantId,
+      'org.schema.Organization.address.addressCountry': jurisdiction,
+      'org.schema.Organization.taxID': tenantId,
+      'org.schema.Person.email': controllerEmail,
+      'org.schema.Person.hasOccupation.identifier.value': controllerRole,
+      'org.schema.Service.category': sector,
+      'org.schema.Service.identifier': serviceIdentifierDid,
+      'org.schema.Service.url': serviceUrl,
+    },
+    controller: cloneExample(exampleEntry.resource.controller),
+    organization: cloneExample(exampleEntry.resource.organization),
+    legalRepresentativePayload: {
+      ...cloneExample(exampleEntry.resource.legalRepresentativePayload),
+      email: controllerEmail,
+    },
+    verification: cloneExample(exampleEntry.resource.verification),
+    attachments: [buildLiveHostVerificationPdfAttachment()],
+  };
+}
+
+async function maybeSubmitHostVerificationTransaction({
+  profiler,
+  debug,
+  orgControllerSession,
+  hostCtx,
+  pollOptions,
+  tenantId,
+  tenantRouteId,
+  jurisdiction,
+  sector,
+  controllerEmail,
+  controllerRole,
+  serviceIdentifierDid,
+  serviceUrl,
+  stage,
+}) {
+  /**
+   * Compatibility branch selector for the legal organization onboarding suite.
+   *
+ * Step by step:
+ * - when `RUN_LIVE_GW_E2E_HOST_VERIFICATION_TRANSACTION=1`, the suite proves
+ *   the new host runtime path:
+ *   `Organization/_transaction -> Order/_batch`
+ * - when `RUN_LIVE_GW_E2E_HOST_VERIFICATION_TRANSACTION=0`, the suite skips
+ *   `_transaction` and continues with the legacy activation path only
+   * - that legacy path still depends on ICA `_verify` producing a compatible
+   *   proof/credential for `_activate`
+   *
+   * The dedicated legacy live command is therefore the same professional live
+   * slice with `RUN_LIVE_GW_E2E_HOST_VERIFICATION_TRANSACTION=0`.
+   */
+  if (!RUN_HOST_VERIFICATION_TRANSACTION) {
+    return null;
+  }
+
+  const verification = await profiler.run(stage, () => orgControllerSession.asOrganizationController().submitLegalOrganizationVerificationTransaction(
+    hostCtx,
+    buildLiveLegalOrganizationVerificationTransactionInput({
+      tenantId,
+      tenantRouteId,
+      jurisdiction,
+      sector,
+      controllerEmail,
+      controllerRole,
+      serviceIdentifierDid,
+      serviceUrl,
+    }),
+    pollOptions,
+  ));
+  debug.record(stage, { response: verification });
+  assert.equal(
+    verification.poll.status,
+    200,
+    'Host verification transaction must complete successfully when the new host flow is enabled.',
+  );
+  assert.ok(
+    ['transaction-response', 'batch-response'].includes(String(verification.poll.body?.type || '')),
+    'Host verification transaction must return a terminal bundle response.',
+  );
+  assert.ok(
+    ['200', '201'].includes(getFirstBatchEntryStatus(verification.poll.body, 'Host verification transaction')),
+    'Host verification transaction must return an inner verification response.status of 200/201.',
+  );
+  return verification;
+}
+
+async function maybeActivateOrganizationFromLegacyIcaProof({
+  profiler,
+  debug,
+  hostSession,
+  hostCtx,
+  pollOptions,
+  vpToken,
+  tenantId,
+  tenantRouteId,
+  jurisdiction,
+  sector,
+  controllerEmail,
+  controllerRole,
+  serviceIdentifierDid,
+  serviceUrl,
+  stage,
+}) {
+  if (RUN_HOST_VERIFICATION_TRANSACTION) {
+    return null;
+  }
+
+  const activation = await profiler.run(stage, () => hostSession.asHostOnboarding().activateOrganizationInGatewayFromIcaProof(
+    hostCtx,
+    {
+      vpToken,
+      controller: cloneExample(EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller),
+      additionalClaims: {
+        ...cloneExample(EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.additionalClaims),
+        'org.schema.Organization.alternateName': tenantRouteId,
+        'org.schema.Organization.legalName': env('ORG_LEGAL_NAME', 'TEST LEGAL ORGANIZATION SL'),
+        'org.schema.Organization.identifier.additionalType': env('ORG_IDENTIFIER_TYPE', 'taxID'),
+        'org.schema.Organization.identifier.value': tenantId,
+        'org.schema.Organization.address.addressCountry': jurisdiction,
+        'org.schema.Organization.taxID': tenantId,
+        'org.schema.Person.email': controllerEmail,
+        'org.schema.Person.hasOccupation.identifier.value': controllerRole,
+        'org.schema.Service.category': sector,
+        'org.schema.Service.identifier': serviceIdentifierDid,
+        'org.schema.Service.url': serviceUrl,
+      },
+    },
+    pollOptions,
+  ));
+  debug.record(stage, { response: activation });
+  assert.equal(activation.poll.status, 200, 'Legacy host onboarding facade must complete organization activation.');
+  assertLatestActivateTraceHasPlaintextTransportMeta({
+    jurisdiction,
+    hostNetworkOrTenantSector: hostCtx.hostNetworkOrTenantSector,
+    controller: EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller,
+  });
+  assert.ok(
+    ['200', '201', '409'].includes(getFirstBatchEntryStatus(activation.poll.body, 'Legacy host activation')),
+    'Legacy host onboarding facade must return an inner activation response.status of 200/201/409.',
+  );
+  return activation;
 }
 
 function createStepProfiler(debug, scope) {
@@ -320,6 +620,10 @@ function getBatchEntries(pollBody, label) {
   assert.ok(Array.isArray(entries), `${label} must return a batch-style data array.`);
   assert.ok(entries.length > 0, `${label} must return at least one batch entry.`);
   return entries;
+}
+
+function getFirstBatchEntryStatus(pollBody, label) {
+  return String(getBatchEntries(pollBody, label)[0]?.response?.status || '');
 }
 
 function getSearchRows(pollBody, label) {
@@ -435,11 +739,49 @@ async function postJsonOrText(baseUrl, relativePath, body, bearerToken) {
   };
 }
 
+async function waitForFetchStatus(baseUrl, relativePath, bearerToken, expectedStatus, options = {}) {
+  const timeoutMs = Math.max(1000, Number(options.timeoutMs || LOCAL_LIVE_POLL_TIMEOUT_MS));
+  const intervalMs = Math.max(100, Number(options.intervalMs || LOCAL_LIVE_POLL_INTERVAL_MS));
+  const startedAt = Date.now();
+  let lastResponse;
+  do {
+    lastResponse = await fetchJsonOrText(baseUrl, relativePath, bearerToken);
+    if (lastResponse.status === expectedStatus) {
+      return lastResponse;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  } while ((Date.now() - startedAt) < timeoutMs);
+  return lastResponse;
+}
+
+async function waitForPostStatus(baseUrl, relativePath, body, bearerToken, expectedStatus, options = {}) {
+  const timeoutMs = Math.max(1000, Number(options.timeoutMs || LOCAL_LIVE_POLL_TIMEOUT_MS));
+  const intervalMs = Math.max(100, Number(options.intervalMs || LOCAL_LIVE_POLL_INTERVAL_MS));
+  const startedAt = Date.now();
+  let lastResponse;
+  do {
+    lastResponse = await postJsonOrText(baseUrl, relativePath, body, bearerToken);
+    if (lastResponse.status === expectedStatus) {
+      return lastResponse;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  } while ((Date.now() - startedAt) < timeoutMs);
+  return lastResponse;
+}
+
 function getCatalogDatasetPublisherIds(catalogBody) {
   const datasets = Array.isArray(catalogBody?.['dcat:dataset']) ? catalogBody['dcat:dataset'] : [];
   return datasets
     .map((dataset) => String(dataset?.['dcterms:publisher']?.['@id'] || '').trim())
     .filter(Boolean);
+}
+
+function catalogIncludesTenantRouteFragment(catalogBody, tenantRouteId, jurisdiction, sector) {
+  const routeFragment = `/${String(tenantRouteId || '').trim()}/cds-${String(jurisdiction || '').trim()}/${'v1'}/${String(sector || '').trim()}/`;
+  if (!tenantRouteId || !jurisdiction || !sector) {
+    return false;
+  }
+  return JSON.stringify(catalogBody || {}).includes(routeFragment);
 }
 
 async function submitAndPollDirect({ baseUrl, path: submitPath, payload, bearerToken, pollOptions }) {
@@ -541,6 +883,30 @@ function buildRevokedConsentClaims(activeConsentClaims, periodEnd) {
   };
 }
 
+/**
+ * Canonical professional live lifecycle.
+ *
+ * This same test covers two legal-onboarding branches:
+ *
+ * 1. new runtime branch
+ *    - set `RUN_LIVE_GW_E2E_HOST_VERIFICATION_TRANSACTION=1`
+ *    - proves `Organization/_transaction -> Order/_batch`
+ *
+ * 2. legacy compatibility branch
+ *    - set `RUN_LIVE_GW_E2E_HOST_VERIFICATION_TRANSACTION=0`
+ *    - proves the older ICA `_verify -> Organization/_activate` path without
+ *      the new host `_transaction` submit/poll step
+ *
+ * Dedicated legacy command:
+ *
+ * ```bash
+ * RUN_LIVE_GW_E2E=1 \
+ * RUN_LIVE_GW_E2E_ACTOR_CHAIN=1 \
+ * RUN_LIVE_GW_E2E_HOST_VERIFICATION_TRANSACTION=0 \
+ * LIVE_GW_E2E_SUITE=professional \
+ * node --test tests/live-gw-node-runtime.e2e.test.mjs
+ * ```
+ */
 test('LIVE professional lifecycle on GW', {
   skip: !(RUN && RUN_ACTOR_CHAIN && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Professional)),
 }, async () => {
@@ -555,7 +921,7 @@ test('LIVE professional lifecycle on GW', {
   const tenantRouteId = suiteTenantRouteId;
   const jurisdiction = suiteJurisdiction;
   const sector = suiteSector;
-  const hostSector = env('HOST_REGISTRY_SECTOR', 'test');
+  const hostNetworkOrTenantSector = resolveLiveHostNetworkOrTenantSector();
   const professionalIdToken = env(
     'PROFESSIONAL_ID_TOKEN',
     buildUnsignedJwt({
@@ -566,14 +932,18 @@ test('LIVE professional lifecycle on GW', {
   );
   const bearerToken = env('AUTH_BEARER', professionalIdToken);
   const professionalDid = env('PROFESSIONAL_DID', EXAMPLE_API_ORGANIZATION_DID);
+  const controllerEmail = env('CONTROLLER_EMAIL', `controller+${runSlug}@example.com`);
+  const controllerRole = env('CONTROLLER_ROLE', 'RESPRSN');
+  const serviceIdentifierDid = env('SERVICE_IDENTIFIER_DID', 'did:web:provider.example.org');
+  const serviceUrl = env('SERVICE_URL', 'https://provider.example.org');
 
   const vpPayload = loadVpPayloadFixture(vpTokenFile);
   const vpToken = vpTokenEnv || buildUnsignedVpJwt(vpPayload);
-  const hostCtx = { jurisdiction, sector: hostSector };
+  const hostCtx = { jurisdiction: suiteHostRouteJurisdiction, hostNetworkOrTenantSector };
   const ctx = { tenantId: tenantRouteId, jurisdiction, sector };
   const pollOptions = createLivePollOptions();
 
-  const pingPath = `/host/cds-${jurisdiction}/v1/${hostSector}/.well-known/ping`;
+  const pingPath = `/host/cds-${jurisdiction}/v1/${hostNetworkOrTenantSector}/.well-known/ping`;
   const ping = await fetch(`${baseUrl}${pingPath}`);
   assert.equal(ping.status, 200, `GW ping must return 200 at ${baseUrl}${pingPath}.`);
   debug.record('ping', { baseUrl, pingPath, status: ping.status });
@@ -618,39 +988,79 @@ test('LIVE professional lifecycle on GW', {
     runtimeClient,
   );
 
-  const activation = await hostSession.asHostOnboarding().activateOrganizationInGatewayFromIcaProof(
+  const verification = await maybeSubmitHostVerificationTransaction({
+    profiler: {
+      run: async (_label, work) => work(),
+    },
+    debug,
+    orgControllerSession,
     hostCtx,
+    pollOptions,
+    tenantId,
+    tenantRouteId,
+    jurisdiction,
+    sector,
+    controllerEmail,
+    controllerRole,
+    serviceIdentifierDid,
+    serviceUrl,
+    stage: 'legal-verification-transaction',
+  });
+
+  if (verification) {
+    const legalOfferId = extractOfferIdFromResponseBody(verification.poll.body);
+    assert.ok(legalOfferId, 'Host verification transaction must expose one offer identifier before order confirmation.');
+    const legalOrder = await orgControllerSession.asOrganizationController().confirmOrganizationLicenseOrder(
+      ctx,
+      {
+        offerId: legalOfferId,
+        hostNetwork: hostNetworkOrTenantSector,
+      },
+      pollOptions,
+    );
+    debug.record('legal-order-confirmation', { response: legalOrder, offerId: legalOfferId });
+    assert.equal(legalOrder.poll.status, 200, 'Organization controller facade must confirm the legal organization order after _transaction.');
+    assert.ok(
+      ['200', '201'].includes(getFirstBatchEntryStatus(legalOrder.poll.body, 'Legal organization order')),
+      'Legal organization order must return an inner response.status of 200/201.',
+    );
+  }
+
+  await maybeActivateOrganizationFromLegacyIcaProof({
+    profiler: {
+      run: async (_label, work) => work(),
+    },
+    debug,
+    hostSession,
+    hostCtx,
+    pollOptions,
+    vpToken,
+    tenantId,
+    tenantRouteId,
+    jurisdiction,
+    sector,
+    controllerEmail,
+    controllerRole,
+    serviceIdentifierDid,
+    serviceUrl,
+    stage: 'legal-activation',
+  });
+
+  const didBinding = await orgControllerSession.asOrganizationController().submitOrganizationDidBinding(
+    ctx,
     {
-      vpToken,
-      controller: cloneExample(EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller),
-      additionalClaims: {
-        ...cloneExample(EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.additionalClaims),
-        'org.schema.Organization.alternateName': tenantRouteId,
-        'org.schema.Organization.legalName': env('ORG_LEGAL_NAME', 'TEST LEGAL ORGANIZATION SL'),
-        'org.schema.Organization.identifier.additionalType': env('ORG_IDENTIFIER_TYPE', 'taxID'),
-        'org.schema.Organization.identifier.value': tenantId,
-        'org.schema.Organization.address.addressCountry': jurisdiction,
-        'org.schema.Organization.taxID': tenantId,
-        'org.schema.Person.email': env('CONTROLLER_EMAIL', 'controller@example.com'),
-        'org.schema.Person.hasOccupation.identifier.value': env('CONTROLLER_ROLE', 'RESPRSN'),
-        'org.schema.Service.category': sector,
-        'org.schema.Service.identifier': env('SERVICE_IDENTIFIER_DID', 'did:web:provider.example.org'),
-        'org.schema.Service.url': env('SERVICE_URL', 'https://provider.example.org'),
+      organization: {
+        url: env('ORGANIZATION_BINDING_URL', serviceUrl),
       },
     },
     pollOptions,
   );
-  debug.record('legal-activation', { response: activation });
-  assert.equal(activation.poll.status, 200, 'Host onboarding facade must complete organization activation.');
-  assertLatestActivateTraceHasPlaintextTransportMeta({
-    jurisdiction,
-    hostSector,
-    controller: EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller,
-  });
-  assert.ok(
-    ['200', '201', '409'].includes(String(activation.poll.body?.data?.[0]?.response?.status || '')),
-    'Host onboarding facade must return an inner activation response.status of 200/201/409.',
-  );
+  debug.record('organization-did-binding', { response: didBinding });
+  assert.equal(didBinding.poll.status, 200, 'Organization controller facade must bind the tenant DID document aliases through GW.');
+  {
+    const bindingEntries = getBatchEntries(didBinding.poll.body, 'Organization DID binding');
+    assert.equal(String(bindingEntries[0]?.response?.status || ''), '200', 'Organization DID binding must return inner success 200.');
+  }
 
   const employeeEmail = env('EMPLOYEE_EMAIL', `employee+${runSlug}@example.com`);
   const employeeRole = env('EMPLOYEE_ROLE', 'ISCO-08|2211');
@@ -759,7 +1169,7 @@ test('LIVE professional lifecycle on GW', {
 
   const individualAltName = env(
     'INDIVIDUAL_ALTERNATE_NAME',
-    `${runSlug}-${EXAMPLE_REGISTERED_SUBJECT_ALTERNATE_NAME}`,
+    `${runSlug}-individual-${EXAMPLE_REGISTERED_SUBJECT_ALTERNATE_NAME}`,
   );
   const individualControllerEmail = env(
     'INDIVIDUAL_CONTROLLER_EMAIL',
@@ -817,19 +1227,10 @@ test('LIVE professional lifecycle on GW', {
 
   const smartVpToken = env(
     'SMART_VP_TOKEN',
-    buildUnsignedVpJwt({
-      vp: {
-        holder: smartClientId,
-        verifiableCredential: [
-          {
-            type: ['VerifiableCredential', 'EmployeeCredential'],
-            credentialSubject: {
-              id: smartProfessionalDid,
-              hasOccupation: env('SMART_SUBJECT_OCCUPATION', 'ISCO-08|2211'),
-            },
-          },
-        ],
-      },
+    buildUnsignedProfessionalSmartVpJwt({
+      clientId: smartClientId,
+      actorDid: smartProfessionalDid,
+      role: env('SMART_SUBJECT_OCCUPATION', 'ISCO-08|2211'),
     }),
   );
 
@@ -888,6 +1289,7 @@ test('LIVE professional lifecycle on GW', {
 async function runLiveIndividualLifecycleSuite() {
   const debug = createDebugLogger();
   const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
+  const runHostTeardown = shouldRunHostTeardown(baseUrl);
   const vpTokenEnv = env('VP_TOKEN');
   const vpTokenFile = env(
     'VP_TOKEN_FILE',
@@ -897,21 +1299,21 @@ async function runLiveIndividualLifecycleSuite() {
   const tenantRouteId = suiteTenantRouteId;
   const jurisdiction = suiteJurisdiction;
   const sector = suiteSector;
-  const hostSector = env('HOST_REGISTRY_SECTOR', 'test');
+  const hostNetworkOrTenantSector = resolveLiveHostNetworkOrTenantSector();
   const bearerToken = env('AUTH_BEARER', 'dummy');
   const doctorDid = env('INDIVIDUAL_TEST_DOCTOR_DID', EXAMPLE_API_ORGANIZATION_DID);
   const doctorEmail = env('INDIVIDUAL_TEST_DOCTOR_EMAIL', EXAMPLE_EMAIL_PROFESSIONAL);
   const memberEmail = env('INDIVIDUAL_MEMBER_EMAIL', `member+${runSlug}@example.com`);
   const memberRole = env('INDIVIDUAL_MEMBER_ROLE', EXAMPLE_RELATED_PERSON_ROLE);
   const ctx = { tenantId: tenantRouteId, jurisdiction, sector };
-  const hostCtx = { jurisdiction, sector: hostSector };
+  const hostCtx = { jurisdiction: suiteHostRouteJurisdiction, hostNetworkOrTenantSector };
   const pollOptions = createLivePollOptions();
 
   const vpPayload = loadVpPayloadFixture(vpTokenFile);
   const vpToken = vpTokenEnv || buildUnsignedVpJwt(vpPayload);
   const runtimeClient = createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutMs: 10_000 });
-  const hostDiscoveryVersionPath = buildHostDspaceVersionPath(suiteHostCoverageScope, hostSector);
-  const hostCatalogArtifactPath = buildHostCatalogArtifactPath(suiteHostCoverageScope, hostSector);
+  const hostDiscoveryVersionPath = buildHostDspaceVersionPath(suiteHostCoverageScope, hostNetworkOrTenantSector);
+  const hostCatalogArtifactPath = buildHostCatalogArtifactPath(suiteHostCoverageScope, hostNetworkOrTenantSector);
   const profiler = createStepProfiler(debug, 'individual-suite');
   const hostSession = new NodeActorSession(
     {
@@ -952,39 +1354,23 @@ async function runLiveIndividualLifecycleSuite() {
     runtimeClient,
   );
 
-  const activation = await profiler.run('activate-organization', () => hostSession.asHostOnboarding().activateOrganizationInGatewayFromIcaProof(
+  await maybeActivateOrganizationFromLegacyIcaProof({
+    profiler,
+    debug,
+    hostSession,
     hostCtx,
-    {
-      vpToken,
-      controller: cloneExample(EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller),
-      additionalClaims: {
-        ...cloneExample(EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.additionalClaims),
-        'org.schema.Organization.alternateName': tenantRouteId,
-        'org.schema.Organization.legalName': env('ORG_LEGAL_NAME', 'TEST LEGAL ORGANIZATION SL'),
-        'org.schema.Organization.identifier.additionalType': env('ORG_IDENTIFIER_TYPE', 'taxID'),
-        'org.schema.Organization.identifier.value': tenantId,
-        'org.schema.Organization.address.addressCountry': jurisdiction,
-        'org.schema.Organization.taxID': tenantId,
-        'org.schema.Person.email': env('CONTROLLER_EMAIL', 'controller@example.com'),
-        'org.schema.Person.hasOccupation.identifier.value': env('CONTROLLER_ROLE', 'RESPRSN'),
-        'org.schema.Service.category': sector,
-        'org.schema.Service.identifier': env('SERVICE_IDENTIFIER_DID', 'did:web:provider.example.org'),
-        'org.schema.Service.url': env('SERVICE_URL', 'https://provider.example.org'),
-      },
-    },
     pollOptions,
-  ));
-  debug.record('individual-suite-legal-activation', { response: activation });
-  assert.equal(activation.poll.status, 200, 'Host onboarding must complete before the individual lifecycle suite.');
-  assertLatestActivateTraceHasPlaintextTransportMeta({
+    vpToken,
+    tenantId,
+    tenantRouteId,
     jurisdiction,
-    hostSector,
-    controller: EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller,
+    sector,
+    controllerEmail: env('CONTROLLER_EMAIL', `controller+${runSlug}@example.com`),
+    controllerRole: env('CONTROLLER_ROLE', 'RESPRSN'),
+    serviceIdentifierDid: env('SERVICE_IDENTIFIER_DID', 'did:web:provider.example.org'),
+    serviceUrl: env('SERVICE_URL', 'https://provider.example.org'),
+    stage: 'activate-organization',
   });
-  const activatedTenantDid = String(
-    activation.poll.body?.data?.[0]?.meta?.claims?.['org.schema.Organization.did']
-    || '',
-  ).trim();
 
   const hostDspaceBeforeDisable = await profiler.run('host-dspace-before-disable', () => fetchJsonOrText(baseUrl, hostDiscoveryVersionPath, bearerToken));
   debug.record('individual-suite-host-dspace-before-disable', hostDspaceBeforeDisable);
@@ -993,18 +1379,19 @@ async function runLiveIndividualLifecycleSuite() {
   const hostCatalogBeforeDisable = await profiler.run('host-catalog-before-disable', () => fetchJsonOrText(baseUrl, hostCatalogArtifactPath, bearerToken));
   debug.record('individual-suite-host-catalog-before-disable', hostCatalogBeforeDisable);
   assert.equal(hostCatalogBeforeDisable.status, 200, 'Host DCAT catalog must be published while the host remains active.');
-  if (activatedTenantDid) {
-    assert.ok(
-      getCatalogDatasetPublisherIds(hostCatalogBeforeDisable.body).includes(activatedTenantDid),
-      'Host DCAT catalog must list the activated tenant while the tenant remains operational.',
-    );
-  }
+  assert.ok(
+    catalogIncludesTenantRouteFragment(hostCatalogBeforeDisable.body, tenantRouteId, jurisdiction, sector),
+    'Host DCAT catalog must list the activated tenant route while the tenant remains operational.',
+  );
 
   const individualAltName = env(
     'INDIVIDUAL_ALTERNATE_NAME',
-    `${runSlug}-${EXAMPLE_REGISTERED_SUBJECT_ALTERNATE_NAME}`,
+    `${runSlug}-profile-${EXAMPLE_REGISTERED_SUBJECT_ALTERNATE_NAME}`,
   );
-  const individualControllerEmail = env('INDIVIDUAL_CONTROLLER_EMAIL', 'controller@example.com');
+  const individualControllerEmail = env(
+    'INDIVIDUAL_CONTROLLER_EMAIL',
+    `controller+${runSlug}@example.com`,
+  );
   const subjectDid = suiteSubjectDid;
   const individualStart = await profiler.run('individual-start', () => individualControllerSession.asIndividualController().startIndividualOrganization({
     tenantId: tenantRouteId,
@@ -1353,12 +1740,10 @@ async function runLiveIndividualLifecycleSuite() {
   const hostCatalogAfterTenantDisable = await profiler.run('host-catalog-after-tenant-disable', () => fetchJsonOrText(baseUrl, hostCatalogArtifactPath, bearerToken));
   debug.record('individual-suite-host-catalog-after-tenant-disable', hostCatalogAfterTenantDisable);
   assert.equal(hostCatalogAfterTenantDisable.status, 200, 'Host DCAT catalog must remain available while the host itself is still active.');
-  if (activatedTenantDid) {
-    assert.ok(
-      !getCatalogDatasetPublisherIds(hostCatalogAfterTenantDisable.body).includes(activatedTenantDid),
-      'Host DCAT catalog must stop listing the tenant once the tenant is disabled.',
-    );
-  }
+  assert.ok(
+    !catalogIncludesTenantRouteFragment(hostCatalogAfterTenantDisable.body, tenantRouteId, jurisdiction, sector),
+    'Host DCAT catalog must stop listing the tenant once the tenant is disabled.',
+  );
 
   const purgeTenant = await profiler.run('tenant-purge', () => orgControllerSession.asOrganizationController().purgeTenant(
     hostCtx,
@@ -1370,6 +1755,18 @@ async function runLiveIndividualLifecycleSuite() {
   debug.record('individual-suite-tenant-purge', { response: purgeTenant });
   assert.equal(purgeTenant.poll.status, 200, 'Individual lifecycle suite must purge the hosted tenant at the end of the lifecycle.');
 
+  if (!runHostTeardown) {
+    const hostCatalogAfterTenantPurge = await profiler.run('host-catalog-after-tenant-purge', () => fetchJsonOrText(baseUrl, hostCatalogArtifactPath, bearerToken));
+    debug.record('individual-suite-host-catalog-after-tenant-purge', hostCatalogAfterTenantPurge);
+    assert.equal(hostCatalogAfterTenantPurge.status, 200, 'Shared host DCAT catalog must remain available when host teardown is intentionally skipped.');
+    assert.ok(
+      !catalogIncludesTenantRouteFragment(hostCatalogAfterTenantPurge.body, tenantRouteId, jurisdiction, sector),
+      'Host DCAT catalog must not keep publishing the purged tenant route after tenant purge.',
+    );
+    profiler.flush();
+    return;
+  }
+
   const disableHost = await profiler.run('host-disable', () => hostSession.asHostOnboarding().disableHost(
     hostCtx,
     {
@@ -1379,16 +1776,43 @@ async function runLiveIndividualLifecycleSuite() {
   ));
   debug.record('individual-suite-host-disable', { response: disableHost });
   assert.equal(disableHost.poll.status, 200, 'Individual lifecycle suite must disable the host after all hosted tenants are purged.');
+  {
+    const disableEntries = getBatchEntries(disableHost.poll.body, 'Host disable');
+    assert.equal(String(disableEntries[0]?.response?.status || ''), '200', 'Host disable must return an inner response.status of 200 after all hosted tenants are purged.');
+  }
 
-  const hostDspaceAfterDisable = await profiler.run('host-dspace-after-disable', () => fetchJsonOrText(baseUrl, hostDiscoveryVersionPath, bearerToken));
+  /**
+   * Technical host discovery and functional host publication are not the same.
+   *
+   * Step by step:
+   * - `dspace-version` only proves that the host still exposes one DSP root
+   * - it does not prove that the host still publishes index/digital-twin/etc
+   * - functional publication must be asserted through:
+   *   - host DCAT catalog
+   *   - backend `/api/dataspace-discovery/providers`
+   *
+   * Because of that, the suite records `dspace-version` after host disable for
+   * diagnostics, but it does not use it as the authoritative pass/fail signal
+   * for index-hosting publication.
+   */
+  const hostDspaceAfterDisable = await profiler.run('host-dspace-after-disable', () => waitForFetchStatus(
+    baseUrl,
+    hostDiscoveryVersionPath,
+    bearerToken,
+    503,
+  ));
   debug.record('individual-suite-host-dspace-after-disable', hostDspaceAfterDisable);
-  assert.equal(hostDspaceAfterDisable.status, 503, 'Host dspace-version must disappear from operational discovery once the host is disabled.');
 
-  const hostCatalogAfterDisable = await profiler.run('host-catalog-after-disable', () => fetchJsonOrText(baseUrl, hostCatalogArtifactPath, bearerToken));
+  const hostCatalogAfterDisable = await profiler.run('host-catalog-after-disable', () => waitForFetchStatus(
+    baseUrl,
+    hostCatalogArtifactPath,
+    bearerToken,
+    503,
+  ));
   debug.record('individual-suite-host-catalog-after-disable', hostCatalogAfterDisable);
   assert.equal(hostCatalogAfterDisable.status, 503, 'Host DCAT catalog must stop publishing once the host is disabled.');
 
-  const providerDiscoveryAfterHostDisable = await profiler.run('provider-discovery-after-host-disable', () => postJsonOrText(
+  const providerDiscoveryAfterHostDisable = await profiler.run('provider-discovery-after-host-disable', () => waitForPostStatus(
     baseUrl,
     '/api/dataspace-discovery/providers',
     {
@@ -1398,6 +1822,7 @@ async function runLiveIndividualLifecycleSuite() {
       coverageScope: suiteHostCoverageScope,
     },
     bearerToken,
+    503,
   ));
   debug.record('individual-suite-host-provider-discovery-after-disable', providerDiscoveryAfterHostDisable);
   assert.equal(providerDiscoveryAfterHostDisable.status, 503, 'Published provider discovery must become unavailable once the host is disabled.');
@@ -1411,6 +1836,10 @@ async function runLiveIndividualLifecycleSuite() {
   ));
   debug.record('individual-suite-host-purge', { response: purgeHost });
   assert.equal(purgeHost.poll.status, 200, 'Individual lifecycle suite must purge the disabled host after discovery publication is stopped.');
+  {
+    const purgeEntries = getBatchEntries(purgeHost.poll.body, 'Host purge');
+    assert.equal(String(purgeEntries[0]?.response?.status || ''), '200', 'Host purge must return an inner response.status of 200 after host discovery publication is stopped.');
+  }
   profiler.flush();
 }
 
@@ -1833,14 +2262,18 @@ async function runLiveProfileRuntimeIndividualSuite() {
     'VP_TOKEN_FILE',
     path.join(__dirname, 'fixtures', 'ica-vp-minimal.json'),
   );
-  const tenantId = suiteTenantId;
-  const tenantRouteId = suiteTenantRouteId;
+  const tenantId = `${suiteTenantId}-profile`;
+  const tenantRouteId = `${suiteTenantRouteId}-profile`;
   const jurisdiction = suiteJurisdiction;
   const sector = suiteSector;
-  const hostSector = env('HOST_REGISTRY_SECTOR', 'test');
+  const hostNetworkOrTenantSector = resolveLiveHostNetworkOrTenantSector();
+  const controllerEmail = env('CONTROLLER_EMAIL', `controller+${runSlug}@example.com`);
+  const controllerRole = env('CONTROLLER_ROLE', 'RESPRSN');
+  const serviceIdentifierDid = env('SERVICE_IDENTIFIER_DID', 'did:web:provider.example.org');
+  const serviceUrl = env('SERVICE_URL', 'https://provider.example.org');
   const bearerToken = env('AUTH_BEARER', 'dummy');
   const ctx = { tenantId: tenantRouteId, jurisdiction, sector };
-  const hostCtx = { jurisdiction, sector: hostSector };
+  const hostCtx = { jurisdiction: suiteHostRouteJurisdiction, hostNetworkOrTenantSector };
   const pollOptions = createLivePollOptions();
   const profiler = createStepProfiler(debug, 'profile-runtime-suite');
   const vpPayload = loadVpPayloadFixture(vpTokenFile);
@@ -1858,6 +2291,26 @@ async function runLiveProfileRuntimeIndividualSuite() {
     },
     runtimeClient,
   );
+  const orgControllerSession = new NodeActorSession(
+    {
+      actorKind: ActorKinds.OrganizationController,
+      capabilities: [
+        ActorCapabilities.OrganizationDisableTenant,
+        ActorCapabilities.OrganizationPurgeTenant,
+      ],
+    },
+    runtimeClient,
+  );
+  const individualControllerSession = new NodeActorSession(
+    {
+      actorKind: ActorKinds.IndividualController,
+      capabilities: [
+        ActorCapabilities.IndividualDisable,
+        ActorCapabilities.IndividualPurge,
+      ],
+    },
+    runtimeClient,
+  );
   const profileRuntime = new DirectBackendProfileRuntime({
     facadeClient: runtimeClient,
     defaultRouteContext: ctx,
@@ -1865,41 +2318,49 @@ async function runLiveProfileRuntimeIndividualSuite() {
   });
   const individualRuntime = new IndividualControllerBackendRuntime(profileRuntime);
 
-  const activation = await profiler.run('activate-organization', () => hostSession.asHostOnboarding().activateOrganizationInGatewayFromIcaProof(
+  await maybeSubmitHostVerificationTransaction({
+    profiler,
+    debug,
+    orgControllerSession,
     hostCtx,
-    {
-      vpToken,
-      controller: cloneExample(EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller),
-      additionalClaims: {
-        ...cloneExample(EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.additionalClaims),
-        'org.schema.Organization.alternateName': tenantRouteId,
-        'org.schema.Organization.legalName': env('ORG_LEGAL_NAME', 'TEST LEGAL ORGANIZATION SL'),
-        'org.schema.Organization.identifier.additionalType': env('ORG_IDENTIFIER_TYPE', 'taxID'),
-        'org.schema.Organization.identifier.value': tenantId,
-        'org.schema.Organization.address.addressCountry': jurisdiction,
-        'org.schema.Organization.taxID': tenantId,
-        'org.schema.Person.email': env('CONTROLLER_EMAIL', 'controller@example.com'),
-        'org.schema.Person.hasOccupation.identifier.value': env('CONTROLLER_ROLE', 'RESPRSN'),
-        'org.schema.Service.category': sector,
-        'org.schema.Service.identifier': env('SERVICE_IDENTIFIER_DID', 'did:web:provider.example.org'),
-        'org.schema.Service.url': env('SERVICE_URL', 'https://provider.example.org'),
-      },
-    },
     pollOptions,
-  ));
-  debug.record('profile-runtime-suite-legal-activation', { response: activation });
-  assert.equal(activation.poll.status, 200, 'Profile runtime suite must activate the organization before loading the backend profile.');
-  assertLatestActivateTraceHasPlaintextTransportMeta({
+    tenantId,
+    tenantRouteId,
     jurisdiction,
-    hostSector,
-    controller: EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller,
+    sector,
+    controllerEmail,
+    controllerRole,
+    serviceIdentifierDid,
+    serviceUrl,
+    stage: 'profile-runtime-suite-legal-verification-transaction',
+  });
+
+  await maybeActivateOrganizationFromLegacyIcaProof({
+    profiler,
+    debug,
+    hostSession,
+    hostCtx,
+    pollOptions,
+    vpToken,
+    tenantId,
+    tenantRouteId,
+    jurisdiction,
+    sector,
+    controllerEmail,
+    controllerRole,
+    serviceIdentifierDid,
+    serviceUrl,
+    stage: 'activate-organization',
   });
 
   const individualAltName = env(
     'INDIVIDUAL_ALTERNATE_NAME',
     `${runSlug}-${EXAMPLE_REGISTERED_SUBJECT_ALTERNATE_NAME}`,
   );
-  const individualControllerEmail = env('INDIVIDUAL_CONTROLLER_EMAIL', 'controller@example.com');
+  const individualControllerEmail = env(
+    'INDIVIDUAL_CONTROLLER_EMAIL',
+    `controller+${runSlug}@example.com`,
+  );
   const individualControllerRole = env('INDIVIDUAL_CONTROLLER_ROLE', 'RESPRSN');
   const subjectDid = suiteSubjectDid;
   const profileDid = env('INDIVIDUAL_CONTROLLER_PROFILE_DID', EXAMPLE_PROFILE_PROVIDER_DID);
@@ -2009,14 +2470,56 @@ async function runLiveProfileRuntimeIndividualSuite() {
     'Profile runtime suite must return one current GW CORE index payload through the profile-runtime read helper.',
   );
 
+  const profileIndividualLifecycleEditor = new IndividualOrganizationLifecycleEditor()
+    .setIdentifier(subjectDid)
+    .setAlternateName(individualAltName)
+    .setOwnerEmail(individualControllerEmail);
+  const profileIndividualDisable = await profiler.run('profile-individual-disable', () => individualControllerSession.asIndividualController().disableIndividualOrganization(
+    ctx,
+    {
+      organizationEditor: profileIndividualLifecycleEditor,
+    },
+    pollOptions,
+  ));
+  debug.record('profile-runtime-suite-disable', { response: profileIndividualDisable });
+  assert.equal(profileIndividualDisable.poll.status, 200, 'Profile runtime suite must disable the hosted individual organization during cleanup.');
+
+  const profileIndividualPurge = await profiler.run('profile-individual-purge', () => individualControllerSession.asIndividualController().purgeIndividualOrganization(
+    ctx,
+    {
+      organizationEditor: profileIndividualLifecycleEditor,
+    },
+    pollOptions,
+  ));
+  debug.record('profile-runtime-suite-purge', { response: profileIndividualPurge });
+  assert.equal(profileIndividualPurge.poll.status, 200, 'Profile runtime suite must purge the hosted individual organization during cleanup.');
+
+  const profileTenantLifecycleEditor = new OrganizationLifecycleEditor()
+    .setIdentifier(String(cloneExample(EXAMPLE_TENANT_DISABLE_MESSAGE.claims)[ClaimsOrganizationSchemaorg.identifier]))
+    .setIdentifierValue(tenantId)
+    .setTaxId(tenantId);
+  const profileTenantDisable = await profiler.run('profile-tenant-disable', () => orgControllerSession.asOrganizationController().disableTenant(
+    hostCtx,
+    {
+      organizationEditor: profileTenantLifecycleEditor,
+    },
+    pollOptions,
+  ));
+  debug.record('profile-runtime-suite-tenant-disable', { response: profileTenantDisable });
+  assert.equal(profileTenantDisable.poll.status, 200, 'Profile runtime suite must disable the hosted tenant during cleanup.');
+
+  const profileTenantPurge = await profiler.run('profile-tenant-purge', () => orgControllerSession.asOrganizationController().purgeTenant(
+    hostCtx,
+    {
+      organizationEditor: profileTenantLifecycleEditor,
+    },
+    pollOptions,
+  ));
+  debug.record('profile-runtime-suite-tenant-purge', { response: profileTenantPurge });
+  assert.equal(profileTenantPurge.poll.status, 200, 'Profile runtime suite must purge the hosted tenant during cleanup.');
+
   profiler.flush();
 }
-
-test('LIVE individual lifecycle on GW', {
-  skip: !(RUN && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Individual)),
-}, async () => {
-  await runLiveIndividualLifecycleSuite();
-});
 
 test('LIVE backend profile runtime individual-controller flow on GW', {
   skip: !(RUN
@@ -2024,4 +2527,10 @@ test('LIVE backend profile runtime individual-controller flow on GW', {
     && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Individual)),
 }, async () => {
   await runLiveProfileRuntimeIndividualSuite();
+});
+
+test('LIVE individual lifecycle on GW', {
+  skip: !(RUN && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Individual)),
+}, async () => {
+  await runLiveIndividualLifecycleSuite();
 });

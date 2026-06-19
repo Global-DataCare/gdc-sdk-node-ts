@@ -125,6 +125,8 @@ test('IndividualControllerSdk throws when a delegated runtime method is missing'
 test('NodeActorSession materializes role-scoped facades from the runtime client', async () => {
   const calls = [];
   const client = {
+    submitLegalOrganizationVerificationTransaction: async (...args) => { calls.push(['submitLegalOrganizationVerificationTransaction', args]); return { ok: true }; },
+    submitOrganizationDidBinding: async (...args) => { calls.push(['submitOrganizationDidBinding', args]); return { ok: true }; },
     createOrganizationEmployee: async (...args) => { calls.push(['createOrganizationEmployee', args]); return { ok: true }; },
     searchOrganizationEmployees: async (...args) => { calls.push(['searchOrganizationEmployees', args]); return { ok: true }; },
     searchOrganizationLicenses: async (...args) => { calls.push(['searchOrganizationLicenses', args]); return { ok: true }; },
@@ -142,6 +144,8 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
     capabilities: [ActorCapabilities.OrganizationCreateEmployee, ActorCapabilities.OrganizationDisableEmployee],
   }, client);
   const sdk = session.asOrganizationController();
+  await sdk.submitLegalOrganizationVerificationTransaction({}, { claims: {}, controller: {} });
+  await sdk.submitOrganizationDidBinding({}, { organization: { url: 'https://provider.example.org' } });
   await sdk.createOrganizationEmployee({}, {});
   await sdk.searchOrganizationEmployees({}, {});
   await sdk.searchLicenses({}, {});
@@ -153,7 +157,7 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   await sdk.confirmOrganizationLicenseOrder({}, { offerId: 'urn:cds:offer:test' });
   await sdk.disableEmployee({}, {});
   await sdk.disableOrganizationEmployee({}, {});
-  assert.equal(calls.length, 11);
+  assert.equal(calls.length, 13);
 });
 
 test('OrganizationControllerSdk delegates organization-side license-order confirmation to the runtime client', async () => {
@@ -169,6 +173,30 @@ test('OrganizationControllerSdk delegates organization-side license-order confir
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0][1].offerId, 'urn:cds:offer:test');
+});
+
+test('OrganizationControllerSdk delegates the host legal-organization verification transaction to the runtime client', async () => {
+  const calls = [];
+  const session = new NodeActorSession({
+    actorKind: ActorKinds.OrganizationController,
+    capabilities: [],
+  }, {
+    submitLegalOrganizationVerificationTransaction: async (...args) => { calls.push(['submitLegalOrganizationVerificationTransaction', args]); return { ok: true }; },
+    submitOrganizationDidBinding: async (...args) => { calls.push(['submitOrganizationDidBinding', args]); return { ok: true }; },
+  });
+
+  await session.asOrganizationController().submitLegalOrganizationVerificationTransaction(
+    { jurisdiction: 'ES', sector: 'test' },
+    { claims: {}, controller: {} },
+  );
+  await session.asOrganizationController().submitOrganizationDidBinding(
+    { tenantId: 'acme-id', jurisdiction: 'ES', sector: 'health-care' },
+    { organization: { url: 'https://provider.example.org' } },
+  );
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0][1][0].jurisdiction, 'ES');
+  assert.equal(calls[1][1][0].tenantId, 'acme-id');
 });
 
 test('OrganizationControllerSdk enforces employee lifecycle capabilities when materialized from NodeActorSession', async () => {
@@ -207,6 +235,7 @@ test('IndividualControllerSdk enforces individual and member lifecycle capabilit
 test('IndividualControllerSdk enforces consent, ingest, related-person, and digital-twin capabilities when materialized from NodeActorSession', async () => {
   const client = {
     grantProfessionalAccess: async () => ({ ok: true }),
+    revokeProfessionalAccess: async () => ({ ok: true }),
     ingestCommunicationAndUpdateIndex: async () => ({ ok: true }),
     upsertRelatedPersonAndPoll: async () => ({ ok: true }),
     generateDigitalTwinFromSubjectData: async () => ({ ok: true }),
@@ -218,6 +247,7 @@ test('IndividualControllerSdk enforces consent, ingest, related-person, and digi
   const sdk = session.asIndividualController();
 
   await sdk.grantProfessionalAccess({}, {});
+  await sdk.revokeProfessionalAccess({}, { consentClaims: {} });
   assert.throws(
     () => sdk.ingestCommunicationAndUpdateIndex({}, {}),
     new RegExp(`requires capability '${ActorCapabilities.IndividualIngestCommunication.replace('.', '\\.')}'`),
@@ -230,6 +260,33 @@ test('IndividualControllerSdk enforces consent, ingest, related-person, and digi
     () => sdk.generateDigitalTwinFromSubjectData({}, {}),
     new RegExp(`requires capability '${ActorCapabilities.IndividualGenerateDigitalTwin.replace('.', '\\.')}'`),
   );
+});
+
+test('ProfessionalSdk exposes high-level SMART and IPS read methods through the runtime client', async () => {
+  const calls = [];
+  const session = new NodeActorSession({
+    actorKind: ActorKinds.Professional,
+    capabilities: [],
+  }, {
+    requestSmartToken: async (...args) => { calls.push(['requestSmartToken', args]); return { accessToken: 'token-1' }; },
+    getLatestIps: async (...args) => { calls.push(['getLatestIps', args]); return { ok: true }; },
+    searchClinicalBundle: async (...args) => { calls.push(['searchClinicalBundle', args]); return { ok: true }; },
+  });
+
+  await session.asProfessional().requestSmartToken({ actorDid: 'did:web:professional.example', scopes: ['patient/*.rs'] });
+  await session.asProfessional().getLatestIps(
+    { tenantId: 'tenant-1', jurisdiction: 'ES', sector: 'health-care' },
+    { subject: 'did:web:subject.example' },
+  );
+  await session.asProfessional().searchClinicalBundle(
+    { tenantId: 'tenant-1', jurisdiction: 'ES', sector: 'health-care' },
+    { subject: 'did:web:subject.example', section: 'patient-summary' },
+  );
+
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0][0], 'requestSmartToken');
+  assert.equal(calls[1][0], 'getLatestIps');
+  assert.equal(calls[2][0], 'searchClinicalBundle');
 });
 
 test('OrganizationEmployeeSdk enforces employee runtime capabilities when materialized from NodeActorSession', async () => {
