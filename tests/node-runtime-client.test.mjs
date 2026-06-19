@@ -2,10 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   EXAMPLE_LICENSE_ACTIVE_RECORD,
+  EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE,
   EXAMPLE_RELATED_PERSON_DISABLE_BUNDLE_ENTRY,
   EXAMPLE_RELATED_PERSON_DISABLE_INPUT,
   EXAMPLE_RELATED_PERSON_IDENTIFIER,
   EXAMPLE_RELATED_PERSON_PURGE_BUNDLE_ENTRY,
+  EXAMPLE_HOST_ROUTE_CONTEXT,
+  EXAMPLE_ORGANIZATION_DID_BINDING_BUNDLE,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
@@ -119,6 +122,14 @@ test('NodeHttpClient exposes current GW CORE lifecycle paths for individual and 
   });
 
   assert.equal(
+    client.hostRegistryOrganizationTransactionPath(cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT)),
+    '/host/cds-ES/v1/test/registry/org.schema/Organization/_transaction',
+  );
+  assert.equal(
+    client.hostRegistryOrganizationTransactionPollPath(cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT)),
+    '/host/cds-ES/v1/test/registry/org.schema/Organization/_transaction-response',
+  );
+  assert.equal(
     client.individualFamilyOrganizationTransactionPath(),
     '/acme-id/cds-ES/v1/health-care/individual/org.schema/Organization/_transaction',
   );
@@ -137,6 +148,14 @@ test('NodeHttpClient exposes current GW CORE lifecycle paths for individual and 
   assert.equal(
     client.organizationLicenseSearchPath(),
     '/acme-id/cds-ES/v1/health-care/entity/org.schema/License/_search',
+  );
+  assert.equal(
+    client.organizationDidBindingPath(),
+    '/acme-id/cds-ES/v1/health-care/did/document/_binding',
+  );
+  assert.equal(
+    client.organizationDidBindingPollPath(),
+    '/acme-id/cds-ES/v1/health-care/did/document/_binding-response',
   );
   assert.equal(
     client.individualLicenseSearchPath(),
@@ -169,6 +188,81 @@ test('NodeHttpClient searches organization-owned license seats through License/_
   assert.equal(calls[0][0], '/acme-id/cds-ES/v1/health-care/entity/org.schema/License/_search');
   assert.equal(calls[0][1], '/acme-id/cds-ES/v1/health-care/entity/org.schema/License/_search-response');
   assert.equal(calls[0][2].body.entry[0].type, 'License-search-request-v1.0');
+});
+
+test('NodeHttpClient submits the host legal-organization verification transaction through Organization/_transaction and polls _transaction-response', async () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+  });
+
+  const calls = [];
+  client.submitAndPoll = async (...args) => {
+    calls.push(args);
+    return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+  };
+  client.hostRegistryOrganizationTransactionPath = () => '/host/transaction';
+  client.hostRegistryOrganizationTransactionPollPath = () => '/host/transaction-response';
+
+  await client.submitLegalOrganizationVerificationTransaction(
+    cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT),
+    {
+      claims: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].meta.claims),
+      controller: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.controller),
+      organization: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.organization),
+      legalRepresentativePayload: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.legalRepresentativePayload),
+      verification: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.verification),
+      attachments: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.attachments),
+    },
+    { timeoutMs: 20_000, intervalMs: 1_000 },
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], '/host/transaction');
+  assert.equal(calls[0][1], '/host/transaction-response');
+  assert.equal(calls[0][2].type, 'application/api+json');
+  assert.equal(calls[0][2].body.type, 'collection');
+  assert.equal(calls[0][2].body.data[0].type, 'Organization-verification-transaction-request-v1.0');
+  assert.equal(
+    calls[0][2].body.data[0].resource.controller.publicKeyJwk.kid,
+    EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.controller.publicKeyJwk.kid,
+  );
+  assert.equal(
+    calls[0][2].attachments[0].data.links[0],
+    EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.attachments[0].data.links[0],
+  );
+  assert.equal(typeof calls[0][2].body.attachments, 'undefined');
+  assert.deepEqual(calls[0][3], { timeoutMs: 20_000, intervalMs: 1_000 });
+});
+
+test('NodeHttpClient submits the organization DID binding operation through did/document/_binding and polls _binding-response', async () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+    ctx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+  });
+
+  const calls = [];
+  client.submitAndPoll = async (...args) => {
+    calls.push(args);
+    return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+  };
+
+  await client.submitOrganizationDidBinding(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    cloneExample(EXAMPLE_ORGANIZATION_DID_BINDING_BUNDLE.data[0].resource),
+    { timeoutMs: 30_000, intervalMs: 2_000 },
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], '/acme-id/cds-ES/v1/health-care/did/document/_binding');
+  assert.equal(calls[0][1], '/acme-id/cds-ES/v1/health-care/did/document/_binding-response');
+  assert.equal(calls[0][2].type, 'application/api+json');
+  assert.equal(calls[0][2].body.type, 'collection');
+  assert.equal(calls[0][2].body.data[0].type, 'Organization-did-binding-request-v1.0');
+  assert.deepEqual(
+    calls[0][2].body.data[0].resource,
+    EXAMPLE_ORGANIZATION_DID_BINDING_BUNDLE.data[0].resource,
+  );
+  assert.deepEqual(calls[0][3], { timeoutMs: 30_000, intervalMs: 2_000 });
 });
 
 test('NodeHttpClient searches organization-owned commercial offers through Offer/_search', async () => {

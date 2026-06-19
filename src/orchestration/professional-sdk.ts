@@ -13,6 +13,7 @@ import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-
 import type {
   CommunicationIngestionInput,
   CommunicationParticipantRuntimeSearchInput,
+  ClinicalBundleSearchInput,
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
 } from '../resource-operations.js';
@@ -45,6 +46,28 @@ export class ProfessionalSdk {
    */
   public requestSmartToken(input: SmartTokenRequestInput): Promise<SmartTokenExchangeResult> {
     return requireClientMethod(this.client, 'requestSmartToken')(input);
+  }
+
+  /**
+   * Executes one clinical `Bundle/_search` using the professional actor
+   * session and tenant route context.
+   */
+  public searchClinicalBundle(
+    ctx: RouteContext,
+    input: ClinicalBundleSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchClinicalBundle')(ctx, input);
+  }
+
+  /**
+   * Reads the latest IPS-oriented document projection available to the
+   * professional actor for one subject.
+   */
+  public getLatestIps(
+    ctx: RouteContext,
+    input: Omit<ClinicalBundleSearchInput, 'includedTypes'>,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'getLatestIps')(ctx, input);
   }
 
   /**

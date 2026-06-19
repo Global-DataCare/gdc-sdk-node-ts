@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
  */
 import {
   EXAMPLE_CLINICAL_BUNDLE_SEARCH_INPUT,
+  EXAMPLE_FAMILY_ORGANIZATION_SEARCH_INPUT,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_INPUT,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_RESPONSE,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT,
@@ -26,11 +27,12 @@ import {
   EXAMPLE_PROFILE_RUNTIME_CLASS_SERVER,
   EXAMPLE_SUBJECT_DID,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
+  readFirstBundleResourceFromResponseBody,
 } from 'gdc-common-utils-ts';
 import {
   ActorKinds,
-  DirectBackendProfileRuntime,
   IndividualControllerBackendRuntime,
+  createBackendProfileRuntime,
   prepareLoadProfile,
 } from '../dist/index.js';
 
@@ -44,7 +46,7 @@ import {
  * 4. read the subject clinical index.
  */
 test('101: backend individual-controller runtime wraps the current CORE baseline', async () => {
-  const loadRequest = prepareLoadProfile({
+  const protectedProfileLoadRequest = prepareLoadProfile({
     actorKind: ActorKinds.IndividualController,
     providerDid: EXAMPLE_PROFILE_PROVIDER_DID,
     runtimeClass: EXAMPLE_PROFILE_RUNTIME_CLASS_SERVER,
@@ -57,12 +59,25 @@ test('101: backend individual-controller runtime wraps the current CORE baseline
     appType: EXAMPLE_PROFILE_APP_TYPE_FAMILY,
     localPinPassword: EXAMPLE_PROFILE_LOCAL_PIN_PASSWORD_BACKEND,
   });
-  const backendProfileRuntime = new DirectBackendProfileRuntime({
+  const backendProfileRuntime = createBackendProfileRuntime({
     defaultRouteContext: EXAMPLE_TENANT_ROUTE_CONTEXT,
     facadeClient: {
       async startIndividualOrganization(input) {
         assert.equal(input.alternateName, EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT.alternateName);
         return EXAMPLE_INDIVIDUAL_ORGANIZATION_START_RESPONSE;
+      },
+      async ensureFamilyOrganizationRegistration(_ctx, input) {
+        assert.equal(input.controllerPhone, EXAMPLE_FAMILY_ORGANIZATION_SEARCH_INPUT.controllerPhone);
+        return {
+          status: 'already_exists',
+          summary: {
+            status: 'already_exists',
+            organizationId: 'org-uuid-001',
+            subjectInfo: {
+              alternateName: EXAMPLE_FAMILY_ORGANIZATION_SEARCH_INPUT.usualname,
+            },
+          },
+        };
       },
       async confirmIndividualOrganizationOrder(input) {
         assert.equal(input.offerId, EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_INPUT.offerId);
@@ -73,7 +88,15 @@ test('101: backend individual-controller runtime wraps the current CORE baseline
         assert.equal(input.subject, EXAMPLE_CLINICAL_BUNDLE_SEARCH_INPUT.subject);
         return {
           submit: { status: 202, body: { accepted: true } },
-          poll: { status: 200, body: { data: [{ resourceType: 'Bundle', id: 'clinical-index-1' }] }, attempts: 1 },
+          poll: {
+            status: 200,
+            body: {
+              data: [{
+                resource: { resourceType: 'Bundle', id: 'clinical-index-1' },
+              }],
+            },
+            attempts: 1,
+          },
         };
       },
       async getLatestIps(ctx, input) {
@@ -81,7 +104,15 @@ test('101: backend individual-controller runtime wraps the current CORE baseline
         assert.equal(input.subject, EXAMPLE_SUBJECT_DID);
         return {
           submit: { status: 202, body: { accepted: true } },
-          poll: { status: 200, body: { data: [{ resourceType: 'Bundle', id: 'latest-ips-1' }] }, attempts: 1 },
+          poll: {
+            status: 200,
+            body: {
+              data: [{
+                resource: { resourceType: 'Bundle', id: 'latest-ips-1' },
+              }],
+            },
+            attempts: 1,
+          },
         };
       },
     },
@@ -89,10 +120,11 @@ test('101: backend individual-controller runtime wraps the current CORE baseline
 
   const runtime = new IndividualControllerBackendRuntime(backendProfileRuntime);
 
-  const profile = await runtime.loadProfile(loadRequest);
-  const startResult = await runtime.startIndividualOrganization(
+  const profile = await runtime.loadProfile(protectedProfileLoadRequest);
+  const familyRegistration = await runtime.ensureFamilyOrganizationRegistration(
     profile,
-    EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT,
+    EXAMPLE_TENANT_ROUTE_CONTEXT,
+    EXAMPLE_FAMILY_ORGANIZATION_SEARCH_INPUT,
   );
   const orderResult = await runtime.confirmIndividualOrganizationOrder(
     profile,
@@ -108,10 +140,13 @@ test('101: backend individual-controller runtime wraps the current CORE baseline
     EXAMPLE_TENANT_ROUTE_CONTEXT,
     { subject: EXAMPLE_SUBJECT_DID },
   );
+  const firstClinicalBundle = readFirstBundleResourceFromResponseBody(clinicalBundle.poll.body);
+  const firstLatestIpsBundle = readFirstBundleResourceFromResponseBody(latestIps.poll.body);
 
   assert.equal(profile.session.actorKind, ActorKinds.IndividualController);
-  assert.equal(startResult.offerId, EXAMPLE_INDIVIDUAL_ORGANIZATION_START_RESPONSE.offerId);
+  assert.equal(familyRegistration.status, 'already_exists');
+  assert.equal(familyRegistration.summary?.subjectInfo?.alternateName, EXAMPLE_FAMILY_ORGANIZATION_SEARCH_INPUT.usualname);
   assert.equal(orderResult.poll.status, EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_RESPONSE.poll.status);
-  assert.equal(clinicalBundle.poll.body.data[0].id, 'clinical-index-1');
-  assert.equal(latestIps.poll.body.data[0].id, 'latest-ips-1');
+  assert.equal(firstClinicalBundle?.id, 'clinical-index-1');
+  assert.equal(firstLatestIpsBundle?.id, 'latest-ips-1');
 });

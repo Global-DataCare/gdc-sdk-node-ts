@@ -34,6 +34,7 @@ import {
   InteroperableLifecycleStatuses,
 } from 'gdc-common-utils-ts';
 import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
+import { ClaimConsent } from 'gdc-common-utils-ts/models/consent-rule';
 
 import {
   EmployeeDraft,
@@ -64,6 +65,7 @@ import {
   searchClinicalBundleWithDeps,
   searchCommunicationParticipantsWithDeps,
   searchLatestIpsWithDeps,
+  revokeProfessionalAccessWithDeps,
   upsertRelatedPersonAndPollWithDeps,
   GwCoreLifecycleRequestMethod,
   GwCoreLifecycleRequestType,
@@ -612,6 +614,35 @@ test('grantProfessionalAccessWithDeps builds consent payload and returns built m
   assert.equal(calls[0][0], '/consent/_batch');
   assert.equal(typeof result.thid, 'string');
   assert.equal(result.consent.poll.status, 200);
+});
+
+test('revokeProfessionalAccessWithDeps closes consent by setting period end', async () => {
+  const calls = [];
+  const result = await revokeProfessionalAccessWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      consentClaims: {
+        '@context': 'org.hl7.fhir.api',
+        'Consent.identifier': 'urn:uuid:consent-1',
+        'Consent.subject': 'did:web:subject.example',
+        'Consent.actor-identifier': 'did:web:professional.example',
+        [ClaimConsent.periodStart]: '2026-01-01T00:00:00Z',
+      },
+      periodEnd: '2026-06-18T00:00:00Z',
+    },
+    {
+      individualConsentR4BatchPath: () => '/consent/_batch',
+      individualConsentR4PollPath: () => '/consent/_batch-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][0], '/consent/_batch');
+  assert.equal(calls[0][2].body.data[0].meta.claims[ClaimConsent.periodEnd], '2026-06-18T00:00:00Z');
+  assert.equal(result.consent.poll.status, 200);
+  assert.equal(result.consentClaims[ClaimConsent.periodEnd], '2026-06-18T00:00:00Z');
 });
 
 test('generateDigitalTwinFromSubjectDataWithDeps selects api route when requested', async () => {

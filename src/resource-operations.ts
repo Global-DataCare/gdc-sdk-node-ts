@@ -28,6 +28,7 @@ import {
 import {
   buildEmployeeBatchEntry,
   buildEmployeeSearchBundle,
+  ConsentClaims,
 } from 'gdc-sdk-core-ts';
 import type { SubmitAndPollResult } from './orchestration/client-port.js';
 import type { RouteContext } from './individual-onboarding.js';
@@ -286,6 +287,19 @@ export type GrantProfessionalAccessResult = {
   actorIdentifier: string;
   consentClaims: Record<string, unknown>;
   claimsCid?: string;
+};
+
+export type RevokeProfessionalAccessInput = {
+  consentClaims: Record<string, unknown>;
+  periodEnd?: string;
+  dataType?: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+};
+
+export type RevokeProfessionalAccessResult = {
+  thid: string;
+  consent: SubmitAndPollResult;
+  consentClaims: Record<string, unknown>;
 };
 
 export type DigitalTwinGenerationInput = {
@@ -1087,6 +1101,51 @@ export async function grantProfessionalAccessWithDeps(
     subjectIdentifier: built.subjectIdentifier,
     consentClaims: built.consentClaims,
     claimsCid: built.claimsCid,
+  };
+}
+
+export async function revokeProfessionalAccessWithDeps(
+  routeCtx: RouteContext,
+  input: RevokeProfessionalAccessInput,
+  deps: {
+    individualConsentR4BatchPath: (ctx: RouteContext) => string;
+    individualConsentR4PollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<RevokeProfessionalAccessResult> {
+  const revokedClaims = ConsentClaims
+    .fromClaims(input.consentClaims as never)
+    .setPeriodEnd(String(input.periodEnd || new Date().toISOString()).trim())
+    .toClaims() as Record<string, unknown>;
+
+  const thid = `consent-revoke-${createRuntimeUuid()}`;
+  const consentPayload = {
+    thid,
+    body: {
+      data: [{
+        type: input.dataType || 'Consent-grant-request-v1.0',
+        meta: { claims: revokedClaims },
+        resource: { resourceType: 'Consent', meta: { claims: revokedClaims } },
+      }],
+    },
+  };
+
+  const consent = await deps.submitAndPoll(
+    deps.individualConsentR4BatchPath(routeCtx),
+    deps.individualConsentR4PollPath(routeCtx),
+    consentPayload,
+    input.pollOptions,
+  );
+
+  return {
+    thid,
+    consent,
+    consentClaims: revokedClaims,
   };
 }
 

@@ -1,6 +1,9 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 // Always create JSDoc, do not use strings inline in keys nor values, use types instead, and reuse the data test examples.
 import type { ControllerBindingInput } from 'gdc-common-utils-ts/models';
+import type { FamilyOrganizationSummary } from 'gdc-common-utils-ts/utils/family-organization-summary';
+import type { LegalOrganizationVerificationTransactionInput } from 'gdc-common-utils-ts/utils/legal-organization-verification-transaction';
+import type { OrganizationDidBindingInput } from 'gdc-sdk-core-ts';
 import type {
   LicenseListRuntimeSearchInput,
   LicenseOfferRuntimeSearchInput,
@@ -27,6 +30,8 @@ import type { EmployeeDeviceActivationResult, EmployeeDeviceActivationRequestInp
 import type { HostRouteContext, HostedTenantLifecycleInput, LegalOrganizationOrderInput } from '../host-onboarding.js';
 import type { IndividualOrganizationConfirmOrderInput, RouteContext } from '../individual-onboarding.js';
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
+import type { FamilyOrganizationSearchInput } from '../family-organization-search.js';
+import type { EnsureFamilyOrganizationRegistrationInput, EnsureFamilyOrganizationRegistrationResult } from '../family-organization-registration.js';
 import type { OrganizationLicenseOrderConfirmInput } from '../organization-license-order.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type {
@@ -42,6 +47,8 @@ import type {
   OrganizationEmployeeCreationInput,
   OrganizationEmployeeLifecycleInput,
   OrganizationEmployeeSearchInput,
+  RevokeProfessionalAccessInput,
+  RevokeProfessionalAccessResult,
   RelatedPersonUpsertInput,
 } from '../resource-operations.js';
 
@@ -59,6 +66,28 @@ export type NodeOrganizationActivationInput = {
 };
 
 /**
+ * Shared node-runtime input for the first host-side legal-organization
+ * verification step.
+ *
+ * The business payload is owned by shared SDK/common packages:
+ * - transport/runtime communication keys stay outside this contract
+ * - controller business key binding remains in `controller.*`
+ * - GW CORE host routing/polling stays in the runtime adapter
+ */
+export type NodeLegalOrganizationVerificationTransactionInput =
+  LegalOrganizationVerificationTransactionInput;
+
+/**
+ * Shared node-runtime input for the organization DID binding operation.
+ *
+ * Binding contract:
+ * - tenant identity is resolved from the route path
+ * - `organization.url` carries one or more public aliases/domains
+ * - `controller.sameAs` is optional corroborating identity evidence
+ */
+export type NodeOrganizationDidBindingInput = OrganizationDidBindingInput;
+
+/**
  * Runtime-neutral actor/application client contract as exposed by the Node SDK.
  *
  * New code should prefer `RuntimeClient`.
@@ -66,6 +95,16 @@ export type NodeOrganizationActivationInput = {
  * converge across runtimes.
  */
 export type RuntimeClient = {
+  submitLegalOrganizationVerificationTransaction?: (
+    hostCtx: HostRouteContext,
+    input: NodeLegalOrganizationVerificationTransactionInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  submitOrganizationDidBinding?: (
+    ctx: RouteContext,
+    input: NodeOrganizationDidBindingInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
   activateOrganizationInGatewayFromIcaProof?: (
     hostCtx: HostRouteContext,
     input: NodeOrganizationActivationInput,
@@ -163,6 +202,14 @@ export type RuntimeClient = {
   startIndividualOrganization?: (
     input: IndividualOrganizationBootstrapInput,
   ) => Promise<IndividualOrganizationStartResult>;
+  searchFamilyOrganization?: (
+    ctx: RouteContext,
+    input: FamilyOrganizationSearchInput,
+  ) => Promise<FamilyOrganizationSummary | null>;
+  ensureFamilyOrganizationRegistration?: (
+    ctx: RouteContext,
+    input: EnsureFamilyOrganizationRegistrationInput,
+  ) => Promise<EnsureFamilyOrganizationRegistrationResult>;
   confirmIndividualOrganizationOrder?: (
     input: IndividualOrganizationConfirmOrderInput,
   ) => Promise<SubmitAndPollResult>;
@@ -208,6 +255,10 @@ export type RuntimeClient = {
     ctx: RouteContext,
     input: GrantProfessionalAccessInput,
   ) => Promise<GrantProfessionalAccessResult>;
+  revokeProfessionalAccess?: (
+    ctx: RouteContext,
+    input: RevokeProfessionalAccessInput,
+  ) => Promise<RevokeProfessionalAccessResult>;
   searchIndividualLicenses?: (
     ctx: RouteContext,
     input: LicenseListRuntimeSearchInput,

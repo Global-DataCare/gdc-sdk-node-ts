@@ -42,6 +42,13 @@ Important live-run rule:
 - if sandboxed runs disagree with the user's terminal, trust the user's
   terminal for live GW validation
 
+Required live validation order:
+
+1. local process E2E from real TTY
+2. local Docker image/container E2E
+3. staging E2E
+4. production image/deploy only after staging is green
+
 Architectural rule:
 
 - shared contracts and actor boundaries come from `gdc-sdk-core-ts`
@@ -56,6 +63,10 @@ If you are integrating this package for the first time, open these in order:
 1. [gdc-sdk-core-ts/docs/101-SDK_PACKAGE_BOUNDARIES.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-SDK_PACKAGE_BOUNDARIES.md)
    Why `core`, `node`, and `front` are separate packages, what belongs in each
    one, and why actor-scoped facades must stay aligned across runtimes.
+1. [tests/101-live-full-cycle-bff-runtime.e2e.test.mjs](./tests/101-live-full-cycle-bff-runtime.e2e.test.mjs)
+   Canonical live backend/BFF walkthrough on a fresh local GW lifecycle:
+   host/tenant activation, employee provisioning, individual bootstrap,
+   consent grant, professional SMART token, clinical read, and final cleanup.
 1. [tests/101-backend-profile-runtime.test.mjs](./tests/101-backend-profile-runtime.test.mjs)
    Minimal backend-generic walkthrough for loading one actor profile,
    registering one trusted device/runtime context, connecting to one subject
@@ -115,21 +126,15 @@ If you need the shortest path:
 - dataspace discovery and fallback/cache boundary:
   [docs/101-DISCOVERY.md](./docs/101-DISCOVERY.md)
 
-Immediate live validation target:
+Current live teaching target:
 
-- the next profile-runtime validation must be treated as an actor-profile suite,
-  not as a replay of the GW CORE platform lifecycle
-- the standalone current entry point for that is:
-  [tests/live-profile-runtime-individual.e2e.test.mjs](tests/live-profile-runtime-individual.e2e.test.mjs)
-- it should begin with `loadProfile(...)` for the target actor and then prove:
-  - `startIndividualOrganization(...)`
-  - `confirmIndividualOrganizationOrder(...)`
-  - the canonical current index/`Composition` read helper
-- if that actor flow creates lifecycle-owned state, `disable` / `purge` belong
-  at the end of that scenario as cleanup
-- until that live proof exists, treat `getLatestIps(...)` and
-  `searchClinicalBundle(...)` as candidate read contracts, not yet final
-  wording
+- the main executable tutorial for integrators is now:
+  [tests/101-live-full-cycle-bff-runtime.e2e.test.mjs](tests/101-live-full-cycle-bff-runtime.e2e.test.mjs)
+- the standalone actor-profile suites still exist as focused technical slices:
+  - [tests/live-profile-runtime-individual.e2e.test.mjs](tests/live-profile-runtime-individual.e2e.test.mjs)
+  - [tests/live-profile-runtime-professional.e2e.test.mjs](tests/live-profile-runtime-professional.e2e.test.mjs)
+- the larger runtime suite remains the regression-oriented environment proof:
+  [tests/live-gw-node-runtime.e2e.test.mjs](tests/live-gw-node-runtime.e2e.test.mjs)
 
 ## Executable Usage Examples
 
@@ -149,6 +154,9 @@ Open these tests when you want to see exact method calls and exact inputs:
   SMART token request flow.
 - [tests/live-gw-node-runtime.e2e.test.mjs](tests/live-gw-node-runtime.e2e.test.mjs)
   End-to-end runtime wiring against a real GW environment.
+- [tests/101-live-full-cycle-bff-runtime.e2e.test.mjs](tests/101-live-full-cycle-bff-runtime.e2e.test.mjs)
+  Single live BFF-oriented `101` that chains tenant, professional, individual,
+  consent, SMART, read, and cleanup in one executable conversation.
 - [tests/live-profile-runtime-individual.e2e.test.mjs](tests/live-profile-runtime-individual.e2e.test.mjs)
   Standalone actor-profile E2E for the individual controller on an already
   operational tenant, including scenario-owned cleanup.
@@ -160,8 +168,11 @@ Open these tests when you want to see exact method calls and exact inputs:
 
 ## Live GW CORE Flow
 
+Use [tests/101-live-full-cycle-bff-runtime.e2e.test.mjs](tests/101-live-full-cycle-bff-runtime.e2e.test.mjs)
+as the canonical live `101` for backend/BFF integrators.
+
 Use [tests/live-gw-node-runtime.e2e.test.mjs](tests/live-gw-node-runtime.e2e.test.mjs)
-as the canonical runtime flow.
+as the broader runtime-regression suite.
 
 Before running that suite, read:
 
@@ -182,18 +193,23 @@ Teaching rule:
 - `LIVE_GW_E2E_EXECUTION_MODE=direct` is the current and only supported mode
   for live validation; queued app-side job management is a later phase
 
-Current live flow covered by the test suite:
+Current live `101` flow covered by the test suite:
 
-1. bootstrap tenant / legal organization
-2. bootstrap doctor or controller employee
-3. bootstrap individual and grant consent for the doctor
-   default example: `INDIVIDUAL_ALTERNATE_NAME=Doraemon`
-4. ingest two IPS `Communication` bundles, each with one `MedicationStatement`
-5. read the IPS/clinical index and verify both medications are present
-6. request the consolidated IPS bundle through
-   `Bundle?type=document&composition.subject=<did>&composition.type=http://loinc.org|60591-5`
-7. verify the returned bundle document contains both medication statements
-8. persist audit/debug traces in `test-results/*.jsonl`
+1. activate one hosted tenant / legal organization
+2. provision one professional employee through the organization controller
+3. load the individual-controller profile and bootstrap one hosted individual
+4. confirm the returned order and verify the invoice bundle projection
+5. ingest one IPS/clinical `Communication` through the individual controller
+6. grant professional consent for one patient-summary section
+7. load the professional profile and request one SMART token
+8. read the allowed IPS bundle as the professional actor
+9. clean up consent, individual, employee, tenant, and host state
+
+Run the main live `101`:
+
+```bash
+npm run test:e2e:101:live-full-cycle
+```
 
 What is still not fully covered as one single root lifecycle:
 
@@ -626,6 +642,7 @@ modules below.
 ### Node runtime client
 
 - [`NodeHttpClient`](src/node-runtime-client.ts)
+- [`NodeHttpClient.submitLegalOrganizationVerificationTransaction(...)`](src/node-runtime-client.ts)
 - [`NodeHttpClient.ingestCommunicationAndUpdateIndex(...)`](src/node-runtime-client.ts)
 - [`NodeHttpClient.submitCommunicationAndPoll(...)`](src/node-runtime-client.ts)
 - [`NodeHttpClient.searchClinicalBundle(...)`](src/node-runtime-client.ts)
@@ -653,3 +670,47 @@ modules below.
 - README explains backend-facing flows first.
 - Shared contract shapes must be documented in `gdc-sdk-core-ts`, not duplicated here.
 - Route details and GW-specific behavior belong in runtime docs and JSDoc, not in app-facing examples.
+
+## Host Onboarding Runtime Flow
+
+For legal-organization onboarding from a Node BFF/runtime, keep the host steps separate:
+
+1. new flow: `Organization/_transaction`
+2. legacy compatibility flow: `ICA _verify -> Organization/_activate`
+3. downstream business continuation: `Order/_batch`
+
+Use `OrganizationControllerSdk.submitLegalOrganizationVerificationTransaction(...)` or
+`NodeHttpClient.submitLegalOrganizationVerificationTransaction(...)` for step 1.
+
+Rules:
+
+- `_transaction` and `_activate` are different flows
+- transport/runtime communication keys stay outside the business payload
+- controller binding key stays in `body.data[].resource.controller.*`
+- do not mix this path with `requestIcaEnrollment` or Fabric
+
+Legacy compatibility coverage in the live suite:
+
+- the canonical test is `LIVE professional lifecycle on GW`
+- set `RUN_LIVE_GW_E2E_HOST_VERIFICATION_TRANSACTION=1` to exercise:
+  - `Organization/_transaction -> Order/_batch`
+- set `RUN_LIVE_GW_E2E_HOST_VERIFICATION_TRANSACTION=0` to exercise the older:
+  - `ICA _verify -> Organization/_activate -> Order/_batch`
+
+Dedicated legacy live command:
+
+```bash
+cd /Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts
+RUN_LIVE_GW_E2E=1 \
+RUN_LIVE_GW_E2E_ACTOR_CHAIN=1 \
+RUN_LIVE_GW_E2E_HOST_VERIFICATION_TRANSACTION=0 \
+LIVE_GW_E2E_SUITE=professional \
+node --test tests/live-gw-node-runtime.e2e.test.mjs
+```
+
+Live E2E legal PDF source:
+
+- local file: set `LIVE_GW_HOST_VERIFICATION_PDF_PATH=/abs/path/file.pdf`
+- public URL: set `LIVE_GW_HOST_VERIFICATION_PDF_URL=https://.../file.pdf`
+- if both are present, the live suite prefers `LIVE_GW_HOST_VERIFICATION_PDF_URL`
+- Dropbox-style links are normalized to `dl=1` direct-download mode automatically

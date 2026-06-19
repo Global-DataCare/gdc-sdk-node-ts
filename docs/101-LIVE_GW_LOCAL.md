@@ -9,8 +9,15 @@ Teaching rule for this `101`:
 - keep local process mode and Docker mode separate
 - keep employee smoke meaning separate from the generic live suite
 
+Release-validation order for developers:
+
+1. local process E2E from real TTY
+2. local Docker E2E against the built image
+3. staging E2E
+4. production image/deploy only after staging is green
+
 Use this before asking an AI agent to run live E2E commands, and before running
-`npm run test:e2e:live-gw`.
+`npm run test:e2e:101:live-full-cycle`.
 
 Non-negotiable execution rule:
 
@@ -104,7 +111,7 @@ Bootstrap the default demo tenant in a second terminal:
 
 ```bash
 cd /Users/fernando/GITS/gdc-workspace/gwtemplate-node-ts-employee-main
-TENANT_ID=acme-id JURISDICTION=ES SECTOR=health-care HOST_REGISTRY_SECTOR=test EMPLOYEE_COUNT=3 npm run demo:bootstrap-single-tenant
+TENANT_ID=acme-id JURISDICTION=ES SECTOR=health-care HOST_NETWORK=test EMPLOYEE_COUNT=3 npm run demo:bootstrap-single-tenant
 ```
 
 Important:
@@ -114,79 +121,137 @@ Important:
 - `EMPLOYEE_COUNT=2` leaves only one additional employee seat
 - `EMPLOYEE_COUNT=3` is the canonical value for the local two-employee lifecycle
   smoke
+- `HOST_NETWORK=test` refers to the host runtime/network path segment used
+  under `/host/cds-{jurisdiction}/v1/{host-network}`
+- the tenant business sector is still the separate `SECTOR=health-care` value
 
-Run the Node SDK live GW suite in a third terminal:
+Run the Node SDK live `101` suite in a third terminal:
 
 ```bash
 cd /Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts
-npm run test:e2e:live-gw
+npm run test:e2e:101:live-full-cycle
 ```
+
+If you want the full host onboarding chain with local ICA verification first,
+use the dedicated clean wrapper instead:
+
+```bash
+cd /Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts
+npm run test:e2e:live-gw:host-transaction:clean
+```
+
+What this wrapper adds:
+
+- starts `dataspace-ica-ts` locally on `http://127.0.0.1:3310`
+- starts `gwtemplate-node-ts` locally in demo mode on `http://127.0.0.1:3000`
+- points GW CORE to the local ICA through `ICA_URL_INTERNAL` / `ICA_URL_EXTERNAL`
+- runs the live suite with `RUN_LIVE_GW_E2E_HOST_VERIFICATION_TRANSACTION=1`
+- exercises `_transaction -> Order/_batch`
+
+Legacy compatibility path in the same suite:
+
+- keep the same `LIVE professional lifecycle on GW` test
+- set `RUN_LIVE_GW_E2E_HOST_VERIFICATION_TRANSACTION=0`
+- that skips the new host `_transaction` submit/poll step
+- and proves the older `ICA _verify -> Organization/_activate -> Order/_batch` path
+
+Dedicated legacy live command:
+
+```bash
+cd /Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts
+RUN_LIVE_GW_E2E=1 \
+RUN_LIVE_GW_E2E_ACTOR_CHAIN=1 \
+RUN_LIVE_GW_E2E_HOST_VERIFICATION_TRANSACTION=0 \
+LIVE_GW_E2E_SUITE=professional \
+node --test tests/live-gw-node-runtime.e2e.test.mjs
+```
+
+Important:
+
+- this path requires both local services to boot correctly
+- the legacy `_activate` branch only applies when `RUN_LIVE_GW_E2E_HOST_VERIFICATION_TRANSACTION=0`
+- if your local env files differ, override `BASE_URL` / `ICA_BASE_URL` / related env vars explicitly
+
+Signed PDF source for the legal verification step:
+
+- local file mode:
+
+```bash
+cd /Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts
+LIVE_GW_HOST_VERIFICATION_PDF_PATH=/Users/fernando/GITS/gdc-workspace/examples/TEST-A4-Antifraud.pdf \
+npm run test:e2e:live-gw:host-transaction:clean
+```
+
+- public URL mode:
+
+```bash
+cd /Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts
+LIVE_GW_HOST_VERIFICATION_PDF_URL='https://www.dropbox.com/scl/fi/.../TEST-A4-Antifraud.pdf?dl=0' \
+npm run test:e2e:live-gw:host-transaction:clean
+```
+
+Rules:
+
+- if `LIVE_GW_HOST_VERIFICATION_PDF_URL` is set, the live suite sends the PDF as a remote link attachment
+- if `LIVE_GW_HOST_VERIFICATION_PDF_URL` is empty, the live suite falls back to `LIVE_GW_HOST_VERIFICATION_PDF_PATH`
+- Dropbox URLs are normalized to direct download mode by forcing `dl=1`
+- use the URL mode for real deployed E2E when ICA/GW must fetch the document from the network instead of from local disk
 
 Canonical clean wrapper for final Firestore/GCS validation:
 
 ```bash
 cd /Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts
-npm run test:e2e:live-gw:clean
+RUN_ID="$(date -u +%Y%m%dt%H%M%S)" \
+HOST_ID_VALUE="live101-${RUN_ID}-host" \
+TENANT_ID="live101-${RUN_ID}" \
+TENANT_ROUTE_ID="live101-${RUN_ID}" \
+npm run test:e2e:101:live-full-cycle
 ```
 
-What this wrapper does:
+What this direct Node command does:
 
-- generates one fresh epoch/run id
-- derives a fresh `HOST_ID_VALUE`
-- derives a fresh `TENANT_ID`
-- starts `gwtemplate-node-ts` first
-- waits for `http://127.0.0.1:3000/host/ping`
-- runs the SDK live suite with the same run seed
-- stops the local GW process on exit
+- keeps the validation entrypoint in the `.mjs` test itself
+- lets you provide fresh `HOST_ID_VALUE`, `TENANT_ID`, and `TENANT_ROUTE_ID`
+  explicitly from the terminal
+- avoids implying that a shell wrapper is the thing proving the SDK contract
 
-What this wrapper does not change:
+## Published Full-Cycle 101
 
-- it still must run from a real user terminal/TTY
-- it must not be treated as a sandbox-safe command
-- if you want to override ids manually, you still can, but the default path is
-  to let the wrapper generate them
+The canonical didactic live walkthrough is now:
 
-## Next 101 To Build After Publish
+- `tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
 
-Do not lose this scope when the current live suite is already green and
-published.
+That `101` keeps the business conversation in one executable flow:
 
-The next Node `101` must be a didactic, step-by-step walkthrough that explains
-each user action and each resulting API job clearly.
+1. host/tenant activation
+2. professional employee provisioning
+3. individual-controller profile load
+4. individual bootstrap and order confirmation
+5. clinical ingestion
+6. consent grant
+7. professional SMART token request
+8. professional read
+9. cleanup
 
-Non-negotiable design rules for that next `101`:
+Design rules kept by that `101`:
 
-- use the public high-level user facades for each actor type
-- route async work through the `JobManager` abstraction agreed for the SDK side
-- send requests through the virtual/public API surface, not by assembling route
-  plumbing inline in the spec
-- prefer bundle editor, bundle viewer, consent view model, and actor-specific
-  facades instead of raw `Bundle.entry` manipulation inside the test
-- model user conversations, not disconnected technical subflows
-- explain each step in JSDoc and docs:
-  - what the user is doing in the UI
-  - what gets attached or submitted
-  - what the GW job is expected to do
-  - what the next actor is allowed to view or not view
+- use public high-level actor facades/profile wrappers for the main steps
+- keep the dependency chain explicit: tenant before individual, individual
+  before professional read
+- avoid inline route plumbing in the main happy path
 - keep final cleanup at the end of the conversation lifecycle
 
-The current live suite is allowed to stay more pragmatic so it can prove the
-runtime and unblock publish. The next `101` is where the fully explanatory,
-facade-first, `JobManager`-driven version must live.
+One compatibility note remains:
 
-Do not downgrade this requirement:
-
-- this third terminal is the canonical place to validate the live suite
-- if an agent-run sandbox gives different connectivity results, trust the real
-  terminal run instead
+- consent revocation still uses the generic `submitAndPoll(...)` escape hatch in
+  cleanup because there is not yet a dedicated high-level revoke helper
 
 Run the same suite with debug artifacts:
 
 ```bash
 cd /Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts
-RUN_LIVE_GW_E2E_IPS_INGESTION=1 \
-LIVE_GW_NODE_E2E_DEBUG=1 \
-npm run test:e2e:live-gw
+LIVE_101_FULL_CYCLE_E2E_DEBUG=1 \
+npm run test:e2e:101:live-full-cycle
 ```
 
 ## Employee-Focused Smoke Meaning
@@ -266,7 +331,7 @@ Bootstrap the same tenant against Docker:
 
 ```bash
 cd /Users/fernando/GITS/gdc-workspace/gwtemplate-node-ts-employee-main
-BASE_URL=http://localhost:8000 TENANT_ID=acme-id JURISDICTION=ES SECTOR=health-care HOST_REGISTRY_SECTOR=test EMPLOYEE_COUNT=3 npm run demo:bootstrap-single-tenant
+BASE_URL=http://localhost:8000 TENANT_ID=acme-id JURISDICTION=ES SECTOR=health-care HOST_NETWORK=test EMPLOYEE_COUNT=3 npm run demo:bootstrap-single-tenant
 ```
 
 Run the SDK live suite against Docker:
