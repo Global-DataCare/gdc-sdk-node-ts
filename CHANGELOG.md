@@ -4,17 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [2.0.5] - 2026-06-18
+## [2.0.6] - 2026-06-18
 
-- Updated dependency target to gdc-common-utils-ts@^2.0.6.
-- Updated dependency target to gdc-sdk-core-ts@^Your branch is up to date with 'origin/main'.
-Merge made by the 'ort' strategy.
- CHANGELOG.md      | 5 +++++
- package-lock.json | 4 ++--
- package.json      | 2 +-
- 3 files changed, 8 insertions(+), 3 deletions(-)
-+ gdc-sdk-core-ts@2.0.5
-2.0.5.
+- Fixed the published dependency target to `gdc-sdk-core-ts@^2.0.5`.
+- Removed the corrupted dependency/changelog text accidentally injected by the release script.
 
 
 ## [2.0.4] - 2026-06-19

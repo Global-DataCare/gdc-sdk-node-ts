@@ -1,6 +1,6 @@
 {
   "name": "gdc-sdk-node-ts",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "Next-generation Node runtime package for the GDC SDK family",
   "license": "Apache-2.0",
   "author": "Antifraud Services Inc.",
@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "gdc-common-utils-ts": "^2.0.6",
-    "gdc-sdk-core-ts": "^Your branch is up to date with 'origin/main'.\nMerge made by the 'ort' strategy.\n CHANGELOG.md      | 5 +++++\n package-lock.json | 4 ++--\n package.json      | 2 +-\n 3 files changed, 8 insertions(+), 3 deletions(-)\n+ gdc-sdk-core-ts@2.0.5\n2.0.5"
+    "gdc-sdk-core-ts": "^2.0.5"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",
