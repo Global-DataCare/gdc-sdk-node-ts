@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   ActorKinds,
   EXAMPLE_CLINICAL_SECTION_ALLERGIES,
+  EXAMPLE_CLINICAL_SECTION_HISTORY_MEDICATION,
   EXAMPLE_EMPLOYEE_DOCTOR_ACTIVE,
   EXAMPLE_EMAIL_PROFESSIONAL,
   EXAMPLE_LICENSE_LIST_RESPONSE_BODY,
@@ -16,6 +17,7 @@ import {
   EXAMPLE_PROFILE_PROVIDER_DID,
   EXAMPLE_PROFILE_RUNTIME_CLASS_SERVER,
   EXAMPLE_SUBJECT_DID,
+  HealthcareBasicSections,
   buildConsentPermissionTemplateImportExportSessionExample,
   buildIpsClinicalHistoryBundleExample,
 } from 'gdc-common-utils-ts';
@@ -119,5 +121,69 @@ test('101: profile workspace exposes the chainable high-level surface for organi
   assert.equal(processedIpsResponse.totalResources, 4);
   assert.equal(processedIpsResponse.totalNarratives >= 0, true);
   assert.equal(Array.isArray(processedIpsResponse.views), true);
+  assert.equal(Array.isArray(processedIpsResponse.getSections()), true);
+  assert.equal(processedIpsResponse.sectionSummary.totalResources, 3);
+  assert.equal(processedIpsResponse.getSectionSummary({ sections: [] }).totalResources, 3);
+  assert.equal(processedIpsResponse.getSectionSummary().countsBySection[EXAMPLE_CLINICAL_SECTION_ALLERGIES], 1);
+  assert.equal(
+    processedIpsResponse.getSectionSummary().countsBySection[HealthcareBasicSections.ProblemList.attributeValue],
+    1,
+  );
+  assert.equal(
+    processedIpsResponse.getSectionSummary().countsBySection[EXAMPLE_CLINICAL_SECTION_HISTORY_MEDICATION],
+    1,
+  );
+  assert.equal(
+    processedIpsResponse.reader
+      .inSections([EXAMPLE_CLINICAL_SECTION_ALLERGIES])
+      .getAllergies({ clinicalStatus: ['active'] }).length,
+    1,
+  );
+  assert.equal(
+    processedIpsResponse.reader
+      .inSections([])
+      .matchingText('active')
+      .paginate({ count: 2, page: 1 })
+      .getResources().length,
+    2,
+  );
+  assert.equal(
+    processedIpsResponse.reader
+      .inSections([EXAMPLE_CLINICAL_SECTION_HISTORY_MEDICATION, EXAMPLE_CLINICAL_SECTION_ALLERGIES])
+      .paginate({ count: 1, offset: 1 })
+      .getResources().length,
+    1,
+  );
+  assert.equal(
+    processedIpsResponse.getMedications({
+      sections: [EXAMPLE_CLINICAL_SECTION_HISTORY_MEDICATION],
+      status: ['active'],
+      count: 1,
+      page: 1,
+    }).length,
+    1,
+  );
+  assert.equal(
+    processedIpsResponse.getConditions({
+      sections: [HealthcareBasicSections.ProblemList.attributeValue],
+      clinicalStatus: ['active'],
+      count: 1,
+      page: 1,
+    }).length,
+    1,
+  );
+  const firstMedication = processedIpsResponse.getMedications({
+    sections: [EXAMPLE_CLINICAL_SECTION_HISTORY_MEDICATION],
+    count: 1,
+    page: 1,
+  })[0];
+  assert.equal(
+    processedIpsResponse.getLocalTextAndIntDisplay(firstMedication).combined,
+    'atorvastatin 20 mg oral tablet',
+  );
+  assert.match(
+    processedIpsResponse.getNarrative(firstMedication).xhtml || '',
+    /atorvastatin 20 mg oral tablet/i,
+  );
   assert.equal(cachedVitalSigns.length >= 1, true);
 });

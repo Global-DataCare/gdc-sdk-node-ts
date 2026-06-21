@@ -125,6 +125,8 @@ If you need the shortest path:
   [docs/101-SDK_INTEGRATION.md](./docs/101-SDK_INTEGRATION.md)
 - dataspace discovery and fallback/cache boundary:
   [docs/101-DISCOVERY.md](./docs/101-DISCOVERY.md)
+- profile workspace section-aware reader:
+  [tests/101-profile-workspace-runtime.test.mjs](tests/101-profile-workspace-runtime.test.mjs)
 
 Current live teaching target:
 

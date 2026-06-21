@@ -148,6 +148,8 @@ Use one protected professional profile to:
 - present employee proof / obtain SMART token
 - search or read the latest IPS/clinical bundle
 - render section summaries, XHTML, and section counts
+- query one or more canonical sections with shared pagination/count semantics
+- keep `undefined` or `[]` section selectors equivalent to "all sections"
 - respect consent/role-based denial when scopes do not match
 
 Common-utils inputs usually reused here:
