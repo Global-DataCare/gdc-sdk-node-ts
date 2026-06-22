@@ -104,9 +104,11 @@ If you are integrating this package for the first time, open these in order:
    split between `employees`, `related persons`, `members`, and `consents`.
 7. [gdc-common-utils-ts/src/examples/](https://github.com/Global-DataCare/gdc-common-utils-ts/tree/main/src/examples)
    Shared payload values used by the docs and tests.
-8. [gdc-common-utils-ts/docs/101-LIFECYCLE.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/101-LIFECYCLE.md)
+8. [gdc-common-utils-ts/docs/101-CLINICAL-IPS.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/101-CLINICAL-IPS.md)
+   Canonical high-level IPS reader guide for integrators.
+9. [gdc-common-utils-ts/docs/101-LIFECYCLE.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/101-LIFECYCLE.md)
    Canonical `enable/disable/delete` semantics and copy/paste placeholders.
-9. [docs/NEXT_STEPS.md](./docs/NEXT_STEPS.md)
+10. [docs/NEXT_STEPS.md](./docs/NEXT_STEPS.md)
    Follow-up scope after GW CORE live validation, including the future user job
    manager boundary.
 
@@ -125,6 +127,8 @@ If you need the shortest path:
   [docs/101-SDK_INTEGRATION.md](./docs/101-SDK_INTEGRATION.md)
 - dataspace discovery and fallback/cache boundary:
   [docs/101-DISCOVERY.md](./docs/101-DISCOVERY.md)
+- canonical high-level IPS reader guide:
+  [gdc-common-utils-ts/docs/101-CLINICAL-IPS.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/101-CLINICAL-IPS.md)
 - profile workspace section-aware reader:
   [tests/101-profile-workspace-runtime.test.mjs](tests/101-profile-workspace-runtime.test.mjs)
 

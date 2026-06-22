@@ -119,7 +119,6 @@ test('101: profile workspace exposes the chainable high-level surface for organi
   assert.equal(preparedIpsRequest.summaryOperationRequestReferencePath.includes('composition.subject='), true);
   assert.equal(processedIpsResponse.totalErrors, 0);
   assert.equal(processedIpsResponse.totalResources, 4);
-  assert.equal(processedIpsResponse.totalNarratives >= 0, true);
   assert.equal(Array.isArray(processedIpsResponse.views), true);
   assert.equal(Array.isArray(processedIpsResponse.getSections()), true);
   assert.equal(processedIpsResponse.sectionSummary.totalResources, 3);

@@ -47,8 +47,6 @@ export type ProcessedClinicalBundleResponse = Readonly<{
   totalSections: number;
   totalResources: number;
   totalResourcesInSection: Readonly<Record<string, number>>;
-  totalNarratives: number;
-  totalNotes: number;
   summary: ReturnType<typeof summarizeClinicalBundle>;
   views: ReturnType<typeof toClinicalResourceExpandedViews>;
   sectionSummary: FhirDocumentSectionSummary;
@@ -203,8 +201,6 @@ function buildProcessedClinicalBundleResponse(body: unknown): ProcessedClinicalB
     totalSections: Object.keys(buildClinicalSectionCounts(views)).length,
     totalResources: summary.totalEntries,
     totalResourcesInSection: buildClinicalSectionCounts(views),
-    totalNarratives: summary.xhtmlEntries,
-    totalNotes: summary.notedEntries,
     summary,
     views,
     sectionSummary,

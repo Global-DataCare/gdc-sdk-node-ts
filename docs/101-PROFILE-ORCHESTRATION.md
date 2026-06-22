@@ -79,6 +79,25 @@ tests should reuse their helpers instead of reauthoring claim plumbing.
   - one controller or assistant captures a new vital sign
   - one app wants chainable `get/set` editing instead of raw FHIR claims
 
+### Clinical IPS high-level reading
+
+- `gdc-common-utils-ts/docs/101-CLINICAL-IPS.md`
+- Main helper surface:
+  - `ipsBundleReader.getSections()`
+  - `ipsBundleReader.getSectionSummary(...)`
+  - `ipsBundleReader.getResources(...)`
+  - `ipsBundleReader.getAllergies(...)`
+  - `ipsBundleReader.getConditions(...)`
+  - `ipsBundleReader.getMedications(...)`
+  - `ipsBundleReader.getVitalSigns(...)`
+  - `ipsBundleReader.getLocalTextAndIntDisplay(...)`
+  - `ipsBundleReader.getXhtmlOrDerived(...)`
+  - `ipsBundleReader.getNarrative(...)`
+- Use from node/BFF when:
+  - one professional or app receives one IPS and must read it immediately at
+    high level
+  - one backend should avoid reauthoring clinical bundle plumbing
+
 ### Consent authoring
 
 - `gdc-common-utils-ts/__tests__/101-consent-template-bundle-editor.test.ts`
