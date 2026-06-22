@@ -248,6 +248,7 @@ const suiteConsentSection = env(
 );
 const LOCAL_LIVE_POLL_INTERVAL_MS = Math.max(1, Number(env('LIVE_GW_POLL_INTERVAL_MS', '200')));
 const LOCAL_LIVE_POLL_TIMEOUT_MS = Math.max(1000, Number(env('LIVE_GW_POLL_TIMEOUT_MS', '60000')));
+const LOCAL_LIVE_REQUEST_TIMEOUT_MS = Math.max(1000, Number(env('LIVE_GW_REQUEST_TIMEOUT_MS', '60000')));
 
 function normalizeDirectDownloadUrl(rawUrl) {
   const trimmed = String(rawUrl || '').trim();
@@ -564,7 +565,7 @@ async function maybeActivateOrganizationFromLegacyIcaProof({
   debug.record(stage, { response: activation });
   assert.equal(activation.poll.status, 200, 'Legacy host onboarding facade must complete organization activation.');
   assertLatestActivateTraceHasPlaintextTransportMeta({
-    jurisdiction,
+    jurisdiction: hostCtx.jurisdiction,
     hostNetworkOrTenantSector: hostCtx.hostNetworkOrTenantSector,
     controller: EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller,
   });
@@ -948,7 +949,7 @@ test('LIVE professional lifecycle on GW', {
   assert.equal(ping.status, 200, `GW ping must return 200 at ${baseUrl}${pingPath}.`);
   debug.record('ping', { baseUrl, pingPath, status: ping.status });
 
-  const runtimeClient = createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutMs: 10_000 });
+  const runtimeClient = createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutMs: LOCAL_LIVE_REQUEST_TIMEOUT_MS });
 
   const hostSession = new NodeActorSession(
     {
@@ -1311,7 +1312,7 @@ async function runLiveIndividualLifecycleSuite() {
 
   const vpPayload = loadVpPayloadFixture(vpTokenFile);
   const vpToken = vpTokenEnv || buildUnsignedVpJwt(vpPayload);
-  const runtimeClient = createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutMs: 10_000 });
+  const runtimeClient = createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutMs: LOCAL_LIVE_REQUEST_TIMEOUT_MS });
   const hostDiscoveryVersionPath = buildHostDspaceVersionPath(suiteHostCoverageScope, hostNetworkOrTenantSector);
   const hostCatalogArtifactPath = buildHostCatalogArtifactPath(suiteHostCoverageScope, hostNetworkOrTenantSector);
   const profiler = createStepProfiler(debug, 'individual-suite');
@@ -2278,7 +2279,7 @@ async function runLiveProfileRuntimeIndividualSuite() {
   const profiler = createStepProfiler(debug, 'profile-runtime-suite');
   const vpPayload = loadVpPayloadFixture(vpTokenFile);
   const vpToken = vpTokenEnv || buildUnsignedVpJwt(vpPayload);
-  const runtimeClient = createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutMs: 10_000 });
+  const runtimeClient = createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutMs: LOCAL_LIVE_REQUEST_TIMEOUT_MS });
   const hostSession = new NodeActorSession(
     {
       actorKind: ActorKinds.HostOnboarding,
