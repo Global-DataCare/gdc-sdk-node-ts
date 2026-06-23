@@ -122,20 +122,26 @@ test('101: profile workspace exposes the chainable high-level surface for organi
   assert.equal(Array.isArray(processedIpsResponse.views), true);
   assert.equal(Array.isArray(processedIpsResponse.getSections()), true);
   assert.equal(processedIpsResponse.sectionSummary.totalResources, 3);
-  assert.equal(processedIpsResponse.getSectionSummary({ sections: [] }).totalResources, 3);
-  assert.equal(processedIpsResponse.getSectionSummary().countsBySection[EXAMPLE_CLINICAL_SECTION_ALLERGIES], 1);
+  assert.equal(processedIpsResponse.getSectionCounts({ sections: [] }).totalEntries, 3);
+  assert.equal(processedIpsResponse.getSectionCounts().bySection[EXAMPLE_CLINICAL_SECTION_ALLERGIES], 1);
   assert.equal(
-    processedIpsResponse.getSectionSummary().countsBySection[HealthcareBasicSections.ProblemList.attributeValue],
+    processedIpsResponse.getSectionCounts().bySection[HealthcareBasicSections.ProblemList.attributeValue],
     1,
   );
   assert.equal(
-    processedIpsResponse.getSectionSummary().countsBySection[EXAMPLE_CLINICAL_SECTION_HISTORY_MEDICATION],
+    processedIpsResponse.getSectionCounts().bySection[EXAMPLE_CLINICAL_SECTION_HISTORY_MEDICATION],
     1,
   );
   assert.equal(
     processedIpsResponse.reader
       .inSections([EXAMPLE_CLINICAL_SECTION_ALLERGIES])
       .getAllergies({ clinicalStatus: ['active'] }).length,
+    1,
+  );
+  assert.equal(
+    processedIpsResponse.reader
+      .inSections([EXAMPLE_CLINICAL_SECTION_ALLERGIES])
+      .getEntries().length,
     1,
   );
   assert.equal(
@@ -176,6 +182,11 @@ test('101: profile workspace exposes the chainable high-level surface for organi
     count: 1,
     page: 1,
   })[0];
+  assert.equal(Boolean(firstMedication.resource), true);
+  assert.equal(
+    typeof firstMedication.resource?.meta?.claims,
+    'object',
+  );
   assert.equal(
     processedIpsResponse.getLocalTextAndIntDisplay(firstMedication).combined,
     'atorvastatin 20 mg oral tablet',

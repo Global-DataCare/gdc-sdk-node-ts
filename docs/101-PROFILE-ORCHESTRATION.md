@@ -84,7 +84,8 @@ tests should reuse their helpers instead of reauthoring claim plumbing.
 - `gdc-common-utils-ts/docs/101-CLINICAL-IPS.md`
 - Main helper surface:
   - `ipsBundleReader.getSections()`
-  - `ipsBundleReader.getSectionSummary(...)`
+  - `ipsBundleReader.getSectionCounts(...)`
+  - `ipsBundleReader.getEntries(...)`
   - `ipsBundleReader.getResources(...)`
   - `ipsBundleReader.getAllergies(...)`
   - `ipsBundleReader.getConditions(...)`

@@ -22,9 +22,12 @@ import type { BundleEntry, BundleJsonApi } from 'gdc-common-utils-ts/models/bund
 import {
   createFhirDocumentFacade,
   type FhirDocumentFacade,
+  type FhirBundleEntryLike,
+  type FhirDocumentEntryQuery,
   type FhirDocumentSection,
   type FhirDocumentFamilyQuery,
   type FhirDocumentResourceQuery,
+  type FhirDocumentSectionCounts,
   type FhirDocumentSectionSummary,
   type FhirResourceLike,
 } from 'gdc-sdk-core-ts';
@@ -49,18 +52,21 @@ export type ProcessedClinicalBundleResponse = Readonly<{
   totalResourcesInSection: Readonly<Record<string, number>>;
   summary: ReturnType<typeof summarizeClinicalBundle>;
   views: ReturnType<typeof toClinicalResourceExpandedViews>;
+  sectionCounts: FhirDocumentSectionCounts;
   sectionSummary: FhirDocumentSectionSummary;
   getSections: () => FhirDocumentSection[];
+  getEntries: (input?: FhirDocumentEntryQuery) => FhirBundleEntryLike[];
   getResources: (query?: string | FhirDocumentResourceQuery) => FhirResourceLike[];
   getByDates: (query: string | FhirDocumentResourceQuery, start?: string, end?: string) => FhirResourceLike[];
+  getSectionCounts: (input?: { sections?: readonly string[] }) => FhirDocumentSectionCounts;
   getSectionSummary: (input?: { sections?: readonly string[] }) => FhirDocumentSectionSummary;
-  getLocalTextAndIntDisplay: (resource: FhirResourceLike) => LocalTextAndIntDisplay;
-  getXhtmlOrDerived: (resource: FhirResourceLike) => string | undefined;
-  getNarrative: (resource: FhirResourceLike) => NarrativeResult;
-  getAllergies: (query?: FhirDocumentFamilyQuery & { clinicalStatus?: readonly string[]; verificationStatus?: readonly string[]; criticality?: readonly string[] }) => FhirResourceLike[];
-  getConditions: (query?: FhirDocumentFamilyQuery & { clinicalStatus?: readonly string[]; verificationStatus?: readonly string[]; severity?: readonly string[] }) => FhirResourceLike[];
-  getMedications: (query?: FhirDocumentFamilyQuery & { status?: readonly string[] }) => FhirResourceLike[];
-  getVitalSigns: (query?: FhirDocumentFamilyQuery & { code?: readonly string[] }) => FhirResourceLike[];
+  getLocalTextAndIntDisplay: (resourceOrEntry: FhirResourceLike | FhirBundleEntryLike) => LocalTextAndIntDisplay;
+  getXhtmlOrDerived: (resourceOrEntry: FhirResourceLike | FhirBundleEntryLike) => string | undefined;
+  getNarrative: (resourceOrEntry: FhirResourceLike | FhirBundleEntryLike) => NarrativeResult;
+  getAllergies: (query?: FhirDocumentFamilyQuery & { clinicalStatus?: readonly string[]; verificationStatus?: readonly string[]; criticality?: readonly string[] }) => FhirBundleEntryLike[];
+  getConditions: (query?: FhirDocumentFamilyQuery & { clinicalStatus?: readonly string[]; verificationStatus?: readonly string[]; severity?: readonly string[] }) => FhirBundleEntryLike[];
+  getMedications: (query?: FhirDocumentFamilyQuery & { status?: readonly string[] }) => FhirBundleEntryLike[];
+  getVitalSigns: (query?: FhirDocumentFamilyQuery & { code?: readonly string[] }) => FhirBundleEntryLike[];
   reader: ClinicalBundleQueryBuilder;
 }>;
 
@@ -70,12 +76,13 @@ export type ClinicalBundleQueryBuilder = Readonly<{
   between: (start?: string, end?: string) => ClinicalBundleQueryBuilder;
   matchingText: (searchText?: string) => ClinicalBundleQueryBuilder;
   paginate: (input?: { count?: number; page?: number; offset?: number }) => ClinicalBundleQueryBuilder;
+  getEntries: (resourceTypes?: readonly string[]) => FhirBundleEntryLike[];
   getResources: (resourceType?: string) => FhirResourceLike[];
-  getAllergies: (query?: { clinicalStatus?: readonly string[]; verificationStatus?: readonly string[]; criticality?: readonly string[] }) => FhirResourceLike[];
-  getConditions: (query?: { clinicalStatus?: readonly string[]; verificationStatus?: readonly string[]; severity?: readonly string[] }) => FhirResourceLike[];
-  getMedications: (query?: { status?: readonly string[] }) => FhirResourceLike[];
-  getVitalSigns: (query?: { code?: readonly string[] }) => FhirResourceLike[];
-  getSectionSummary: () => FhirDocumentSectionSummary;
+  getAllergies: (query?: { clinicalStatus?: readonly string[]; verificationStatus?: readonly string[]; criticality?: readonly string[] }) => FhirBundleEntryLike[];
+  getConditions: (query?: { clinicalStatus?: readonly string[]; verificationStatus?: readonly string[]; severity?: readonly string[] }) => FhirBundleEntryLike[];
+  getMedications: (query?: { status?: readonly string[] }) => FhirBundleEntryLike[];
+  getVitalSigns: (query?: { code?: readonly string[] }) => FhirBundleEntryLike[];
+  getSectionCounts: () => FhirDocumentSectionCounts;
 }>;
 
 function normalizeSectionList(sectionList?: readonly string[]): string[] {
@@ -162,6 +169,16 @@ function createClinicalBundleQueryBuilder(
       page: input?.page,
       offset: input?.offset,
     }),
+    getEntries: (resourceTypes?: readonly string[]) => facade.getEntries({
+      sections: state.sections,
+      resourceTypes,
+      start: state.start,
+      end: state.end,
+      searchText: state.searchText,
+      count: state.count,
+      page: state.page,
+      offset: state.offset,
+    }),
     getResources: (resourceType?: string) => facade.getResources({
       ...state,
       ...(resourceType ? { resourceType } : {}),
@@ -182,7 +199,7 @@ function createClinicalBundleQueryBuilder(
       ...state,
       ...query,
     }),
-    getSectionSummary: () => facade.getSectionSummary({ sections: state.sections }),
+    getSectionCounts: () => facade.getSectionCounts({ sections: state.sections }),
   };
 }
 
@@ -195,6 +212,7 @@ function buildProcessedClinicalBundleResponse(body: unknown): ProcessedClinicalB
   const summary = summarizeClinicalBundle(bundle);
   const documentFacade = createFhirDocumentFacade(normalizeClinicalDocumentBundle(bundle));
   const reader = createClinicalBundleQueryBuilder(documentFacade);
+  const sectionCounts = documentFacade.getSectionCounts();
   const sectionSummary = documentFacade.getSectionSummary();
   return {
     totalErrors: 0,
@@ -203,14 +221,17 @@ function buildProcessedClinicalBundleResponse(body: unknown): ProcessedClinicalB
     totalResourcesInSection: buildClinicalSectionCounts(views),
     summary,
     views,
+    sectionCounts,
     sectionSummary,
     getSections: () => documentFacade.getSections(),
+    getEntries: (input?: FhirDocumentEntryQuery) => documentFacade.getEntries(input),
     getResources: (query?: string | FhirDocumentResourceQuery) => documentFacade.getResources(query),
     getByDates: (query: string | FhirDocumentResourceQuery, start?: string, end?: string) => documentFacade.getByDates(query, start, end),
+    getSectionCounts: (input?: { sections?: readonly string[] }) => documentFacade.getSectionCounts(input),
     getSectionSummary: (input?: { sections?: readonly string[] }) => documentFacade.getSectionSummary(input),
-    getLocalTextAndIntDisplay: (resource: FhirResourceLike) => documentFacade.getLocalTextAndIntDisplay(resource),
-    getXhtmlOrDerived: (resource: FhirResourceLike) => documentFacade.getXhtmlOrDerived(resource),
-    getNarrative: (resource: FhirResourceLike) => documentFacade.getNarrative(resource),
+    getLocalTextAndIntDisplay: (resourceOrEntry: FhirResourceLike | FhirBundleEntryLike) => documentFacade.getLocalTextAndIntDisplay(resourceOrEntry),
+    getXhtmlOrDerived: (resourceOrEntry: FhirResourceLike | FhirBundleEntryLike) => documentFacade.getXhtmlOrDerived(resourceOrEntry),
+    getNarrative: (resourceOrEntry: FhirResourceLike | FhirBundleEntryLike) => documentFacade.getNarrative(resourceOrEntry),
     getAllergies: (query = {}) => documentFacade.getAllergies(query),
     getConditions: (query = {}) => documentFacade.getConditions(query),
     getMedications: (query = {}) => documentFacade.getMedications(query),
