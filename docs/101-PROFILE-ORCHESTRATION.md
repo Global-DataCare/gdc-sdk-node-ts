@@ -11,7 +11,7 @@ The job of `gdc-sdk-node-ts` `101` tests is different:
 - show how one actor session exposes one role facade
 - show how several role profiles depend on each other in one real lifecycle
 - reuse the shared high-level editors/readers from `gdc-common-utils-ts`
-- keep frontend/web, backend/BFF, and voice/call-center aligned on the same
+- keep frontend/web and backend/BFF aligned on the same
   programming model
 
 Canonical top-level contract:
@@ -26,7 +26,7 @@ Canonical top-level contract:
 - `gdc-sdk-core-ts`
   Owns neutral actor/sector facade contracts.
 - `gdc-sdk-node-ts`
-  Owns runtime orchestration for BFF/backend/voice:
+  Owns runtime orchestration for BFF/backend:
   profile loading, route binding, submit/poll, and actor-to-actor lifecycle.
 
 ## Common-Utils 101 Map
@@ -75,7 +75,7 @@ tests should reuse their helpers instead of reauthoring claim plumbing.
 - Main helper surface:
   - `new BundleEditor().newEntry().asVitalSign()...`
   - `asObservation()...`
-- Use from web/expo/BFF/voice when:
+- Use from web/expo/BFF when:
   - one controller or assistant captures a new vital sign
   - one app wants chainable `get/set` editing instead of raw FHIR claims
 
@@ -196,12 +196,6 @@ The actor story above is the same for all channels.
 - performs submit/poll against GW
 - orchestrates several actor profiles in one business flow
 
-### Voice / call center / node
-
-- same as backend/BFF
-- only input/output modality changes:
-  menu prompts, alias selection, PIN capture by voice, and narrated summaries
-
 ## What this repo should teach
 
 `tests/101-backend-profile-runtime.test.mjs` should be the orchestration guide:
@@ -213,7 +207,7 @@ The actor story above is the same for all channels.
 
 ## Immediate rewrite rule
 
-When one new backend/BFF/voice use case is added:
+When one new backend/BFF use case is added:
 
 1. Find the existing `gdc-common-utils-ts` `101` that already teaches the
    editor/reader/viewer.

@@ -152,7 +152,7 @@ These pieces are stable enough to keep using as the baseline:
 These do not belong in the baseline registration contract:
 
 - reminder task creation
-- product-specific voice/chat orchestration
+- product-specific channel orchestration
 - downstream notification policies
 - non-core menu logic
 
