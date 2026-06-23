@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.0.7] - 2026-06-23
+
+- Updated dependency target to gdc-common-utils-ts@^2.0.7.
+- Updated dependency target to gdc-sdk-core-ts@^2.0.6.
+
+
 ## [2.0.6] - 2026-06-18
 
 - Fixed the published dependency target to `gdc-sdk-core-ts@^2.0.5`.
