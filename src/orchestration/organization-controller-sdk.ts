@@ -60,6 +60,18 @@ export class OrganizationControllerSdk {
   }
 
   /**
+   * Starts the host-side existing-tenant legal-organization reissue flow that
+   * refreshes verification and reissues one controller activation code.
+   */
+  public submitLegalOrganizationIssue(
+    hostCtx: HostRouteContext,
+    input: NodeLegalOrganizationVerificationTransactionInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'submitLegalOrganizationIssue')(hostCtx, input, pollOptions);
+  }
+
+  /**
    * Binds the current tenant organization DID document to one public alias
    * view.
    *

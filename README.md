@@ -682,6 +682,19 @@ For legal-organization onboarding from a Node BFF/runtime, keep the host steps s
 Use `OrganizationControllerSdk.submitLegalOrganizationVerificationTransaction(...)` or
 `NodeHttpClient.submitLegalOrganizationVerificationTransaction(...)` for step 1.
 
+Existing-tenant recovery/reverification:
+
+- use `OrganizationControllerSdk.submitLegalOrganizationIssue(...)` or
+  `NodeHttpClient.submitLegalOrganizationIssue(...)` to refresh the ICA-backed
+  verification for an already registered tenant without creating a new Offer
+- GW is expected to return one new controller activation code as
+  `org.schema.IndividualProduct.serialNumber`
+- then continue with the existing helper chain:
+  `recoverOrganizationControllerWithIssueWithDeps(...)`
+  or directly `_exchange -> _dcr`
+- for a reproducible local/staging runtime check, use:
+  `npm run test:e2e:live-gw:issue-recovery`
+
 Rules:
 
 - `_transaction` and `_activate` are different flows
@@ -714,3 +727,23 @@ Live E2E legal PDF source:
 - public URL: set `LIVE_GW_HOST_VERIFICATION_PDF_URL=https://.../file.pdf`
 - if both are present, the live suite prefers `LIVE_GW_HOST_VERIFICATION_PDF_URL`
 - Dropbox-style links are normalized to `dl=1` direct-download mode automatically
+
+Recovery-specific live rule:
+
+- `Organization/_issue` can succeed and still be followed by `_exchange` failure
+  if the controller `id_token` is not production-shaped enough
+- the current GW `_exchange` path expects at least:
+  - syntactically valid JWT format
+  - `tenant_id` claim matching the target tenant
+- the bundled recovery runner generates a syntactically valid demo JWT if
+  `CONTROLLER_ID_TOKEN` is not provided, but production/staging should use a
+  real IdP-issued token
+
+Minimal live recovery command:
+
+```bash
+PDF_PATH=/Users/fernando/GITS/gdc-workspace/examples/TEST-A4-Antifraud.pdf \
+BASE_URL=http://127.0.0.1:3000 \
+TENANT_ID=acme-id \
+npm run test:e2e:live-gw:issue-recovery
+```

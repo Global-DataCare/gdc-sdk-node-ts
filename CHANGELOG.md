@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.0.8] - 2026-06-23
+
+### Changed
+- Added runtime support for host `Organization/_issue` so Node/BFF callers can
+  reverify an existing legal organization without creating a new Offer and then
+  chain the reissued controller activation code through the existing
+  `_exchange -> _dcr` helper flow.
+- Added a dedicated organization-controller recovery helper and live runner so
+  BFF integrations can execute `Organization/_issue -> Token/_exchange ->
+  Device/_dcr` as one typed flow.
+- Added canonical host-side `identity/auth/_dcr` route helpers and regression
+  coverage for `_issue`, `_exchange`, and `_dcr` orchestration.
+- Updated dependency targets to:
+  - `gdc-common-utils-ts@^2.0.10`
+  - `gdc-sdk-core-ts@^2.0.7`
+
+### Fixed
+- Included `body.code` when submitting host-side DCR after `Token/_exchange`,
+  matching GW CORE validation instead of dropping the reissued activation code
+  before device registration.
+- Updated SDK docs and the live recovery runner to use a minimum valid DCR
+  payload (`redirect_uris`, `jwks`, `ext_device_info`) and the currently
+  supported `application_type: native`.
+
 ## [2.0.7] - 2026-06-23
 
 - Updated dependency target to gdc-common-utils-ts@^2.0.7.

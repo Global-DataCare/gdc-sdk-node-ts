@@ -130,6 +130,14 @@ test('NodeHttpClient exposes current GW CORE lifecycle paths for individual and 
     '/host/cds-ES/v1/test/registry/org.schema/Organization/_transaction-response',
   );
   assert.equal(
+    client.hostRegistryOrganizationIssuePath(cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT)),
+    '/host/cds-ES/v1/test/registry/org.schema/Organization/_issue',
+  );
+  assert.equal(
+    client.hostRegistryOrganizationIssuePollPath(cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT)),
+    '/host/cds-ES/v1/test/registry/org.schema/Organization/_issue-response',
+  );
+  assert.equal(
     client.individualFamilyOrganizationTransactionPath(),
     '/acme-id/cds-ES/v1/health-care/individual/org.schema/Organization/_transaction',
   );
@@ -156,6 +164,22 @@ test('NodeHttpClient exposes current GW CORE lifecycle paths for individual and 
   assert.equal(
     client.organizationDidBindingPollPath(),
     '/acme-id/cds-ES/v1/health-care/did/document/_binding-response',
+  );
+  assert.equal(
+    client.identityTokenExchangePath(cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT)),
+    '/host/cds-ES/v1/health-care/acme-id/identity/auth/_exchange',
+  );
+  assert.equal(
+    client.identityTokenExchangePollPath(cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT)),
+    '/host/cds-ES/v1/health-care/acme-id/identity/auth/_exchange-response',
+  );
+  assert.equal(
+    client.identityDeviceDcrPath(cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT)),
+    '/host/cds-ES/v1/health-care/acme-id/identity/auth/_dcr',
+  );
+  assert.equal(
+    client.identityDeviceDcrPollPath(cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT)),
+    '/host/cds-ES/v1/health-care/acme-id/identity/auth/_dcr-response',
   );
   assert.equal(
     client.individualLicenseSearchPath(),
@@ -232,6 +256,45 @@ test('NodeHttpClient submits the host legal-organization verification transactio
   );
   assert.equal(typeof calls[0][2].body.attachments, 'undefined');
   assert.deepEqual(calls[0][3], { timeoutMs: 20_000, intervalMs: 1_000 });
+});
+
+test('NodeHttpClient submits the host legal-organization reissue flow through Organization/_issue and polls _issue-response', async () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+  });
+
+  const calls = [];
+  client.submitAndPoll = async (...args) => {
+    calls.push(args);
+    return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+  };
+  client.hostRegistryOrganizationIssuePath = () => '/host/issue';
+  client.hostRegistryOrganizationIssuePollPath = () => '/host/issue-response';
+
+  await client.submitLegalOrganizationIssue(
+    cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT),
+    {
+      claims: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].meta.claims),
+      controller: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.controller),
+      organization: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.organization),
+      legalRepresentativePayload: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.legalRepresentativePayload),
+      verification: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.verification),
+      attachments: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.attachments),
+    },
+    { timeoutMs: 10_000, intervalMs: 500 },
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], '/host/issue');
+  assert.equal(calls[0][1], '/host/issue-response');
+  assert.equal(calls[0][2].type, 'application/api+json');
+  assert.equal(calls[0][2].body.type, 'collection');
+  assert.equal(calls[0][2].body.data[0].type, 'Organization-verification-transaction-request-v1.0');
+  assert.equal(
+    calls[0][2].body.data[0].resource.controller.publicKeyJwk.kid,
+    EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.controller.publicKeyJwk.kid,
+  );
+  assert.deepEqual(calls[0][3], { timeoutMs: 10_000, intervalMs: 500 });
 });
 
 test('NodeHttpClient submits the organization DID binding operation through did/document/_binding and polls _binding-response', async () => {

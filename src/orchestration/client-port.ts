@@ -100,6 +100,11 @@ export type RuntimeClient = {
     input: NodeLegalOrganizationVerificationTransactionInput,
     pollOptions?: PollOptions,
   ) => Promise<SubmitAndPollResult>;
+  submitLegalOrganizationIssue?: (
+    hostCtx: HostRouteContext,
+    input: NodeLegalOrganizationVerificationTransactionInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
   submitOrganizationDidBinding?: (
     ctx: RouteContext,
     input: NodeOrganizationDidBindingInput,

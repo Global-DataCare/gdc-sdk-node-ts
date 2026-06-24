@@ -660,7 +660,7 @@ await professionalSdk.activateEmployeeDeviceWithActivationRequest({
   activationCode: 'ACT-001',
   idToken: '<employee-id-token>',
   dcrPayload: {
-    application_type: 'web',
+    application_type: 'native',
   },
 });
 ```
