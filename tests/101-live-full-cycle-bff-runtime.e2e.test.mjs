@@ -104,6 +104,10 @@ function isEnabledByDefault(name, fallback = '1') {
   return normalized !== '0' && normalized !== 'false' && normalized !== 'no';
 }
 
+function buildProfessionalEmployeeDid({ host, email, role }) {
+  return `did:web:${String(host || '').trim()}:employee:${String(email || '').trim().toLowerCase()}:${String(role || '').trim()}`;
+}
+
 const RUN = isEnabledByDefault('RUN_LIVE_101_FULL_CYCLE_E2E', '0');
 const DEBUG = env('LIVE_101_FULL_CYCLE_E2E_DEBUG', '0') === '1';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -303,7 +307,14 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
   const signatureFlow = env('LEGAL_ORG_SIGNATURE_FLOW', 'certificate').toLowerCase();
   const employeeEmail = env('EMPLOYEE_EMAIL', EXAMPLE_EMAIL_PROFESSIONAL);
   const employeeRole = env('EMPLOYEE_ROLE', EXAMPLE_HEALTHCARE_ACTOR_ROLE_PHYSICIAN);
-  const professionalActorDid = env('PROFESSIONAL_ACTOR_DID', EXAMPLE_PROFESSIONAL_DID);
+  const professionalActorDid = env(
+    'PROFESSIONAL_ACTOR_DID',
+    buildProfessionalEmployeeDid({
+      host: env('PROFESSIONAL_ACTOR_HOST', 'api.acme.org'),
+      email: employeeEmail,
+      role: employeeRole,
+    }),
+  );
   const professionalClientId = env('PROFESSIONAL_CLIENT_ID', EXAMPLE_DEVICE_CLIENT_ID);
   const individualControllerEmail = env('INDIVIDUAL_CONTROLLER_EMAIL', `controller+${runSlug}@example.com`);
   const individualControllerRole = env('INDIVIDUAL_CONTROLLER_ROLE', 'RESPRSN');
@@ -670,11 +681,6 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         sections: consentSection,
       }),
     );
-    // TODO: the professional SMART leg still needs one focused live follow-up.
-    // Controller-proof bearer lifecycle is now proven in the short controller
-    // suite; this broader full-cycle keeps the SMART assertions so the
-    // remaining professional token alignment stays visible instead of being
-    // silently skipped.
     const smart = await profiler.run('professional-request-smart-token', () => professionalProfile.sdk.requestSmartToken({
       tenantId: suiteTenantRouteId,
       jurisdiction: suiteJurisdiction,

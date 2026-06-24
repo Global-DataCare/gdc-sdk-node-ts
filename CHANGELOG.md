@@ -41,6 +41,11 @@ All notable changes to this project will be documented in this file.
   so staging/live validation matches the intended ICA document contract:
   - `tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
   - `tests/live-gw-node-runtime.e2e.test.mjs`
+- Aligned the professional SMART actor identifier in the live full-cycle `101`
+  with the employee-style DID shape expected by GW consent matching, so the
+  live SMART token request now carries the same actor identifier/role semantics
+  as the granted professional consent rule:
+  - `tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
 
 ### Testing
 - `npm run build`
@@ -48,6 +53,7 @@ All notable changes to this project will be documented in this file.
 - `RUN_LIVE_101_FULL_CYCLE_E2E=0 node --test tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
 - `node --test tests/101-organization-controller-lifecycle.live.test.mjs`
 - `npm run test:e2e:live-controller-lifecycle`
+- `npm run test:e2e:live-full-cycle`
 
 ## [2.0.9] - 2026-06-24
 
