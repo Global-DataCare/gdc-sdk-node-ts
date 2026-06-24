@@ -46,6 +46,11 @@ All notable changes to this project will be documented in this file.
   live SMART token request now carries the same actor identifier/role semantics
   as the granted professional consent rule:
   - `tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
+- Switched live SMART defaults away from ad hoc employee DID strings and onto
+  the shared `buildProfessionalDidWeb(...)` helper so the SDK follows the same
+  pseudonymous employee DID convention as `gdc-common-utils-ts`:
+  - `tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
+  - `tests/live-gw-node-runtime.e2e.test.mjs`
 
 ### Testing
 - `npm run build`

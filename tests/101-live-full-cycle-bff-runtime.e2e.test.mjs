@@ -67,6 +67,7 @@ import {
   addLegalRepresentativeCredential,
   addOrganizationCredential,
   buildIndividualDidWeb,
+  buildProfessionalDidWeb,
   buildUnsignedProfessionalSmartVpJwt,
   BundleReader,
   createJwtSigner,
@@ -102,10 +103,6 @@ function env(name, fallback = '') {
 function isEnabledByDefault(name, fallback = '1') {
   const normalized = env(name, fallback).toLowerCase();
   return normalized !== '0' && normalized !== 'false' && normalized !== 'no';
-}
-
-function buildProfessionalEmployeeDid({ host, email, role }) {
-  return `did:web:${String(host || '').trim()}:employee:${String(email || '').trim().toLowerCase()}:${String(role || '').trim()}`;
 }
 
 const RUN = isEnabledByDefault('RUN_LIVE_101_FULL_CYCLE_E2E', '0');
@@ -309,8 +306,8 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
   const employeeRole = env('EMPLOYEE_ROLE', EXAMPLE_HEALTHCARE_ACTOR_ROLE_PHYSICIAN);
   const professionalActorDid = env(
     'PROFESSIONAL_ACTOR_DID',
-    buildProfessionalEmployeeDid({
-      host: env('PROFESSIONAL_ACTOR_HOST', 'api.acme.org'),
+    buildProfessionalDidWeb({
+      organizationDidWeb: env('PROFESSIONAL_ACTOR_ORGANIZATION_DID', 'did:web:api.acme.org'),
       email: employeeEmail,
       role: employeeRole,
     }),

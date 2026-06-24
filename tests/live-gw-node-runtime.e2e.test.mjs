@@ -89,6 +89,7 @@ import {
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
 import {
+  buildProfessionalDidWeb,
   buildIndividualDidWeb,
   buildLicenseIssueEntry,
   readInvoiceBundleSummaryFromResponseBody,
@@ -1177,7 +1178,11 @@ test('LIVE professional lifecycle on GW', {
     `controller+${runSlug}@example.com`,
   );
   const patientSubjectDid = suiteSubjectDid;
-  const smartProfessionalDid = env('SMART_SUBJECT_DID', 'did:web:api.acme.org:employee:doctor1@acme.org:ISCO-08|2211');
+  const smartProfessionalDid = env('SMART_SUBJECT_DID', buildProfessionalDidWeb({
+    organizationDidWeb: 'did:web:api.acme.org',
+    email: 'doctor1@acme.org',
+    role: 'ISCO-08|2211',
+  }));
   const smartClientId = env('SMART_CLIENT_ID', 'did:web:api.acme.org:employee:admin1@acme.org:device:demo');
 
   const individualStart = await individualControllerSession.asIndividualController().startIndividualOrganization({
