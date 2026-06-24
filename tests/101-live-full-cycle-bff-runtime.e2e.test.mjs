@@ -670,6 +670,11 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         sections: consentSection,
       }),
     );
+    // TODO: the professional SMART leg still needs one focused live follow-up.
+    // Controller-proof bearer lifecycle is now proven in the short controller
+    // suite; this broader full-cycle keeps the SMART assertions so the
+    // remaining professional token alignment stays visible instead of being
+    // silently skipped.
     const smart = await profiler.run('professional-request-smart-token', () => professionalProfile.sdk.requestSmartToken({
       tenantId: suiteTenantRouteId,
       jurisdiction: suiteJurisdiction,
