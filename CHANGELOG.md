@@ -48,7 +48,8 @@ All notable changes to this project will be documented in this file.
   - `tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
 - Switched live SMART defaults away from ad hoc employee DID strings and onto
   the shared `buildProfessionalDidWeb(...)` helper so the SDK follows the same
-  pseudonymous employee DID convention as `gdc-common-utils-ts`:
+  `did:web` employee convention with one hashed email-derived identifier
+  segment as `gdc-common-utils-ts`:
   - `tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
   - `tests/live-gw-node-runtime.e2e.test.mjs`
 
