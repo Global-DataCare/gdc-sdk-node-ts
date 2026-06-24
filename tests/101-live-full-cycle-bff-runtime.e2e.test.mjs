@@ -8,7 +8,7 @@
  * 1. front-web legal-organization form is collected with shared setters
  * 2. BFF submits the legal-organization verification transaction through the
  *    organization-controller facade
- * 3. BFF later activates the tenant with the ICA proof using the same form
+ * 3. BFF later confirms the legal-organization order returned by `_transaction`
  * 4. organization-controller facade provisions one professional employee
  * 5. individual-controller profile is loaded and boots one individual
  * 6. the individual controller ingests clinical data and grants consent
@@ -20,9 +20,15 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createPrivateKey, sign as cryptoSign } from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ServiceCapability } from 'gdc-common-utils-ts/constants/service-capabilities';
+import { ActorCapabilities } from 'gdc-common-utils-ts/constants/actor-session';
+import {
+  ClaimsPersonSchemaorg,
+  ClaimsServiceSchemaorg,
+} from 'gdc-common-utils-ts/constants/schemaorg';
 import {
   EXAMPLE_CONTROLLER_BINDING,
   EXAMPLE_DEVICE_CLIENT_ID,
@@ -58,9 +64,13 @@ import {
   readEmployeeSearchResults,
 } from 'gdc-common-utils-ts/utils/employee';
 import {
+  addLegalRepresentativeCredential,
+  addOrganizationCredential,
   buildIndividualDidWeb,
   buildUnsignedProfessionalSmartVpJwt,
   BundleReader,
+  createJwtSigner,
+  createVP,
   createLegalOrganizationOnboardingEditor,
   OrganizationLifecycleEditor,
   readFirstBundleResourceFromResponseBody,
@@ -80,6 +90,7 @@ import {
   ProfessionalSdk,
   prepareLoadProfile,
 } from '../dist/index.js';
+import { extractOfferIdFromResponseBody } from '../dist/order-offer-summary.js';
 import {
   ensureLiveGwTraceFiles,
 } from './helpers/live-gw-runtime-helpers.mjs';
@@ -93,7 +104,7 @@ function isEnabledByDefault(name, fallback = '1') {
   return normalized !== '0' && normalized !== 'false' && normalized !== 'no';
 }
 
-const RUN = isEnabledByDefault('RUN_LIVE_101_FULL_CYCLE_E2E', '1');
+const RUN = isEnabledByDefault('RUN_LIVE_101_FULL_CYCLE_E2E', '0');
 const DEBUG = env('LIVE_101_FULL_CYCLE_E2E_DEBUG', '0') === '1';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const runId = new Date().toISOString().replace(/[:.]/g, '-');
@@ -112,6 +123,12 @@ const suiteSubjectDid = env('SUBJECT_DID', buildIndividualDidWeb({
 const suiteHostIdentifierValue = env('HOST_ID_VALUE', `live101-host-${runSlug}`);
 const LOCAL_LIVE_POLL_INTERVAL_MS = Math.max(1, Number(env('LIVE_GW_POLL_INTERVAL_MS', '200')));
 const LOCAL_LIVE_POLL_TIMEOUT_MS = Math.max(1000, Number(env('LIVE_GW_POLL_TIMEOUT_MS', '60000')));
+const CONTROLLER_SIGNER_SEED = env('CONTROLLER_SIGNER_SEED', 'organization-controller-seed-001');
+const DEFAULT_LIVE_CONTROLLER_ORGANIZATION_TAX_ID = env('LIVE_CONTROLLER_ORGANIZATION_TAX_ID', 'VATES-B42215152');
+const LIVE_HOST_VERIFICATION_DEFAULT_PDF_PATH = env(
+  'LIVE_GW_HOST_VERIFICATION_PDF_PATH',
+  path.join(__dirname, '..', '..', 'examples', 'TEST-A4-Antifraud.pdf'),
+);
 
 function createDebugLogger() {
   return ensureLiveGwTraceFiles({
@@ -168,13 +185,109 @@ function createStepProfiler(debug, scope) {
   };
 }
 
+function getVerificationCredentials(pollBody) {
+  const directEntry = pollBody?.body?.data?.[0] || pollBody?.data?.[0] || {};
+  const projectedCredentials = directEntry?.vc || [];
+  if (Array.isArray(projectedCredentials) && projectedCredentials.length >= 2) {
+    return projectedCredentials;
+  }
+
+  const icaResponse = pollBody?.body?.data?.[0]?.resource?.icaResponse
+    || pollBody?.data?.[0]?.resource?.icaResponse
+    || {};
+  const nestedEntries = icaResponse?.body?.data || icaResponse?.data || [];
+  assert.ok(Array.isArray(nestedEntries), 'Host verification transaction must expose ICA verification entries as a batch-style data array.');
+  assert.ok(nestedEntries.length >= 2, 'Host verification transaction must return at least organization and legal representative verification entries.');
+  return nestedEntries;
+}
+
+function findVerificationCredential(entries, expectedTypeFragment, fallbackIndex) {
+  const byType = entries.find((entry) => {
+    const typeTokens = Array.isArray(entry?.type)
+      ? entry.type.map((token) => String(token || ''))
+      : [String(entry?.type || '')];
+    return typeTokens.some((token) => token.includes(expectedTypeFragment));
+  });
+  const selected = byType || entries[fallbackIndex];
+  const resource = selected?.resource || selected;
+  assert.ok(resource && typeof resource === 'object', `Host verification transaction must expose one '${expectedTypeFragment}' credential resource.`);
+  return resource;
+}
+
+function readCredentialTaxId(organizationCredential, legalRepresentativeCredential) {
+  const organizationSubject = Array.isArray(organizationCredential?.credentialSubject)
+    ? organizationCredential.credentialSubject[0]
+    : organizationCredential?.credentialSubject;
+  const representativeSubject = Array.isArray(legalRepresentativeCredential?.credentialSubject)
+    ? legalRepresentativeCredential.credentialSubject[0]
+    : legalRepresentativeCredential?.credentialSubject;
+  const organizationTaxId = String(organizationSubject?.taxID || organizationSubject?.taxId || '').trim();
+  const representativeTaxId = String(representativeSubject?.memberOf?.taxID || representativeSubject?.memberOf?.taxId || '').trim();
+  const resolvedTaxId = organizationTaxId || representativeTaxId;
+  assert.ok(resolvedTaxId, 'Controller live verification must expose one organization tax ID in the organization or legal representative credential.');
+  if (organizationTaxId && representativeTaxId) {
+    assert.equal(representativeTaxId, organizationTaxId, 'Organization and legal representative verification credentials must agree on the organization tax ID.');
+  }
+  return resolvedTaxId;
+}
+
+function signPreparedJwt(prepared, privateJwk, alg) {
+  const keyObject = createPrivateKey({ key: privateJwk, format: 'jwk' });
+  const digest = alg === 'ES256K' ? 'sha256' : 'sha384';
+  const signature = cryptoSign(digest, Buffer.from(prepared.signingBytes), {
+    key: keyObject,
+    dsaEncoding: 'ieee-p1363',
+  });
+  return signature.toString('base64url');
+}
+
+function buildLiveHostVerificationPdfAttachment() {
+  const resolvedLocalPath = path.resolve(LIVE_HOST_VERIFICATION_DEFAULT_PDF_PATH);
+  return {
+    id: 'signed-terms-pdf-001',
+    media_type: 'application/pdf',
+    data: {
+      base64: fs.readFileSync(resolvedLocalPath).toString('base64'),
+    },
+  };
+}
+
+async function buildSignedControllerVpToken({
+  signer,
+  organizationCredential,
+  legalRepresentativeCredential,
+  tenantId,
+  audience,
+}) {
+  const vpPayload = createVP({
+    iss: signer.getKid(),
+    sub: tenantId,
+    aud: audience,
+    vp: {
+      holder: signer.getKid(),
+    },
+  });
+  addOrganizationCredential(vpPayload, organizationCredential);
+  addLegalRepresentativeCredential(vpPayload, legalRepresentativeCredential);
+  const prepared = signer.prepareJwt({
+    payload: vpPayload,
+    header: {
+      kid: signer.getKid(),
+      jwk: signer.getPublicJwk(),
+    },
+  });
+  const privateMaterial = signer.getPrivateMaterial();
+  assert.ok(!(privateMaterial instanceof Uint8Array), 'Controller live VP signer must use one classical EC signing key.');
+  const signatureBase64Url = signPreparedJwt(prepared, privateMaterial, signer.getAlgorithm());
+  return signer.buildCompact(signatureBase64Url, prepared);
+}
+
 test('101: LIVE full-cycle backend/BFF runtime flow', {
   skip: !RUN,
 }, async () => {
   const debug = createDebugLogger();
   const profiler = createStepProfiler(debug, 'live-101-full-cycle');
   const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
-  const bearerToken = env('AUTH_BEARER');
   const pollOptions = createLivePollOptions();
   const hostCtx = { jurisdiction: suiteJurisdiction, sector: suiteHostSector };
   const ctx = {
@@ -199,62 +312,79 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     `${runSlug}-${EXAMPLE_REGISTERED_SUBJECT_ALTERNATE_NAME}`,
   );
   const consentSection = env('SMART_SCOPE_SECTION', 'patient-summary');
+  const controllerVpAudience = env('CONTROLLER_VP_AUDIENCE', `host:${suiteHostIdentifierValue}`);
+  const controllerSigner = await createJwtSigner({
+    alg: env('CONTROLLER_SIGNER_ALG', 'ES384'),
+    seed: CONTROLLER_SIGNER_SEED,
+    purpose: 'organization-controller',
+  });
 
-  const runtimeClient = new NodeHttpClient({
+  const bootstrapClient = new NodeHttpClient({
     baseUrl,
     ctx,
-    bearerToken,
     requestTimeoutMs: 10_000,
   });
-  const hostSdk = new HostOnboardingSdk(runtimeClient);
-  const organizationControllerSdk = new OrganizationControllerSdk(runtimeClient);
+  const hostSdk = new HostOnboardingSdk(bootstrapClient, [
+    ActorCapabilities.HostingActivateOrganization,
+    ActorCapabilities.HostingConfirmOrder,
+    ActorCapabilities.HostingDisableHost,
+    ActorCapabilities.HostingPurgeHost,
+  ]);
+  const verificationSdk = new OrganizationControllerSdk(bootstrapClient);
 
   const controllerBinding = cloneExample(EXAMPLE_CONTROLLER_BINDING);
+  controllerBinding.publicKeyJwk = controllerSigner.getPublicJwk();
+  controllerBinding.jwks = { keys: [controllerSigner.getPublicJwk()] };
   const legalOrganizationOnboarding = createLegalOrganizationOnboardingEditor()
     .setLegalName(env('ORG_LEGAL_NAME', 'TEST LEGAL ORGANIZATION SL'))
-    .setTaxId(suiteTenantId)
-    .setLegalIdentifierValue(suiteTenantId)
+    .setTaxId(DEFAULT_LIVE_CONTROLLER_ORGANIZATION_TAX_ID)
+    .setLegalIdentifierValue(DEFAULT_LIVE_CONTROLLER_ORGANIZATION_TAX_ID)
     .setLegalIdentifierType(env('ORG_IDENTIFIER_TYPE', 'taxID'))
+    .setTenantAlias(suiteTenantRouteId)
     .setAddressCountry(suiteJurisdiction)
     .setControllerEmail(controllerEmail)
     .setControllerRole(controllerRole)
     .setServiceCategory(suiteSector)
     .setServiceIdentifier(serviceIdentifierDid)
     .setServiceUrl(serviceUrl);
-  const legalOrganizationDraft = legalOrganizationOnboarding.buildDraft();
+  const tenantAliasValidation = { allowExplicitAlternateNameForTenantId: true };
+  const legalOrganizationDraft = legalOrganizationOnboarding.buildDraft(tenantAliasValidation);
   assert.equal(legalOrganizationDraft.validation.ok, true, 'Legal-organization onboarding form must stay valid before BFF submission.');
   debug.record('front-web-legal-organization-form', {
     formFields: legalOrganizationOnboarding.getFormFields(),
     normalizedClaims: legalOrganizationDraft.claims,
   });
-  const verificationRequest = legalOrganizationOnboarding.buildGatewayVerificationRequest({
-    controller: controllerBinding,
-    signatureFlow,
-    representativeSameAs: env('LEGAL_REPRESENTATIVE_SAME_AS', controllerEmail),
-    verificationResourceType: env('LEGAL_ORG_VERIFICATION_RESOURCE_TYPE', 'contract'),
-    signedTermsAttachmentId: env('SIGNED_TERMS_ATTACHMENT_ID', 'signed-terms-pdf-001'),
-    signedTermsPdfUrl: env('SIGNED_TERMS_PDF_URL', EXAMPLE_SIGNED_TERMS_PDF_URL),
+  debug.record('controller-live-vp-signer', {
+    seed: CONTROLLER_SIGNER_SEED,
+    kid: controllerSigner.getKid(),
+    publicJwk: controllerSigner.getPublicJwk(),
   });
-  const activationRequest = legalOrganizationOnboarding.buildGatewayActivationRequest({
-    vpToken: env('VP_TOKEN'),
+  const verificationRequest = legalOrganizationOnboarding.buildVerificationTransactionInput({
     controller: controllerBinding,
-    serviceCapabilities: [
-      ServiceCapability.IndexProvider,
-      ServiceCapability.DigitalTwinReader,
-    ],
+    organization: serviceIdentifierDid || serviceUrl
+      ? {
+          ...(serviceIdentifierDid ? { did: serviceIdentifierDid } : {}),
+          ...(serviceUrl ? { url: serviceUrl } : {}),
+        }
+      : undefined,
+    legalRepresentativePayload: signatureFlow === 'otp'
+      ? {
+          email: controllerEmail,
+          sameAs: env('LEGAL_REPRESENTATIVE_SAME_AS', controllerEmail),
+        }
+      : {
+          email: controllerEmail,
+        },
+    verification: {
+      resourceType: env('LEGAL_ORG_VERIFICATION_RESOURCE_TYPE', 'contract'),
+    },
+    attachments: signatureFlow === 'otp'
+      ? undefined
+      : [buildLiveHostVerificationPdfAttachment()],
+    validationOptions: tenantAliasValidation,
   });
-
-  const employeeDraft = new EmployeeDraft()
-    .setEmail(employeeEmail)
-    .setRole(employeeRole)
-    .setMemberOfOrgTaxId(suiteTenantId);
-  const employeeIdentifier = env('EMPLOYEE_IDENTIFIER', employeeDraft.ensureEmployeeIdentifier());
 
   const individualLifecycle = createIndividualOrganizationLifecycleFacade();
-  const profileRuntime = new DirectBackendProfileRuntime({
-    facadeClient: runtimeClient,
-    defaultRouteContext: ctx,
-  });
 
   const individualControllerLoadRequest = prepareLoadProfile({
     actorKind: ActorKinds.IndividualController,
@@ -319,12 +449,18 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
   let individualControllerProfile;
   let individualControllerSdk;
   let grantedConsentClaims = null;
+  let runtimeClient;
+  let organizationControllerSdk;
+  let profileRuntime;
+  let controllerOrganizationTaxId = DEFAULT_LIVE_CONTROLLER_ORGANIZATION_TAX_ID;
+  let employeeDraft;
+  let employeeIdentifier = '';
 
   try {
     // Step 1: the web form is turned into one shared legal-organization draft
     // and the BFF submits the first ICA verification transaction through the
     // organization-controller facade.
-    const verification = await profiler.run('organization-controller-submit-legal-organization-verification', () => organizationControllerSdk.submitLegalOrganizationVerificationTransaction(
+    const verification = await profiler.run('organization-controller-submit-legal-organization-verification', () => verificationSdk.submitLegalOrganizationVerificationTransaction(
       hostCtx,
       verificationRequest,
       pollOptions,
@@ -334,21 +470,71 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     const verificationResponseReader = new BundleReader(verification.poll.body || {});
     const verificationResponseAnalysis = verificationResponseReader.getResponseAnalysis();
     debug.record('organization-controller-submit-legal-organization-verification-analysis', verificationResponseAnalysis);
-    assert.equal(verificationResponseReader.getBundleType(), 'collection');
+    assert.ok(
+      ['transaction-response', 'batch-response'].includes(String(verificationResponseReader.getBundleType() || '')),
+      'Host verification transaction must return one terminal bundle response type.',
+    );
     assert.equal(verificationResponseAnalysis.totalOperations >= 1, true);
     assert.equal(verificationResponseAnalysis.hasErrors, false);
     hostVerificationSubmitted = true;
 
-    // Step 2: once ICA has produced the proof, the host-facing activation
-    // reuses the same normalized business claims from the form draft.
-    const activation = await profiler.run('host-activate-tenant', () => hostSdk.activateOrganizationInGatewayFromIcaProof(
+    // Step 2: once ICA has produced the proof, the BFF confirms the
+    // legal-organization offer returned by `_transaction`. The same ICA
+    // credentials are then packaged into one controller proof bearer for the
+    // later disable/purge lifecycle calls.
+    const verificationEntries = getVerificationCredentials(verification.poll.body || {});
+    const organizationCredential = findVerificationCredential(verificationEntries, 'Organization', 0);
+    const legalRepresentativeCredential = findVerificationCredential(verificationEntries, 'LegalRepresentative', 1);
+    controllerOrganizationTaxId = readCredentialTaxId(organizationCredential, legalRepresentativeCredential);
+    const legalOfferId = extractOfferIdFromResponseBody(verification.poll.body);
+    assert.ok(legalOfferId, 'Host verification transaction must expose one offer identifier before order confirmation.');
+    const controllerVpToken = await buildSignedControllerVpToken({
+      signer: controllerSigner,
+      organizationCredential,
+      legalRepresentativeCredential,
+      tenantId: controllerOrganizationTaxId,
+      audience: controllerVpAudience,
+    });
+    debug.record('organization-controller-live-vp-token', {
+      audience: controllerVpAudience,
+      signerKid: controllerSigner.getKid(),
+      compactJwtPreview: `${controllerVpToken.split('.').slice(0, 2).join('.')}.<signature>`,
+    });
+    const legalOrder = await profiler.run('host-confirm-legal-order', () => hostSdk.confirmLegalOrganizationOrder(
       hostCtx,
-      activationRequest,
+      {
+        offerId: legalOfferId,
+      },
       pollOptions,
     ));
-    debug.record('host-activate-tenant', { response: activation });
-    assert.equal(activation.poll.status, 200);
+    debug.record('host-confirm-legal-order', { response: legalOrder, offerId: legalOfferId });
+    assert.equal(legalOrder.poll.status, 200);
     hostActivated = true;
+
+    // Controller lifecycle later reuses the same signed VP as
+    // `Authorization: Bearer <vp_token>` for disable/purge.
+    runtimeClient = new NodeHttpClient({
+      baseUrl,
+      ctx,
+      bearerToken: controllerVpToken,
+      requestTimeoutMs: 10_000,
+    });
+    organizationControllerSdk = new OrganizationControllerSdk(runtimeClient, [
+      ActorCapabilities.OrganizationCreateEmployee,
+      ActorCapabilities.OrganizationDisableEmployee,
+      ActorCapabilities.OrganizationPurgeEmployee,
+      ActorCapabilities.OrganizationDisableTenant,
+      ActorCapabilities.OrganizationPurgeTenant,
+    ]);
+    profileRuntime = new DirectBackendProfileRuntime({
+      facadeClient: runtimeClient,
+      defaultRouteContext: ctx,
+    });
+    employeeDraft = new EmployeeDraft()
+      .setEmail(employeeEmail)
+      .setRole(employeeRole)
+      .setMemberOfOrgTaxId(controllerOrganizationTaxId);
+    employeeIdentifier = env('EMPLOYEE_IDENTIFIER', employeeDraft.ensureEmployeeIdentifier());
 
     // Step 3: the tenant controller provisions the first professional account.
     const employeeCreate = await profiler.run('organization-controller-create-professional', () => organizationControllerSdk.createOrganizationEmployee(
@@ -363,6 +549,11 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     debug.record('organization-controller-create-professional', { response: employeeCreate });
     assert.equal(employeeCreate.poll.status, 200);
     employeeCreated = true;
+    const createdEmployeeResourceId = String(
+      employeeCreate?.poll?.body?.data?.[0]?.resource?.id
+      || employeeCreate?.poll?.body?.body?.data?.[0]?.resource?.id
+      || '',
+    ).trim();
 
     const employeeSearch = await profiler.run('organization-controller-search-professional', () => organizationControllerSdk.searchOrganizationEmployees(
       ctx,
@@ -375,7 +566,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     const employeeSearchResults = readEmployeeSearchResults(employeeSearch.poll.body);
     const employeeRecord = findEmployeeSearchResult(employeeSearch.poll.body, employeeIdentifier) || employeeSearchResults[0];
     assert.ok(employeeRecord, 'Employee search must return one provisioned professional record.');
-    employeeResourceId = String(employeeRecord.resourceId || '').trim();
+    employeeResourceId = String(employeeRecord.resourceId || createdEmployeeResourceId || '').trim();
     assert.ok(employeeResourceId, 'Employee search must expose one resource id for cleanup.');
 
     // Step 4: the backend loads the individual-controller profile and runs the
@@ -613,8 +804,8 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
 
     if (hostActivated) {
       const tenantLifecycleEditor = new OrganizationLifecycleEditor()
-        .setIdentifierValue(suiteTenantId)
-        .setTaxId(suiteTenantId);
+        .setIdentifierValue(controllerOrganizationTaxId)
+        .setTaxId(controllerOrganizationTaxId);
 
       const disableTenant = await profiler.run('organization-controller-disable-tenant', () => organizationControllerSdk.disableTenant(
         hostCtx,

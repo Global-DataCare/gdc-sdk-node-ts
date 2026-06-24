@@ -16,7 +16,10 @@
     "local:close": "PORTS=3000 bash ./scripts/local-close.sh",
     "docker:close": "PORTS=8000 bash ./scripts/local-close.sh",
     "test": "npm run build && node --test tests/*.test.mjs",
-    "test:e2e:101:live-full-cycle": "npm run build && RUN_LIVE_101_FULL_CYCLE_E2E=1 node --test tests/101-live-full-cycle-bff-runtime.e2e.test.mjs",
+    "test:e2e:live-controller-lifecycle": "bash ./scripts/run-live-controller-lifecycle.sh",
+    "test:e2e:live-controller-lifecycle:direct": "npm run build && RUN_LIVE_101_ORGANIZATION_CONTROLLER_LIFECYCLE_E2E=1 node --test tests/101-organization-controller-lifecycle.live.test.mjs",
+    "test:e2e:live-full-cycle": "bash ./scripts/run-live-101-full-cycle-clean.sh",
+    "test:e2e:live-full-cycle:direct": "npm run build && RUN_LIVE_101_FULL_CYCLE_E2E=1 node --test tests/101-live-full-cycle-bff-runtime.e2e.test.mjs",
     "test:e2e:live-gw": "npm run build && RUN_LIVE_GW_E2E=1 node --test tests/live-gw-node-runtime.e2e.test.mjs",
     "test:e2e:live-gw:professional": "npm run build && RUN_LIVE_GW_E2E=1 LIVE_GW_E2E_SUITE=professional node --test tests/live-gw-node-runtime.e2e.test.mjs",
     "test:e2e:live-gw:individual": "npm run build && RUN_LIVE_GW_E2E=1 LIVE_GW_E2E_SUITE=individual node --test tests/live-gw-node-runtime.e2e.test.mjs",
@@ -32,7 +35,7 @@
     "test:e2e:live-gw:clean": "bash ./scripts/run-live-gw-clean.sh"
   },
   "dependencies": {
-    "gdc-common-utils-ts": "^2.0.11",
+    "gdc-common-utils-ts": "^2.0.12",
     "gdc-sdk-core-ts": "^2.0.8"
   },
   "devDependencies": {

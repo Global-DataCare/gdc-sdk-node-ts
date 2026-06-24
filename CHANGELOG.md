@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Added a wallet-backed backend/session job-manager helper so BFF and other
+  short-lived service runtimes can reuse one protected local session cache plus
+  one shared wallet for draft/outbox transport orchestration:
+  - `src/wallet-backed-job-manager.ts`
+  - `tests/101-wallet-backed-job-manager.test.mjs`
+
+- Added the canonical organization-controller lifecycle `101` that keeps the
+  scope intentionally narrow and reproducible for auditors and BFF integrators:
+  - onboard via the new host `Organization/_transaction` path or the legacy
+    `ICA _verify -> Organization/_activate` path
+  - materialize additional purchased seats after the original registration
+  - execute `Organization/_issue -> Token/_exchange -> Device/_dcr` for the
+    current controller device before teardown
+  - assert that `_issue` reuses the already-assigned controller seat and does
+    not consume or discard post-registration seat expansions
+  - only then execute tenant `disable` and `purge`
+  in:
+  - `tests/101-organization-controller-lifecycle.test.mjs`
+
+- Added a dedicated live controller-only E2E that stays focused on the narrow
+  tenant lifecycle proof instead of reusing the broader employee/SMART full
+  cycle:
+  - `tests/101-organization-controller-lifecycle.live.test.mjs`
+  - `scripts/run-live-controller-lifecycle.sh`
+  - `package.json`
+  - `docs/101-ORGANIZATION_CONTROLLER_LIFECYCLE.md`
+
+### Changed
+- Updated the dependency target to `gdc-common-utils-ts@^2.0.12`.
+- Re-exported the wallet-backed job-manager helpers from the package root:
+  - `src/index.ts`
+- Switched the default host-verification PDF for live controller/full-cycle GW
+  suites from the local multisign sample to `examples/TEST-A4-Antifraud.pdf`
+  so staging/live validation matches the intended ICA document contract:
+  - `tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
+  - `tests/live-gw-node-runtime.e2e.test.mjs`
+
+### Testing
+- `npm run build`
+- `node --test tests/101-organization-controller-lifecycle.test.mjs`
+- `RUN_LIVE_101_FULL_CYCLE_E2E=0 node --test tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
+- `node --test tests/101-organization-controller-lifecycle.live.test.mjs`
+- `npm run test:e2e:live-controller-lifecycle`
+
 ## [2.0.9] - 2026-06-24
 
 - Updated dependency target to gdc-common-utils-ts@^2.0.11.
@@ -106,7 +151,7 @@ All notable changes to this project will be documented in this file.
   in:
   - `tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
 - Added dedicated scripts for the new live `101`:
-  - `test:e2e:101:live-full-cycle`
+  - `test:e2e:live-full-cycle`
   in:
   - `package.json`
 - Added backend/professional high-level helpers so backend consumers and the

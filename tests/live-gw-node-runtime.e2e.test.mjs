@@ -154,11 +154,11 @@ function isEnabledByDefault(name, fallback = '1') {
   return normalized !== '0' && normalized !== 'false' && normalized !== 'no';
 }
 
-const RUN = isEnabledByDefault('RUN_LIVE_GW_E2E', '1');
-const RUN_ACTOR_CHAIN = isEnabledByDefault('RUN_LIVE_GW_E2E_ACTOR_CHAIN', '1');
-const RUN_IPS_INGESTION = isEnabledByDefault('RUN_LIVE_GW_E2E_IPS_INGESTION', '1');
-const RUN_INDIVIDUAL_LIFECYCLE = isEnabledByDefault('RUN_LIVE_GW_E2E_INDIVIDUAL_LIFECYCLE', '1');
-const RUN_PROFILE_RUNTIME = isEnabledByDefault('RUN_LIVE_GW_E2E_PROFILE_RUNTIME', '1');
+const RUN = isEnabledByDefault('RUN_LIVE_GW_E2E', '0');
+const RUN_ACTOR_CHAIN = isEnabledByDefault('RUN_LIVE_GW_E2E_ACTOR_CHAIN', '0');
+const RUN_IPS_INGESTION = isEnabledByDefault('RUN_LIVE_GW_E2E_IPS_INGESTION', '0');
+const RUN_INDIVIDUAL_LIFECYCLE = isEnabledByDefault('RUN_LIVE_GW_E2E_INDIVIDUAL_LIFECYCLE', '0');
+const RUN_PROFILE_RUNTIME = isEnabledByDefault('RUN_LIVE_GW_E2E_PROFILE_RUNTIME', '0');
 const RUN_HOST_VERIFICATION_TRANSACTION = isEnabledByDefault('RUN_LIVE_GW_E2E_HOST_VERIFICATION_TRANSACTION', '0');
 const ACTIVE_TRANSPORT_PROFILE = normalizeLiveGwTransportProfile(
   env('LIVE_GW_E2E_TRANSPORT', LiveGwTransportProfiles.DidcommPlain),
@@ -173,7 +173,7 @@ const DEBUG = env('LIVE_GW_NODE_E2E_DEBUG', env('LIVE_GW_E2E_DEBUG', '0')) === '
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LIVE_HOST_VERIFICATION_DEFAULT_PDF_PATH = env(
   'LIVE_GW_HOST_VERIFICATION_PDF_PATH',
-  path.join(__dirname, '..', '..', 'examples', 'prueba-TEST-A4-multisign-fnmt.pdf'),
+  path.join(__dirname, '..', '..', 'examples', 'TEST-A4-Antifraud.pdf'),
 );
 const LIVE_HOST_VERIFICATION_PDF_URL = env('LIVE_GW_HOST_VERIFICATION_PDF_URL');
 const runId = new Date().toISOString().replace(/[:.]/g, '-');
