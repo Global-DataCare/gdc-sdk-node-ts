@@ -82,6 +82,7 @@ export async function activateEmployeeDeviceWithActivationCodeWithDeps(
 
   const dcrPayload = {
     thid: `dcr-${createRuntimeUuid()}`,
+    code: deps.input.activationCode,
     ...deps.input.dcrPayload,
   };
 

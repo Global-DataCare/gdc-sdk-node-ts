@@ -294,6 +294,37 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
+   * Starts the host-side existing-tenant legal-organization reissue flow that
+   * GW CORE forwards to ICA `_verify`.
+   *
+   * Semantics:
+   * - reuse the same signed evidence/controller binding contract as `_transaction`
+   * - do not create a new Offer
+   * - expect GW CORE to reissue one controller activation code in the response
+   */
+  public async submitLegalOrganizationIssue(
+    hostCtx: HostRouteContext,
+    input: NodeLegalOrganizationVerificationTransactionInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    const thid = `organization-issue-${runtimeUuid()}`;
+    const jti = `organization-issue-jti-${runtimeUuid()}`;
+    const verificationBundle = buildLegalOrganizationVerificationGatewayRequestBundle(input);
+    const payload = this.wrapBundleAsGatewayTransactionMessage({
+      thid,
+      jti,
+      hostCtx,
+      bundle: verificationBundle,
+    });
+    return this.submitAndPoll(
+      this.hostRegistryOrganizationIssuePath(hostCtx),
+      this.hostRegistryOrganizationIssuePollPath(hostCtx),
+      payload,
+      pollOptions,
+    );
+  }
+
+  /**
    * Submits one tenant-scoped DID document binding request.
    *
    * Binding semantics:
@@ -1284,6 +1315,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
 
   public hostRegistryOrganizationTransactionPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.Transaction); }
   public hostRegistryOrganizationTransactionPollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.TransactionResponse); }
+  public hostRegistryOrganizationIssuePath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.Issue); }
+  public hostRegistryOrganizationIssuePollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.IssueResponse); }
   public hostRegistryOrganizationActivatePath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', '_activate'); }
   public hostRegistryOrganizationActivatePollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', '_activate-response'); }
   public hostRegistryOrganizationDisablePath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.Disable); }
@@ -1347,6 +1380,12 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
   public identityTokenExchangePollPath(ctx: RouteContext): string {
     return `/${encodeURIComponent('host')}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/${encodeURIComponent(ctx.tenantId)}/identity/auth/_exchange-response`;
+  }
+  public identityDeviceDcrPath(ctx: RouteContext): string {
+    return `/${encodeURIComponent('host')}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/${encodeURIComponent(ctx.tenantId)}/identity/auth/_dcr`;
+  }
+  public identityDeviceDcrPollPath(ctx: RouteContext): string {
+    return `/${encodeURIComponent('host')}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/${encodeURIComponent(ctx.tenantId)}/identity/auth/_dcr-response`;
   }
   public identityOpenIdSmartTokenPath(ctx: RouteContext): string {
     return `/${encodeURIComponent(ctx.tenantId)}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/identity/openid/smart/token`;

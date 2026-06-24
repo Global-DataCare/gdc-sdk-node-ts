@@ -15,6 +15,7 @@ export * from './family-organization-search.js';
 export * from './family-organization-registration.js';
 export * from './individual-onboarding.js';
 export * from './device-activation.js';
+export * from './organization-controller-recovery.js';
 export * from './smart-token.js';
 export * from './order-offer-summary.js';
 export * from './organization-license-order.js';

@@ -126,6 +126,7 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   const calls = [];
   const client = {
     submitLegalOrganizationVerificationTransaction: async (...args) => { calls.push(['submitLegalOrganizationVerificationTransaction', args]); return { ok: true }; },
+    submitLegalOrganizationIssue: async (...args) => { calls.push(['submitLegalOrganizationIssue', args]); return { ok: true }; },
     submitOrganizationDidBinding: async (...args) => { calls.push(['submitOrganizationDidBinding', args]); return { ok: true }; },
     createOrganizationEmployee: async (...args) => { calls.push(['createOrganizationEmployee', args]); return { ok: true }; },
     searchOrganizationEmployees: async (...args) => { calls.push(['searchOrganizationEmployees', args]); return { ok: true }; },
@@ -145,6 +146,7 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   }, client);
   const sdk = session.asOrganizationController();
   await sdk.submitLegalOrganizationVerificationTransaction({}, { claims: {}, controller: {} });
+  await sdk.submitLegalOrganizationIssue({}, { claims: {}, controller: {} });
   await sdk.submitOrganizationDidBinding({}, { organization: { url: 'https://provider.example.org' } });
   await sdk.createOrganizationEmployee({}, {});
   await sdk.searchOrganizationEmployees({}, {});
@@ -157,7 +159,7 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   await sdk.confirmOrganizationLicenseOrder({}, { offerId: 'urn:cds:offer:test' });
   await sdk.disableEmployee({}, {});
   await sdk.disableOrganizationEmployee({}, {});
-  assert.equal(calls.length, 13);
+  assert.equal(calls.length, 14);
 });
 
 test('OrganizationControllerSdk delegates organization-side license-order confirmation to the runtime client', async () => {
@@ -182,10 +184,15 @@ test('OrganizationControllerSdk delegates the host legal-organization verificati
     capabilities: [],
   }, {
     submitLegalOrganizationVerificationTransaction: async (...args) => { calls.push(['submitLegalOrganizationVerificationTransaction', args]); return { ok: true }; },
+    submitLegalOrganizationIssue: async (...args) => { calls.push(['submitLegalOrganizationIssue', args]); return { ok: true }; },
     submitOrganizationDidBinding: async (...args) => { calls.push(['submitOrganizationDidBinding', args]); return { ok: true }; },
   });
 
   await session.asOrganizationController().submitLegalOrganizationVerificationTransaction(
+    { jurisdiction: 'ES', sector: 'test' },
+    { claims: {}, controller: {} },
+  );
+  await session.asOrganizationController().submitLegalOrganizationIssue(
     { jurisdiction: 'ES', sector: 'test' },
     { claims: {}, controller: {} },
   );
@@ -194,9 +201,10 @@ test('OrganizationControllerSdk delegates the host legal-organization verificati
     { organization: { url: 'https://provider.example.org' } },
   );
 
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.equal(calls[0][1][0].jurisdiction, 'ES');
-  assert.equal(calls[1][1][0].tenantId, 'acme-id');
+  assert.equal(calls[1][1][0].jurisdiction, 'ES');
+  assert.equal(calls[2][1][0].tenantId, 'acme-id');
 });
 
 test('OrganizationControllerSdk enforces employee lifecycle capabilities when materialized from NodeActorSession', async () => {

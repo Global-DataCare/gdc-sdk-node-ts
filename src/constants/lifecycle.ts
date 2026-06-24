@@ -12,6 +12,8 @@ import { LifecycleRequestType } from 'gdc-common-utils-ts';
 export const GwCoreLifecycleAction = Object.freeze({
   Batch: '_batch',
   BatchResponse: '_batch-response',
+  Issue: '_issue',
+  IssueResponse: '_issue-response',
   Transaction: '_transaction',
   TransactionResponse: '_transaction-response',
   Disable: '_disable',
