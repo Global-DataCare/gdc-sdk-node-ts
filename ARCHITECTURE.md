@@ -112,6 +112,34 @@ For the current backend call/session model:
 - messages/jobs may be sent to GW CORE immediately
 - `closeProfile(...)` ends the session and clears memory-owned runtime state
 
+Current implementation guidance in this repository:
+
+- the shared wallet contract may be implemented by a node/backend wallet that
+  keeps separate profile-signing and runtime-communication keys
+- a backend/BFF/session runtime can use a wallet-backed `JobManager` with a
+  memory vault when the process is single-session or short-lived
+- that memory-backed path is appropriate for:
+  - demos
+  - tests
+  - one-session BFF flows
+  - transient channel/service sessions
+- once the runtime becomes multi-user or must survive process restarts, the
+  queue must stop being an in-memory detail
+- in that case the backend shape is:
+  - durable outbox repository
+  - durable or rehydratable vault/profile session state
+  - durable queue adapter or another worker-backed scheduling adapter
+  - worker/executor that reloads the job by id and rehydrates the needed
+    profile/runtime context
+
+So the node rule is:
+
+- `JobManager` still owns per-profile work state
+- the queue adapter owns scheduling/execution
+- `Vault...` owns persistence or session cache
+- memory-backed adapters are acceptable defaults, not the target architecture
+  for multi-user channel services
+
 ## Test And Example Policy
 
 High-level tests should show actor/runtime behavior with as little plumbing as

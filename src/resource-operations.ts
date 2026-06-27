@@ -67,13 +67,23 @@ export type OrganizationEmployeeCreationInput = {
  */
 export type OrganizationEmployeeLifecycleInput = {
   /**
-   * Canonical employee/person claims used by GW CORE to locate the employee.
+   * Canonical employee/person claims carried as the exportable employee identity.
+   *
+   * These claims should still include the business/external identifier
+   * (`org.schema.Person.identifier`) when available, but runtime lifecycle
+   * operations must prefer `resourceId` as the concrete GW profile locator.
+   * Treat `resource.id` as the current technical record anchor and
+   * `identifier` as the interoperable/exported identity value.
    */
   employeeClaims: Record<string, unknown>;
   /**
-   * Optional canonical resource id when already known by the caller.
+   * Preferred current GW employee profile id returned by create/search.
+   *
+   * Pass this for disable/purge whenever the caller already knows the active
+   * profile row. The SDK forwards it as `Bundle.entry.resource.id`, which GW
+   * now treats as the primary operational locator for lifecycle actions.
    */
-  resourceId?: string;
+  resourceId: string;
   dataType?: string;
 };
 
@@ -356,6 +366,7 @@ export async function disableOrganizationEmployeeWithDeps(
   // TODO(gw-core-lifecycle-target-patch-employee-disable): switch this
   // legacy DELETE-in-_batch flow to `_batch + PATCH` when GW CORE deploys it.
   void GwCoreLifecycleTodo.EmployeeDisablePatchMigration;
+  assertEmployeeLifecycleResourceId(input.resourceId, 'disableEmployee');
   const payload = buildEmployeeLifecyclePayload({
     routeCtx,
     requestType: input.dataType || GwCoreLifecycleRequestType.EmployeeDisable,
@@ -387,6 +398,7 @@ export async function purgeOrganizationEmployeeWithDeps(
     ) => Promise<SubmitAndPollResult>;
   },
 ): Promise<SubmitAndPollResult> {
+  assertEmployeeLifecycleResourceId(input.resourceId, 'purgeEmployee');
   const payload = buildEmployeeLifecyclePayload({
     routeCtx,
     requestType: input.dataType || GwCoreLifecycleRequestType.EmployeePurge,
@@ -401,6 +413,13 @@ export async function purgeOrganizationEmployeeWithDeps(
     payload,
     options,
   );
+}
+
+function assertEmployeeLifecycleResourceId(resourceId: string, operation: 'disableEmployee' | 'purgeEmployee'): void {
+  const normalized = String(resourceId || '').trim();
+  if (!normalized) {
+    throw new Error(`${operation}: resourceId is required and must be the current GW technical employee id (resource.id).`);
+  }
 }
 
 export async function searchOrganizationEmployeesWithDeps(
@@ -1228,6 +1247,8 @@ function buildEmployeeLifecyclePayload(input: {
         type: input.requestType,
         method: input.requestMethod as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
         claims,
+        // Keep the transport-local GW profile anchor separate from the
+        // exportable employee identifier carried in claims.
         resourceId: input.resourceId,
       })],
     },

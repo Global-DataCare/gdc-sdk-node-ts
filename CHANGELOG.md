@@ -2,9 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [2.0.10] - 2026-06-27
+
+- Added a node/runtime `UserProfileIndexStore` on top of the shared
+  `gdc-sdk-core-ts` `UserProfileIndex` contract so server runtimes can persist
+  and resolve hashed local profile selectors before PIN unlock:
+  - `src/UserProfileIndexStore.ts`
+  - `tests/user-profile-index-store.test.mjs`
 
 ### Added
+- Added Node-owned wallet/runtime adapters to the sdk-node layer so concrete
+  Node crypto and managed-wallet behavior no longer lives in
+  `gdc-common-utils-ts`:
+  - `src/node-crypto-helper.ts`
+  - `src/node-managed-wallet.ts`
+  - `tests/node-managed-wallet.test.mjs`
+- Added package-root exports for `NodeCryptoHelper` and `NodeManagedWallet`:
+  - `src/index.ts`
 - Added a wallet-backed backend/session job-manager helper so BFF and other
   short-lived service runtimes can reuse one protected local session cache plus
   one shared wallet for draft/outbox transport orchestration:
@@ -33,9 +47,26 @@ All notable changes to this project will be documented in this file.
   - `docs/101-ORGANIZATION_CONTROLLER_LIFECYCLE.md`
 
 ### Changed
-- Updated the dependency target to `gdc-common-utils-ts@^2.0.12`.
+- Updated the dependency targets to:
+  - `gdc-common-utils-ts@^2.0.15`
+  - `gdc-sdk-core-ts@^2.0.9`
 - Re-exported the wallet-backed job-manager helpers from the package root:
   - `src/index.ts`
+- Clarified and regression-tested employee lifecycle payload semantics so
+  `disableEmployee(...)` and `purgeEmployee(...)` keep the GW technical profile
+  anchor in `resource.id` (`resourceId` input) while preserving
+  `org.schema.Person.identifier` in claims as the exportable/interoperable
+  employee identity:
+  - `src/resource-operations.ts`
+  - `tests/resource-operations.test.mjs`
+  - `docs/101-SDK_INTEGRATION.md`
+  - `docs/101-SDK_END_TO_END.md`
+- Tightened employee lifecycle calls so `disableEmployee(...)` and
+  `purgeEmployee(...)` now reject missing/blank `resourceId` instead of
+  silently allowing identifier-only targeting:
+  - `src/resource-operations.ts`
+  - `tests/resource-operations.test.mjs`
+  - `tests/orchestration.test.mjs`
 - Switched the default host-verification PDF for live controller/full-cycle GW
   suites from the local multisign sample to `examples/TEST-A4-Antifraud.pdf`
   so staging/live validation matches the intended ICA document contract:

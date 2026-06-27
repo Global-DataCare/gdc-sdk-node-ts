@@ -68,6 +68,9 @@ tests should reuse their helpers instead of reauthoring claim plumbing.
 - Use from node/BFF when:
   - one organization controller creates, lists, disables, or purges employees
   - one shared email maps to several active technical employee profiles
+  - lifecycle cleanup should first read the current employee `resourceId`
+    from create/search results, then call disable/purge with that technical id
+    while preserving the exportable employee `identifier` in claims
 
 ### Vital signs / add clinical data
 

@@ -60,7 +60,7 @@ function isEnabledByDefault(name, fallback = '1') {
   return normalized !== '0' && normalized !== 'false' && normalized !== 'no';
 }
 
-const RUN = isEnabledByDefault('RUN_LIVE_PROFILE_RUNTIME_E2E', '1');
+const RUN = isEnabledByDefault('RUN_LIVE_PROFILE_RUNTIME_E2E', '0');
 const DEBUG = env('LIVE_PROFILE_RUNTIME_E2E_DEBUG', '0') === '1';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const runId = new Date().toISOString().replace(/[:.]/g, '-');

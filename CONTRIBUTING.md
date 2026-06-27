@@ -28,9 +28,23 @@ the end of the name, for example:
 - `createJobManagerInMemory(...)`
 - `VaultMemory`
 - future `createServerQueueInMemory(...)`
+- `UserProfileIndexStoreInMemory`
+- `UserProfileIndexStoreFirestore`
+- `UserProfileVaultFirestore`
 
 Do not rename the common abstraction itself as if memory/server were its
 primary identity.
+
+Programming/autocomplete rule:
+
+- start all specialized implementations with the same shared concept
+- end the name with the concrete specialization
+- prefer:
+  - `UserProfileIndexStoreFirestore`
+  - `UserProfileIndexStoreInMemory`
+- avoid:
+  - `FirestoreUserProfileIndexStore`
+  - `InMemoryUserProfileIndexStore`
 
 ## Test Rule
 

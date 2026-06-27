@@ -142,6 +142,17 @@
    - `sdk-node` should orchestrate protected profiles and actor transitions
    - `common-utils` should still own the chainable business editors/viewers
    - no new mixed-role catch-all API should be introduced just to make the tutorial shorter
+26. Normalize orchestration test route stubs so every test-visible GW path matches the canonical runtime route shape:
+   - do not use shortened placeholders such as `/individual/offer/_search`, `/dt/api/_batch`, `/exchange`, `/dcr`, `/submit`, or `/poll` when the test is teaching or asserting one GW route contract
+   - prefer one local helper such as `gwV1Path(...)` or the same route-building logic used by `RuntimeClient`
+   - keep the section / format / resourceType / action segments explicit so humans, auditors, and AI tools do not infer fake public routes from test doubles
+   - concrete cleanup targets still pending after `tests/resource-operations.test.mjs`:
+     - `tests/device-activation.test.mjs`
+     - `tests/organization-controller-recovery.test.mjs`
+     - `tests/101-organization-controller-lifecycle.test.mjs`
+     - `tests/individual-start.test.mjs`
+     - `tests/individual-onboarding.test.mjs`
+     - `tests/host-onboarding.test.mjs`
 
 ## NEXT
 1. Add BFF-oriented examples for endpoints such as `GET /api/personal/related-profiles`.

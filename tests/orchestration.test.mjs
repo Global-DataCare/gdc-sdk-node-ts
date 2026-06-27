@@ -157,8 +157,8 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   await sdk.searchLicenseOrders({}, {});
   await sdk.listLicenseOrders({}, {});
   await sdk.confirmOrganizationLicenseOrder({}, { offerId: 'urn:cds:offer:test' });
-  await sdk.disableEmployee({}, {});
-  await sdk.disableOrganizationEmployee({}, {});
+  await sdk.disableEmployee({}, { resourceId: 'urn:uuid:employee-1', employeeClaims: {} });
+  await sdk.disableOrganizationEmployee({}, { resourceId: 'urn:uuid:employee-1', employeeClaims: {} });
   assert.equal(calls.length, 14);
 });
 
@@ -217,7 +217,7 @@ test('OrganizationControllerSdk enforces employee lifecycle capabilities when ma
   }, client);
 
   assert.throws(
-    () => session.asOrganizationController().disableEmployee({}, {}),
+    () => session.asOrganizationController().disableEmployee({}, { resourceId: 'urn:uuid:employee-1', employeeClaims: {} }),
     new RegExp(`requires capability '${ActorCapabilities.OrganizationDisableEmployee.replace('.', '\\.')}'`),
   );
 });

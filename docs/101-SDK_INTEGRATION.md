@@ -333,6 +333,12 @@ Current semantic notes:
 - purge requires inactive status first
 - purge releases/disassociates licenses and preserves traceability
 - purge keeps the previous employee as historical identity; a later create for the same `email + role` creates a new employee identity instead of reactivating the purged one
+- for disable/purge, callers must pass the current GW `resource.id`
+  returned by create/search as `resourceId`; the SDK now rejects calls that do
+  not provide it
+  keep
+  `org.schema.Person.identifier` in `employeeClaims` as the exportable
+  business/interoperable identifier, not as the primary technical locator
 - TODO `gw-core-lifecycle-target-patch-employee-disable`: migrate to `_batch + PATCH` only after GW CORE deploys it
 
 Local GW smoke note:

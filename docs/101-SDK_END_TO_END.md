@@ -51,6 +51,10 @@ Current execution-mode rule:
 
 If you need lower-level runtime details after this guide, open:
 
+- [101-ORGANIZATION_CONTROLLER_LIFECYCLE.md](./101-ORGANIZATION_CONTROLLER_LIFECYCLE.md)
+  Narrow, reproducible controller-only lifecycle:
+  onboarding, `_issue`, `_exchange`, `_dcr`, disable, purge, and seat
+  preservation across recovery.
 - [../tests/101-live-full-cycle-bff-runtime.e2e.test.mjs](../tests/101-live-full-cycle-bff-runtime.e2e.test.mjs)
   Executable live tutorial for the full backend/BFF dependency chain:
   host/tenant, professional employee, individual, consent, SMART, read,
@@ -956,6 +960,10 @@ Employee today:
   uses the current `Employee/_batch` plus entry `request.method = DELETE`
 - `purgeEmployee(...)`
   uses the current explicit `Employee/_purge` route
+- for `disableEmployee(...)` and `purgeEmployee(...)`, pass the concrete
+  `resourceId` returned by employee create/search as the lifecycle target; the
+  SDK rejects lifecycle calls without that technical id
+  keep `org.schema.Person.identifier` in claims as the exported identity value
 - actor:
   only `OrganizationControllerSdk`
 

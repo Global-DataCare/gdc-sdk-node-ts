@@ -17,7 +17,7 @@ Release-validation order for developers:
 4. production image/deploy only after staging is green
 
 Use this before asking an AI agent to run live E2E commands, and before running
-`npm run test:e2e:101:live-full-cycle`.
+`npm run test:e2e:live-full-cycle`.
 
 Non-negotiable execution rule:
 
@@ -129,7 +129,7 @@ Run the Node SDK live `101` suite in a third terminal:
 
 ```bash
 cd /Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts
-npm run test:e2e:101:live-full-cycle
+npm run test:e2e:live-full-cycle
 ```
 
 If you want the full host onboarding chain with local ICA verification first,
@@ -205,7 +205,7 @@ RUN_ID="$(date -u +%Y%m%dt%H%M%S)" \
 HOST_ID_VALUE="live101-${RUN_ID}-host" \
 TENANT_ID="live101-${RUN_ID}" \
 TENANT_ROUTE_ID="live101-${RUN_ID}" \
-npm run test:e2e:101:live-full-cycle
+npm run test:e2e:live-full-cycle:direct
 ```
 
 What this direct Node command does:
@@ -251,7 +251,7 @@ Run the same suite with debug artifacts:
 ```bash
 cd /Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts
 LIVE_101_FULL_CYCLE_E2E_DEBUG=1 \
-npm run test:e2e:101:live-full-cycle
+npm run test:e2e:live-full-cycle:direct
 ```
 
 ## Employee-Focused Smoke Meaning

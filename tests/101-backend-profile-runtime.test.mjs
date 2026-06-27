@@ -101,7 +101,7 @@ test('101: backend profile runtime tells the complete high-level story for app, 
     data: EXAMPLE_EMPLOYEE_DIRECTORY_RECORDS
       .filter(record => record.status !== 'purged')
       .map(record => ({
-        id: record.identifier,
+        id: record.resourceId,
         meta: {
           status: record.status,
           claims: buildExampleEmployeeClaims(record),
@@ -214,16 +214,18 @@ test('101: backend profile runtime tells the complete high-level story for app, 
       },
       async disableEmployee(ctx, input) {
         assert.equal(ctx.tenantId, EXAMPLE_TENANT_ROUTE_CONTEXT.tenantId);
+        assert.equal(input.resourceId, EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.resourceId);
         return {
-          submit: { status: 202, body: { accepted: true, identifier: input.employeeIdentifier } },
-          poll: { status: 200, body: { status: 'disabled', identifier: input.employeeIdentifier }, attempts: 1 },
+          submit: { status: 202, body: { accepted: true, resourceId: input.resourceId, identifier: input.employeeClaims?.['org.schema.Person.identifier'] } },
+          poll: { status: 200, body: { status: 'disabled', resourceId: input.resourceId, identifier: input.employeeClaims?.['org.schema.Person.identifier'] }, attempts: 1 },
         };
       },
       async purgeEmployee(ctx, input) {
         assert.equal(ctx.tenantId, EXAMPLE_TENANT_ROUTE_CONTEXT.tenantId);
+        assert.equal(input.resourceId, EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.resourceId);
         return {
-          submit: { status: 202, body: { accepted: true, identifier: input.employeeIdentifier } },
-          poll: { status: 200, body: { status: 'purged', identifier: input.employeeIdentifier }, attempts: 1 },
+          submit: { status: 202, body: { accepted: true, resourceId: input.resourceId, identifier: input.employeeClaims?.['org.schema.Person.identifier'] } },
+          poll: { status: 200, body: { status: 'purged', resourceId: input.resourceId, identifier: input.employeeClaims?.['org.schema.Person.identifier'] }, attempts: 1 },
         };
       },
       async disableTenant(hostCtx, input) {
@@ -518,12 +520,18 @@ test('101: backend profile runtime tells the complete high-level story for app, 
   const disabledEmployee = await organizationControllerRuntime.disableEmployee(
     organizationControllerProfile,
     EXAMPLE_TENANT_ROUTE_CONTEXT,
-    { employeeIdentifier: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier },
+    {
+      employeeClaims: buildExampleEmployeeClaims(EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE),
+      resourceId: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.resourceId,
+    },
   );
   const purgedEmployee = await organizationControllerRuntime.purgeEmployee(
     organizationControllerProfile,
     EXAMPLE_TENANT_ROUTE_CONTEXT,
-    { employeeIdentifier: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier },
+    {
+      employeeClaims: buildExampleEmployeeClaims(EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE),
+      resourceId: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.resourceId,
+    },
   );
   const revokedProfessionalAccess = await individualControllerProfile.sdk.revokeProfessionalAccess(
     EXAMPLE_TENANT_ROUTE_CONTEXT,
@@ -571,6 +579,10 @@ test('101: backend profile runtime tells the complete high-level story for app, 
   assert.equal(employeeRows[0].identifier, EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier);
   assert.equal(employeeRows[1].identifier, EXAMPLE_EMPLOYEE_DOCTOR_ACTIVE.identifier);
   assert.equal(readEmployeeSearchResults(EXAMPLE_EMPLOYEE_SEARCH_RESPONSE_BODY).length, 3);
+  assert.equal(disabledEmployee.poll.body.resourceId, EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.resourceId);
+  assert.equal(disabledEmployee.poll.body.identifier, EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier);
+  assert.equal(purgedEmployee.poll.body.resourceId, EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.resourceId);
+  assert.equal(purgedEmployee.poll.body.identifier, EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier);
   assert.equal(trustedDevice.status, 'already-trusted');
   assert.equal(connectedSubjectIndex.status, 'already-connected');
   assert.equal(subjectComposition.composition.resourceType, 'Bundle');

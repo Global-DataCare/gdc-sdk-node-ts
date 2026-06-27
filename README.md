@@ -208,7 +208,7 @@ Current live `101` flow covered by the test suite:
 Run the main live `101`:
 
 ```bash
-npm run test:e2e:101:live-full-cycle
+npm run test:e2e:live-full-cycle
 ```
 
 What is still not fully covered as one single root lifecycle:
@@ -694,6 +694,9 @@ Existing-tenant recovery/reverification:
   or directly `_exchange -> _dcr`
 - for a reproducible local/staging runtime check, use:
   `npm run test:e2e:live-gw:issue-recovery`
+- for the deterministic controller-lifecycle contract that also proves
+  post-registration seat preservation and final tenant teardown, use:
+  [docs/101-ORGANIZATION_CONTROLLER_LIFECYCLE.md](docs/101-ORGANIZATION_CONTROLLER_LIFECYCLE.md)
 
 Rules:
 
