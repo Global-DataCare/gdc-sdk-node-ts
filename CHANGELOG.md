@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+## [2.0.12] - 2026-06-29
+
+### Changed
+- Clarified the Node 101 documentation for legal-organization onboarding so
+  new developers are taught the canonical `_transaction` flow under
+  `submitLegalOrganizationVerificationTransaction(...)`, while keeping
+  `activateOrganizationInGatewayFromIcaProof(...)` visible only as legacy
+  compatibility guidance:
+  - `docs/101-SDK_INTEGRATION.md`
+- Added explicit research-access 101 guidance so developers learn the business
+  split `OrganizationControllerSdk` + `DigitalTwinSdk`, while the current
+  executable runtime still maps the twin-search consumer flow to
+  `ProfessionalSdk`:
+  - `docs/101-SDK_INTEGRATION.md`
+  - `docs/101-SDK_END_TO_END.md`
+
 ## [2.0.11] - 2026-06-29
 
 ### Changed

@@ -115,6 +115,14 @@ Current canonical facades:
 - `IndividualMember`
 - `Professional`
 
+Research-access teaching rule:
+
+- in developer-facing 101 material, teach inter-tenant twin search under the
+  product/domain name `DigitalTwinSdk`
+- current runtime implementation still maps that capability to
+  `ProfessionalSdk`
+- do not teach `DigitalTwinControllerSdk`
+
 Treat domain labels such as `OrgProfHealthCare`, `OrgProfVet`,
 `OrgProfAdministrative`, or `OrgProfFirstResponder` as specializations over the
 canonical `Professional` actor until the shared actor/capability contract is
@@ -178,8 +186,27 @@ Use:
 
 Main methods:
 
-- `activateOrganizationInGatewayFromIcaProof(...)`
+- `submitLegalOrganizationVerificationTransaction(...)`
 - `confirmLegalOrganizationOrder(...)`
+- `activateOrganizationInGatewayFromIcaProof(...)` (legacy compatibility)
+
+Naming rule for new developers:
+
+- teach `submitLegalOrganizationVerificationTransaction(...)` as the canonical
+  host/onboarding method
+- if you need one business sentence, explain it as:
+  - “register organization in gateway with digitally signed PDF and controller
+    binding”
+- do not teach `activateOrganizationInGatewayFromIcaProof(...)` as the normal
+  onboarding path
+
+Legacy compatibility:
+
+- `activateOrganizationInGatewayFromIcaProof(...)`
+  remains the older compatibility path around `_activate`
+- keep it visible in the 101 set until the remaining legacy references are
+  cleaned in the other SDK lifecycle documents
+- do not present it as the preferred path for new integrations
 
 ### Professional
 
@@ -189,11 +216,27 @@ Use:
 
 Main methods:
 
-- `activateOrganizationInGatewayFromIcaProof(...)`
 - `activateEmployeeDeviceWithActivationRequest(...)`
 - `grantProfessionalAccess(...)`
 - `requestSmartToken(...)`
 - `ingestCommunicationAndUpdateIndex(...)`
+
+Do not teach legal-organization onboarding here:
+
+- `activateOrganizationInGatewayFromIcaProof(...)` may still exist on some
+  runtime surfaces for compatibility
+- but it is not the canonical onboarding method for new integrations
+- the canonical legal-organization path is
+  `OrganizationControllerSdk.submitLegalOrganizationVerificationTransaction(...)`
+  or the corresponding host-onboarding façade
+
+Research-access note:
+
+- when the business flow is “request SMART token, search digital twins, open
+  IPS”, teach that journey as `DigitalTwinSdk`
+- today, in `gdc-sdk-node-ts`, the executable actor façade that already owns
+  those methods is still `ProfessionalSdk`
+- use `ProfessionalSdk` in code until a dedicated public alias is published
 
 ### Organization controller
 
@@ -207,6 +250,72 @@ Main methods:
 - `searchOrganizationEmployees(...)`
 - `disableEmployee(...)`
 - `purgeEmployee(...)`
+
+Research-access governance note:
+
+- `OrganizationControllerSdk` is the canonical backend/BFF façade for:
+  - contract/governance preparation
+  - employee/member lifecycle
+  - later provider/consumer-side authorization administration
+- for closeout and 101 material, this is the façade that should be shown next
+  to `DigitalTwinSdk`
+
+## Inter-Tenant Research Access 101
+
+Use this mental split for new developers:
+
+- `OrganizationControllerSdk`
+  - prepares or resolves the provider tenant
+  - prepares or resolves the consumer tenant
+  - formalizes or retrieves the inter-tenant contract VC
+  - ensures provider-side permit rules exist
+  - optionally ensures consumer-side researcher/member delegation exists
+- `DigitalTwinSdk`
+  - builds or forwards the VP carrying the contract VC
+  - requests the SMART token from the provider tenant
+  - searches `digitaltwin/.../Composition/_search`
+  - opens one IPS or downloads selected IPS results
+
+Current implementation honesty:
+
+- the current GW runtime behavior is already proven end to end
+- the current node façade that executes the search/read half is
+  `ProfessionalSdk`
+- the 101 should still present the business capability as `DigitalTwinSdk`
+  because that is what developers and product teams understand
+
+Canonical didactic example:
+
+- provider tenant: `acme-id`
+- consumer tenant: `lab-id`
+- provider subjects:
+  - `Doraemon` with one IPS imported
+  - `Novita` with medication-only demo bundles
+- search terms:
+  - `ibuprofen`
+  - `paracetamol`
+
+Expected behavior:
+
+- requesting a SMART token without the contract VC proof is rejected
+- requesting it with the matching contract VC proof succeeds
+- searching `ibuprofen` returns exactly one digital twin
+- searching `paracetamol` returns exactly one digital twin
+- both matches correspond to `Novita`
+
+What the backend/BFF owns:
+
+- route context
+- polling
+- GW credentials and transport
+- contract/VP forwarding
+- error handling
+
+What the frontend or caller should not own here:
+
+- raw GW queue polling logic
+- smart-contract or ledger plumbing
+- direct knowledge of GW internal persistence
 
 ### Individual controller
 
