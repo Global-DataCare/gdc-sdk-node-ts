@@ -28,6 +28,12 @@ export class HostOnboardingSdk implements HostingControllerFacade {
   /**
    * Submits the legal organization activation proof and required declared
    * service capabilities to GW CORE.
+   *
+   * Commercial contract:
+   * - this legacy `_activate` facade must return one canonical Offer in
+   *   `meta.claims['org.schema.Offer.identifier']`
+   * - callers are expected to pass that Offer to
+   *   `confirmLegalOrganizationOrder(...)`
    */
   public activateOrganizationInGatewayFromIcaProof(
     hostCtx: HostRouteContext,

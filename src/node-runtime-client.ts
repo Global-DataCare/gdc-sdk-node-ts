@@ -270,6 +270,12 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * - `_transaction` is the new host onboarding step
    * - this runtime does not chain `_activate` after `_transaction`
    * - `_activate` remains available only for the older ICA `_verify` based flow
+   *
+   * Commercial contract:
+   * - the final poll response is expected to mint
+   *   `meta.claims['org.schema.Offer.identifier']`
+   * - callers should then pass that exact value to
+   *   `confirmLegalOrganizationOrder(...)`
    */
   public async submitLegalOrganizationVerificationTransaction(
     hostCtx: HostRouteContext,
@@ -301,6 +307,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * - reuse the same signed evidence/controller binding contract as `_transaction`
    * - do not create a new Offer
    * - expect GW CORE to reissue one controller activation code in the response
+   * - do not call `confirmLegalOrganizationOrder(...)` after this flow
    */
   public async submitLegalOrganizationIssue(
     hostCtx: HostRouteContext,
@@ -369,6 +376,12 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    *   headers instead of plaintext `meta`
    * - this mirrored metadata is transport fallback only; the canonical
    *   activation contract remains `body.vp_token` plus `body.controller.*`
+   *
+   * Commercial contract:
+   * - legacy `_activate` is still expected to mint
+   *   `meta.claims['org.schema.Offer.identifier']`
+   * - callers should then pass that exact value to
+   *   `confirmLegalOrganizationOrder(...)`
    */
   public async activateOrganizationInGatewayFromIcaProof(
     hostCtx: HostRouteContext,
@@ -422,6 +435,9 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
 
   /**
    * Confirms a host-side legal organization order after the initial activation.
+   *
+   * Use this only when the previous flow actually returned one canonical Offer
+   * identifier. `_transaction` and legacy `_activate` do; `_issue` does not.
    */
   public async confirmLegalOrganizationOrder(hostCtx: HostRouteContext, input: LegalOrganizationOrderInput, pollOptions?: PollOptions): Promise<SubmitAndPollResult> {
     return confirmLegalOrganizationOrderWithDeps({
@@ -707,6 +723,15 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
 
   /**
    * Starts the onboarding flow for an individual-oriented tenant or index.
+   *
+   * Commercial contract:
+   * - this SDK method targets the family/individual commercial bootstrap flow
+   * - the registration poll response is expected to return one Offer id
+   * - callers should then confirm it through
+   *   `confirmIndividualOrganizationOrder(...)`
+   *
+   * This is distinct from embedded legacy individual registration helpers in
+   * GW CORE that may persist an individual record without minting an Offer.
    */
   public async startIndividualOrganization(input: IndividualOrganizationBootstrapInput): Promise<IndividualOrganizationStartResult> {
     const routeCtx = this.routeCtxFromInput(input);

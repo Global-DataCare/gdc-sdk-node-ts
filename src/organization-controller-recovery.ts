@@ -49,6 +49,12 @@ type RecoverOrganizationControllerWithIssueDeps = {
 export async function recoverOrganizationControllerWithIssueWithDeps(
   deps: RecoverOrganizationControllerWithIssueDeps,
 ): Promise<OrganizationControllerRecoveryResult> {
+  /**
+   * Existing-tenant controller recovery contract:
+   * - `Organization/_issue` is expected to reissue controller activation
+   *   material only
+   * - this flow must not depend on a new commercial Offer or Order step
+   */
   const issue = await deps.submitLegalOrganizationIssue(
     deps.hostCtx,
     deps.input.issueInput,

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.11] - 2026-06-29
+
+### Changed
+- Updated published shared dependency targets to:
+  - `gdc-common-utils-ts@^2.0.17`
+  - `gdc-sdk-core-ts@^2.0.10`
+- Kept the current runtime/source branch content and aligned the published Node
+  package with the latest shared bundle-claim readers and controller-device
+  lifecycle helper surface.
+
 ## [2.0.10] - 2026-06-27
 
 - Added a node/runtime `UserProfileIndexStore` on top of the shared

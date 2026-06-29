@@ -14,6 +14,9 @@ import assert from 'node:assert/strict';
  * - orchestration and actor chaining live here in `sdk-node`
  * - the high-level editors/readers themselves are taught in:
  *   `docs/101-PROFILE-ORCHESTRATION.md`
+ * - public app-facing actor SDKs are still the first surface to teach:
+ *   `HostOnboardingSdk`, `OrganizationControllerSdk`,
+ *   `IndividualControllerSdk`, `ProfessionalSdk`
  * - do not duplicate those lower-layer 101s here unless the runtime story
  *   needs to show how several protected profiles depend on each other
  */

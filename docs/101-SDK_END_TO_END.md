@@ -593,6 +593,15 @@ does not expose a dedicated legal-organization helper equivalent to
 `startIndividualOrganization(...).offerId`, so this guide should treat that
 value as part of the activation response contract rather than invent a wrapper.
 
+For the verification credentials returned by `_transaction`, do not copy local
+reader functions from tests anymore. Use the shared helpers from
+`gdc-common-utils-ts`:
+
+- `readLegalOrganizationVerificationCredentialPairFromResponseBody(...)`
+- `readLegalOrganizationVerificationTaxIdFromResponseBody(...)`
+- `readLegalRepresentativeSameAsFromResponseBody(...)`
+- `readLegalRepresentativeBindingFromResponseBody(...)`
+
 Once you have that `offerId`, confirm the returned offer:
 
 ```ts
