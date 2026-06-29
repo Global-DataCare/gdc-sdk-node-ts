@@ -18,6 +18,23 @@ Canonical top-level contract:
 
 `loadProfile(...) -> unlock PIN/secret -> session -> actor facade -> common-utils helper`
 
+Important reading order:
+
+- new integrators should start from public actor SDKs first
+- this document is a technical orchestration map for runtime/profile slices
+- do not treat `BackendProfileRuntime` or `IndividualControllerBackendRuntime`
+  as the first app-facing API to teach
+
+Public actor surfaces to teach first:
+
+- `HostOnboardingSdk`
+- `OrganizationControllerSdk`
+- `OrganizationEmployeeSdk`
+- `IndividualControllerSdk`
+- `IndividualMemberSdk`
+- `PersonalSdk`
+- `ProfessionalSdk`
+
 ## Layer rule
 
 - `gdc-common-utils-ts`
@@ -185,7 +202,8 @@ The actor story above is the same for all channels.
 
 ## What this repo should teach
 
-`tests/101-backend-profile-runtime.test.mjs` should be the orchestration guide:
+`tests/101-backend-profile-runtime.test.mjs` should be the orchestration guide
+for technical runtime composition only:
 
 - not the place where claim paths are invented
 - not the place where generic editors are re-explained in full

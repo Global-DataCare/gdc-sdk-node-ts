@@ -15,6 +15,8 @@ import {
   createLegalOrganizationOnboardingEditor,
   createVP,
   OrganizationLifecycleEditor,
+  readLegalOrganizationVerificationCredentialPairFromResponseBody,
+  readLegalOrganizationVerificationTaxIdFromResponseBody,
 } from 'gdc-common-utils-ts';
 
 import {
@@ -105,52 +107,6 @@ function createStepProfiler(debug, scope) {
       });
     },
   };
-}
-
-function getVerificationCredentials(pollBody) {
-  const directEntry = pollBody?.body?.data?.[0] || pollBody?.data?.[0] || {};
-  const projectedCredentials = directEntry?.vc || [];
-  if (Array.isArray(projectedCredentials) && projectedCredentials.length >= 2) {
-    return projectedCredentials;
-  }
-
-  const icaResponse = pollBody?.body?.data?.[0]?.resource?.icaResponse
-    || pollBody?.data?.[0]?.resource?.icaResponse
-    || {};
-  const nestedEntries = icaResponse?.body?.data || icaResponse?.data || [];
-  assert.ok(Array.isArray(nestedEntries), 'Host verification transaction must expose ICA verification entries as a batch-style data array.');
-  assert.ok(nestedEntries.length >= 2, 'Host verification transaction must return at least organization and legal representative verification entries.');
-  return nestedEntries;
-}
-
-function findVerificationCredential(entries, expectedTypeFragment, fallbackIndex) {
-  const byType = entries.find((entry) => {
-    const typeTokens = Array.isArray(entry?.type)
-      ? entry.type.map((token) => String(token || ''))
-      : [String(entry?.type || '')];
-    return typeTokens.some((token) => token.includes(expectedTypeFragment));
-  });
-  const selected = byType || entries[fallbackIndex];
-  const resource = selected?.resource || selected;
-  assert.ok(resource && typeof resource === 'object', `Host verification transaction must expose one '${expectedTypeFragment}' credential resource.`);
-  return resource;
-}
-
-function readCredentialTaxId(organizationCredential, legalRepresentativeCredential) {
-  const organizationSubject = Array.isArray(organizationCredential?.credentialSubject)
-    ? organizationCredential.credentialSubject[0]
-    : organizationCredential?.credentialSubject;
-  const representativeSubject = Array.isArray(legalRepresentativeCredential?.credentialSubject)
-    ? legalRepresentativeCredential.credentialSubject[0]
-    : legalRepresentativeCredential?.credentialSubject;
-  const organizationTaxId = String(organizationSubject?.taxID || organizationSubject?.taxId || '').trim();
-  const representativeTaxId = String(representativeSubject?.memberOf?.taxID || representativeSubject?.memberOf?.taxId || '').trim();
-  const resolvedTaxId = organizationTaxId || representativeTaxId;
-  assert.ok(resolvedTaxId, 'Controller live verification must expose one organization tax ID in the organization or legal representative credential.');
-  if (organizationTaxId && representativeTaxId) {
-    assert.equal(representativeTaxId, organizationTaxId, 'Organization and legal representative verification credentials must agree on the organization tax ID.');
-  }
-  return resolvedTaxId;
 }
 
 function signPreparedJwt(prepared, privateJwk, alg) {
@@ -288,10 +244,9 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
       'Host verification transaction must return one terminal bundle response type.',
     );
 
-    const verificationEntries = getVerificationCredentials(verification.poll.body || {});
-    const organizationCredential = findVerificationCredential(verificationEntries, 'Organization', 0);
-    const legalRepresentativeCredential = findVerificationCredential(verificationEntries, 'LegalRepresentative', 1);
-    const resolvedTaxId = readCredentialTaxId(organizationCredential, legalRepresentativeCredential);
+    const verificationPair = readLegalOrganizationVerificationCredentialPairFromResponseBody(verification.poll.body || {});
+    const { organizationCredential, legalRepresentativeCredential } = verificationPair;
+    const resolvedTaxId = readLegalOrganizationVerificationTaxIdFromResponseBody(verification.poll.body || {});
     const offerId = extractOfferIdFromResponseBody(verification.poll.body);
     assert.ok(offerId, 'Host verification transaction must expose one offer identifier before order confirmation.');
 

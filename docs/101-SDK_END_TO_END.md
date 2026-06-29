@@ -197,6 +197,14 @@ import {
 } from 'gdc-common-utils-ts';
 ```
 
+Research-access naming note:
+
+- in high-level developer documentation, call the twin-search consumer surface
+  `DigitalTwinSdk`
+- current executable node façade is still `ProfessionalSdk`
+- keep that distinction explicit so the 101 stays intuitive without claiming a
+  class name that is not yet published
+
 ## 5. Backend communication bootstrap
 
 This is the minimum runtime setup most backends need before calling any flow.
@@ -592,6 +600,15 @@ Use the `offerId` returned by the accepted activation result. The current SDK
 does not expose a dedicated legal-organization helper equivalent to
 `startIndividualOrganization(...).offerId`, so this guide should treat that
 value as part of the activation response contract rather than invent a wrapper.
+
+For the verification credentials returned by `_transaction`, do not copy local
+reader functions from tests anymore. Use the shared helpers from
+`gdc-common-utils-ts`:
+
+- `readLegalOrganizationVerificationCredentialPairFromResponseBody(...)`
+- `readLegalOrganizationVerificationTaxIdFromResponseBody(...)`
+- `readLegalRepresentativeSameAsFromResponseBody(...)`
+- `readLegalRepresentativeBindingFromResponseBody(...)`
 
 Once you have that `offerId`, confirm the returned offer:
 

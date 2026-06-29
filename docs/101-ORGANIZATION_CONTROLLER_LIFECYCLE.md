@@ -91,11 +91,18 @@ facades:
 - `HostOnboardingSdk.activateOrganizationInGatewayFromIcaProof(...)`
 - `OrganizationControllerSdk.confirmOrganizationLicenseOrder(...)`
 - `OrganizationControllerSdk.submitLegalOrganizationIssue(...)`
-- `recoverOrganizationControllerWithIssueWithDeps(...)`
 - `OrganizationControllerSdk.disableTenant(...)`
 - `OrganizationControllerSdk.purgeTenant(...)`
 
 If you are building a BFF, these are the methods to copy conceptually.
+
+Technical-slice note:
+
+- `recoverOrganizationControllerWithIssueWithDeps(...)` is still useful inside
+  low-level runtime tests because it composes `_issue -> _exchange -> _dcr`
+  deterministically.
+- Do not teach it as the first public integration surface; app/BFF docs should
+  start from `OrganizationControllerSdk` and `HostOnboardingSdk`.
 
 ## Minimal sequence for a BFF
 
@@ -150,6 +157,13 @@ Use the live runner when you need to validate:
 - real ICA `Organization/_transaction`,
 - real controller proof bearer validation on tenant lifecycle,
 - real host and tenant cleanup ordering.
+
+Shared credential readers now used by the live runner:
+
+- `readLegalOrganizationVerificationCredentialPairFromResponseBody(...)`
+- `readLegalOrganizationVerificationTaxIdFromResponseBody(...)`
+- `readLegalRepresentativeSameAsFromResponseBody(...)`
+- `readLegalRepresentativeBindingFromResponseBody(...)`
 
 If ICA and GW are already running, use the direct entry point instead:
 

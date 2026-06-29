@@ -45,6 +45,13 @@ type ConfirmIndividualOrganizationOrderDeps = {
 export async function confirmIndividualOrganizationOrderWithDeps(
   deps: ConfirmIndividualOrganizationOrderDeps,
 ): Promise<SubmitAndPollResult> {
+  /**
+   * Programming rule:
+   * - `offerId` here must come from the commercial individual/family bootstrap
+   *   response
+   * - this helper must not be used for embedded legacy individual registration
+   *   responses that do not mint an Offer
+   */
   const offerId = String(deps.input.offerId || '').trim();
   if (!offerId) {
     throw new Error('confirmIndividualOrganizationOrder requires offerId.');

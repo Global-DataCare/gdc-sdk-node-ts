@@ -172,6 +172,15 @@ export async function startIndividualOrganizationWithDeps(
 
   deps.assertFirstDidcommEntrySuccess?.(registration, 'startIndividualOrganization.registration');
 
+  /**
+   * Commercial contract for this SDK path:
+   * - this helper targets the family/individual commercial bootstrap flow
+   * - the registration response must expose one Offer identifier
+   * - the caller must later confirm that Offer through `Order/_batch`
+   *
+   * This helper must therefore fail fast if the underlying GW route behaves
+   * like the embedded non-commercial individual registration flow instead.
+   */
   const offerId = deps.getOfferIdFromResponse(registration);
   if (!offerId) {
     throw new Error('startIndividualOrganization failed: missing offerId in registration response.');
