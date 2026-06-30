@@ -12,7 +12,6 @@ import {
   type ResolvedAppInfo,
 } from 'gdc-sdk-core-ts';
 
-import { buildConsentClaimsSimpleWithCid } from 'gdc-common-utils-ts/utils/consent';
 import { pollUntilCompleteWithMethod } from './async-polling.js';
 import {
   confirmLegalOrganizationOrderWithDeps,
@@ -100,7 +99,6 @@ import type {
   SubmitResponse,
 } from './orchestration/client-port.js';
 import { submitAndPollWithMethods } from './orchestration/client-port.js';
-import { GwCoreLifecycleAction } from './constants/lifecycle.js';
 import {
   buildRuntimeHeaders,
   fetchWithTimeout,
@@ -115,24 +113,8 @@ import {
   submitLegalOrganizationVerificationTransactionWithDeps,
   submitOrganizationDidBindingWithDeps,
 } from './runtime-host-submission.js';
-import {
-  buildHostRegistryPath,
-  buildIdentityDeviceDcrPath,
-  buildIdentityDeviceDcrPollPath,
-  buildIdentityOpenIdSmartTokenPath,
-  buildIdentityOpenIdSmartTokenPollPath,
-  buildIdentityTokenExchangePath,
-  buildIdentityTokenExchangePollPath,
-  buildOrganizationDidBindingPath,
-  buildOrganizationDidBindingPollPath,
-  buildV1Path,
-} from './runtime-paths.js';
-import {
-  requireHostRouteContext,
-  requireRouteContext,
-  routeCtxFromInput,
-  type HostNetworkWarningState,
-} from './runtime-route-context.js';
+import { buildGrantProfessionalAccessClaimsWithCid } from './runtime-consent.js';
+import { RuntimeClientPaths } from './runtime-client-paths.js';
 import { runtimeUuid, wrapBundleAsGatewayTransactionMessage } from './runtime-message.js';
 
 const bootstrapFacade = createBootstrapFacade();
@@ -196,9 +178,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   private readonly requestTimeoutMs: number;
   private readonly httpTraceFile?: string;
   private readonly tokenCache = new Map<string, { accessToken: string; tokenType: string; scopes: string[]; expiresAt: number }>();
-  private readonly hostNetworkWarningState: HostNetworkWarningState = {
-    warnedDefaultHostNetwork: false,
-  };
+  private readonly paths: RuntimeClientPaths;
 
   private get transportConfig(): RuntimeTransportConfig {
     return {
@@ -235,6 +215,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     };
     this.requestTimeoutMs = Math.max(1, Math.floor(options.requestTimeoutMs ?? 15_000));
     this.httpTraceFile = String(process.env.SDK_HTTP_TRACE_FILE || '').trim() || undefined;
+    this.paths = new RuntimeClientPaths(this.ctx);
   }
 
   /**
@@ -263,8 +244,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * Builds a canonical GDC v1 resource/action path from a route context.
    */
   public v1Path(ctx: RouteContext | undefined, section: string, format: string, resourceType: string, action: string): string {
-    const routeCtx = this.requireRouteContext(ctx);
-    return buildV1Path(routeCtx, section, format, resourceType, action);
+    return this.paths.v1Path(ctx, section, format, resourceType, action);
   }
 
   /**
@@ -431,8 +411,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return confirmLegalOrganizationOrderWithDeps({
       input,
       hostCtx,
-      hostRegistryOrderBatchPath: this.hostRegistryOrderBatchPath.bind(this),
-      hostRegistryOrderPollPath: this.hostRegistryOrderPollPath.bind(this),
+      hostRegistryOrderBatchPath: this.paths.hostRegistryOrderBatchPath.bind(this.paths),
+      hostRegistryOrderPollPath: this.paths.hostRegistryOrderPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
       defaultTimeoutMs: pollOptions?.timeoutMs,
       defaultIntervalMs: pollOptions?.intervalMs,
@@ -452,8 +432,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       hostCtx,
       input,
       requestType: HostLifecycleRequestType.Disable,
-      submitPath: this.hostRegistryOrganizationDisablePath.bind(this),
-      pollPath: this.hostRegistryOrganizationDisablePollPath.bind(this),
+      submitPath: this.paths.hostRegistryOrganizationDisablePath.bind(this.paths),
+      pollPath: this.paths.hostRegistryOrganizationDisablePollPath.bind(this.paths),
       thidPrefix: 'host-disable',
       submitAndPoll: this.submitAndPoll.bind(this),
       defaultTimeoutMs: pollOptions?.timeoutMs,
@@ -474,8 +454,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       hostCtx,
       input,
       requestType: HostLifecycleRequestType.Purge,
-      submitPath: this.hostRegistryOrganizationPurgePath.bind(this),
-      pollPath: this.hostRegistryOrganizationPurgePollPath.bind(this),
+      submitPath: this.paths.hostRegistryOrganizationPurgePath.bind(this.paths),
+      pollPath: this.paths.hostRegistryOrganizationPurgePollPath.bind(this.paths),
       thidPrefix: 'host-purge',
       submitAndPoll: this.submitAndPoll.bind(this),
       defaultTimeoutMs: pollOptions?.timeoutMs,
@@ -496,8 +476,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       hostCtx,
       input,
       requestType: HostedTenantLifecycleRequestType.Disable,
-      submitPath: this.hostRegistryOrganizationDisablePath.bind(this),
-      pollPath: this.hostRegistryOrganizationDisablePollPath.bind(this),
+      submitPath: this.paths.hostRegistryOrganizationDisablePath.bind(this.paths),
+      pollPath: this.paths.hostRegistryOrganizationDisablePollPath.bind(this.paths),
       thidPrefix: 'tenant-disable',
       submitAndPoll: this.submitAndPoll.bind(this),
       defaultTimeoutMs: pollOptions?.timeoutMs,
@@ -517,8 +497,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       hostCtx,
       input,
       requestType: HostedTenantLifecycleRequestType.Purge,
-      submitPath: this.hostRegistryOrganizationPurgePath.bind(this),
-      pollPath: this.hostRegistryOrganizationPurgePollPath.bind(this),
+      submitPath: this.paths.hostRegistryOrganizationPurgePath.bind(this.paths),
+      pollPath: this.paths.hostRegistryOrganizationPurgePollPath.bind(this.paths),
       thidPrefix: 'tenant-purge',
       submitAndPoll: this.submitAndPoll.bind(this),
       defaultTimeoutMs: pollOptions?.timeoutMs,
@@ -531,8 +511,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    */
   public async createOrganizationEmployee(ctx: RouteContext, input: OrganizationEmployeeCreationInput, pollOptions?: PollOptions): Promise<SubmitAndPollResult> {
     return createOrganizationEmployeeWithDeps(ctx, input, pollOptions, {
-      employeeBatchPath: this.employeeBatchPath.bind(this),
-      employeePollPath: this.employeePollPath.bind(this),
+      employeeBatchPath: this.paths.employeeBatchPath.bind(this.paths),
+      employeePollPath: this.paths.employeePollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -549,8 +529,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
     return disableOrganizationEmployeeWithDeps(ctx, input, pollOptions, {
-      employeeBatchPath: this.employeeBatchPath.bind(this),
-      employeePollPath: this.employeePollPath.bind(this),
+      employeeBatchPath: this.paths.employeeBatchPath.bind(this.paths),
+      employeePollPath: this.paths.employeePollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -578,8 +558,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
     return purgeOrganizationEmployeeWithDeps(ctx, input, pollOptions, {
-      employeePurgePath: this.employeePurgePath.bind(this),
-      employeePurgePollPath: this.employeePurgePollPath.bind(this),
+      employeePurgePath: this.paths.employeePurgePath.bind(this.paths),
+      employeePurgePollPath: this.paths.employeePurgePollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -603,8 +583,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: OrganizationEmployeeSearchInput,
   ): Promise<SubmitAndPollResult> {
     return searchOrganizationEmployeesWithDeps(ctx, input, {
-      employeeSearchPath: this.employeeSearchPath.bind(this),
-      employeeSearchPollPath: this.employeeSearchPollPath.bind(this),
+      employeeSearchPath: this.paths.employeeSearchPath.bind(this.paths),
+      employeeSearchPollPath: this.paths.employeeSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -618,8 +598,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: LicenseListRuntimeSearchInput,
   ): Promise<SubmitAndPollResult> {
     return searchOrganizationLicensesWithDeps(ctx, input, {
-      organizationLicenseSearchPath: this.organizationLicenseSearchPath.bind(this),
-      organizationLicenseSearchPollPath: this.organizationLicenseSearchPollPath.bind(this),
+      organizationLicenseSearchPath: this.paths.organizationLicenseSearchPath.bind(this.paths),
+      organizationLicenseSearchPollPath: this.paths.organizationLicenseSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -633,8 +613,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: LicenseListRuntimeSearchInput = {},
   ): Promise<SubmitAndPollResult> {
     return listOrganizationLicensesWithDeps(ctx, input, {
-      organizationLicenseSearchPath: this.organizationLicenseSearchPath.bind(this),
-      organizationLicenseSearchPollPath: this.organizationLicenseSearchPollPath.bind(this),
+      organizationLicenseSearchPath: this.paths.organizationLicenseSearchPath.bind(this.paths),
+      organizationLicenseSearchPollPath: this.paths.organizationLicenseSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -644,8 +624,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: LicenseOfferRuntimeSearchInput,
   ): Promise<SubmitAndPollResult> {
     return searchOrganizationLicenseOffersWithDeps(ctx, input, {
-      organizationLicenseOfferSearchPath: this.organizationLicenseOfferSearchPath.bind(this),
-      organizationLicenseOfferSearchPollPath: this.organizationLicenseOfferSearchPollPath.bind(this),
+      organizationLicenseOfferSearchPath: this.paths.organizationLicenseOfferSearchPath.bind(this.paths),
+      organizationLicenseOfferSearchPollPath: this.paths.organizationLicenseOfferSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -655,8 +635,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: LicenseOfferRuntimeSearchInput = {},
   ): Promise<SubmitAndPollResult> {
     return listOrganizationLicenseOffersWithDeps(ctx, input, {
-      organizationLicenseOfferSearchPath: this.organizationLicenseOfferSearchPath.bind(this),
-      organizationLicenseOfferSearchPollPath: this.organizationLicenseOfferSearchPollPath.bind(this),
+      organizationLicenseOfferSearchPath: this.paths.organizationLicenseOfferSearchPath.bind(this.paths),
+      organizationLicenseOfferSearchPollPath: this.paths.organizationLicenseOfferSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -666,8 +646,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: LicenseOrderRuntimeSearchInput,
   ): Promise<SubmitAndPollResult> {
     return searchOrganizationLicenseOrdersWithDeps(ctx, input, {
-      organizationLicenseOrderSearchPath: this.organizationLicenseOrderSearchPath.bind(this),
-      organizationLicenseOrderSearchPollPath: this.organizationLicenseOrderSearchPollPath.bind(this),
+      organizationLicenseOrderSearchPath: this.paths.organizationLicenseOrderSearchPath.bind(this.paths),
+      organizationLicenseOrderSearchPollPath: this.paths.organizationLicenseOrderSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -677,8 +657,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: LicenseOrderRuntimeSearchInput = {},
   ): Promise<SubmitAndPollResult> {
     return listOrganizationLicenseOrdersWithDeps(ctx, input, {
-      organizationLicenseOrderSearchPath: this.organizationLicenseOrderSearchPath.bind(this),
-      organizationLicenseOrderSearchPollPath: this.organizationLicenseOrderSearchPollPath.bind(this),
+      organizationLicenseOrderSearchPath: this.paths.organizationLicenseOrderSearchPath.bind(this.paths),
+      organizationLicenseOrderSearchPollPath: this.paths.organizationLicenseOrderSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -703,8 +683,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       input,
       defaultTimeoutMs: pollOptions?.timeoutMs,
       defaultIntervalMs: pollOptions?.intervalMs,
-      hostRegistryOrderBatchPath: this.hostRegistryOrderBatchPath.bind(this),
-      hostRegistryOrderPollPath: this.hostRegistryOrderPollPath.bind(this),
+      hostRegistryOrderBatchPath: this.paths.hostRegistryOrderBatchPath.bind(this.paths),
+      hostRegistryOrderPollPath: this.paths.hostRegistryOrderPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -722,12 +702,12 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * GW CORE that may persist an individual record without minting an Offer.
    */
   public async startIndividualOrganization(input: IndividualOrganizationBootstrapInput): Promise<IndividualOrganizationStartResult> {
-    const routeCtx = this.routeCtxFromInput(input);
+    const routeCtx = this.paths.routeCtxFromInput(input);
     return startIndividualOrganizationWithDeps({
       input,
       routeCtx,
-      individualFamilyOrganizationBatchPath: this.individualFamilyOrganizationTransactionPath.bind(this),
-      individualFamilyOrganizationPollPath: this.individualFamilyOrganizationTransactionPollPath.bind(this),
+      individualFamilyOrganizationBatchPath: this.paths.individualFamilyOrganizationTransactionPath.bind(this.paths),
+      individualFamilyOrganizationPollPath: this.paths.individualFamilyOrganizationTransactionPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
       getOfferIdFromResponse: (result) => extractOfferIdFromResponseBody(result.poll.body),
       getOfferPreviewFromResponse: (result) => extractOfferPreviewFromResponseBody(result.poll.body),
@@ -747,8 +727,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       input,
       defaultTimeoutMs: 20_000,
       defaultIntervalMs: 1_000,
-      individualFamilyOrganizationSearchPath: this.individualFamilyOrganizationSearchPath.bind(this),
-      individualFamilyOrganizationSearchPollPath: this.individualFamilyOrganizationSearchPollPath.bind(this),
+      individualFamilyOrganizationSearchPath: this.paths.individualFamilyOrganizationSearchPath.bind(this.paths),
+      individualFamilyOrganizationSearchPollPath: this.paths.individualFamilyOrganizationSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -766,10 +746,10 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       input,
       defaultTimeoutMs: 20_000,
       defaultIntervalMs: 1_000,
-      individualFamilyOrganizationSearchPath: this.individualFamilyOrganizationSearchPath.bind(this),
-      individualFamilyOrganizationSearchPollPath: this.individualFamilyOrganizationSearchPollPath.bind(this),
-      individualFamilyOrganizationBatchPath: this.individualFamilyOrganizationTransactionPath.bind(this),
-      individualFamilyOrganizationPollPath: this.individualFamilyOrganizationTransactionPollPath.bind(this),
+      individualFamilyOrganizationSearchPath: this.paths.individualFamilyOrganizationSearchPath.bind(this.paths),
+      individualFamilyOrganizationSearchPollPath: this.paths.individualFamilyOrganizationSearchPollPath.bind(this.paths),
+      individualFamilyOrganizationBatchPath: this.paths.individualFamilyOrganizationTransactionPath.bind(this.paths),
+      individualFamilyOrganizationPollPath: this.paths.individualFamilyOrganizationTransactionPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -778,12 +758,12 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * Confirms the order returned by `startIndividualOrganization(...)`.
    */
   public async confirmIndividualOrganizationOrder(input: IndividualOrganizationConfirmOrderInput): Promise<SubmitAndPollResult> {
-    const routeCtx = this.routeCtxFromInput(input);
+    const routeCtx = this.paths.routeCtxFromInput(input);
     return confirmIndividualOrganizationOrderWithDeps({
       input,
       routeCtx,
-      individualFamilyOrderBatchPath: this.individualFamilyOrderBatchPath.bind(this),
-      individualFamilyOrderPollPath: this.individualFamilyOrderPollPath.bind(this),
+      individualFamilyOrderBatchPath: this.paths.individualFamilyOrderBatchPath.bind(this.paths),
+      individualFamilyOrderPollPath: this.paths.individualFamilyOrderPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -800,8 +780,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
     return disableIndividualOrganizationWithDeps(ctx, input, pollOptions, {
-      individualOrganizationDisablePath: this.individualFamilyOrganizationDisablePath.bind(this),
-      individualOrganizationDisablePollPath: this.individualFamilyOrganizationDisablePollPath.bind(this),
+      individualOrganizationDisablePath: this.paths.individualFamilyOrganizationDisablePath.bind(this.paths),
+      individualOrganizationDisablePollPath: this.paths.individualFamilyOrganizationDisablePollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -829,8 +809,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
     return purgeIndividualOrganizationWithDeps(ctx, input, pollOptions, {
-      individualOrganizationPurgePath: this.individualFamilyOrganizationPurgePath.bind(this),
-      individualOrganizationPurgePollPath: this.individualFamilyOrganizationPurgePollPath.bind(this),
+      individualOrganizationPurgePath: this.paths.individualFamilyOrganizationPurgePath.bind(this.paths),
+      individualOrganizationPurgePollPath: this.paths.individualFamilyOrganizationPurgePollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -856,8 +836,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
     return disableIndividualMemberWithDeps(ctx, input, pollOptions, {
-      individualRelatedPersonBatchPath: this.individualRelatedPersonBatchPath.bind(this),
-      individualRelatedPersonPollPath: this.individualRelatedPersonPollPath.bind(this),
+      individualRelatedPersonBatchPath: this.paths.individualRelatedPersonBatchPath.bind(this.paths),
+      individualRelatedPersonPollPath: this.paths.individualRelatedPersonPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -871,8 +851,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: LicenseListRuntimeSearchInput,
   ): Promise<SubmitAndPollResult> {
     return searchIndividualLicensesWithDeps(ctx, input, {
-      individualLicenseSearchPath: this.individualLicenseSearchPath.bind(this),
-      individualLicenseSearchPollPath: this.individualLicenseSearchPollPath.bind(this),
+      individualLicenseSearchPath: this.paths.individualLicenseSearchPath.bind(this.paths),
+      individualLicenseSearchPollPath: this.paths.individualLicenseSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -886,8 +866,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: LicenseListRuntimeSearchInput = {},
   ): Promise<SubmitAndPollResult> {
     return listIndividualLicensesWithDeps(ctx, input, {
-      individualLicenseSearchPath: this.individualLicenseSearchPath.bind(this),
-      individualLicenseSearchPollPath: this.individualLicenseSearchPollPath.bind(this),
+      individualLicenseSearchPath: this.paths.individualLicenseSearchPath.bind(this.paths),
+      individualLicenseSearchPollPath: this.paths.individualLicenseSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -897,8 +877,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: LicenseOfferRuntimeSearchInput,
   ): Promise<SubmitAndPollResult> {
     return searchIndividualLicenseOffersWithDeps(ctx, input, {
-      individualLicenseOfferSearchPath: this.individualLicenseOfferSearchPath.bind(this),
-      individualLicenseOfferSearchPollPath: this.individualLicenseOfferSearchPollPath.bind(this),
+      individualLicenseOfferSearchPath: this.paths.individualLicenseOfferSearchPath.bind(this.paths),
+      individualLicenseOfferSearchPollPath: this.paths.individualLicenseOfferSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -908,8 +888,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: LicenseOfferRuntimeSearchInput = {},
   ): Promise<SubmitAndPollResult> {
     return listIndividualLicenseOffersWithDeps(ctx, input, {
-      individualLicenseOfferSearchPath: this.individualLicenseOfferSearchPath.bind(this),
-      individualLicenseOfferSearchPollPath: this.individualLicenseOfferSearchPollPath.bind(this),
+      individualLicenseOfferSearchPath: this.paths.individualLicenseOfferSearchPath.bind(this.paths),
+      individualLicenseOfferSearchPollPath: this.paths.individualLicenseOfferSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -919,8 +899,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: LicenseOrderRuntimeSearchInput,
   ): Promise<SubmitAndPollResult> {
     return searchIndividualLicenseOrdersWithDeps(ctx, input, {
-      individualLicenseOrderSearchPath: this.individualLicenseOrderSearchPath.bind(this),
-      individualLicenseOrderSearchPollPath: this.individualLicenseOrderSearchPollPath.bind(this),
+      individualLicenseOrderSearchPath: this.paths.individualLicenseOrderSearchPath.bind(this.paths),
+      individualLicenseOrderSearchPollPath: this.paths.individualLicenseOrderSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -930,8 +910,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: LicenseOrderRuntimeSearchInput = {},
   ): Promise<SubmitAndPollResult> {
     return listIndividualLicenseOrdersWithDeps(ctx, input, {
-      individualLicenseOrderSearchPath: this.individualLicenseOrderSearchPath.bind(this),
-      individualLicenseOrderSearchPollPath: this.individualLicenseOrderSearchPollPath.bind(this),
+      individualLicenseOrderSearchPath: this.paths.individualLicenseOrderSearchPath.bind(this.paths),
+      individualLicenseOrderSearchPollPath: this.paths.individualLicenseOrderSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -948,8 +928,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
     return purgeIndividualMemberWithDeps(ctx, input, pollOptions, {
-      individualRelatedPersonPurgePath: this.individualRelatedPersonPurgePath.bind(this),
-      individualRelatedPersonPurgePollPath: this.individualRelatedPersonPurgePollPath.bind(this),
+      individualRelatedPersonPurgePath: this.paths.individualRelatedPersonPurgePath.bind(this.paths),
+      individualRelatedPersonPurgePollPath: this.paths.individualRelatedPersonPurgePollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -963,8 +943,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   ): Promise<GrantProfessionalAccessResult> {
     return grantProfessionalAccessWithDeps(ctx, input, {
       buildConsentClaimsWithCid: this.buildConsentClaimsWithCid.bind(this),
-      individualConsentR4BatchPath: this.individualConsentR4BatchPath.bind(this),
-      individualConsentR4PollPath: this.individualConsentR4PollPath.bind(this),
+      individualConsentR4BatchPath: this.paths.individualConsentR4BatchPath.bind(this.paths),
+      individualConsentR4PollPath: this.paths.individualConsentR4PollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -978,8 +958,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: RevokeProfessionalAccessInput,
   ): Promise<RevokeProfessionalAccessResult> {
     return revokeProfessionalAccessWithDeps(ctx, input, {
-      individualConsentR4BatchPath: this.individualConsentR4BatchPath.bind(this),
-      individualConsentR4PollPath: this.individualConsentR4PollPath.bind(this),
+      individualConsentR4BatchPath: this.paths.individualConsentR4BatchPath.bind(this.paths),
+      individualConsentR4PollPath: this.paths.individualConsentR4PollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -993,17 +973,17 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * the default client route context configured in the constructor.
    */
   public async requestSmartToken(input: SmartTokenRequestInput): Promise<SmartTokenExchangeResult> {
-    const routeCtx = this.routeCtxFromInput(input);
+    const routeCtx = this.paths.routeCtxFromInput(input);
     return requestSmartTokenWithDeps({
       input,
       routeCtx,
       baseUrl: this.baseUrl,
       defaultTimeoutMs: undefined,
       defaultIntervalMs: undefined,
-      identityTokenExchangePath: this.identityTokenExchangePath.bind(this),
-      identityTokenExchangePollPath: this.identityTokenExchangePollPath.bind(this),
-      identityOpenIdSmartTokenPath: this.identityOpenIdSmartTokenPath.bind(this),
-      identityOpenIdSmartTokenPollPath: this.identityOpenIdSmartTokenPollPath.bind(this),
+      identityTokenExchangePath: this.paths.identityTokenExchangePath.bind(this.paths),
+      identityTokenExchangePollPath: this.paths.identityTokenExchangePollPath.bind(this.paths),
+      identityOpenIdSmartTokenPath: this.paths.identityOpenIdSmartTokenPath.bind(this.paths),
+      identityOpenIdSmartTokenPollPath: this.paths.identityOpenIdSmartTokenPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
       setTokenCache: (tokenCacheKey, token) => this.tokenCache.set(tokenCacheKey, token),
     });
@@ -1018,8 +998,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: RelatedPersonUpsertInput,
   ): Promise<SubmitAndPollResult> {
     return upsertRelatedPersonAndPollWithDeps(ctx, input, {
-      individualRelatedPersonBatchPath: this.individualRelatedPersonBatchPath.bind(this),
-      individualRelatedPersonPollPath: this.individualRelatedPersonPollPath.bind(this),
+      individualRelatedPersonBatchPath: this.paths.individualRelatedPersonBatchPath.bind(this.paths),
+      individualRelatedPersonPollPath: this.paths.individualRelatedPersonPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -1036,8 +1016,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: CommunicationIngestionInput,
   ): Promise<SubmitAndPollResult> {
     return ingestCommunicationAndUpdateIndexWithDeps(ctx, input, {
-      individualCommunicationBatchPath: this.individualCommunicationBatchPath.bind(this),
-      individualCommunicationPollPath: this.individualCommunicationPollPath.bind(this),
+      individualCommunicationBatchPath: this.paths.individualCommunicationBatchPath.bind(this.paths),
+      individualCommunicationPollPath: this.paths.individualCommunicationPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -1051,8 +1031,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: CommunicationParticipantRuntimeSearchInput,
   ): Promise<SubmitAndPollResult> {
     return searchCommunicationParticipantsWithDeps(ctx, input, {
-      communicationSearchPath: this.individualCommunicationSearchPath.bind(this),
-      communicationSearchPollPath: this.individualCommunicationSearchPollPath.bind(this),
+      communicationSearchPath: this.paths.individualCommunicationSearchPath.bind(this.paths),
+      communicationSearchPollPath: this.paths.individualCommunicationSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -1081,8 +1061,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: ClinicalBundleSearchInput,
   ): Promise<SubmitAndPollResult> {
     return searchClinicalBundleWithDeps(ctx, input, {
-      bundleSearchPath: this.individualBundleSearchPath.bind(this),
-      bundleSearchPollPath: this.individualBundleSearchPollPath.bind(this),
+      bundleSearchPath: this.paths.individualBundleSearchPath.bind(this.paths),
+      bundleSearchPollPath: this.paths.individualBundleSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
@@ -1138,26 +1118,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     consentClaims: Record<string, unknown>;
     claimsCid?: string;
   } {
-    return buildConsentClaimsSimpleWithCid(
-      {
-        subjectDid: input.subjectDid,
-        subjectPhone: input.subjectPhone,
-        subjectGivenName: input.subjectGivenName,
-        actor: input.actorId ?? input.actor ?? '',
-        actorRole: String(input?.actorRole || ''),
-        purpose: String(input?.purpose || ''),
-        actions: Array.isArray(input?.actions) ? input.actions : [],
-        consentIdentifier: input.consentIdentifier,
-        consentDate: input.consentDate,
-        decision: input.decision,
-        attachmentContentType: input.attachmentContentType,
-        attachmentBase64: input.attachmentBase64,
-      },
-      {
-        errorPrefix: 'grantProfessionalAccess:',
-        consentIdentifierFactory: () => `urn:uuid:${runtimeUuid()}`,
-      },
-    );
+    return buildGrantProfessionalAccessClaimsWithCid(input, runtimeUuid);
   }
 
   private async pollBatchResponse(path: string, request: { thid: string }): Promise<{ status: number; body: unknown; retryAfterMs?: number }> {
@@ -1180,14 +1141,6 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return parseResponseBody(response);
   }
 
-  private requireRouteContext(ctx?: RouteContext): RouteContext {
-    return requireRouteContext(ctx, this.ctx);
-  }
-
-  private routeCtxFromInput(input: { serviceProviderDid?: string; tenantId?: string; jurisdiction?: string; sector?: string }): RouteContext {
-    return routeCtxFromInput(input, this.ctx);
-  }
-
   /**
    * Reuses the shared bundle business contract while keeping attachment
    * transport fields at the DIDComm/plaintext message layer expected by GW.
@@ -1196,108 +1149,68 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return wrapBundleAsGatewayTransactionMessage(input);
   }
 
-  private hostRegistryPath(ctx: HostRouteContext | undefined, resourceType: string, action: string): string {
-    const hostCtx = this.requireHostRouteContext(ctx);
-    return buildHostRegistryPath(hostCtx, resourceType, action);
-  }
-  /**
-   * Resolves the host route segment without allowing tenant-route `sector`
-   * semantics to leak into host onboarding.
-   *
-   * Step by step:
-   * - host routes use `/host/cds-{jurisdiction}/v1/{host-network}`
-   * - tenant routes use `/{tenantId}/cds-{jurisdiction}/v1/{tenant-sector}`
-   * - passing the host segment under `sector` is rejected because that name is
-   *   reserved for tenant business sectors such as `health-care`
-   * - compatibility code may still pass `hostNetworkOrTenantSector`, but the
-   *   value must still be one of the allowed host runtime/network selectors
-   */
-  private requireHostRouteContext(ctx?: HostRouteContext): HostRouteContext {
-    return requireHostRouteContext(ctx, {
-      defaultJurisdiction: this.ctx?.jurisdiction,
-      warningState: this.hostNetworkWarningState,
-      warn: (message: string) => console.warn(message),
-    });
-  }
-
-  public hostRegistryOrganizationTransactionPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.Transaction); }
-  public hostRegistryOrganizationTransactionPollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.TransactionResponse); }
-  public hostRegistryOrganizationIssuePath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.Issue); }
-  public hostRegistryOrganizationIssuePollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.IssueResponse); }
-  public hostRegistryOrganizationActivatePath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', '_activate'); }
-  public hostRegistryOrganizationActivatePollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', '_activate-response'); }
-  public hostRegistryOrganizationDisablePath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.Disable); }
-  public hostRegistryOrganizationDisablePollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', `${GwCoreLifecycleAction.Disable}-response`); }
-  public hostRegistryOrganizationPurgePath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.Purge); }
-  public hostRegistryOrganizationPurgePollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', `${GwCoreLifecycleAction.Purge}-response`); }
-  public hostRegistryOrderBatchPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Order', '_batch'); }
-  public hostRegistryOrderPollPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Order', '_batch-response'); }
-  public employeeBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', GwCoreLifecycleAction.Batch); }
-  public employeePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', GwCoreLifecycleAction.BatchResponse); }
-  public employeeSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', '_search'); }
-  public employeeSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', '_search-response'); }
-  public organizationLicenseSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'License', '_search'); }
-  public organizationLicenseSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'License', '_search-response'); }
-  public organizationDidBindingPath(ctx?: RouteContext): string {
-    return buildOrganizationDidBindingPath(this.requireRouteContext(ctx));
-  }
-  public organizationDidBindingPollPath(ctx?: RouteContext): string {
-    return buildOrganizationDidBindingPollPath(this.requireRouteContext(ctx));
-  }
-  public organizationLicenseOfferSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Offer', '_search'); }
-  public organizationLicenseOfferSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Offer', '_search-response'); }
-  public organizationLicenseOrderSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Order', '_search'); }
-  public organizationLicenseOrderSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Order', '_search-response'); }
-  public employeePurgePath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', GwCoreLifecycleAction.Purge); }
-  public employeePurgePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', `${GwCoreLifecycleAction.Purge}-response`); }
-  public individualFamilyOrganizationBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.Batch); }
-  public individualFamilyOrganizationPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.BatchResponse); }
-  public individualFamilyOrganizationSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', '_search'); }
-  public individualFamilyOrganizationSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', '_search-response'); }
-  public individualFamilyOrganizationTransactionPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.Transaction); }
-  public individualFamilyOrganizationTransactionPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.TransactionResponse); }
-  public individualFamilyOrganizationDisablePath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.Disable); }
-  public individualFamilyOrganizationDisablePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', `${GwCoreLifecycleAction.Disable}-response`); }
-  public individualFamilyOrganizationPurgePath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', GwCoreLifecycleAction.Purge); }
-  public individualFamilyOrganizationPurgePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', `${GwCoreLifecycleAction.Purge}-response`); }
-  public individualLicenseSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'License', '_search'); }
-  public individualLicenseSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'License', '_search-response'); }
-  public individualLicenseOfferSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Offer', '_search'); }
-  public individualLicenseOfferSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Offer', '_search-response'); }
-  public individualLicenseOrderSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Order', '_search'); }
-  public individualLicenseOrderSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Order', '_search-response'); }
-  public individualFamilyOrderBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Order', '_batch'); }
-  public individualFamilyOrderPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Order', '_batch-response'); }
-  public individualRelatedPersonBatchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'RelatedPerson', '_batch'); }
-  public individualRelatedPersonPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'RelatedPerson', '_batch-response'); }
-  public individualRelatedPersonPurgePath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'RelatedPerson', '_purge'); }
-  public individualRelatedPersonPurgePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'RelatedPerson', '_purge-response'); }
-  public individualConsentR4BatchPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Consent', '_batch'); }
-  public individualConsentR4PollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Consent', '_batch-response'); }
-  public individualCommunicationBatchPath(ctx: RouteContext, format: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4'): string { return this.v1Path(ctx, 'individual', format, 'Communication', '_batch'); }
-  public individualCommunicationPollPath(ctx: RouteContext, format: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4'): string { return this.v1Path(ctx, 'individual', format, 'Communication', '_batch-response'); }
-  public individualCommunicationSearchPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Communication', '_search'); }
-  public individualCommunicationSearchPollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Communication', '_search-response'); }
-  public individualBundleSearchPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Bundle', '_search'); }
-  public individualBundleSearchPollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Bundle', '_search-response'); }
-  public identityTokenExchangePath(ctx: RouteContext): string {
-    return buildIdentityTokenExchangePath(ctx);
-  }
-  public identityTokenExchangePollPath(ctx: RouteContext): string {
-    return buildIdentityTokenExchangePollPath(ctx);
-  }
-  public identityDeviceDcrPath(ctx: RouteContext): string {
-    return buildIdentityDeviceDcrPath(ctx);
-  }
-  public identityDeviceDcrPollPath(ctx: RouteContext): string {
-    return buildIdentityDeviceDcrPollPath(ctx);
-  }
-  public identityOpenIdSmartTokenPath(ctx: RouteContext): string {
-    return buildIdentityOpenIdSmartTokenPath(ctx);
-  }
-  public identityOpenIdSmartTokenPollPath(ctx: RouteContext): string {
-    return buildIdentityOpenIdSmartTokenPollPath(ctx);
-  }
+  public hostRegistryOrganizationTransactionPath(ctx?: HostRouteContext): string { return this.paths.hostRegistryOrganizationTransactionPath(ctx); }
+  public hostRegistryOrganizationTransactionPollPath(ctx?: HostRouteContext): string { return this.paths.hostRegistryOrganizationTransactionPollPath(ctx); }
+  public hostRegistryOrganizationIssuePath(ctx?: HostRouteContext): string { return this.paths.hostRegistryOrganizationIssuePath(ctx); }
+  public hostRegistryOrganizationIssuePollPath(ctx?: HostRouteContext): string { return this.paths.hostRegistryOrganizationIssuePollPath(ctx); }
+  public hostRegistryOrganizationActivatePath(ctx?: HostRouteContext): string { return this.paths.hostRegistryOrganizationActivatePath(ctx); }
+  public hostRegistryOrganizationActivatePollPath(ctx?: HostRouteContext): string { return this.paths.hostRegistryOrganizationActivatePollPath(ctx); }
+  public hostRegistryOrganizationDisablePath(ctx?: HostRouteContext): string { return this.paths.hostRegistryOrganizationDisablePath(ctx); }
+  public hostRegistryOrganizationDisablePollPath(ctx?: HostRouteContext): string { return this.paths.hostRegistryOrganizationDisablePollPath(ctx); }
+  public hostRegistryOrganizationPurgePath(ctx?: HostRouteContext): string { return this.paths.hostRegistryOrganizationPurgePath(ctx); }
+  public hostRegistryOrganizationPurgePollPath(ctx?: HostRouteContext): string { return this.paths.hostRegistryOrganizationPurgePollPath(ctx); }
+  public hostRegistryOrderBatchPath(ctx?: HostRouteContext): string { return this.paths.hostRegistryOrderBatchPath(ctx); }
+  public hostRegistryOrderPollPath(ctx?: HostRouteContext): string { return this.paths.hostRegistryOrderPollPath(ctx); }
+  public employeeBatchPath(ctx?: RouteContext): string { return this.paths.employeeBatchPath(ctx); }
+  public employeePollPath(ctx?: RouteContext): string { return this.paths.employeePollPath(ctx); }
+  public employeeSearchPath(ctx?: RouteContext): string { return this.paths.employeeSearchPath(ctx); }
+  public employeeSearchPollPath(ctx?: RouteContext): string { return this.paths.employeeSearchPollPath(ctx); }
+  public organizationLicenseSearchPath(ctx?: RouteContext): string { return this.paths.organizationLicenseSearchPath(ctx); }
+  public organizationLicenseSearchPollPath(ctx?: RouteContext): string { return this.paths.organizationLicenseSearchPollPath(ctx); }
+  public organizationDidBindingPath(ctx?: RouteContext): string { return this.paths.organizationDidBindingPath(ctx); }
+  public organizationDidBindingPollPath(ctx?: RouteContext): string { return this.paths.organizationDidBindingPollPath(ctx); }
+  public organizationLicenseOfferSearchPath(ctx?: RouteContext): string { return this.paths.organizationLicenseOfferSearchPath(ctx); }
+  public organizationLicenseOfferSearchPollPath(ctx?: RouteContext): string { return this.paths.organizationLicenseOfferSearchPollPath(ctx); }
+  public organizationLicenseOrderSearchPath(ctx?: RouteContext): string { return this.paths.organizationLicenseOrderSearchPath(ctx); }
+  public organizationLicenseOrderSearchPollPath(ctx?: RouteContext): string { return this.paths.organizationLicenseOrderSearchPollPath(ctx); }
+  public employeePurgePath(ctx?: RouteContext): string { return this.paths.employeePurgePath(ctx); }
+  public employeePurgePollPath(ctx?: RouteContext): string { return this.paths.employeePurgePollPath(ctx); }
+  public individualFamilyOrganizationBatchPath(ctx?: RouteContext): string { return this.paths.individualFamilyOrganizationBatchPath(ctx); }
+  public individualFamilyOrganizationPollPath(ctx?: RouteContext): string { return this.paths.individualFamilyOrganizationPollPath(ctx); }
+  public individualFamilyOrganizationSearchPath(ctx?: RouteContext): string { return this.paths.individualFamilyOrganizationSearchPath(ctx); }
+  public individualFamilyOrganizationSearchPollPath(ctx?: RouteContext): string { return this.paths.individualFamilyOrganizationSearchPollPath(ctx); }
+  public individualFamilyOrganizationTransactionPath(ctx?: RouteContext): string { return this.paths.individualFamilyOrganizationTransactionPath(ctx); }
+  public individualFamilyOrganizationTransactionPollPath(ctx?: RouteContext): string { return this.paths.individualFamilyOrganizationTransactionPollPath(ctx); }
+  public individualFamilyOrganizationDisablePath(ctx?: RouteContext): string { return this.paths.individualFamilyOrganizationDisablePath(ctx); }
+  public individualFamilyOrganizationDisablePollPath(ctx?: RouteContext): string { return this.paths.individualFamilyOrganizationDisablePollPath(ctx); }
+  public individualFamilyOrganizationPurgePath(ctx?: RouteContext): string { return this.paths.individualFamilyOrganizationPurgePath(ctx); }
+  public individualFamilyOrganizationPurgePollPath(ctx?: RouteContext): string { return this.paths.individualFamilyOrganizationPurgePollPath(ctx); }
+  public individualLicenseSearchPath(ctx?: RouteContext): string { return this.paths.individualLicenseSearchPath(ctx); }
+  public individualLicenseSearchPollPath(ctx?: RouteContext): string { return this.paths.individualLicenseSearchPollPath(ctx); }
+  public individualLicenseOfferSearchPath(ctx?: RouteContext): string { return this.paths.individualLicenseOfferSearchPath(ctx); }
+  public individualLicenseOfferSearchPollPath(ctx?: RouteContext): string { return this.paths.individualLicenseOfferSearchPollPath(ctx); }
+  public individualLicenseOrderSearchPath(ctx?: RouteContext): string { return this.paths.individualLicenseOrderSearchPath(ctx); }
+  public individualLicenseOrderSearchPollPath(ctx?: RouteContext): string { return this.paths.individualLicenseOrderSearchPollPath(ctx); }
+  public individualFamilyOrderBatchPath(ctx?: RouteContext): string { return this.paths.individualFamilyOrderBatchPath(ctx); }
+  public individualFamilyOrderPollPath(ctx?: RouteContext): string { return this.paths.individualFamilyOrderPollPath(ctx); }
+  public individualRelatedPersonBatchPath(ctx?: RouteContext): string { return this.paths.individualRelatedPersonBatchPath(ctx); }
+  public individualRelatedPersonPollPath(ctx?: RouteContext): string { return this.paths.individualRelatedPersonPollPath(ctx); }
+  public individualRelatedPersonPurgePath(ctx?: RouteContext): string { return this.paths.individualRelatedPersonPurgePath(ctx); }
+  public individualRelatedPersonPurgePollPath(ctx?: RouteContext): string { return this.paths.individualRelatedPersonPurgePollPath(ctx); }
+  public individualConsentR4BatchPath(ctx: RouteContext): string { return this.paths.individualConsentR4BatchPath(ctx); }
+  public individualConsentR4PollPath(ctx: RouteContext): string { return this.paths.individualConsentR4PollPath(ctx); }
+  public individualCommunicationBatchPath(ctx: RouteContext, format: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4'): string { return this.paths.individualCommunicationBatchPath(ctx, format); }
+  public individualCommunicationPollPath(ctx: RouteContext, format: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4'): string { return this.paths.individualCommunicationPollPath(ctx, format); }
+  public individualCommunicationSearchPath(ctx: RouteContext): string { return this.paths.individualCommunicationSearchPath(ctx); }
+  public individualCommunicationSearchPollPath(ctx: RouteContext): string { return this.paths.individualCommunicationSearchPollPath(ctx); }
+  public individualBundleSearchPath(ctx: RouteContext): string { return this.paths.individualBundleSearchPath(ctx); }
+  public individualBundleSearchPollPath(ctx: RouteContext): string { return this.paths.individualBundleSearchPollPath(ctx); }
+  public identityTokenExchangePath(ctx: RouteContext): string { return this.paths.identityTokenExchangePath(ctx); }
+  public identityTokenExchangePollPath(ctx: RouteContext): string { return this.paths.identityTokenExchangePollPath(ctx); }
+  public identityDeviceDcrPath(ctx: RouteContext): string { return this.paths.identityDeviceDcrPath(ctx); }
+  public identityDeviceDcrPollPath(ctx: RouteContext): string { return this.paths.identityDeviceDcrPollPath(ctx); }
+  public identityOpenIdSmartTokenPath(ctx: RouteContext): string { return this.paths.identityOpenIdSmartTokenPath(ctx); }
+  public identityOpenIdSmartTokenPollPath(ctx: RouteContext): string { return this.paths.identityOpenIdSmartTokenPollPath(ctx); }
 }
 
 /**
