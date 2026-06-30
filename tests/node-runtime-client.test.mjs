@@ -191,6 +191,55 @@ test('NodeHttpClient exposes current GW CORE lifecycle paths for individual and 
   );
 });
 
+test('NodeHttpClient rejects deprecated host sector alias for host registry routes', () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+  });
+
+  assert.throws(
+    () => client.hostRegistryOrderBatchPath({ jurisdiction: 'ES', sector: 'health-care' }),
+    /must use 'hostNetwork', not 'sector'/,
+  );
+});
+
+test('NodeHttpClient rejects business-sector values passed as hostNetwork', () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+  });
+
+  assert.throws(
+    () => client.hostRegistryOrderBatchPath({ jurisdiction: 'ES', hostNetwork: 'health-care' }),
+    /Invalid hostNetwork 'health-care'/,
+  );
+});
+
+test("NodeHttpClient defaults missing hostNetwork to 'test' and warns once", () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+  });
+  const originalWarn = console.warn;
+  const warnings = [];
+  console.warn = (...args) => {
+    warnings.push(args.map((value) => String(value)).join(' '));
+  };
+
+  try {
+    assert.equal(
+      client.hostRegistryOrderBatchPath({ jurisdiction: 'ES' }),
+      '/host/cds-ES/v1/test/registry/org.schema/Order/_batch',
+    );
+    assert.equal(
+      client.hostRegistryOrganizationActivatePath({ jurisdiction: 'ES' }),
+      '/host/cds-ES/v1/test/registry/org.schema/Organization/_activate',
+    );
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /Defaulting to 'test'/);
+});
+
 test('NodeHttpClient searches organization-owned license seats through License/_search', async () => {
   const client = new NodeHttpClient({
     baseUrl: 'https://gw.example.org',

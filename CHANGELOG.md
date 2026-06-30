@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-06-30
+
+### Changed
+- Hardened host-registry routing in the Node runtime client so host onboarding
+  and host commercial confirmation no longer silently reuse tenant business
+  sectors such as `health-care` as host path segments:
+  - host routes now require canonical `hostNetwork` semantics
+  - deprecated `sector` input on host routes now fails fast with a clear error
+  - invalid business-sector values passed as `hostNetwork` now fail fast
+  - missing `hostNetwork` falls back to `test` with a one-time `console.warn`
+    to preserve short-term compatibility while making the drift visible
+  in:
+  - `src/node-runtime-client.ts`
+  - `tests/node-runtime-client.test.mjs`
+- Updated host-oriented SDK tests and live examples to use `hostNetwork`
+  instead of the ambiguous legacy `sector` alias for host registry routes:
+  - `tests/host-onboarding.test.mjs`
+  - `tests/orchestration.test.mjs`
+  - `tests/101-organization-controller-lifecycle.live.test.mjs`
+  - `tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
+
 ## [2.1.0] - 2026-06-30
 
 ### Changed

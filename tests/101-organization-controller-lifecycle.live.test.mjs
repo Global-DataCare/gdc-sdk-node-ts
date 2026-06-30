@@ -167,7 +167,7 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
   const profiler = createStepProfiler(debug, 'live-controller-lifecycle');
   const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
   const pollOptions = createLivePollOptions();
-  const hostCtx = { jurisdiction: suiteJurisdiction, sector: suiteHostSector };
+  const hostCtx = { jurisdiction: suiteJurisdiction, hostNetwork: suiteHostSector };
   const tenantCtx = { tenantId: suiteTenantRouteId, jurisdiction: suiteJurisdiction, sector: suiteSector };
   const controllerEmail = env('CONTROLLER_EMAIL', `controller+${runSlug}@example.com`);
   const serviceIdentifierDid = env('SERVICE_IDENTIFIER_DID', 'did:web:provider.example.org');

@@ -173,6 +173,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   private readonly requestTimeoutMs: number;
   private readonly httpTraceFile?: string;
   private readonly tokenCache = new Map<string, { accessToken: string; tokenType: string; scopes: string[]; expiresAt: number }>();
+  private warnedDefaultHostNetwork = false;
 
   /**
    * @param options.baseUrl Gateway base URL without trailing slash.
@@ -1305,16 +1306,16 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return `/host/cds-${encodeURIComponent(hostCtx.jurisdiction)}/v1/${encodeURIComponent(hostCtx.hostNetwork || '')}/registry/org.schema/${encodeURIComponent(resourceType)}/${encodeURIComponent(action)}`;
   }
   /**
-   * Resolves the host route segment without forcing callers to remember whether
-   * the same raw string is named `hostNetwork` or `sector` in a given layer.
+   * Resolves the host route segment without allowing tenant-route `sector`
+   * semantics to leak into host onboarding.
    *
    * Step by step:
    * - host routes use `/host/cds-{jurisdiction}/v1/{host-network}`
    * - tenant routes use `/{tenantId}/cds-{jurisdiction}/v1/{tenant-sector}`
-   * - older live tests and adapters sometimes passed the host segment under
-   *   `sector`, which is semantically wrong for host routes
-   * - new code should prefer `hostNetwork`
-   * - compatibility code may pass `hostNetworkOrTenantSector`
+   * - passing the host segment under `sector` is rejected because that name is
+   *   reserved for tenant business sectors such as `health-care`
+   * - compatibility code may still pass `hostNetworkOrTenantSector`, but the
+   *   value must still be one of the allowed host runtime/network selectors
    */
   private requireHostRouteContext(ctx?: HostRouteContext): HostRouteContext {
     const hostCtx = (ctx || {}) as HostRouteContext & { hostNetworkOrTenantSector?: string };
@@ -1325,17 +1326,48 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       hostNetworkOrTenantSector?: string;
     };
     const jurisdiction = String(hostCtx.jurisdiction || this.ctx?.jurisdiction || '').trim();
-    const hostNetwork = String(
-      hostCtx.hostNetwork
-      || hostCtx.hostNetworkOrTenantSector
-      || hostCtx.sector
-      || runtimeCtx.hostNetwork
+    const explicitHostNetwork = String(hostCtx.hostNetwork || runtimeCtx.hostNetwork || '').trim();
+    const compatibilityHostNetwork = String(
+      hostCtx.hostNetworkOrTenantSector
       || runtimeCtx.hostNetworkOrTenantSector
-      || runtimeCtx.sector
       || '',
     ).trim();
-    if (!jurisdiction || !hostNetwork) throw new Error('Host route context is required.');
+    const deprecatedSector = String(hostCtx.sector || '').trim();
+    if (!explicitHostNetwork && !compatibilityHostNetwork && deprecatedSector) {
+      throw new Error(
+        `Host route context must use 'hostNetwork', not 'sector'. Received deprecated sector='${deprecatedSector}'.`,
+      );
+    }
+    const hostNetwork = String(
+      explicitHostNetwork
+      || compatibilityHostNetwork
+      || '',
+    ).trim();
+    if (!jurisdiction) throw new Error('Host route context is required.');
+    if (!hostNetwork) {
+      if (!this.warnedDefaultHostNetwork) {
+        this.warnedDefaultHostNetwork = true;
+        console.warn(
+          "[gdc-sdk-node-ts] Missing hostNetwork in host route context. Defaulting to 'test'. Pass hostNetwork explicitly to avoid environment drift.",
+        );
+      }
+      return { jurisdiction, hostNetwork: 'test' };
+    }
+    if (!this.isSupportedHostNetwork(hostNetwork)) {
+      throw new Error(
+        `Invalid hostNetwork '${hostNetwork}'. Allowed values: test, local-network, test-network, network.`,
+      );
+    }
     return { jurisdiction, hostNetwork };
+  }
+
+  private isSupportedHostNetwork(value: string): boolean {
+    return (
+      value === 'test'
+      || value === 'local-network'
+      || value === 'test-network'
+      || value === 'network'
+    );
   }
 
   public hostRegistryOrganizationTransactionPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.Transaction); }

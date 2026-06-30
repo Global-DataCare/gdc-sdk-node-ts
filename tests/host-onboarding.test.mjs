@@ -54,8 +54,8 @@ test('confirmLegalOrganizationOrderWithDeps builds canonical order payload and r
   const result = await confirmLegalOrganizationOrderWithDeps({
     input: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_ORDER_INPUT),
     hostCtx: cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT),
-    hostRegistryOrderBatchPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.sector}/order/_batch`,
-    hostRegistryOrderPollPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.sector}/order/_batch-response`,
+    hostRegistryOrderBatchPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.hostNetwork}/order/_batch`,
+    hostRegistryOrderPollPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.hostNetwork}/order/_batch-response`,
     submitAndPoll: async (...args) => {
       calls.push(args);
       return cloneExample(EXAMPLE_LEGAL_ORGANIZATION_ORDER_RESPONSE);
@@ -63,8 +63,8 @@ test('confirmLegalOrganizationOrderWithDeps builds canonical order payload and r
   });
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0][0], `/host/${EXAMPLE_HOST_ROUTE_CONTEXT.jurisdiction}/${EXAMPLE_HOST_ROUTE_CONTEXT.sector}/order/_batch`);
-  assert.equal(calls[0][1], `/host/${EXAMPLE_HOST_ROUTE_CONTEXT.jurisdiction}/${EXAMPLE_HOST_ROUTE_CONTEXT.sector}/order/_batch-response`);
+  assert.equal(calls[0][0], `/host/${EXAMPLE_HOST_ROUTE_CONTEXT.jurisdiction}/${EXAMPLE_HOST_ROUTE_CONTEXT.hostNetwork}/order/_batch`);
+  assert.equal(calls[0][1], `/host/${EXAMPLE_HOST_ROUTE_CONTEXT.jurisdiction}/${EXAMPLE_HOST_ROUTE_CONTEXT.hostNetwork}/order/_batch-response`);
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['Order.acceptedOffer.identifier'], 'offer-123');
   assert.deepEqual(calls[0][3], {
     timeoutMs: 12_000,
@@ -99,8 +99,8 @@ test('submitHostedTenantLifecycleWithDeps builds canonical host disable payload 
       intervalSeconds: 3,
     },
     requestType: HostLifecycleRequestType.Disable,
-    submitPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.sector}/organization/_disable`,
-    pollPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.sector}/organization/_disable-response`,
+    submitPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.hostNetwork}/organization/_disable`,
+    pollPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.hostNetwork}/organization/_disable-response`,
     thidPrefix: 'host-disable',
     submitAndPoll: async (...args) => {
       calls.push(args);
@@ -109,8 +109,8 @@ test('submitHostedTenantLifecycleWithDeps builds canonical host disable payload 
   });
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0][0], `/host/${EXAMPLE_HOST_ROUTE_CONTEXT.jurisdiction}/${EXAMPLE_HOST_ROUTE_CONTEXT.sector}/organization/_disable`);
-  assert.equal(calls[0][1], `/host/${EXAMPLE_HOST_ROUTE_CONTEXT.jurisdiction}/${EXAMPLE_HOST_ROUTE_CONTEXT.sector}/organization/_disable-response`);
+  assert.equal(calls[0][0], `/host/${EXAMPLE_HOST_ROUTE_CONTEXT.jurisdiction}/${EXAMPLE_HOST_ROUTE_CONTEXT.hostNetwork}/organization/_disable`);
+  assert.equal(calls[0][1], `/host/${EXAMPLE_HOST_ROUTE_CONTEXT.jurisdiction}/${EXAMPLE_HOST_ROUTE_CONTEXT.hostNetwork}/organization/_disable-response`);
   assert.equal(calls[0][2].body.data[0].type, HostLifecycleRequestType.Disable);
   assert.equal(
     calls[0][2].body.data[0].resource.meta.claims[ClaimsOrganizationSchemaorg.identifierValue],
@@ -134,8 +134,8 @@ test('submitHostedTenantLifecycleWithDeps builds canonical host purge payload an
       organizationEditor,
     },
     requestType: HostLifecycleRequestType.Purge,
-    submitPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.sector}/organization/_purge`,
-    pollPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.sector}/organization/_purge-response`,
+    submitPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.hostNetwork}/organization/_purge`,
+    pollPath: (ctx) => `/host/${ctx.jurisdiction}/${ctx.hostNetwork}/organization/_purge-response`,
     thidPrefix: 'host-purge',
     submitAndPoll: async (...args) => {
       calls.push(args);
