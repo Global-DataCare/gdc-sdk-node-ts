@@ -66,6 +66,34 @@ test('requestSmartTokenWithDeps uses openid-smart flow when requested', async ()
   assert.equal(result.accessToken, 'smart-token-openid-001');
 });
 
+test('requestSmartTokenWithDeps can auto-build client_assertion for openid-smart flow', async () => {
+  const calls = [];
+  await requestSmartTokenWithDeps({
+    input: {
+      ...cloneExample(EXAMPLE_OPENID_SMART_TOKEN_INPUT),
+      clientAssertionBuilder: {
+        algorithm: 'ES256',
+      },
+    },
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    baseUrl: 'http://localhost:3000',
+    identityTokenExchangePath: () => '/unused',
+    identityTokenExchangePollPath: () => '/unused',
+    identityOpenIdSmartTokenPath: (ctx) => `/${ctx.tenantId}/cds-${ctx.jurisdiction}/v1/${ctx.sector}/identity/openid/smart/token`,
+    identityOpenIdSmartTokenPollPath: (ctx) => `/${ctx.tenantId}/cds-${ctx.jurisdiction}/v1/${ctx.sector}/identity/openid/smart/_batch-response`,
+    submitAndPoll: async (...args) => {
+      calls.push(args);
+      return cloneExample(EXAMPLE_SMART_TOKEN_RESPONSE);
+    },
+    setTokenCache: () => {},
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(typeof calls[0][2].body.client_assertion, 'string');
+  assert.equal(calls[0][2].body.client_assertion_type, 'private_key_jwt');
+  assert.match(calls[0][2].body.client_assertion, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+});
+
 test('requestSmartTokenWithDeps returns failed for error status responses', async () => {
   const cacheWrites = [];
   const result = await requestSmartTokenWithDeps({

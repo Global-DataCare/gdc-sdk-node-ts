@@ -1,20 +1,11 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 // Always create JSDoc, do not use strings inline in keys nor values, use types instead, and reuse the data test examples.
-import fs from 'node:fs';
-import path from 'node:path';
-import type { BundleJsonApi } from 'gdc-common-utils-ts/models/bundle';
 import {
-  DIDCOMM_DEFAULT_ACCEPT_HEADER,
   DIDCOMM_PLAINTEXT_JSON_MEDIA_TYPE,
 } from 'gdc-common-utils-ts/utils/didcomm-submit';
 import type { OrganizationDidBindingInput } from 'gdc-sdk-core-ts';
-import type {
-  AppInfo,
-  OrganizationActivationDraft,
-} from 'gdc-sdk-core-ts';
+import type { AppInfo } from 'gdc-sdk-core-ts';
 import {
-  buildLegalOrganizationVerificationGatewayRequestBundle,
-  buildOrganizationDidBindingBundle,
   buildAppHeaders,
   createBootstrapFacade,
   resolveAppInfo,
@@ -22,7 +13,6 @@ import {
 } from 'gdc-sdk-core-ts';
 
 import { buildConsentClaimsSimpleWithCid } from 'gdc-common-utils-ts/utils/consent';
-import { buildDidcommPlaintextTransportMetadata } from 'gdc-common-utils-ts/utils/activation-request';
 import { pollUntilCompleteWithMethod } from './async-polling.js';
 import {
   confirmLegalOrganizationOrderWithDeps,
@@ -111,6 +101,39 @@ import type {
 } from './orchestration/client-port.js';
 import { submitAndPollWithMethods } from './orchestration/client-port.js';
 import { GwCoreLifecycleAction } from './constants/lifecycle.js';
+import {
+  buildRuntimeHeaders,
+  fetchWithTimeout,
+  parseResponseBody,
+  pollBatchResponseWithRuntimeConfig,
+  postJsonWithRuntimeConfig,
+  type RuntimeTransportConfig,
+} from './runtime-transport.js';
+import {
+  activateOrganizationInGatewayFromIcaProofWithDeps,
+  submitLegalOrganizationIssueWithDeps,
+  submitLegalOrganizationVerificationTransactionWithDeps,
+  submitOrganizationDidBindingWithDeps,
+} from './runtime-host-submission.js';
+import {
+  buildHostRegistryPath,
+  buildIdentityDeviceDcrPath,
+  buildIdentityDeviceDcrPollPath,
+  buildIdentityOpenIdSmartTokenPath,
+  buildIdentityOpenIdSmartTokenPollPath,
+  buildIdentityTokenExchangePath,
+  buildIdentityTokenExchangePollPath,
+  buildOrganizationDidBindingPath,
+  buildOrganizationDidBindingPollPath,
+  buildV1Path,
+} from './runtime-paths.js';
+import {
+  requireHostRouteContext,
+  requireRouteContext,
+  routeCtxFromInput,
+  type HostNetworkWarningState,
+} from './runtime-route-context.js';
+import { runtimeUuid, wrapBundleAsGatewayTransactionMessage } from './runtime-message.js';
 
 const bootstrapFacade = createBootstrapFacade();
 
@@ -173,7 +196,19 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   private readonly requestTimeoutMs: number;
   private readonly httpTraceFile?: string;
   private readonly tokenCache = new Map<string, { accessToken: string; tokenType: string; scopes: string[]; expiresAt: number }>();
-  private warnedDefaultHostNetwork = false;
+  private readonly hostNetworkWarningState: HostNetworkWarningState = {
+    warnedDefaultHostNetwork: false,
+  };
+
+  private get transportConfig(): RuntimeTransportConfig {
+    return {
+      baseUrl: this.baseUrl,
+      bearerToken: this.bearerToken,
+      defaultHeaders: this.defaultHeaders,
+      requestTimeoutMs: this.requestTimeoutMs,
+      httpTraceFile: this.httpTraceFile,
+    };
+  }
 
   /**
    * @param options.baseUrl Gateway base URL without trailing slash.
@@ -229,7 +264,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    */
   public v1Path(ctx: RouteContext | undefined, section: string, format: string, resourceType: string, action: string): string {
     const routeCtx = this.requireRouteContext(ctx);
-    return `/${encodeURIComponent(routeCtx.tenantId)}/cds-${encodeURIComponent(routeCtx.jurisdiction)}/v1/${encodeURIComponent(routeCtx.sector)}/${encodeURIComponent(section)}/${encodeURIComponent(format)}/${encodeURIComponent(resourceType)}/${encodeURIComponent(action)}`;
+    return buildV1Path(routeCtx, section, format, resourceType, action);
   }
 
   /**
@@ -283,21 +318,16 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: NodeLegalOrganizationVerificationTransactionInput,
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
-    const thid = `organization-verification-transaction-${runtimeUuid()}`;
-    const jti = `organization-verification-transaction-jti-${runtimeUuid()}`;
-    const verificationBundle = buildLegalOrganizationVerificationGatewayRequestBundle(input);
-    const payload = this.wrapBundleAsGatewayTransactionMessage({
-      thid,
-      jti,
+    return submitLegalOrganizationVerificationTransactionWithDeps({
       hostCtx,
-      bundle: verificationBundle,
-    });
-    return this.submitAndPoll(
-      this.hostRegistryOrganizationTransactionPath(hostCtx),
-      this.hostRegistryOrganizationTransactionPollPath(hostCtx),
-      payload,
+      verificationInput: input,
       pollOptions,
-    );
+      createRuntimeUuid: runtimeUuid,
+      wrapBundleAsGatewayTransactionMessage: this.wrapBundleAsGatewayTransactionMessage.bind(this),
+      submitPath: this.hostRegistryOrganizationTransactionPath.bind(this),
+      pollPath: this.hostRegistryOrganizationTransactionPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
   }
 
   /**
@@ -315,21 +345,16 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: NodeLegalOrganizationVerificationTransactionInput,
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
-    const thid = `organization-issue-${runtimeUuid()}`;
-    const jti = `organization-issue-jti-${runtimeUuid()}`;
-    const verificationBundle = buildLegalOrganizationVerificationGatewayRequestBundle(input);
-    const payload = this.wrapBundleAsGatewayTransactionMessage({
-      thid,
-      jti,
+    return submitLegalOrganizationIssueWithDeps({
       hostCtx,
-      bundle: verificationBundle,
-    });
-    return this.submitAndPoll(
-      this.hostRegistryOrganizationIssuePath(hostCtx),
-      this.hostRegistryOrganizationIssuePollPath(hostCtx),
-      payload,
+      verificationInput: input,
       pollOptions,
-    );
+      createRuntimeUuid: runtimeUuid,
+      wrapBundleAsGatewayTransactionMessage: this.wrapBundleAsGatewayTransactionMessage.bind(this),
+      submitPath: this.hostRegistryOrganizationIssuePath.bind(this),
+      pollPath: this.hostRegistryOrganizationIssuePollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
   }
 
   /**
@@ -346,20 +371,15 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: NodeOrganizationDidBindingInput | OrganizationDidBindingInput,
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
-    const thid = `organization-did-binding-${runtimeUuid()}`;
-    const jti = `organization-did-binding-jti-${runtimeUuid()}`;
-    const payload: SubmitPayload = {
-      jti,
-      thid,
-      type: 'application/api+json',
-      body: buildOrganizationDidBindingBundle(input),
-    };
-    return this.submitAndPoll(
-      this.organizationDidBindingPath(ctx),
-      this.organizationDidBindingPollPath(ctx),
-      payload,
+    return submitOrganizationDidBindingWithDeps({
+      routeCtx: ctx,
+      bindingInput: input,
       pollOptions,
-    );
+      createRuntimeUuid: runtimeUuid,
+      organizationDidBindingPath: this.organizationDidBindingPath.bind(this),
+      organizationDidBindingPollPath: this.organizationDidBindingPollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
   }
 
   /**
@@ -389,49 +409,16 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: NodeOrganizationActivationInput,
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
-    const thid = `activate-org-${runtimeUuid()}`;
-    const activationDraft: OrganizationActivationDraft = bootstrapFacade.createOrganizationActivationDraft({
-      vpToken: input.vpToken,
-      controller: input.controller,
-      service: input.service,
-      additionalClaims: input.additionalClaims,
+    return activateOrganizationInGatewayFromIcaProofWithDeps({
+      hostCtx,
+      activationInput: input,
+      pollOptions,
+      createRuntimeUuid: runtimeUuid,
+      activationDraftFactory: (draftInput) => bootstrapFacade.createOrganizationActivationDraft(draftInput),
+      submitPath: this.hostRegistryOrganizationActivatePath.bind(this),
+      pollPath: this.hostRegistryOrganizationActivatePollPath.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
     });
-    const serviceClaims = activationDraft.buildServiceClaims();
-    const transportMeta = buildDidcommPlaintextTransportMetadata({
-      controller: input.controller,
-      contentType: 'application/didcomm-plain+json',
-    });
-    const payload: SubmitPayload = {
-      thid,
-      iss: String(hostCtx.controllerDid || '').trim() || undefined,
-      aud: String(hostCtx.hostDid || '').trim() || undefined,
-      type: 'application/api+json',
-      ...(transportMeta ? { meta: transportMeta } : {}),
-      body: {
-        vp_token: input.vpToken,
-        ...(input.controller ? { controller: input.controller } : {}),
-        data: [{
-          type: 'Organization-activation-request-v1.0',
-          meta: {
-            claims: {
-              '@context': 'org.schema',
-              ...serviceClaims,
-              ...(input.additionalClaims || {}),
-            },
-          },
-          resource: {
-            meta: {
-              claims: {
-                '@context': 'org.schema',
-                ...serviceClaims,
-                ...(input.additionalClaims || {}),
-              },
-            },
-          },
-        }],
-      },
-    };
-    return this.submitAndPoll(this.hostRegistryOrganizationActivatePath(hostCtx), this.hostRegistryOrganizationActivatePollPath(hostCtx), payload, pollOptions);
   }
 
   /**
@@ -1174,136 +1161,44 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   private async pollBatchResponse(path: string, request: { thid: string }): Promise<{ status: number; body: unknown; retryAfterMs?: number }> {
-    const response = await this.fetchWithTimeout(path, {
-      method: 'POST',
-      headers: this.buildHeaders('application/json'),
-      body: JSON.stringify(request),
-    });
-    const retryAfter = Number(response.headers.get('retry-after'));
-    return {
-      status: response.status,
-      body: await this.parseResponseBody(response),
-      retryAfterMs: Number.isFinite(retryAfter) ? retryAfter * 1000 : undefined,
-    };
+    return pollBatchResponseWithRuntimeConfig(this.transportConfig, path, request);
   }
 
   private async postJson(path: string, payload: unknown, contentType: string): Promise<SubmitResponse> {
-    const response = await this.fetchWithTimeout(path, {
-      method: 'POST',
-      headers: this.buildHeaders(contentType),
-      body: JSON.stringify(payload),
-    });
-    return { status: response.status, location: response.headers.get('location') || undefined, body: await this.parseResponseBody(response) };
+    return postJsonWithRuntimeConfig(this.transportConfig, path, payload, contentType);
   }
 
   private buildHeaders(contentType: string): Record<string, string> {
-    const headers: Record<string, string> = {
-      ...this.defaultHeaders,
-      'Content-Type': contentType,
-      Accept: DIDCOMM_DEFAULT_ACCEPT_HEADER,
-    };
-    if (this.bearerToken) headers.Authorization = `Bearer ${this.bearerToken}`;
-    return headers;
+    return buildRuntimeHeaders(this.transportConfig, contentType);
   }
 
   private async fetchWithTimeout(path: string, init: RequestInit): Promise<Response> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs);
-    const url = /^https?:\/\//.test(path) ? path : `${this.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
-    const requestBody = this.parseTraceBody(init.body);
-    const traceBase = {
-      ts: new Date().toISOString(),
-      request: {
-        url,
-        method: String(init.method || 'GET').toUpperCase(),
-        headers: this.redactTraceValue(init.headers || {}),
-        body: this.redactTraceValue(requestBody),
-      },
-    };
-    try {
-      const response = await fetch(url, { ...init, signal: controller.signal });
-      const responseClone = response.clone();
-      const responseRaw = await responseClone.text();
-      this.appendHttpTrace({
-        ...traceBase,
-        response: {
-          status: response.status,
-          headers: this.redactTraceValue(Object.fromEntries(response.headers.entries())),
-          body: this.redactTraceValue(this.parseTraceRawText(responseRaw)),
-        },
-      });
-      return response;
-    } catch (error) {
-      this.appendHttpTrace({
-        ...traceBase,
-        error: {
-          name: error instanceof Error ? error.name : 'Error',
-          message: error instanceof Error ? error.message : String(error),
-        },
-      });
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-    }
+    return fetchWithTimeout(this.transportConfig, path, init);
   }
 
   private async parseResponseBody(response: Response): Promise<unknown> {
-    const raw = await response.text();
-    if (!raw) return {};
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return raw;
-    }
+    return parseResponseBody(response);
   }
 
   private requireRouteContext(ctx?: RouteContext): RouteContext {
-    const resolved = ctx || this.ctx;
-    const tenantId = String(resolved?.tenantId || '').trim();
-    const jurisdiction = String(resolved?.jurisdiction || '').trim();
-    const sector = String(resolved?.sector || '').trim();
-    if (!tenantId || !jurisdiction || !sector) {
-      throw new Error('Route context is required.');
-    }
-    return { tenantId, jurisdiction, sector };
+    return requireRouteContext(ctx, this.ctx);
   }
 
   private routeCtxFromInput(input: { serviceProviderDid?: string; tenantId?: string; jurisdiction?: string; sector?: string }): RouteContext {
-    const tenantId = String(input.serviceProviderDid || input.tenantId || '').trim();
-    return this.requireRouteContext(
-      tenantId && input.jurisdiction && input.sector
-        ? { tenantId, jurisdiction: input.jurisdiction, sector: input.sector }
-        : undefined,
-    );
+    return routeCtxFromInput(input, this.ctx);
   }
 
   /**
    * Reuses the shared bundle business contract while keeping attachment
    * transport fields at the DIDComm/plaintext message layer expected by GW.
    */
-  private wrapBundleAsGatewayTransactionMessage(input: Readonly<{
-    thid: string;
-    jti: string;
-    hostCtx: HostRouteContext;
-    bundle: BundleJsonApi;
-  }>): SubmitPayload {
-    const rawBundle = ((input.bundle || {}) as unknown) as Record<string, unknown>;
-    const attachments = Array.isArray(rawBundle.attachments) ? rawBundle.attachments : undefined;
-    const { attachments: _ignoredAttachments, ...body } = rawBundle;
-    return {
-      jti: input.jti,
-      thid: input.thid,
-      iss: String(input.hostCtx.controllerDid || '').trim() || undefined,
-      aud: String(input.hostCtx.hostDid || '').trim() || undefined,
-      type: 'application/api+json',
-      body,
-      ...(attachments && attachments.length > 0 ? { attachments } : {}),
-    };
+  private wrapBundleAsGatewayTransactionMessage(input: Readonly<Parameters<typeof wrapBundleAsGatewayTransactionMessage>[0]>): SubmitPayload {
+    return wrapBundleAsGatewayTransactionMessage(input);
   }
 
   private hostRegistryPath(ctx: HostRouteContext | undefined, resourceType: string, action: string): string {
     const hostCtx = this.requireHostRouteContext(ctx);
-    return `/host/cds-${encodeURIComponent(hostCtx.jurisdiction)}/v1/${encodeURIComponent(hostCtx.hostNetwork || '')}/registry/org.schema/${encodeURIComponent(resourceType)}/${encodeURIComponent(action)}`;
+    return buildHostRegistryPath(hostCtx, resourceType, action);
   }
   /**
    * Resolves the host route segment without allowing tenant-route `sector`
@@ -1318,56 +1213,11 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    *   value must still be one of the allowed host runtime/network selectors
    */
   private requireHostRouteContext(ctx?: HostRouteContext): HostRouteContext {
-    const hostCtx = (ctx || {}) as HostRouteContext & { hostNetworkOrTenantSector?: string };
-    const runtimeCtx = (this.ctx || {}) as {
-      jurisdiction?: string;
-      sector?: string;
-      hostNetwork?: string;
-      hostNetworkOrTenantSector?: string;
-    };
-    const jurisdiction = String(hostCtx.jurisdiction || this.ctx?.jurisdiction || '').trim();
-    const explicitHostNetwork = String(hostCtx.hostNetwork || runtimeCtx.hostNetwork || '').trim();
-    const compatibilityHostNetwork = String(
-      hostCtx.hostNetworkOrTenantSector
-      || runtimeCtx.hostNetworkOrTenantSector
-      || '',
-    ).trim();
-    const deprecatedSector = String(hostCtx.sector || '').trim();
-    if (!explicitHostNetwork && !compatibilityHostNetwork && deprecatedSector) {
-      throw new Error(
-        `Host route context must use 'hostNetwork', not 'sector'. Received deprecated sector='${deprecatedSector}'.`,
-      );
-    }
-    const hostNetwork = String(
-      explicitHostNetwork
-      || compatibilityHostNetwork
-      || '',
-    ).trim();
-    if (!jurisdiction) throw new Error('Host route context is required.');
-    if (!hostNetwork) {
-      if (!this.warnedDefaultHostNetwork) {
-        this.warnedDefaultHostNetwork = true;
-        console.warn(
-          "[gdc-sdk-node-ts] Missing hostNetwork in host route context. Defaulting to 'test'. Pass hostNetwork explicitly to avoid environment drift.",
-        );
-      }
-      return { jurisdiction, hostNetwork: 'test' };
-    }
-    if (!this.isSupportedHostNetwork(hostNetwork)) {
-      throw new Error(
-        `Invalid hostNetwork '${hostNetwork}'. Allowed values: test, local-network, test-network, network.`,
-      );
-    }
-    return { jurisdiction, hostNetwork };
-  }
-
-  private isSupportedHostNetwork(value: string): boolean {
-    return (
-      value === 'test'
-      || value === 'local-network'
-      || value === 'test-network'
-      || value === 'network'
-    );
+    return requireHostRouteContext(ctx, {
+      defaultJurisdiction: this.ctx?.jurisdiction,
+      warningState: this.hostNetworkWarningState,
+      warn: (message: string) => console.warn(message),
+    });
   }
 
   public hostRegistryOrganizationTransactionPath(ctx?: HostRouteContext): string { return this.hostRegistryPath(ctx, 'Organization', GwCoreLifecycleAction.Transaction); }
@@ -1389,12 +1239,10 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public organizationLicenseSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'License', '_search'); }
   public organizationLicenseSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'License', '_search-response'); }
   public organizationDidBindingPath(ctx?: RouteContext): string {
-    const resolved = this.requireRouteContext(ctx);
-    return `/${encodeURIComponent(resolved.tenantId)}/cds-${encodeURIComponent(resolved.jurisdiction)}/v1/${encodeURIComponent(resolved.sector)}/did/document/_binding`;
+    return buildOrganizationDidBindingPath(this.requireRouteContext(ctx));
   }
   public organizationDidBindingPollPath(ctx?: RouteContext): string {
-    const resolved = this.requireRouteContext(ctx);
-    return `/${encodeURIComponent(resolved.tenantId)}/cds-${encodeURIComponent(resolved.jurisdiction)}/v1/${encodeURIComponent(resolved.sector)}/did/document/_binding-response`;
+    return buildOrganizationDidBindingPollPath(this.requireRouteContext(ctx));
   }
   public organizationLicenseOfferSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Offer', '_search'); }
   public organizationLicenseOfferSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Offer', '_search-response'); }
@@ -1433,59 +1281,22 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public individualBundleSearchPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Bundle', '_search'); }
   public individualBundleSearchPollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Bundle', '_search-response'); }
   public identityTokenExchangePath(ctx: RouteContext): string {
-    return `/${encodeURIComponent('host')}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/${encodeURIComponent(ctx.tenantId)}/identity/auth/_exchange`;
+    return buildIdentityTokenExchangePath(ctx);
   }
   public identityTokenExchangePollPath(ctx: RouteContext): string {
-    return `/${encodeURIComponent('host')}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/${encodeURIComponent(ctx.tenantId)}/identity/auth/_exchange-response`;
+    return buildIdentityTokenExchangePollPath(ctx);
   }
   public identityDeviceDcrPath(ctx: RouteContext): string {
-    return `/${encodeURIComponent('host')}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/${encodeURIComponent(ctx.tenantId)}/identity/auth/_dcr`;
+    return buildIdentityDeviceDcrPath(ctx);
   }
   public identityDeviceDcrPollPath(ctx: RouteContext): string {
-    return `/${encodeURIComponent('host')}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/${encodeURIComponent(ctx.tenantId)}/identity/auth/_dcr-response`;
+    return buildIdentityDeviceDcrPollPath(ctx);
   }
   public identityOpenIdSmartTokenPath(ctx: RouteContext): string {
-    return `/${encodeURIComponent(ctx.tenantId)}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/identity/openid/smart/token`;
+    return buildIdentityOpenIdSmartTokenPath(ctx);
   }
   public identityOpenIdSmartTokenPollPath(ctx: RouteContext): string {
-    return `/${encodeURIComponent(ctx.tenantId)}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/identity/openid/smart/_batch-response`;
-  }
-
-  private appendHttpTrace(entry: Record<string, unknown>): void {
-    if (!this.httpTraceFile) return;
-    try {
-      fs.mkdirSync(path.dirname(this.httpTraceFile), { recursive: true });
-      fs.appendFileSync(this.httpTraceFile, `${JSON.stringify(entry)}\n`);
-    } catch {
-      // Tracing must never break runtime requests.
-    }
-  }
-
-  private parseTraceBody(body: BodyInit | null | undefined): unknown {
-    if (body == null) return undefined;
-    if (typeof body === 'string') return this.parseTraceRawText(body);
-    if (body instanceof URLSearchParams) return Object.fromEntries(body.entries());
-    return '[non-text-body]';
-  }
-
-  private parseTraceRawText(raw: string): unknown {
-    if (!raw) return '';
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return raw;
-    }
-  }
-
-  private redactTraceValue<T>(value: T): T {
-    if (value === undefined) return value;
-    const serialized = JSON.stringify(value, (key, nestedValue) => {
-      if (/token|authorization|secret|password/i.test(String(key || ''))) {
-        return '[redacted]';
-      }
-      return nestedValue;
-    });
-    return serialized === undefined ? value : JSON.parse(serialized);
+    return buildIdentityOpenIdSmartTokenPollPath(ctx);
   }
 }
 
@@ -1493,9 +1304,3 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
  * @deprecated Prefer `HttpRuntimeClient`.
  */
 export class NodeHttpClient extends HttpRuntimeClient {}
-
-function runtimeUuid(): string {
-  const fromCrypto = globalThis.crypto?.randomUUID?.();
-  if (fromCrypto) return fromCrypto;
-  return `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}

@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.1.3] - 2026-06-30
+
+### Added
+- Added one Node/shared SMART client-auth path that can auto-build
+  `client_assertion` for `openid-smart` token requests from the published
+  common-utils helper instead of relying on per-suite fixture code:
+  - `src/smart-token.ts`
+  - `tests/smart-token.test.mjs`
+- Added one professional identity helper surface on the Node facade so BFF and
+  CLI runtimes can build employee VC/VP material for SMART/OpenID4VP flows
+  without dropping to raw common-utils calls:
+  - `ProfessionalSdk.getIdentitySameAs(...)`
+  - `ProfessionalSdk.getIdentityVC(...)`
+  - `ProfessionalSdk.buildIdentityVpPayload(...)`
+  - `ProfessionalSdk.buildUnsignedIdentityVpJwt(...)`
+  in:
+  - `src/orchestration/professional-sdk.ts`
+  - `tests/orchestration.test.mjs`
+
+### Changed
+- Updated the published shared dependency targets to:
+  - `gdc-common-utils-ts@^2.1.2`
+  - `gdc-sdk-core-ts@^2.1.1`
+
 ## [2.1.1] - 2026-06-30
 
 ### Changed
