@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-06-30
+
+### Changed
+- Updated published shared dependency targets to:
+  - `gdc-common-utils-ts@^2.1.0`
+  - `gdc-sdk-core-ts@^2.1.0`
+- Removed repository-local backlog/test-summary documents so roadmap and test
+  tracking stay outside the published package repo:
+  - `TODO.md`
+  - `TEST_CORE.md`
+
 ## [2.0.12] - 2026-06-29
 
 ### Changed
