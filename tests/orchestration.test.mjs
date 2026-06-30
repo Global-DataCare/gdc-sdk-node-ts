@@ -189,11 +189,11 @@ test('OrganizationControllerSdk delegates the host legal-organization verificati
   });
 
   await session.asOrganizationController().submitLegalOrganizationVerificationTransaction(
-    { jurisdiction: 'ES', sector: 'test' },
+    { jurisdiction: 'ES', hostNetwork: 'test' },
     { claims: {}, controller: {} },
   );
   await session.asOrganizationController().submitLegalOrganizationIssue(
-    { jurisdiction: 'ES', sector: 'test' },
+    { jurisdiction: 'ES', hostNetwork: 'test' },
     { claims: {}, controller: {} },
   );
   await session.asOrganizationController().submitOrganizationDidBinding(

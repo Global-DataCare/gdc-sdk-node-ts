@@ -246,7 +246,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
   const profiler = createStepProfiler(debug, 'live-101-full-cycle');
   const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
   const pollOptions = createLivePollOptions();
-  const hostCtx = { jurisdiction: suiteJurisdiction, sector: suiteHostSector };
+  const hostCtx = { jurisdiction: suiteJurisdiction, hostNetwork: suiteHostSector };
   const ctx = {
     tenantId: suiteTenantRouteId,
     jurisdiction: suiteJurisdiction,
