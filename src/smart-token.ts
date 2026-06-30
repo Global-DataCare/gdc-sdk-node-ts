@@ -1,6 +1,8 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
 import { HealthcareConsentPurposes } from 'gdc-common-utils-ts/constants';
+import { buildClientAssertionJwt, type BuildClientAssertionJwtInput } from 'gdc-common-utils-ts/utils/client-assertion';
+import type { SmartTokenRequestContract } from 'gdc-sdk-core-ts';
 import { resolvePollOptionsFromSeconds } from './poll-options.js';
 import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
 import type { RouteContext } from './individual-onboarding.js';
@@ -35,7 +37,7 @@ import type { RouteContext } from './individual-onboarding.js';
  * Canonical payload examples for both token-exchange and OpenID4VP SMART flows
  * live in `gdc-common-utils-ts/examples`.
  */
-export type SmartTokenRequestInput = {
+export type SmartTokenRequestInput = SmartTokenRequestContract & {
   /**
    * @deprecated Prefer configuring `NodeHttpClient({ ctx })`.
    */
@@ -51,36 +53,14 @@ export type SmartTokenRequestInput = {
   /**
    * OpenID token or subject token already obtained by the caller.
    */
-  idToken: string;
   /**
-   * Requested SMART/GW scopes.
+   * Optional helper input used by the Node SDK to auto-generate one
+   * `client_assertion` when the caller does not provide one explicitly.
    *
-   * Under the current CORE GW contract this should normally include the pinned
-   * `organization/Composition...` root scope for the target subject, and may
-   * include additional items such as `organization/Consent.cruds`.
+   * `clientId` and `audience` are resolved from the surrounding SMART request
+   * input and therefore omitted here.
    */
-  scopes: string[];
-  /**
-   * Actor/profile DID that is requesting access.
-   *
-   * Typical values are a professional DID or a `RelatedPerson` DID. This is
-   * distinct from the `subjectDid` whose data is being accessed.
-   */
-  actorDid?: string;
-  /**
-   * Subject/individual DID whose data is being requested.
-   */
-  subjectDid?: string;
-  /**
-   * Optional VP token used by the OpenID4VP-based GW smart token flow.
-   */
-  vpToken?: string;
-  /**
-   * Client/device/portal DID used as OAuth/OpenID `client_id`.
-   */
-  clientId?: string;
-  audience?: string;
-  issuer?: string;
+  clientAssertionBuilder?: Omit<BuildClientAssertionJwtInput, 'clientId' | 'audience'>;
   redirectUri?: string;
   acrValues?: string;
   codeChallenge?: string;
@@ -93,7 +73,6 @@ export type SmartTokenRequestInput = {
   endpointId?: string;
   timeoutSeconds?: number;
   intervalSeconds?: number;
-  additionalClaims?: Record<string, unknown>;
 };
 
 export type SmartTokenExchangeResult = {
@@ -165,12 +144,24 @@ export async function requestSmartTokenWithDeps(
 
   if (deps.input.smartTokenKind === 'openid-smart') {
     const actorDid = String(deps.input.actorDid || '').trim() || undefined;
+    const resolvedClientId = deps.input.clientId || actorDid || deps.input.subjectDid || deps.routeCtx.tenantId;
+    const resolvedAudience = deps.input.audience || deps.routeCtx.tenantId;
+    const clientAssertion = await resolveClientAssertion({
+      clientAssertion: deps.input.clientAssertion,
+      clientAssertionBuilder: deps.input.clientAssertionBuilder,
+      clientId: resolvedClientId,
+      audience: resolvedAudience,
+    });
     const smartPayload: Record<string, unknown> = {
       thid: `smart-${createRuntimeUuid()}`,
-      iss: deps.input.issuer || deps.input.clientId || deps.routeCtx.tenantId,
-      aud: deps.input.audience || deps.routeCtx.tenantId,
+      iss: deps.input.issuer || resolvedClientId || deps.routeCtx.tenantId,
+      aud: resolvedAudience,
       body: {
-        client_id: deps.input.clientId || actorDid || deps.input.subjectDid || deps.routeCtx.tenantId,
+        client_id: resolvedClientId,
+        ...(clientAssertion ? {
+          client_assertion: clientAssertion,
+          client_assertion_type: deps.input.clientAssertionType || 'private_key_jwt',
+        } : {}),
         redirect_uri: deps.input.redirectUri || `${deps.baseUrl}/callback`,
         code_challenge: deps.input.codeChallenge || 'demo-code-challenge',
         code_challenge_method: deps.input.codeChallengeMethod || 'S256',
@@ -216,6 +207,22 @@ export async function requestSmartTokenWithDeps(
   );
 
   return resolveTokenExchangeResult(exchange, normalizedScopes, tokenCacheKey, deps.setTokenCache);
+}
+
+async function resolveClientAssertion(input: {
+  clientAssertion?: string;
+  clientAssertionBuilder?: Omit<BuildClientAssertionJwtInput, 'clientId' | 'audience'>;
+  clientId: string;
+  audience: string;
+}): Promise<string | undefined> {
+  const explicit = String(input.clientAssertion || '').trim();
+  if (explicit) return explicit;
+  if (!input.clientAssertionBuilder) return undefined;
+  return buildClientAssertionJwt({
+    ...input.clientAssertionBuilder,
+    clientId: input.clientId,
+    audience: input.audience,
+  });
 }
 
 function resolveTokenExchangeResult(

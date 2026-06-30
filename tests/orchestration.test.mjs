@@ -2,6 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  ClaimsPersonSchemaorg,
+  EXAMPLE_PROFESSIONAL_IDENTITY,
+  ProfessionalCredentialTypes,
+  W3cCredentialTypes,
+  normalizeSameAsHash,
+  normalizeTelephoneHash,
+} from 'gdc-common-utils-ts';
+import {
   ActorCapabilities,
   ActorKinds,
   IndividualControllerSdk,
@@ -66,6 +74,38 @@ test('ProfessionalSdk keeps role-scoped surface separation', () => {
   assert.equal(typeof ProfessionalSdk.prototype.activateEmployeeDeviceWithActivationRequest, 'undefined');
   assert.equal(typeof ProfessionalSdk.prototype.disableEmployee, 'undefined');
   assert.equal(typeof ProfessionalSdk.prototype.purgeEmployee, 'undefined');
+});
+
+test('ProfessionalSdk exposes canonical identity VC and VP helpers through the shared common-utils layer', () => {
+  const sdk = new ProfessionalSdk({});
+  const expectedSameAs = normalizeSameAsHash(EXAMPLE_PROFESSIONAL_IDENTITY.email);
+  const expectedTelephone = normalizeTelephoneHash(EXAMPLE_PROFESSIONAL_IDENTITY.telephone);
+
+  assert.deepEqual(sdk.getIdentitySameAs(EXAMPLE_PROFESSIONAL_IDENTITY), [expectedSameAs]);
+  assert.deepEqual(sdk.getIdentityVC(EXAMPLE_PROFESSIONAL_IDENTITY), {
+    type: [W3cCredentialTypes.VerifiableCredential, ProfessionalCredentialTypes.EmployeeCredential],
+    credentialSubject: {
+      id: EXAMPLE_PROFESSIONAL_IDENTITY.actorDid,
+      hasOccupation: EXAMPLE_PROFESSIONAL_IDENTITY.role,
+      sameAs: expectedSameAs,
+      [ClaimsPersonSchemaorg.telephone]: expectedTelephone,
+      [ClaimsPersonSchemaorg.hasCredentialMaterial]: EXAMPLE_PROFESSIONAL_IDENTITY.credentialMaterial,
+    },
+  });
+  assert.equal(
+    sdk.buildIdentityVpPayload({
+      clientId: EXAMPLE_PROFESSIONAL_IDENTITY.actorDid,
+      ...EXAMPLE_PROFESSIONAL_IDENTITY,
+    }).vp.holder,
+    EXAMPLE_PROFESSIONAL_IDENTITY.actorDid,
+  );
+  assert.equal(
+    typeof sdk.buildUnsignedIdentityVpJwt({
+      clientId: EXAMPLE_PROFESSIONAL_IDENTITY.actorDid,
+      ...EXAMPLE_PROFESSIONAL_IDENTITY,
+    }),
+    'string',
+  );
 });
 
 test('PersonalSdk delegates to the runtime client', async () => {

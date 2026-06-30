@@ -4,6 +4,69 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Added internal runtime helper modules so the Node runtime client delegates
+  path resolution, host submission payload assembly, consent-claim building,
+  HTTP transport, trace redaction, and message wrapping instead of keeping
+  those mechanics inline in one monolithic file:
+  - `src/runtime-client-paths.ts`
+  - `src/runtime-consent.ts`
+  - `src/runtime-host-submission.ts`
+  - `src/runtime-http-trace.ts`
+  - `src/runtime-message.ts`
+  - `src/runtime-paths.ts`
+  - `src/runtime-route-context.ts`
+  - `src/runtime-transport.ts`
+
+### Changed
+- Refactored `HttpRuntimeClient` so `src/node-runtime-client.ts` acts mainly as
+  the public runtime facade and delegation layer, while preserving the
+  existing public method surface and host-onboarding route interception points
+  used by tests and higher-level SDK facades:
+  - `src/node-runtime-client.ts`
+- Kept the host-registry route hardening intact during the refactor:
+  - host routes still require `hostNetwork` semantics instead of tenant
+    business sectors
+  - deprecated `sector` on host routes still fails fast
+  - invalid host-network values such as `health-care` still fail fast
+  - missing `hostNetwork` still falls back to `test` with a one-time warning
+  in:
+  - `src/runtime-client-paths.ts`
+  - `src/runtime-route-context.ts`
+  - `tests/node-runtime-client.test.mjs`
+- Reused shared helpers from `gdc-common-utils-ts` where the behavior already
+  existed instead of keeping duplicate local implementations:
+  - tenant v1 path building now delegates to
+    `buildGwCoreTenantResourceActionPath(...)`
+  - runtime UUID generation now delegates to the shared `runtimeUuid(...)`
+  in:
+  - `src/runtime-paths.ts`
+  - `src/runtime-message.ts`
+
+## [2.1.3] - 2026-06-30
+
+### Added
+- Added one Node/shared SMART client-auth path that can auto-build
+  `client_assertion` for `openid-smart` token requests from the published
+  common-utils helper instead of relying on per-suite fixture code:
+  - `src/smart-token.ts`
+  - `tests/smart-token.test.mjs`
+- Added one professional identity helper surface on the Node facade so BFF and
+  CLI runtimes can build employee VC/VP material for SMART/OpenID4VP flows
+  without dropping to raw common-utils calls:
+  - `ProfessionalSdk.getIdentitySameAs(...)`
+  - `ProfessionalSdk.getIdentityVC(...)`
+  - `ProfessionalSdk.buildIdentityVpPayload(...)`
+  - `ProfessionalSdk.buildUnsignedIdentityVpJwt(...)`
+  in:
+  - `src/orchestration/professional-sdk.ts`
+  - `tests/orchestration.test.mjs`
+
+### Changed
+- Updated the published shared dependency targets to:
+  - `gdc-common-utils-ts@^2.1.2`
+  - `gdc-sdk-core-ts@^2.1.1`
+
 ## [2.1.1] - 2026-06-30
 
 ### Changed
