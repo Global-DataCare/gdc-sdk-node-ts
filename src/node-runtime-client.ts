@@ -5,6 +5,7 @@ import {
 } from 'gdc-common-utils-ts/utils/didcomm-submit';
 import type { OrganizationDidBindingInput } from 'gdc-sdk-core-ts';
 import type { AppInfo } from 'gdc-sdk-core-ts';
+import type { IndividualOrganizationLifecycleInput } from 'gdc-sdk-core-ts';
 import {
   buildAppHeaders,
   createBootstrapFacade,
@@ -77,7 +78,6 @@ import {
   type GrantProfessionalAccessInput,
   type GrantProfessionalAccessResult,
   type IndividualMemberLifecycleInput,
-  type IndividualOrganizationLifecycleInput,
   type LicenseListRuntimeSearchInput,
   type LicenseOfferRuntimeSearchInput,
   type LicenseOrderRuntimeSearchInput,
@@ -917,10 +917,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
-   * Placeholder for a future GW CORE member/caregiver lifecycle contract.
-   *
-   * Current GW CORE does not yet expose a stable lifecycle route for
-   * `RelatedPerson` / individual-member purge.
+   * Purges one previously disabled `RelatedPerson` membership/contact through
+   * the explicit public purge path.
    */
   public async purgeIndividualMember(
     ctx: RouteContext,

@@ -42,6 +42,15 @@ All notable changes to this project will be documented in this file.
   in:
   - `src/runtime-paths.ts`
   - `src/runtime-message.ts`
+- Removed stale placeholder/not-supported comments that still described
+  individual-member lifecycle as future work even though the current runtime
+  already supports `disableIndividualMember(...)` and
+  `purgeIndividualMember(...)`, and added copy/paste end-to-end snippets for
+  those member lifecycle operations in:
+  - `src/orchestration/individual-controller-sdk.ts`
+  - `src/node-runtime-client.ts`
+  - `src/resource-operations.ts`
+  - `docs/101-SDK_END_TO_END.md`
 
 ## [2.1.3] - 2026-06-30
 

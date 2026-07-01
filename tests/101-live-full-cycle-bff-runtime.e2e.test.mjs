@@ -708,7 +708,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       const disableIndividual = await profiler.run('individual-controller-disable-individual', () => individualControllerSdk.disableIndividualOrganization(
         ctx,
         {
-          organizationEditor: individualDisableEditor,
+          individualEditor: individualDisableEditor,
         },
         pollOptions,
       ));
@@ -726,7 +726,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       const purgeIndividual = await profiler.run('individual-controller-purge-individual', () => individualControllerSdk.purgeIndividualOrganization(
         ctx,
         {
-          organizationEditor: individualPurgeEditor,
+          individualEditor: individualPurgeEditor,
         },
         pollOptions,
       ));

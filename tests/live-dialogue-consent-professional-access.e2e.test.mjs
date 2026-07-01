@@ -439,7 +439,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
       const disableIndividual = await profiler.run('controller-individual-disable', () => controllerProfile.sdk.disableIndividualOrganization(
         ctx,
         {
-          organizationEditor: lifecycleEditor,
+          individualEditor: lifecycleEditor,
         },
         pollOptions,
       ));
@@ -449,7 +449,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
       const purgeIndividual = await profiler.run('controller-individual-purge', () => controllerProfile.sdk.purgeIndividualOrganization(
         ctx,
         {
-          organizationEditor: lifecycleEditor,
+          individualEditor: lifecycleEditor,
         },
         pollOptions,
       ));

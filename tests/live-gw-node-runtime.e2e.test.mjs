@@ -1273,7 +1273,7 @@ test('LIVE professional lifecycle on GW', {
     const disable = await individualControllerSession.asIndividualController().disableIndividualOrganization(
       ctx,
       {
-        organizationEditor: individualLifecycleEditor,
+        individualEditor: individualLifecycleEditor,
       },
       pollOptions,
     );
@@ -1283,7 +1283,7 @@ test('LIVE professional lifecycle on GW', {
     const purge = await individualControllerSession.asIndividualController().purgeIndividualOrganization(
       ctx,
       {
-        organizationEditor: individualLifecycleEditor,
+        individualEditor: individualLifecycleEditor,
       },
       pollOptions,
     );
@@ -1688,7 +1688,7 @@ async function runLiveIndividualLifecycleSuite() {
   const disableIndividual = await profiler.run('individual-disable', () => individualControllerSession.asIndividualController().disableIndividualOrganization(
     ctx,
     {
-      organizationEditor: individualLifecycleEditor,
+      individualEditor: individualLifecycleEditor,
     },
     pollOptions,
   ));
@@ -1698,7 +1698,7 @@ async function runLiveIndividualLifecycleSuite() {
   const purgeIndividual = await profiler.run('individual-purge', () => individualControllerSession.asIndividualController().purgeIndividualOrganization(
     ctx,
     {
-      organizationEditor: individualLifecycleEditor,
+      individualEditor: individualLifecycleEditor,
     },
     pollOptions,
   ));
@@ -2483,7 +2483,7 @@ async function runLiveProfileRuntimeIndividualSuite() {
   const profileIndividualDisable = await profiler.run('profile-individual-disable', () => individualControllerSession.asIndividualController().disableIndividualOrganization(
     ctx,
     {
-      organizationEditor: profileIndividualLifecycleEditor,
+      individualEditor: profileIndividualLifecycleEditor,
     },
     pollOptions,
   ));
@@ -2493,7 +2493,7 @@ async function runLiveProfileRuntimeIndividualSuite() {
   const profileIndividualPurge = await profiler.run('profile-individual-purge', () => individualControllerSession.asIndividualController().purgeIndividualOrganization(
     ctx,
     {
-      organizationEditor: profileIndividualLifecycleEditor,
+      individualEditor: profileIndividualLifecycleEditor,
     },
     pollOptions,
   ));

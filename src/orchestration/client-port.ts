@@ -3,7 +3,7 @@
 import type { ControllerBindingInput } from 'gdc-common-utils-ts/models';
 import type { FamilyOrganizationSummary } from 'gdc-common-utils-ts/utils/family-organization-summary';
 import type { LegalOrganizationVerificationTransactionInput } from 'gdc-common-utils-ts/utils/legal-organization-verification-transaction';
-import type { OrganizationDidBindingInput } from 'gdc-sdk-core-ts';
+import type { IndividualOrganizationLifecycleInput, OrganizationDidBindingInput } from 'gdc-sdk-core-ts';
 import type {
   LicenseListRuntimeSearchInput,
   LicenseOfferRuntimeSearchInput,
@@ -42,7 +42,6 @@ import type {
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
   IndividualMemberLifecycleInput,
-  IndividualOrganizationLifecycleInput,
   IpsOrFhirImportInput,
   OrganizationEmployeeCreationInput,
   OrganizationEmployeeLifecycleInput,

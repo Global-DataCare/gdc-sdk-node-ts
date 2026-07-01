@@ -824,10 +824,48 @@ await individualSdk.grantProfessionalAccess(tenantContext, {
 
 This is the minimum permission-grant example most new integrators need first.
 
-### 7.6 Create or update a `RelatedPerson`
+### 7.6 Disable the hosted individual
+
+Use this when the individual/family subject should become inactive while
+remaining auditable.
+
+```ts
+import { IndividualOrganizationLifecycleEditor } from 'gdc-common-utils-ts';
+
+const individualEditor = new IndividualOrganizationLifecycleEditor()
+  .setIdentifier(subjectDid)
+  .setAlternateName('ana')
+  .setOwnerEmail('ana.parent@example.org');
+
+await individualSdk.disableIndividual(tenantContext, {
+  individualEditor,
+});
+```
+
+### 7.7 Purge the hosted individual
+
+Use this after disable when the hosted individual/family registration should be
+purged from the active set.
+
+```ts
+await individualSdk.purgeIndividual(tenantContext, {
+  individualEditor,
+});
+```
+
+Practical rule:
+
+- disable first, then purge
+- prefer `individualEditor`
+- `organizationEditor` remains only as a legacy deprecated alias
+
+### 7.8 Create or update a `RelatedPerson`
 
 Use this when the actor is a caregiver, guardian, grandparent, or another
 non-employee subject-side relation.
+
+In this journey, keep using the same subject/controller facade:
+`individualSdk`.
 
 ```ts
 import {
@@ -835,14 +873,78 @@ import {
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
 
-const memberSdk = new IndividualMemberSdk(client);
-
-await memberSdk.upsertRelatedPersonAndPoll(tenantContext, {
+await individualSdk.upsertRelatedPersonAndPoll(tenantContext, {
   relatedPersonPayload: cloneExample(EXAMPLE_RELATED_PERSON_UPSERT_BUNDLE_PAYLOAD),
 });
 ```
 
-### 7.7 Build a communication with IPS or FHIR content
+### 7.9 Disable a `RelatedPerson`
+
+Use this when a caregiver or family relationship should stop being active, but
+you still want the record to remain auditable.
+
+```ts
+import {
+  EXAMPLE_INTEROPERABLE_CONTEXT_FHIR_API,
+  RelatedPersonClaim,
+} from 'gdc-common-utils-ts';
+
+const relationshipIdentifier = existingRelationship.identifier;
+
+await individualSdk.disableIndividualMember(
+  tenantContext,
+  {
+    memberClaims: {
+      '@context': EXAMPLE_INTEROPERABLE_CONTEXT_FHIR_API,
+      [RelatedPersonClaim.IdentifierValue]: relationshipIdentifier,
+    },
+    resourceId: existingRelationship.resourceId,
+  },
+);
+```
+
+### 7.10 Purge a disabled `RelatedPerson`
+
+Use this after disable when the relationship should be fully purged from the
+active subject-side membership set.
+
+```ts
+import {
+  EXAMPLE_INTEROPERABLE_CONTEXT_FHIR_API,
+  RelatedPersonClaim,
+} from 'gdc-common-utils-ts';
+
+const relationshipIdentifier = existingRelationship.identifier;
+
+await individualSdk.purgeIndividualMember(
+  tenantContext,
+  {
+    memberClaims: {
+      '@context': EXAMPLE_INTEROPERABLE_CONTEXT_FHIR_API,
+      [RelatedPersonClaim.IdentifierValue]: relationshipIdentifier,
+    },
+    resourceId: existingRelationship.resourceId,
+  },
+);
+```
+
+Practical rule:
+
+- disable first, then purge
+- keep the same relationship business identifier in
+  `RelatedPerson.identifier.value`
+- `resourceId` is optional metadata; the canonical business locator is the
+  `RelatedPerson` identifier
+
+Optional narrower facade:
+
+- `IndividualMemberSdk` is available for member-side apps that only need
+  `upsertRelatedPersonAndPoll(...)` plus token access
+- the relationship lifecycle operations
+  `disableIndividualMember(...)` and `purgeIndividualMember(...)`
+  remain owned by `IndividualControllerSdk`
+
+### 7.9 Build a communication with IPS or FHIR content
 
 Recommended pattern:
 
@@ -899,7 +1001,7 @@ Important:
   - `job.status`: local outbox status such as `ready`
 - network submission starts in the next step
 
-### 7.8 Send the communication and wait for indexing
+### 7.10 Send the communication and wait for indexing
 
 ```ts
 await client.ingestCommunicationAndUpdateIndex(tenantContext, {
@@ -914,7 +1016,7 @@ This is the converged runtime path for:
 - `Composition` projection
 - IPS-aligned resource indexing
 
-### 7.9 Search the latest IPS
+### 7.11 Search the latest IPS
 
 ```ts
 const latestIps = await client.searchLatestIps(tenantContext, {
@@ -922,7 +1024,7 @@ const latestIps = await client.searchLatestIps(tenantContext, {
 });
 ```
 
-### 7.10 Search a clinical bundle with explicit filters
+### 7.12 Search a clinical bundle with explicit filters
 
 ```ts
 const bundleSearch = await client.searchClinicalBundle(tenantContext, {
@@ -994,6 +1096,8 @@ Individual/family today:
   uses the current explicit `Organization/_disable` route
 - `purgeIndividual(...)`
   uses the current explicit `Organization/_purge` route
+- lifecycle locator input:
+  prefer `individualEditor`; `organizationEditor` remains as a legacy deprecated alias
 - actor:
   only `IndividualControllerSdk`
 
@@ -1030,6 +1134,14 @@ import {
   EXAMPLE_LIFECYCLE_REFERENCE,
 } from 'gdc-common-utils-ts/examples';
 ```
+
+Practical rule:
+
+- disable first, then purge
+- keep the same relationship business identifier in
+  `RelatedPerson.identifier.value`
+- these member lifecycle operations are current runtime behavior, not part of
+  the forward-looking TODO migrations below
 
 Current forward-looking TODOs intentionally left in the SDK source:
 

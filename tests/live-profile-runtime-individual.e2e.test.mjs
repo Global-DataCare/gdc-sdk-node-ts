@@ -263,7 +263,7 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
   const disableIndividual = await profiler.run('individual-disable', () => profile.sdk.disableIndividualOrganization(
     ctx,
     {
-      organizationEditor: lifecycleEditor,
+      individualEditor: lifecycleEditor,
     },
     pollOptions,
   ));
@@ -273,7 +273,7 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
   const purgeIndividual = await profiler.run('individual-purge', () => profile.sdk.purgeIndividualOrganization(
     ctx,
     {
-      organizationEditor: lifecycleEditor,
+      individualEditor: lifecycleEditor,
     },
     pollOptions,
   ));

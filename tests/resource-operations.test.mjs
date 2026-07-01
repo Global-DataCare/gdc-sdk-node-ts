@@ -324,14 +324,14 @@ test('purgeOrganizationEmployeeWithDeps rejects calls without resourceId', async
 
 test('disableIndividualOrganizationWithDeps uses the explicit current disable route', async () => {
   const calls = [];
-  const organizationEditor = new IndividualOrganizationLifecycleEditor()
+  const individualEditor = new IndividualOrganizationLifecycleEditor()
     .setIdentifier(String(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims[ClaimsOrganizationSchemaorg.identifier]))
     .setAlternateName(String(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims[ClaimsOrganizationSchemaorg.alternateName]))
     .setOwnerEmail(String(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims[ClaimsOrganizationSchemaorg.ownerEmail]));
   await disableIndividualOrganizationWithDeps(
     cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
     {
-      organizationEditor,
+      individualEditor,
       resourceId: 'individual-org-1',
     },
     { timeoutMs: 1000, intervalMs: 1 },
@@ -360,14 +360,14 @@ test('disableIndividualOrganizationWithDeps uses the explicit current disable ro
 
 test('purgeIndividualOrganizationWithDeps uses the explicit current purge route', async () => {
   const calls = [];
-  const organizationEditor = new IndividualOrganizationLifecycleEditor()
+  const individualEditor = new IndividualOrganizationLifecycleEditor()
     .setIdentifier(String(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims[ClaimsOrganizationSchemaorg.identifier]))
     .setAlternateName(String(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims[ClaimsOrganizationSchemaorg.alternateName]))
     .setOwnerEmail(String(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims[ClaimsOrganizationSchemaorg.ownerEmail]));
   await purgeIndividualOrganizationWithDeps(
     cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
     {
-      organizationEditor,
+      individualEditor,
     },
     { timeoutMs: 1000, intervalMs: 1 },
     {
@@ -384,6 +384,32 @@ test('purgeIndividualOrganizationWithDeps uses the explicit current purge route'
   assert.deepEqual(calls[0][2].body.data[0], cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_PURGE_ENTRY));
   assert.equal(calls[0][2].body.data[0].request.method, GwCoreLifecycleRequestMethod.Post);
   assert.equal(calls[0][2].body.data[0].type, GwCoreLifecycleRequestType.IndividualOrganizationPurge);
+});
+
+test('disableIndividualOrganizationWithDeps still accepts deprecated organizationEditor alias', async () => {
+  const calls = [];
+  const organizationEditor = new IndividualOrganizationLifecycleEditor()
+    .setIdentifier(String(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims[ClaimsOrganizationSchemaorg.identifier]))
+    .setAlternateName(String(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims[ClaimsOrganizationSchemaorg.alternateName]))
+    .setOwnerEmail(String(EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE.claims[ClaimsOrganizationSchemaorg.ownerEmail]));
+  await disableIndividualOrganizationWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      organizationEditor,
+      resourceId: 'individual-org-legacy',
+    },
+    { timeoutMs: 1000, intervalMs: 1 },
+    {
+      individualOrganizationDisablePath: () => INDIVIDUAL_ORG_DISABLE_PATH,
+      individualOrganizationDisablePollPath: () => INDIVIDUAL_ORG_DISABLE_POLL_PATH,
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][2].body.data[0].resource.id, 'individual-org-legacy');
+  assert.equal(calls[0][2].body.data[0].meta.claims[ClaimsOrganizationSchemaorg.identifier], organizationEditor.getIdentifier());
 });
 
 test('searchIndividualLicensesWithDeps builds canonical License bundle search payload for the subject side', async () => {

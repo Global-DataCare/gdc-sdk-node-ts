@@ -16,6 +16,7 @@ import type { FamilyOrganizationSearchInput } from '../family-organization-searc
 import type { IndividualOrganizationConfirmOrderInput, RouteContext } from '../individual-onboarding.js';
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
 import type { NodeCapability } from '../session.js';
+import type { IndividualOrganizationLifecycleInput } from 'gdc-sdk-core-ts';
 import type {
   ClinicalBundleSearchInput,
   CommunicationIngestionInput,
@@ -24,7 +25,6 @@ import type {
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
   IndividualMemberLifecycleInput,
-  IndividualOrganizationLifecycleInput,
   IpsOrFhirImportInput,
   LicenseListRuntimeSearchInput,
   LicenseOfferRuntimeSearchInput,
@@ -137,10 +137,8 @@ export class IndividualControllerSdk {
   }
 
   /**
-   * Controller-only placeholder for a future individual-member lifecycle flow.
-   *
-   * Current GW CORE still lacks the stable member disable route. The runtime
-   * client currently throws a not-supported error by design.
+   * Soft-disables one individual-member / caregiver relationship through the
+   * current `RelatedPerson/_batch` lifecycle contract.
    */
   public disableIndividualMember(
     ctx: RouteContext,
@@ -152,10 +150,8 @@ export class IndividualControllerSdk {
   }
 
   /**
-   * Controller-only placeholder for a future individual-member lifecycle flow.
-   *
-   * Current GW CORE still lacks the stable member purge route. The runtime
-   * client currently throws a not-supported error by design.
+   * Purges one previously disabled individual-member / caregiver relationship
+   * through the explicit `RelatedPerson/_purge` lifecycle contract.
    */
   public purgeIndividualMember(
     ctx: RouteContext,

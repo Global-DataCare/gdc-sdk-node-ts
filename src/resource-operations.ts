@@ -19,6 +19,7 @@ import type {
   CommunicationInput,
   DateRange,
   EmployeeSearchValue,
+  IndividualOrganizationLifecycleInput,
 } from 'gdc-sdk-core-ts';
 import {
   GwCoreLifecycleRequestMethod,
@@ -139,35 +140,18 @@ export type LicenseOrderRuntimeSearchInput = {
  * - disable is `individual/org.schema/Organization/_disable`
  * - purge is `individual/org.schema/Organization/_purge`
  */
-export type IndividualOrganizationLifecycleInput = {
-  /**
-   * Canonical claims used by GW CORE to locate the hosted individual/family
-   * registration.
-   */
-  organizationClaims?: Record<string, unknown>;
-  /**
-   * Preferred high-level shared editor for lifecycle callers that want to
-   * avoid assembling raw claims inline.
-   */
-  organizationEditor?: IndividualOrganizationLifecycleEditor;
-  /**
-   * Optional canonical resource id when already known by the caller.
-   */
-  resourceId?: string;
-  dataType?: string;
-};
-
 /**
- * Forward-looking locator payload for a future individual-member lifecycle contract.
+ * Current locator payload for individual-member / caregiver lifecycle
+ * operations backed by `RelatedPerson`.
  *
- * Current GW CORE does not yet expose a stable lifecycle contract for
- * `RelatedPerson` / individual-member records. The Node SDK keeps this type so
- * controller-only methods and TDD can be prepared without fabricating backend behavior.
+ * Current runtime behavior:
+ * - disable uses `RelatedPerson/_batch` with identifier-first lifecycle
+ *   resource semantics
+ * - purge uses explicit `RelatedPerson/_purge`
  */
 export type IndividualMemberLifecycleInput = {
   /**
-   * Canonical claims expected to locate the member/caregiver relationship once
-   * GW CORE exposes the lifecycle contract.
+   * Canonical claims used to locate the member/caregiver relationship.
    */
   memberClaims: Record<string, unknown>;
   resourceId?: string;
@@ -604,6 +588,7 @@ export async function disableIndividualOrganizationWithDeps(
     routeCtx,
     requestType: input.dataType || GwCoreLifecycleRequestType.IndividualOrganizationDisable,
     organizationClaims: input.organizationClaims,
+    individualEditor: input.individualEditor,
     organizationEditor: input.organizationEditor,
     resourceId: input.resourceId,
     thidPrefix: 'individual-organization-disable',
@@ -635,6 +620,7 @@ export async function purgeIndividualOrganizationWithDeps(
     routeCtx,
     requestType: input.dataType || GwCoreLifecycleRequestType.IndividualOrganizationPurge,
     organizationClaims: input.organizationClaims,
+    individualEditor: input.individualEditor,
     organizationEditor: input.organizationEditor,
     resourceId: input.resourceId,
     thidPrefix: 'individual-organization-purge',
@@ -1259,6 +1245,7 @@ function buildIndividualOrganizationLifecyclePayload(input: {
   routeCtx: RouteContext;
   requestType: string;
   organizationClaims: Record<string, unknown> | undefined;
+  individualEditor?: IndividualOrganizationLifecycleEditor;
   organizationEditor?: IndividualOrganizationLifecycleEditor;
   resourceId?: string;
   thidPrefix: string;
@@ -1277,8 +1264,9 @@ function buildIndividualOrganizationLifecyclePayload(input: {
     }>;
   };
 } {
-  const payload = input.organizationEditor
-    ? new IndividualOrganizationLifecycleEditor(input.organizationEditor.getState())
+  const editor = input.individualEditor || input.organizationEditor;
+  const payload = editor
+    ? new IndividualOrganizationLifecycleEditor(editor.getState())
     : new IndividualOrganizationLifecycleEditor().setClaims(input.organizationClaims || {});
 
   payload

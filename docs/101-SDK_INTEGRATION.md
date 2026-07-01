@@ -566,6 +566,7 @@ Use this mental model for current GW CORE:
   `confirmIndividualOrganizationOrder(...)` confirms the returned order/offer.
   `disableIndividual(...)` uses explicit `/_disable`.
   `purgeIndividual(...)` uses explicit `/_purge`.
+  prefer `individualEditor`; `organizationEditor` is a legacy deprecated alias.
   only `IndividualControllerSdk` should expose these operations.
 - `member`:
   `upsertRelatedPersonAndPoll(...)` manages the caregiver/family relationship record.
