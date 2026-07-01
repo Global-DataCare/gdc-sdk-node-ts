@@ -634,12 +634,16 @@ Notes:
 ### 6.4 Create an employee or professional under the organization
 
 ```ts
-const organizationDid = buildOrganizationDidWeb({
-  hostDidWeb: 'did:web:api.example.org',
+const authorityResolver = new StaticAuthorityResolver();
+
+const authority = await authorityResolver.resolveAuthority({
+  authorityBaseUrl: 'https://api.example.org',
   tenantId: tenantContext.tenantId,
   jurisdiction: tenantContext.jurisdiction,
   sector: tenantContext.sector,
 });
+
+const organizationDid = authority.tenantDidWeb!;
 
 const emailProfessional = 'doctor@example.org';
 
@@ -793,12 +797,16 @@ await individualSdk.confirmIndividualOrganizationOrder({
 Once the provider lineage is known, derive the individual DID from it.
 
 ```ts
-const organizationDid = buildOrganizationDidWeb({
-  hostDidWeb: 'did:web:api.example.org',
+const authorityResolver = new StaticAuthorityResolver();
+
+const authority = await authorityResolver.resolveAuthority({
+  authorityBaseUrl: 'https://api.example.org',
   tenantId: tenantContext.tenantId,
   jurisdiction: tenantContext.jurisdiction,
   sector: tenantContext.sector,
 });
+
+const organizationDid = authority.tenantDidWeb!;
 
 const subjectDid = buildIndividualDidWeb({
   organizationDidWeb: organizationDid,
@@ -806,7 +814,7 @@ const subjectDid = buildIndividualDidWeb({
 });
 ```
 
-Do not hand-invent a `did:web` string in docs if a builder already exists.
+Do not hand-invent a `did:web` string in docs if a builder or resolver already exists.
 
 ### 7.5 Create a permission for a professional
 
@@ -869,12 +877,51 @@ In this journey, keep using the same subject/controller facade:
 
 ```ts
 import {
-  EXAMPLE_RELATED_PERSON_UPSERT_BUNDLE_PAYLOAD,
-  cloneExample,
-} from 'gdc-common-utils-ts/examples';
+  EXAMPLE_BUNDLE_TYPE_BATCH,
+  EXAMPLE_INTEROPERABLE_CONTEXT_FHIR_API,
+  EXAMPLE_RELATED_PERSON_ROLE,
+  InteroperableOperationMethods,
+  RelatedPersonClaim,
+  ResourceTypesFhirR4,
+  setRelatedPersonActive,
+  setRelatedPersonIdentifier,
+} from 'gdc-common-utils-ts';
+
+const relatedPersonIdentifier = existingRelationship.identifier;
+const relatedPersonDisplayName = existingRelationship.name;
+const relatedPersonTelecom = `mailto:${existingRelationship.email}`;
+
+let relatedPersonClaims = {
+  '@context': EXAMPLE_INTEROPERABLE_CONTEXT_FHIR_API,
+};
+
+relatedPersonClaims = setRelatedPersonIdentifier(
+  relatedPersonClaims,
+  relatedPersonIdentifier,
+);
+relatedPersonClaims = setRelatedPersonActive(relatedPersonClaims, true);
+relatedPersonClaims = {
+  ...relatedPersonClaims,
+  [RelatedPersonClaim.Patient]: subjectDid,
+  [RelatedPersonClaim.Relationship]: EXAMPLE_RELATED_PERSON_ROLE,
+  [RelatedPersonClaim.Name]: relatedPersonDisplayName,
+  [RelatedPersonClaim.Telecom]: relatedPersonTelecom,
+};
+
+const relatedPersonPayload = {
+  resourceType: ResourceTypesFhirR4.Bundle,
+  type: EXAMPLE_BUNDLE_TYPE_BATCH,
+  entry: [{
+    request: { method: InteroperableOperationMethods.Post },
+    resource: {
+      resourceType: ResourceTypesFhirR4.RelatedPerson,
+      meta: { claims: relatedPersonClaims },
+    },
+  }],
+};
 
 await individualSdk.upsertRelatedPersonAndPoll(tenantContext, {
-  relatedPersonPayload: cloneExample(EXAMPLE_RELATED_PERSON_UPSERT_BUNDLE_PAYLOAD),
+  relatedPersonPayload,
 });
 ```
 
