@@ -11,13 +11,23 @@
  * 3. BFF later confirms the legal-organization order returned by `_transaction`
  * 4. organization-controller facade provisions one professional employee
  * 5. individual-controller profile is loaded and boots one individual
- * 6. the individual controller ingests clinical data and grants consent
+ * 6. the individual controller ingests clinical data through document
+ *    `Bundle` -> `Communication` -> DIDComm/plain and grants consent
  * 7. professional profile is loaded and requests a SMART token
- * 8. the professional reads the allowed IPS document
+ * 8. the professional reads the allowed IPS document via FHIR params such as
+ *    `Composition.section`
  * 9. cleanup closes consent, individual, employee, tenant, and host state
  *
  * Run this suite from the user's real terminal/TTY.
  */
+/**
+ * 101 note:
+ * - `gdc-common-utils-ts` owns the canonical step-by-step editors/readers and payload examples.
+ * - This file starts after that shared authoring step and teaches the highest-level `sdk-node` runtime surface for this topic.
+ * - Reuse `sdk-core` and `common-utils` contracts instead of re-teaching raw claims or low-level editors here.
+ * - Read `docs/101-README.md` for the ordered path and keep actor role plus submit/poll explicit.
+ */
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPrivateKey, sign as cryptoSign } from 'node:crypto';

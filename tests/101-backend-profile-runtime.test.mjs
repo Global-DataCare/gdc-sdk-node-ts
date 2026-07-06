@@ -1,3 +1,11 @@
+/**
+ * 101 note:
+ * - `gdc-common-utils-ts` owns the canonical step-by-step editors/readers and payload examples.
+ * - This file starts after that shared authoring step and teaches the highest-level `sdk-node` runtime surface for this topic.
+ * - Reuse `sdk-core` and `common-utils` contracts instead of re-teaching raw claims or low-level editors here.
+ * - Read `docs/101-README.md` for the ordered path and keep actor role plus submit/poll explicit.
+ */
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -9,6 +17,7 @@ import assert from 'node:assert/strict';
  * - no ad hoc literals when one shared fixture/type already exists
  * - prefer reusable examples from `gdc-common-utils-ts`
  * - keep the flow step by step and didactic
+ * - start from `ProfileRuntime -> loadProfile(...) -> workspace/session -> actor facade`
  *
  * Teaching map:
  * - orchestration and actor chaining live here in `sdk-node`
@@ -73,19 +82,16 @@ import {
   IndividualControllerBackendRuntime,
   OrganizationControllerBackendRuntime,
   ProfessionalBackendRuntime,
-  closeBackendProfile,
-  connectBackendToSubjectIndex,
+  createLoadedProfileWorkspace,
   createBackendProfileRuntime,
-  getBackendSubjectIndexComposition,
   prepareLoadProfile,
-  registerBackendTrustedDevice,
 } from '../dist/index.js';
 
 /**
  * Teaching goal:
  * show the full high-level backend story that a web/expo frontend, one BFF,
- * and one voice system should all share:
- * 1. load one protected profile and unlock it with the local PIN,
+ * and other systems should all share:
+ * 1. load one protected profile and materialize one workspace/session,
  * 2. resolve the actor facade for the current role,
  * 3. contract seats and manage employees as organization controller,
  * 4. resume or create one individual registration as individual controller,
@@ -94,8 +100,20 @@ import {
  * 7. let one professional obtain SMART + IPS when consent matches,
  * 8. deny another professional role when consent does not match,
  * 9. disable/purge employees, individual, and tenant during cleanup.
+ *
+ * Runtime ownership rule:
+ * - the unlocked user profile remains the normal crypto owner for user
+ *   messages and replies
+ * - when one reply arrives, the app/BFF reads it as:
+ *   `document Bundle (Composition first) -> Communication -> DIDComm/plain`
+ * - the canonical lower-layer example for that payload shape lives in:
+ *   `gdc-common-utils-ts/__tests__/101-communication-medication-document.test.ts`
+ * - backend search is a separate story taught with public FHIR search params
+ *   such as `Composition.section`
+ * - one BFF may orchestrate several such profiles and their local outboxes
+ * - GW starts owning the async processing only after message reception
  */
-test('101: backend profile runtime tells the complete high-level story for app, BFF, and voice integrations', async () => {
+test('101: backend profile runtime tells the complete high-level story for app, BFF, and other integrations', async () => {
   const consentBundleExample = buildConsentPermissionTemplateImportExportSessionExample();
   const ipsBundleExample = buildIpsClinicalHistoryBundleExample();
   const familyOrganizationSummary =
@@ -356,7 +374,7 @@ test('101: backend profile runtime tells the complete high-level story for app, 
   const individualControllerRuntime = new IndividualControllerBackendRuntime(profileRuntime);
   const professionalRuntime = new ProfessionalBackendRuntime(profileRuntime);
 
-  // Step 1. Front/app/voice captures one protected profile id and PIN, then the
+  // Step 1. Front/app captures one protected profile id and PIN, then the
   // backend runtime loads the actor facade for the organization controller.
   const organizationControllerProfile = await organizationControllerRuntime.loadProfile(
     organizationControllerLoadRequest,
@@ -402,26 +420,30 @@ test('101: backend profile runtime tells the complete high-level story for app, 
   );
   const employeeRows = readEmployeeSearchResults(employeeDirectory.poll.body);
 
-  // Step 4. The BFF/voice controller flow loads the individual-controller
+  // Step 4. The BFF controller flow loads the individual-controller
   // profile, registers the trusted device, and connects to the subject index.
   const individualControllerProfile = await individualControllerRuntime.loadProfile(
     individualControllerLoadRequest,
   );
-  const trustedDevice = await registerBackendTrustedDevice(profileRuntime, {
+  const individualControllerWorkspace = createLoadedProfileWorkspace(
+    profileRuntime,
+    individualControllerProfile.profile,
+  );
+  const trustedDevice = await individualControllerWorkspace.registerTrustedDevice({
     userId: individualControllerLoadRequest.profileDid,
     userRoleCode: individualControllerLoadRequest.actorRole,
     deviceDid: EXAMPLE_DEVICE_CLIENT_ID,
     providerDid: individualControllerLoadRequest.providerDid,
     otpCode: EXAMPLE_OTP_CODE,
   });
-  const connectedSubjectIndex = await connectBackendToSubjectIndex(profileRuntime, {
+  const connectedSubjectIndex = await individualControllerWorkspace.connectToSubjectIndex({
     subjectId: individualControllerLoadRequest.subjectDid,
     userId: individualControllerLoadRequest.profileDid,
     userRoleCode: individualControllerLoadRequest.actorRole,
     secretKind: EXAMPLE_PROFILE_CONNECTION_SECRET_KIND_PIN_PASSWORD,
     connectionPinPassword: EXAMPLE_PROFILE_CONNECTION_PIN_PASSWORD,
   });
-  const subjectComposition = await getBackendSubjectIndexComposition(profileRuntime, {
+  const subjectComposition = await individualControllerWorkspace.getSubjectIndexComposition({
     subjectId: individualControllerLoadRequest.subjectDid,
     userId: individualControllerLoadRequest.profileDid,
     userRoleCode: individualControllerLoadRequest.actorRole,
@@ -456,11 +478,11 @@ test('101: backend profile runtime tells the complete high-level story for app, 
 
   // Step 7. Controller adds one new clinical item in one new section through
   // shared bundle helpers instead of editing raw entries.
-  const bundleEditor = new CommunicationAttachedBundleSession({
+  const clinicalBundleEditor = new CommunicationAttachedBundleSession({
     communicationClaims: ipsBundleExample.communicationClaims,
     initialBundle: structuredClone(ipsBundleExample.bundleInMemory),
   });
-  bundleEditor.upsertActiveObservationEntry({
+  clinicalBundleEditor.upsertActiveObservationEntry({
     claims: buildVitalSignObservationClaims({
       identifier: 'observation-vital-sign-001',
       subject: EXAMPLE_SUBJECT_DID,
@@ -480,8 +502,8 @@ test('101: backend profile runtime tells the complete high-level story for app, 
     }),
     fullUrl: 'urn:uuid:observation-vital-sign-001',
   });
-  bundleEditor.saveAndReleaseActiveEntry();
-  const enrichedClinicalBundle = bundleEditor.getBundleInMemory();
+  clinicalBundleEditor.saveAndReleaseActiveEntry();
+  const enrichedClinicalBundle = clinicalBundleEditor.getBundleInMemory();
   const enrichedClinicalSummary = summarizeClinicalBundle(enrichedClinicalBundle);
   const enrichedClinicalViews = toClinicalResourceExpandedViews(enrichedClinicalBundle);
 
@@ -559,10 +581,10 @@ test('101: backend profile runtime tells the complete high-level story for app, 
     { tenantId: EXAMPLE_TENANT_ROUTE_CONTEXT.tenantId },
   );
 
-  await closeBackendProfile(profileRuntime, organizationControllerLoadRequest.profileDid);
-  await closeBackendProfile(profileRuntime, individualControllerLoadRequest.profileDid);
-  await closeBackendProfile(profileRuntime, professionalLoadRequest.profileDid);
-  await closeBackendProfile(profileRuntime, deniedProfessionalLoadRequest.profileDid);
+  await createLoadedProfileWorkspace(profileRuntime, organizationControllerProfile.profile).close();
+  await individualControllerWorkspace.close();
+  await createLoadedProfileWorkspace(profileRuntime, professionalProfile.profile).close();
+  await createLoadedProfileWorkspace(profileRuntime, deniedProfessionalProfile.profile).close();
 
   assert.equal(organizationControllerProfile.session.actorKind, ActorKinds.OrganizationController);
   assert.equal(individualControllerProfile.session.actorKind, ActorKinds.IndividualController);
@@ -635,7 +657,7 @@ test('101: backend profile runtime tells the complete high-level story for app, 
   assert.equal(disabledTenant.poll.body.status, 'disabled');
   assert.equal(purgedTenant.poll.body.status, 'purged');
   await assert.rejects(
-    () => getBackendSubjectIndexComposition(profileRuntime, {
+    () => individualControllerWorkspace.getSubjectIndexComposition({
       subjectId: individualControllerLoadRequest.subjectDid,
       userId: individualControllerLoadRequest.profileDid,
       userRoleCode: individualControllerLoadRequest.actorRole,

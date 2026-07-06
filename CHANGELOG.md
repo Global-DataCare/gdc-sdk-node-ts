@@ -4,7 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-07-06
+
 ### Added
+- Added one canonical `ProfileRuntime` plus loaded profile workspace so BFF/backend
+  consumers can reuse the same canonical `loadProfile(...) ->
+  workspace/session -> actor facade` entrypoint already being aligned across
+  runtimes:
+  - `src/backend-profile-workspace.ts`
+  - `src/index.ts`
 - Added internal runtime helper modules so the Node runtime client delegates
   path resolution, host submission payload assembly, consent-claim building,
   HTTP transport, trace redaction, and message wrapping instead of keeping
@@ -17,8 +25,36 @@ All notable changes to this project will be documented in this file.
   - `src/runtime-paths.ts`
   - `src/runtime-route-context.ts`
   - `src/runtime-transport.ts`
+- Added one individual-side identity helper surface on the Node facades so
+  BFF and CLI runtimes can build controller/member VC/VP material and one
+  separate dependent-subject VC without dropping to raw common-utils calls:
+  - `IndividualControllerSdk.getIdentitySameAs(...)`
+  - `IndividualControllerSdk.getIdentityVC(...)`
+  - `IndividualControllerSdk.getSubjectVC(...)`
+  - `IndividualControllerSdk.buildIdentityVpPayload(...)`
+  - `IndividualControllerSdk.buildUnsignedIdentityVpJwt(...)`
+  - `IndividualMemberSdk.getIdentitySameAs(...)`
+  - `IndividualMemberSdk.getIdentityVC(...)`
+  - `IndividualMemberSdk.buildIdentityVpPayload(...)`
+  - `IndividualMemberSdk.buildUnsignedIdentityVpJwt(...)`
+  in:
+  - `src/orchestration/individual-controller-sdk.ts`
+  - `src/orchestration/individual-member-sdk.ts`
+  - `tests/orchestration.test.mjs`
 
 ### Changed
+- Reworked the main backend `101` runtime slices so they use one loaded
+  backend workspace/session instead of standalone helper calls or
+  `actorSessions[0]` indexing:
+  - `tests/101-backend-profile-runtime.test.mjs`
+  - `tests/101-profile-workspace-runtime.test.mjs`
+  - `docs/101-PROFILE-ORCHESTRATION.md`
+  - `README.md`
+- Clarified the node-runtime `101` onboarding trail so the integration guide
+  and controller lifecycle test now state their package boundary and link the
+  lower executable `101` files in `sdk-core` and `common-utils`:
+  - `docs/101-SDK_INTEGRATION.md`
+  - `tests/101-organization-controller-lifecycle.test.mjs`
 - Refactored `HttpRuntimeClient` so `src/node-runtime-client.ts` acts mainly as
   the public runtime facade and delegation layer, while preserving the
   existing public method surface and host-onboarding route interception points
@@ -51,6 +87,10 @@ All notable changes to this project will be documented in this file.
   - `src/node-runtime-client.ts`
   - `src/resource-operations.ts`
   - `docs/101-SDK_END_TO_END.md`
+- Documented when to use controller identity VC, dependent subject VC, or both
+  in the individual-controller flow:
+  - `docs/101-SDK_END_TO_END.md`
+  - `docs/101-SDK_INTEGRATION.md`
 
 ## [2.1.3] - 2026-06-30
 

@@ -1,5 +1,12 @@
 # Node SDK End-to-End 101
 
+> 101 note
+> - Teach here: the highest-level `sdk-node` actor/profile/runtime surface after shared authoring in `gdc-common-utils-ts`.
+> - Reuse lower-layer contracts from `sdk-core` and `common-utils` instead of re-teaching raw claims or low-level editors.
+> - When payload authoring appears, teach document `Bundle` with `Composition` first -> `Communication` -> DIDComm/plain; search stays separate through FHIR params such as `Composition.section`.
+> - Read [101-README.md](./101-README.md) for the ordered path and keep actor role plus submit/poll explicit.
+
+
 This is the main onboarding guide for backend developers integrating
 `gdc-sdk-node-ts`.
 
@@ -93,7 +100,7 @@ It owns:
 - `RelatedPerson` upsert
 - `Communication` ingestion
 - SMART token requests
-- subject document search
+- subject document search via FHIR params such as `Composition.section`
 
 It does not own the canonical business contract by itself.
 
@@ -113,6 +120,12 @@ Open `gdc-sdk-node-ts` when your question is:
 - what class do I instantiate
 - what method do I call
 - what runtime result do I get back
+
+Open `gdc-common-utils-ts` when your question is:
+
+- how do I author the canonical step-by-step payloads
+- what editor/reader already expresses this shape
+- what shared example already exists for this flow
 
 Open `gdc-sdk-core-ts` when your question is:
 
@@ -145,7 +158,7 @@ Journey B: individual subject side
 2. confirm returned order or offer
 3. create permissions for a professional or caregiver
 4. import IPS or FHIR content
-5. search latest IPS or a clinical bundle
+5. search latest IPS or a clinical bundle with FHIR params such as `Composition.section`
 
 Do not mix those journeys into one mental model.
 
@@ -791,6 +804,82 @@ await individualSdk.confirmIndividualOrganizationOrder({
   intervalSeconds: 2,
 });
 ```
+
+### 7.3a Identity layers after individual bootstrap
+
+Keep these two layers separate:
+
+- controller/person identity
+  - represents the human who decides and authorizes
+  - covers controller binding, VC material, actor DID, and claims such as
+    `hasCredential.material`
+- device/app/BFF identity
+  - represents the runtime that will later talk to GW
+  - covers DCR, OAuth client identity, and DIDComm/JWE/JWS transport keys
+
+Practical rule:
+
+- successful individual bootstrap does not mean the runtime client is already
+  registered
+- later `Token/_exchange` + `Device/_dcr` still belongs to the technical client
+  layer
+- do not reuse controller/person signing keys as if they were automatically the
+  app/device/BFF transport keys
+
+### 7.3b Build controller and subject VC material
+
+Use the identity helpers according to which entity you need to prove:
+
+- `individualSdk.getIdentityVC(...)`
+  - use this for the actor who is acting now
+  - examples: parent, guardian, spouse, caregiver, pet owner
+- `individualSdk.getSubjectVC(...)`
+  - use this for the represented/dependent subject
+  - examples: child, animal, dependent adult
+- `individualSdk.getIdentityVC(...) + individualSdk.getSubjectVC(...)`
+  - use both when the eventual VP should carry both the controller proof and
+    the dependent subject proof
+
+Keep the semantics separate:
+
+- controller VC answers who is acting and on what authority basis
+- subject VC answers who the represented subject is
+- both VCs may carry `evidence[]` such as DNI, family book, guardianship, or
+  pet-ownership verification
+
+```ts
+const controllerVc = individualSdk.getIdentityVC({
+  actorDid: controllerDid,
+  subjectDid,
+  relationship: 'v3-RoleCode|RESPRSN',
+  authorityBasis: 'parental-authority',
+  email: 'ana.parent@example.org',
+  credentialMaterial: `${controllerDid}#signing-key-1`,
+  evidence: [{
+    type: ['DocumentVerification'],
+    evidenceDocument: 'LibroDeFamilia',
+    verifier: 'did:web:kyc.example.org',
+  }],
+});
+
+const subjectVc = individualSdk.getSubjectVC({
+  subjectDid,
+  evidence: [{
+    type: ['DocumentVerification'],
+    evidenceDocument: 'DNI',
+    verifier: 'did:web:kyc.example.org',
+  }],
+  additionalCredentialSubject: {
+    alternateName: 'Ana',
+  },
+});
+```
+
+Practical rule:
+
+- do not use `getSubjectVC(...)` as a replacement for the controller identity
+- do not overload the controller VC with child/pet-only claims when a subject
+  VC is the clearer model
 
 ### 7.4 Build the subject DID
 

@@ -1,3 +1,10 @@
+/**
+ * 101 note:
+ * - Teach the highest-level `sdk-node` actor/profile/runtime surface for this topic.
+ * - Reuse `sdk-core` and `common-utils` helpers instead of re-teaching raw claims or low-level editors here.
+ * - Read `docs/101-README.md` for the ordered path and keep actor role plus submit/poll explicit.
+ */
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -20,16 +27,19 @@ import {
   buildIpsClinicalHistoryBundleExample,
 } from 'gdc-common-utils-ts';
 import {
+  ProfileRuntime,
   createBackendProfileRuntime,
-  createOrganizationControllerProfileWorkspace,
-  createProfessionalProfileWorkspace,
   prepareLoadProfile,
 } from '../dist/index.js';
 
 test('101: profile workspace exposes the chainable high-level surface for organization and professional flows', async () => {
-  const backendProfileRuntime = createBackendProfileRuntime({
+  // This slice stays on the post-load workspace/session surface after
+  // common-utils has already authored the payloads.
+  // Payload authoring still follows document Bundle -> Communication -> DIDComm/plain,
+  // and backend search stays on FHIR params such as Composition.section.
+  const backendProfileRuntime = new ProfileRuntime(createBackendProfileRuntime({
     facadeClient: {},
-  });
+  }));
 
   const organizationControllerProfile = await backendProfileRuntime.loadProfile(
     prepareLoadProfile({
@@ -62,14 +72,8 @@ test('101: profile workspace exposes the chainable high-level surface for organi
     }),
   );
 
-  const profileOrgController = createOrganizationControllerProfileWorkspace({
-    ...organizationControllerProfile,
-    sdk: organizationControllerProfile.actorSessions[0].asOrganizationController(),
-  });
-  const profileHealthcareProfessional = createProfessionalProfileWorkspace({
-    ...professionalProfile,
-    sdk: professionalProfile.actorSessions[0].asProfessional(),
-  });
+  const profileOrgController = organizationControllerProfile.createOrganizationControllerWorkspace();
+  const profileHealthcareProfessional = professionalProfile.createProfessionalWorkspace();
 
   const invoiceEditor = profileOrgController.organization.bundleEditor.invoice()
     .setInvoiceId('invoice-001')
@@ -109,6 +113,10 @@ test('101: profile workspace exposes the chainable high-level surface for organi
   });
   const cachedVitalSigns = await professionalSubject.cache.getDisplayableVitalSignResourceIds();
 
+  assert.equal(organizationControllerProfile.profile.descriptor.profileId, `${EXAMPLE_PROFILE_ID}-organization-workspace`);
+  assert.equal(professionalProfile.profile.descriptor.profileId, `${EXAMPLE_PROFILE_ID}-professional-workspace`);
+  assert.equal(typeof organizationControllerProfile.asOrganizationController, 'function');
+  assert.equal(typeof professionalProfile.asProfessional, 'function');
   assert.equal(typeof invoiceEditor.buildInvoiceClaims, 'function');
   assert.equal(typeof consentEditor.getBundleInMemory, 'function');
   assert.equal(licenseSummary.contracted, 2);
