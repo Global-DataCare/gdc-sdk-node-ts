@@ -8,6 +8,19 @@ application architecture work.
 The current goal is to validate GW CORE end to end from Node tests in a
 controlled environment.
 
+For the next pending implementation slice around vital-sign batches and
+ledger-only certification, see:
+
+- [PENDING-VITAL-SIGNS-BLOCKCHAIN-ROADMAP.md](./PENDING-VITAL-SIGNS-BLOCKCHAIN-ROADMAP.md)
+
+The fastest start is the "Immediate Execution Order" section in that roadmap:
+
+1. shared helper and tests in `gdc-common-utils-ts`
+2. facade wiring in `gdc-sdk-core-ts`
+3. Node runtime method and 101 example in `gdc-sdk-node-ts`
+4. route/manager implementation and tests in `gwtemplate-node-ts`
+5. front facade exposure in `gdc-sdk-front-ts`
+
 The live suite in `tests/live-gw-node-runtime.e2e.test.mjs` currently acts as:
 
 - a controlled `virtual API`

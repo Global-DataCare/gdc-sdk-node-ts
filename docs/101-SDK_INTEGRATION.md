@@ -4,12 +4,17 @@
 > - Teach here: the highest-level `sdk-node` actor/profile/runtime surface after shared authoring in `gdc-common-utils-ts`.
 > - Reuse lower-layer contracts from `sdk-core` and `common-utils` instead of re-teaching raw claims or low-level editors.
 > - The beginner payload path is document `Bundle` with `Composition` first -> `Communication` -> DIDComm/plain; backend search stays on FHIR params such as `Composition.section`.
+> - In secure/FAPI-backed mode, encrypted DIDComm is the submit path; JWE in the `request` / `response` layer belongs to auth/security around the flow, not to the FHIR payload model.
 > - Read [101-README.md](./101-README.md) for the ordered path and keep actor role plus submit/poll explicit.
-
 
 This file is no longer the main tutorial. It starts after common-utils payload
 authoring and at the runtime boundary where `ProfileRuntime` loads one
 workspace/session and exposes one actor facade.
+
+When a lower-layer `gdc-common-utils-ts` 101 already covers payload authoring
+or wallet/profile fixtures, this guide should show the next step:
+`ProfileRuntime.loadProfile(...)` and the actor facade returned from the loaded
+workspace.
 
 If you want the full copy/paste onboarding flow, start here:
 

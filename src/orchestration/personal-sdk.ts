@@ -11,6 +11,7 @@ import {
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
 import type { RouteContext } from '../individual-onboarding.js';
 import type {
+  BlockchainArtifactRegistrationInput,
   ClinicalBundleSearchInput,
   CommunicationIngestionInput,
   CommunicationParticipantRuntimeSearchInput,
@@ -45,6 +46,14 @@ export class PersonalSdk {
   /** Ingests canonical Communication and waits for projection completion. */
   public ingestCommunicationAndUpdateIndex(ctx: RouteContext, input: CommunicationIngestionInput): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /** Registers one FHIR resource or raw artifact on blockchain before communication. */
+  public registerBlockchainArtifactAndUpdateIndex(
+    ctx: RouteContext,
+    input: BlockchainArtifactRegistrationInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'registerBlockchainArtifactAndUpdateIndex')(ctx, input);
   }
 
   /** Searches indexed communication channel records by subject and participant identifiers. */

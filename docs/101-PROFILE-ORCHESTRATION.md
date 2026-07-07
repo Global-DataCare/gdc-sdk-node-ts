@@ -112,6 +112,18 @@ tests should reuse their authoring surface instead of rebuilding claim maps.
   - one controller or assistant captures a new vital sign
   - one app wants chainable `get/set` editing instead of hand-building FHIR claims
 
+Guidance for high-frequency measurements:
+
+- do not force every smartwatch/device reading onto blockchain immediately
+- group measurements into a day-level or session-level vital-signs batch first
+- project that batch into the IPS when the user, professional, or system
+  decides it is meaningful
+- anchor the batch hash/CID on-chain only when the bundle becomes a committed
+  clinical artifact, using the ledger certification path instead of the
+  Communication indexing path
+- individual `Observation` samples remain the atomic facts; the batch is the
+  certification unit
+
 ### Consent authoring
 
 - `gdc-common-utils-ts/__tests__/101-consent-template-bundle-editor.test.ts`

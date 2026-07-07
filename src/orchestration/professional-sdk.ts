@@ -19,6 +19,7 @@ import {
 import type { RouteContext } from '../individual-onboarding.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type {
+  BlockchainArtifactRegistrationInput,
   CommunicationIngestionInput,
   CommunicationParticipantRuntimeSearchInput,
   ClinicalBundleSearchInput,
@@ -118,6 +119,17 @@ export class ProfessionalSdk {
    */
   public ingestCommunicationAndUpdateIndex(ctx: RouteContext, input: CommunicationIngestionInput): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /**
+   * Registers one FHIR resource or raw document artifact on blockchain before
+   * the artifact is attached to a Communication.
+   */
+  public registerBlockchainArtifactAndUpdateIndex(
+    ctx: RouteContext,
+    input: BlockchainArtifactRegistrationInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'registerBlockchainArtifactAndUpdateIndex')(ctx, input);
   }
 
   /**

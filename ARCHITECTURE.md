@@ -15,6 +15,27 @@ This repository is the canonical place for:
 - backend-generic profile loading, trusted-device, and subject-index runtime implementations
 - backend queue/outbox/vault implementations for actor-aware runtime execution
 
+## Identity And Routing Contract
+
+This package consumes the shared identity rules from `gdc-common-utils-ts`.
+Do not redefine them here.
+
+The runtime contract is:
+
+- `resource.identifier` remains the public/business locator
+- `resource.id` and `Bundle.entry.id` remain the technical lifecycle ids used
+  by node runtime orchestration
+- `Bundle.entry.fullUrl` remains a transport/reference locator
+- `resource.meta.versionId` carries the content fingerprint/CID when the
+  payload is materialized
+- routing/channel selection belongs to the runtime/orchestrator layer, not to
+  the semantic identity itself
+
+When a GW-side route map or portal/domain split is involved, align the runtime
+behavior with the GW template contract:
+
+- [gwtemplate-node-ts/docs/PORTAL_API_TO_GW_CORE.md](https://github.com/Global-DataCare/gwtemplate-node-ts/blob/main/docs/PORTAL_API_TO_GW_CORE.md)
+
 This repository is not the place for:
 
 - shared high-level editor/reader/state abstractions

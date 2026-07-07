@@ -485,6 +485,9 @@ Secure mode:
 - app identity still starts with `appId` / `appVersion`
 - technical communication identity uses `initializeCommunicationIdentity(...)`
 - transport uses FAPI and encrypted DIDComm
+- in the stricter GW FAPI profile, the authorization request/response layer
+  can carry encrypted JWE material in the `request` / `response` parameters
+  around the portal or browser flow
 - communication keys are the PQC-capable technical channel keys, not the human
   controller keys
 
@@ -756,11 +759,22 @@ consent create/read/update/delete/search capabilities in the token request.
 
 ## 7. Journey B: Individual subject to IPS import and search
 
-### 7.1 Create the individual facade
+This journey starts after shared authoring in `gdc-common-utils-ts`.
+In a real backend, the Node runtime first loads one protected profile and then
+opens the actor facade from that loaded workspace.
+
+### 7.1 Load the profile and open the individual facade
 
 ```ts
-const individualSdk = new IndividualControllerSdk(client);
+const workspace = await new ProfileRuntime(runtimeClient).loadProfile(loadRequest);
+const individualSdk = workspace.asIndividualController();
 ```
+
+This is the same `loadProfile(...) -> workspace/session -> actor facade` handoff
+used in:
+
+- [tests/101-backend-profile-runtime.test.mjs](../tests/101-backend-profile-runtime.test.mjs)
+- [tests/live-profile-runtime-individual.e2e.test.mjs](../tests/live-profile-runtime-individual.e2e.test.mjs)
 
 ### 7.2 Start the individual organization or subject index
 
@@ -1152,6 +1166,20 @@ This is the converged runtime path for:
 - `Composition` projection
 - IPS-aligned resource indexing
 
+Scope note:
+
+- this path is for clinical document-style bundles that arrive through
+  `Communication`
+- it is not a blanket rule for every value written to confidential storage
+- appointment-only or other non-document flows should use their own route and
+  should not be taught here as if they were the main clinical bundle path
+- the Communication path is what updates the individual/subject index
+- blockchain certification is a separate ledger-side concern; `_seal` is not
+  the same thing as index ingestion
+- current and future employee/consent manager flows can reuse the same
+  content-hash anchoring pattern when they need it, but they are separate
+  manager contracts
+
 ### 7.11 Search the latest IPS
 
 ```ts
@@ -1173,6 +1201,97 @@ const bundleSearch = await client.searchClinicalBundle(tenantContext, {
   ],
 });
 ```
+
+### 7.12.1 Vital signs as a measurement batch, not always as an immediate ledger write
+
+Frequent device measurements can be accumulated first in a dedicated
+vital-signs batch container and only projected into the IPS when the user,
+professional, or system decides they are ready.
+
+Recommended mental model:
+
+- `Observation` resources such as heart rate, blood pressure, or similar
+  smartwatch/device measurements are the atomic facts
+- a day-level or session-level vital-signs batch groups those facts together
+- that batch can be ingested into the IPS as a measurement bundle
+- the batch hash/CID can be anchored on-chain later, when policy says it is
+  meaningful to certify the set, using the ledger certification path rather
+  than the Communication ingestion path
+- the individual measurements do not need to hit blockchain one by one
+
+Multi-caregiver rule:
+
+- a different caregiver, professional, or device may own a different batch for
+  the same individual on the same day
+- recover the actor-owned batch id first when it exists
+- if no actor-owned batch exists for that day, create a new UUID-backed batch
+  and start appending entries there
+- do not assume the individual has only one mutable batch per day unless the
+  product explicitly chooses that shared-log model
+
+In other words:
+
+- document-oriented clinical bundles may anchor immediately
+- high-frequency vital signs may stay off-ledger until they are aggregated
+- the ledger should record the meaningful bundle hash, not every noisy sample
+
+### 7.13 Register a blockchain artifact before sending the follow-up communication
+
+Use the artifact registration path when the clinical bundle you are writing to
+confidential storage also needs an on-chain CID/hash artifact.
+The SDK call submits a `DocumentReference/_batch` payload and keeps the
+canonical content hash separate from the business identifier.
+
+Important:
+
+- this helper is a current GW/SDK runtime path for document registration and
+  index update
+- it is not the `_seal` endpoint
+- use `_seal` only for ledger-side certification when you do not want to
+  mutate the individual's index through Communication
+
+```ts
+const artifactResult = await client.registerBlockchainArtifactAndUpdateIndex(
+  tenantContext,
+  {
+    subject: subjectDid,
+    resource: documentReferenceResource,
+    contentType: 'application/pdf',
+    contentDataBase64: pdfBase64,
+    identifier: 'docref-2026-00042',
+    title: 'Clinical attachment before communication',
+    description: 'Anchored before the user-facing communication is sent',
+  },
+);
+```
+
+Use this pattern for:
+
+- FHIR `DocumentReference` artifacts that are already materialized as a
+  clinical document resource
+- raw attached bytes such as PDF or image payloads associated with that
+  clinical document
+- FHIR-like payloads that still need a ledger-backed content CID once they are
+  treated as a document-oriented clinical bundle
+
+Routing note:
+
+- the SDK does not invent sector/jurisdiction values on its own
+- if your provider resolver derives them from `countryAddress` and
+  `makesOffer.category`, do that before calling the SDK
+- if that resolver fails, fall back to the individual-index provider
+  sector/jurisdiction that already exists in the runtime context
+- appointment-only flows should not be forced into this document path unless
+  they really carry a clinical bundle that the system wants to certify
+- if a future `individual/.../Bundle/_seal` route is exposed, it should keep
+  the same ledger-only contract and still avoid index mutation
+
+The result is the same ledger contract the GW layer expects:
+
+- content hash/CID is the ledger artifact key
+- business identifier stays separate
+- the backend can then decide whether the anchored artifact belongs to a
+  clinical-document follow-up, an employee batch, or a consent batch
 
 ## 8. Permissions and invitation model
 

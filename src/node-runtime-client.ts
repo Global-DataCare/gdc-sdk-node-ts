@@ -57,6 +57,7 @@ import {
   listOrganizationLicensesWithDeps,
   grantProfessionalAccessWithDeps,
   ingestCommunicationAndUpdateIndexWithDeps,
+  registerBlockchainArtifactAndUpdateIndexWithDeps,
   revokeProfessionalAccessWithDeps,
   searchCommunicationParticipantsWithDeps,
   purgeIndividualMemberWithDeps,
@@ -73,6 +74,7 @@ import {
   searchLatestIpsWithDeps,
   upsertRelatedPersonAndPollWithDeps,
   type CommunicationIngestionInput,
+  type BlockchainArtifactRegistrationInput,
   type CommunicationParticipantRuntimeSearchInput,
   type ClinicalBundleSearchInput,
   type GrantProfessionalAccessInput,
@@ -1021,6 +1023,21 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
+   * Registers one FHIR resource or raw artifact on blockchain and waits until
+   * GW has indexed the resulting DocumentReference projection.
+   */
+  public async registerBlockchainArtifactAndUpdateIndex(
+    ctx: RouteContext,
+    input: BlockchainArtifactRegistrationInput,
+  ): Promise<SubmitAndPollResult> {
+    return registerBlockchainArtifactAndUpdateIndexWithDeps(ctx, input, {
+      individualDocumentReferenceBatchPath: this.paths.individualDocumentReferenceBatchPath.bind(this.paths),
+      individualDocumentReferencePollPath: this.paths.individualDocumentReferencePollPath.bind(this.paths),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
    * Searches communication channel records by subject and participant
    * identifiers through `Communication/_search`.
    */
@@ -1201,6 +1218,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public individualCommunicationPollPath(ctx: RouteContext, format: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4'): string { return this.paths.individualCommunicationPollPath(ctx, format); }
   public individualCommunicationSearchPath(ctx: RouteContext): string { return this.paths.individualCommunicationSearchPath(ctx); }
   public individualCommunicationSearchPollPath(ctx: RouteContext): string { return this.paths.individualCommunicationSearchPollPath(ctx); }
+  public individualDocumentReferenceBatchPath(ctx: RouteContext): string { return this.paths.individualDocumentReferenceBatchPath(ctx); }
+  public individualDocumentReferencePollPath(ctx: RouteContext): string { return this.paths.individualDocumentReferencePollPath(ctx); }
   public individualBundleSearchPath(ctx: RouteContext): string { return this.paths.individualBundleSearchPath(ctx); }
   public individualBundleSearchPollPath(ctx: RouteContext): string { return this.paths.individualBundleSearchPollPath(ctx); }
   public identityTokenExchangePath(ctx: RouteContext): string { return this.paths.identityTokenExchangePath(ctx); }

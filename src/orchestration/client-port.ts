@@ -36,6 +36,7 @@ import type { OrganizationLicenseOrderConfirmInput } from '../organization-licen
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type {
   CommunicationIngestionInput,
+  BlockchainArtifactRegistrationInput,
   CommunicationParticipantRuntimeSearchInput,
   ClinicalBundleSearchInput,
   DigitalTwinGenerationInput,
@@ -250,6 +251,10 @@ export type RuntimeClient = {
   ingestCommunicationAndUpdateIndex?: (
     ctx: RouteContext,
     input: CommunicationIngestionInput,
+  ) => Promise<SubmitAndPollResult>;
+  registerBlockchainArtifactAndUpdateIndex?: (
+    ctx: RouteContext,
+    input: BlockchainArtifactRegistrationInput,
   ) => Promise<SubmitAndPollResult>;
   searchCommunicationParticipants?: (
     ctx: RouteContext,

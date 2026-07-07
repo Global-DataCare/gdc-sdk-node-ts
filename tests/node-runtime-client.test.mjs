@@ -189,6 +189,10 @@ test('NodeHttpClient exposes current GW CORE lifecycle paths for individual and 
     client.individualCommunicationSearchPath(),
     '/acme-id/cds-ES/v1/health-care/individual/org.hl7.fhir.r4/Communication/_search',
   );
+  assert.equal(
+    client.individualDocumentReferenceBatchPath(),
+    '/acme-id/cds-ES/v1/health-care/individual/org.hl7.fhir.r4/DocumentReference/_batch',
+  );
 });
 
 test('NodeHttpClient rejects deprecated host sector alias for host registry routes', () => {

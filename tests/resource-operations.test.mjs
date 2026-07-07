@@ -48,6 +48,7 @@ import {
   grantProfessionalAccessWithDeps,
   importIpsOrFhirAndUpdateIndexWithDeps,
   ingestCommunicationAndUpdateIndexWithDeps,
+  registerBlockchainArtifactAndUpdateIndexWithDeps,
   listIndividualLicensesWithDeps,
   listOrganizationLicenseOffersWithDeps,
   listOrganizationLicenseOrdersWithDeps,
@@ -119,6 +120,8 @@ const INDIVIDUAL_COMMUNICATION_SEARCH_PATH = gwV1Path('individual', 'org.hl7.fhi
 const INDIVIDUAL_COMMUNICATION_SEARCH_POLL_PATH = gwV1Path('individual', 'org.hl7.fhir.r4', 'Communication', '_search-response');
 const INDIVIDUAL_BUNDLE_SEARCH_PATH = gwV1Path('individual', 'org.hl7.fhir.r4', 'Bundle', '_search');
 const INDIVIDUAL_BUNDLE_SEARCH_POLL_PATH = gwV1Path('individual', 'org.hl7.fhir.r4', 'Bundle', '_search-response');
+const INDIVIDUAL_DOCUMENT_REFERENCE_BATCH_PATH = gwV1Path('individual', 'org.hl7.fhir.r4', 'DocumentReference', '_batch');
+const INDIVIDUAL_DOCUMENT_REFERENCE_BATCH_POLL_PATH = gwV1Path('individual', 'org.hl7.fhir.r4', 'DocumentReference', '_batch-response');
 
 test('createOrganizationEmployeeWithDeps builds employee batch payload', async () => {
   const calls = [];
@@ -718,6 +721,43 @@ test('ingestCommunicationAndUpdateIndexWithDeps uses transformer on r4 path', as
   );
   assert.equal(calls[0][0], INDIVIDUAL_COMMUNICATION_R4_BATCH_PATH);
   assert.equal(calls[0][2].transformed, true);
+});
+
+test('registerBlockchainArtifactAndUpdateIndexWithDeps builds a blockchain-ready DocumentReference batch payload', async () => {
+  const calls = [];
+  await registerBlockchainArtifactAndUpdateIndexWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      subject: 'did:web:example.com:subject:1',
+      identifier: 'logical-artifact-001',
+      resource: {
+        resourceType: 'Observation',
+        id: 'obs-1',
+        status: 'final',
+        code: { text: 'Heart rate' },
+      },
+    },
+    {
+      individualDocumentReferenceBatchPath: () => INDIVIDUAL_DOCUMENT_REFERENCE_BATCH_PATH,
+      individualDocumentReferencePollPath: () => INDIVIDUAL_DOCUMENT_REFERENCE_BATCH_POLL_PATH,
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+
+  assert.equal(calls[0][0], INDIVIDUAL_DOCUMENT_REFERENCE_BATCH_PATH);
+  assert.equal(calls[0][1], INDIVIDUAL_DOCUMENT_REFERENCE_BATCH_POLL_PATH);
+  assert.equal(calls[0][2].body.resourceType, 'Bundle');
+  assert.equal(calls[0][2].body.type, 'batch');
+  assert.equal(calls[0][2].body.data[0].type, 'DocumentReference');
+  assert.equal(calls[0][2].body.data[0].resource.resourceType, 'DocumentReference');
+  assert.equal(calls[0][2].body.data[0].resource.identifier[0].value, 'logical-artifact-001');
+  assert.equal(calls[0][2].body.data[0].resource.meta.claims['DocumentReference.identifier'], 'logical-artifact-001');
+  assert.equal(calls[0][2].body.data[0].resource.meta.claims['DocumentReference.subject'], 'did:web:example.com:subject:1');
+  assert.equal(typeof calls[0][2].body.data[0].resource.meta.claims['DocumentReference.contenthash'], 'string');
+  assert.equal(calls[0][2].body.data[0].resource.meta.claims['DocumentReference.contenthash'].startsWith('z'), true);
 });
 
 test('grantProfessionalAccessWithDeps builds consent payload and returns built metadata', async () => {

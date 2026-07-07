@@ -4,7 +4,7 @@ import type { SubmitAndPollResult } from 'gdc-sdk-core-ts';
 import type { ProfileLoadRequest } from 'gdc-sdk-core-ts';
 import type { RouteContext } from './individual-onboarding.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from './smart-token.js';
-import type { ClinicalBundleSearchInput } from './resource-operations.js';
+import type { BlockchainArtifactRegistrationInput, ClinicalBundleSearchInput } from './resource-operations.js';
 import {
   loadBackendProfessionalProfile,
   type BackendProfessionalProfile,
@@ -65,5 +65,17 @@ export class ProfessionalBackendRuntime {
     input: Omit<ClinicalBundleSearchInput, 'includedTypes'>,
   ): Promise<SubmitAndPollResult> {
     return profile.sdk.getLatestIps(ctx, input);
+  }
+
+  /**
+   * Registers one FHIR resource or raw artifact on blockchain before it is
+   * attached to a communication.
+   */
+  public registerBlockchainArtifactAndUpdateIndex(
+    profile: BackendProfessionalProfile,
+    ctx: RouteContext,
+    input: BlockchainArtifactRegistrationInput,
+  ): Promise<SubmitAndPollResult> {
+    return profile.sdk.registerBlockchainArtifactAndUpdateIndex(ctx, input);
   }
 }

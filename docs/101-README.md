@@ -27,6 +27,11 @@ moves into `gdc-sdk-core-ts`, and only then lands here for runtime execution:
    individual member
 5. only then create/read/edit/import/search business data
 
+For individual subject journeys, the Node-side runtime entrypoint is still
+`ProfileRuntime.loadProfile(...)` followed by `workspace.asIndividualController()`.
+Use `gdc-common-utils-ts` for payload authoring and shared fixtures, but do not
+stop the explanation there when the goal is the runtime flow.
+
 Current executable entrypoints:
 
 - high-level complete backend story:

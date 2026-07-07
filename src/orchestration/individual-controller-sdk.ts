@@ -28,6 +28,7 @@ import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartR
 import type { NodeCapability } from '../session.js';
 import type { IndividualOrganizationLifecycleInput } from 'gdc-sdk-core-ts';
 import type {
+  BlockchainArtifactRegistrationInput,
   ClinicalBundleSearchInput,
   CommunicationIngestionInput,
   CommunicationParticipantRuntimeSearchInput,
@@ -213,6 +214,17 @@ export class IndividualControllerSdk {
   public ingestCommunicationAndUpdateIndex(ctx: RouteContext, input: CommunicationIngestionInput): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualIngestCommunication, ActorKinds.IndividualController, 'ingestCommunicationAndUpdateIndex');
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /**
+   * Registers one FHIR resource or raw artifact on blockchain before it is
+   * attached to a subject communication.
+   */
+  public registerBlockchainArtifactAndUpdateIndex(
+    ctx: RouteContext,
+    input: BlockchainArtifactRegistrationInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'registerBlockchainArtifactAndUpdateIndex')(ctx, input);
   }
 
   /**

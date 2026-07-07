@@ -5,6 +5,7 @@ import { Format } from 'gdc-common-utils-ts/constants/Schemas';
 import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
 import {
   buildCommunicationParticipantSearchBundle,
+  buildBlockchainArtifactDocumentReference,
   createInteroperableResourceOperationEditor,
   IndividualOrganizationLifecycleEditor,
   LicenseOfferSearchEditor,
@@ -173,6 +174,21 @@ export type CommunicationIngestionInput = {
   communicationPayload: CommunicationInput & Record<string, unknown>;
   pathFormatSegment?: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4' | 'api' | 'r4' | 'fhir.r4';
   autoConvertClaimsToFhirR4?: boolean;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+};
+
+export type BlockchainArtifactRegistrationInput = {
+  subject: string;
+  resource?: Record<string, unknown>;
+  contentDataBase64?: string;
+  contentType?: string;
+  identifier?: string;
+  title?: string;
+  description?: string;
+  date?: string;
+  location?: string;
+  language?: string;
+  requestThid?: string;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
 
@@ -1035,6 +1051,58 @@ export async function searchLatestIpsWithDeps(
     section: input.section || HealthcareBasicSections.PatientSummaryDocument.claim,
     includedTypes: ['Composition', 'DocumentReference'],
   });
+}
+
+export async function registerBlockchainArtifactAndUpdateIndexWithDeps(
+  routeCtx: RouteContext,
+  input: BlockchainArtifactRegistrationInput,
+  deps: {
+    individualDocumentReferenceBatchPath: (ctx: RouteContext) => string;
+    individualDocumentReferencePollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  const artifact = buildBlockchainArtifactDocumentReference({
+    subject: input.subject,
+    resource: input.resource,
+    contentDataBase64: input.contentDataBase64,
+    contentType: input.contentType,
+    identifier: input.identifier,
+    title: input.title,
+    description: input.description,
+    date: input.date,
+    location: input.location,
+    language: input.language,
+  });
+
+  const payload = {
+    thid: input.requestThid || `blockchain-artifact-${createRuntimeUuid()}`,
+    body: {
+      resourceType: 'Bundle',
+      type: 'batch',
+      data: [{
+        type: 'DocumentReference',
+        meta: { claims: artifact.documentReference.meta?.claims || {} },
+        resource: artifact.documentReference,
+        request: {
+          method: 'POST',
+          url: 'individual/org.hl7.fhir.r4/DocumentReference/_batch',
+        },
+      }],
+    },
+  };
+
+  return deps.submitAndPoll(
+    deps.individualDocumentReferenceBatchPath(routeCtx),
+    deps.individualDocumentReferencePollPath(routeCtx),
+    payload,
+    input.pollOptions,
+  );
 }
 
 export async function grantProfessionalAccessWithDeps(
