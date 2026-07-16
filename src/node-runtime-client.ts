@@ -16,6 +16,7 @@ import {
   resolveAppInfo,
   TransportProfiles,
   type ResolvedAppInfo,
+  type CommunicationClinicalFormatRenderers,
   type SecureDidcommTransportAdapter,
   type TransportProfile,
 } from 'gdc-sdk-core-ts';
@@ -182,6 +183,8 @@ export type HttpRuntimeClientOptions = {
   transportProfile?: TransportProfile;
   /** Wallet-backed pack/unpack adapter required by the secure-form profile. */
   secureTransportAdapter?: SecureDidcommTransportAdapter;
+  /** Product-supplied clinical projections not owned by the generic runtime. */
+  communicationFormatRenderers?: CommunicationClinicalFormatRenderers;
   /** Injectable fetch implementation for BFF adapters and deterministic tests. */
   fetchImpl?: typeof fetch;
 };
@@ -209,6 +212,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   private readonly requestTimeoutMs: number;
   private readonly transportProfile: TransportProfile;
   private readonly secureTransportAdapter?: SecureDidcommTransportAdapter;
+  private readonly communicationFormatRenderers: CommunicationClinicalFormatRenderers;
   private readonly fetchImpl?: typeof fetch;
   private readonly httpTraceFile?: string;
   private readonly tokenCache = new Map<string, { accessToken: string; tokenType: string; scopes: string[]; expiresAt: number }>();
@@ -251,6 +255,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     this.requestTimeoutMs = Math.max(1, Math.floor(options.requestTimeoutMs ?? 15_000));
     this.transportProfile = options.transportProfile || TransportProfiles.DidcommPlainJson;
     this.secureTransportAdapter = options.secureTransportAdapter;
+    this.communicationFormatRenderers = options.communicationFormatRenderers || {};
     this.fetchImpl = options.fetchImpl;
     this.httpTraceFile = String(process.env.SDK_HTTP_TRACE_FILE || '').trim() || undefined;
     this.paths = new RuntimeClientPaths(this.ctx);
@@ -1159,10 +1164,18 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   ): Promise<SubmitAndPollResult> {
     const job = input.communicationJob!;
     const profile = input.transportProfile || this.transportProfile;
-    const format = normalizeCommunicationPathFormatSegment(input.pathFormatSegment);
+    const format = normalizeCommunicationPathFormatSegment(input.clinicalFormat || input.pathFormatSegment);
     const submitPath = this.paths.individualCommunicationBatchPath(ctx, format);
     const pollPath = this.paths.individualCommunicationPollPath(ctx, format);
-    const renderedSubmit = await renderCommunicationOutboxRequest(job, profile, this.secureTransportAdapter);
+    const renderedSubmit = await renderCommunicationOutboxRequest(
+      job,
+      profile,
+      this.secureTransportAdapter,
+      {
+        clinicalFormat: input.clinicalFormat || input.pathFormatSegment || 'api',
+        formatRenderers: this.communicationFormatRenderers,
+      },
+    );
     const submit = await postRenderedWithRuntimeConfig(this.transportConfig, submitPath, renderedSubmit);
     const poll = await pollUntilCompleteWithMethod(
       async (path, request) => {
@@ -1441,8 +1454,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public individualRelatedPersonPurgePollPath(ctx?: RouteContext): string { return this.paths.individualRelatedPersonPurgePollPath(ctx); }
   public individualConsentR4BatchPath(ctx: RouteContext): string { return this.paths.individualConsentR4BatchPath(ctx); }
   public individualConsentR4PollPath(ctx: RouteContext): string { return this.paths.individualConsentR4PollPath(ctx); }
-  public individualCommunicationBatchPath(ctx: RouteContext, format: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4'): string { return this.paths.individualCommunicationBatchPath(ctx, format); }
-  public individualCommunicationPollPath(ctx: RouteContext, format: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4'): string { return this.paths.individualCommunicationPollPath(ctx, format); }
+  public individualCommunicationBatchPath(ctx: RouteContext, format: string): string { return this.paths.individualCommunicationBatchPath(ctx, format); }
+  public individualCommunicationPollPath(ctx: RouteContext, format: string): string { return this.paths.individualCommunicationPollPath(ctx, format); }
   public individualCommunicationSearchPath(ctx: RouteContext): string { return this.paths.individualCommunicationSearchPath(ctx); }
   public individualCommunicationSearchPollPath(ctx: RouteContext): string { return this.paths.individualCommunicationSearchPollPath(ctx); }
   public individualDocumentReferenceBatchPath(ctx: RouteContext): string { return this.paths.individualDocumentReferenceBatchPath(ctx); }

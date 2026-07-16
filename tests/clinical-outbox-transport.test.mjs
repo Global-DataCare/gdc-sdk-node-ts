@@ -7,9 +7,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addFhirResourceToDraft,
-  createCommunicationDraft,
-  createOutboxJobFromDraft,
+  attachFhirResourceAsAttachmentToCommMsgExtendedDraft,
+  createCommunicationOutboxJobFromCommMsgExtendedDraft,
+  createCommMsgExtendedDraft,
   IndividualControllerSdk,
   NodeHttpClient,
   TransportProfiles,
@@ -18,12 +18,13 @@ import {
 const ctx = { tenantId: 'VATES-G02793479', jurisdiction: 'ES', sector: 'health-care' };
 
 function createClinicalOutboxJob() {
-  let draft = createCommunicationDraft({
-    subject: 'did:web:unid.online:card:uhc:personal:subject-1',
+  let communicationDraft = createCommMsgExtendedDraft({
+    thid: 'clinical-outbox-thread-1',
+    subject: 'did:web:subject.example:person-1',
     sender: 'did:web:professional.example:doctor-1',
     noteText: 'Imported IPS document',
   });
-  draft = addFhirResourceToDraft(draft, {
+  communicationDraft = attachFhirResourceAsAttachmentToCommMsgExtendedDraft(communicationDraft, {
     resourceType: 'Bundle',
     type: 'document',
     entry: [{
@@ -34,9 +35,7 @@ function createClinicalOutboxJob() {
       },
     }],
   });
-  return createOutboxJobFromDraft(draft, {
-    batchOptions: { thid: 'clinical-outbox-thread-1' },
-  });
+  return createCommunicationOutboxJobFromCommMsgExtendedDraft(communicationDraft);
 }
 
 function createFetchRecorder(profile, calls) {
@@ -78,7 +77,7 @@ for (const profile of Object.values(TransportProfiles)) {
     // Step 2. The actor facade owns submit and poll; the app passes no raw GW batch.
     const result = await sdk.ingestCommunicationAndUpdateIndex(ctx, {
       communicationJob: job,
-      pathFormatSegment: 'r4',
+      clinicalFormat: 'r4',
       pollOptions: { intervalMs: 1, timeoutMs: 100 },
     });
 

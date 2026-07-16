@@ -15,6 +15,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-07-16
+
+- Clinical ingestion now accepts the claims-first `CommMsgExtended` outbox,
+  renders `api`/R4 or injected sector formats only at submission time, and
+  separates `clinicalFormat` from the HTTP/DIDComm transport profile.
+- Deprecated the ambiguous `pathFormatSegment` application option in favor of
+  `clinicalFormat`; unknown formats now fail instead of silently becoming API.
+
 ### Added
 - Added the production server profile/session runtime with DCR registration,
   registered-key SMART assertions and subject-scoped sessions.

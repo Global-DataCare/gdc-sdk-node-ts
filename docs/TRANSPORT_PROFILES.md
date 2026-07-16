@@ -1,7 +1,8 @@
 # Transport Profile Boundary
 
-Node channel facades keep canonical payload and transport separate. FHIR
-Communication bundles use `Bundle.id` as thread id. DIDComm plain is demo-only.
+Node channel facades keep canonical claims, clinical format and transport
+separate. The outbox stores `CommMsgExtended.body.data[].resource.meta.claims`.
+DIDComm plain is demo-only.
 Protected HTTP uses `request=<JWE>` and `response=<JWE>`. The JWE is protected
 DIDComm transport; JAR/JARM are OAuth/FAPI authorization artifacts and are not
 names for every clinical message.
@@ -9,12 +10,21 @@ names for every clinical message.
 Applications create one public outbox and submit it through their actor facade:
 
 ```ts
-const job = createOutboxJobFromDraft(draft);
+const communicationJob =
+  createCommunicationOutboxJobFromCommMsgExtendedDraft(communicationDraft);
 await profile.sdk.ingestCommunicationAndUpdateIndex(ctx, {
-  communicationJob: job,
-  pathFormatSegment: 'r4',
+  communicationJob,
+  clinicalFormat: 'r4',
 });
 ```
+
+`clinicalFormat: 'api'` sends the claims-first `data[]` representation.
+`clinicalFormat: 'r4'` projects the same claims to a FHIR batch. Product SDKs
+may inject other formats without adding them to generic GDC packages.
+
+`application/fhir+json` sends that rendered body directly. A DIDComm envelope
+is created only for `application/didcomm-plain+json` or before packing the JWE
+for `application/x-www-form-urlencoded`.
 
 `NodeHttpClient.transportProfile` selects the wire representation. The secure
 profile additionally requires `secureTransportAdapter.pack/unpack`; absence of

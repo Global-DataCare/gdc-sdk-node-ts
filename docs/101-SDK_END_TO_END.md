@@ -178,9 +178,9 @@ import {
   ProfessionalSdk,
   IndividualControllerSdk,
   IndividualMemberSdk,
-  createCommunicationDraft,
-  addFhirResourceToDraft,
-  createOutboxJobFromDraft,
+  createCommMsgExtendedDraft,
+  attachFhirResourceAsAttachmentToCommMsgExtendedDraft,
+  createCommunicationOutboxJobFromCommMsgExtendedDraft,
   createHeartRateObservation,
   createBloodPressureObservation,
   initializeCommunicationIdentity,
@@ -1112,7 +1112,7 @@ const professionalDid = buildProfessionalDidWeb({
   role: HealthcareActorRoles.Physician,
 });
 
-let draft = createCommunicationDraft({
+let communicationDraft = createCommMsgExtendedDraft({
   subject: subjectDid,
   sender: professionalDid,
   recipient: organizationDid,
@@ -1132,37 +1132,45 @@ const bloodPressure = createBloodPressureObservation({
   diastolic: 78,
 });
 
-draft = addFhirResourceToDraft(draft, heartRate, { noteText: 'Heart rate' });
-draft = addFhirResourceToDraft(draft, bloodPressure, { noteText: 'Blood pressure' });
+communicationDraft = attachFhirResourceAsAttachmentToCommMsgExtendedDraft(
+  communicationDraft,
+  heartRate,
+  { noteText: 'Heart rate' },
+);
+communicationDraft = attachFhirResourceAsAttachmentToCommMsgExtendedDraft(
+  communicationDraft,
+  bloodPressure,
+  { noteText: 'Blood pressure' },
+);
 
-const job = createOutboxJobFromDraft(draft, {
-  batchOptions: {
-    requestUrl: 'individual/org.hl7.fhir.r4/Communication',
-  },
-});
+const communicationJob =
+  createCommunicationOutboxJobFromCommMsgExtendedDraft(communicationDraft);
 ```
 
 Important:
 
-- `createOutboxJobFromDraft(...)` does not send anything over the network
+- the attachment helper serializes each FHIR resource into canonical
+  `Communication.content-attachment-*` claims
+- each attachment is one atomic `body.data[]` Communication entry
+- `createCommunicationOutboxJobFromCommMsgExtendedDraft(...)` does not send anything
 - it only freezes the current draft into:
-  - `job.payload`: the `Communication`
-  - `job.envelope`: the prebuilt batch message
-  - `job.status`: local outbox status such as `ready`
+  - `communicationJob.payload`: claims-first `CommMsgExtended`
+  - `communicationJob.status`: local outbox status such as `ready`
+- it does not create or store a DIDComm envelope
 - network submission starts in the next step
 
 ### 7.10 Send the communication and wait for indexing
 
 ```ts
 await individualControllerProfile.sdk.ingestCommunicationAndUpdateIndex(tenantContext, {
-  communicationJob: job,
-  pathFormatSegment: 'r4',
+  communicationJob,
+  clinicalFormat: 'r4',
 });
 ```
 
 The actor facade accepts the canonical outbox job and delegates wire rendering
 to the configured runtime transport. Application code must not rebuild
-`body.entry`, `request=<JWE>` or polling envelopes.
+`body.data`, `body.entry`, DIDComm envelopes or `request=<JWE>`.
 
 This is the converged runtime path for:
 

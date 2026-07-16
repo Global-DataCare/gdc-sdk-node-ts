@@ -25,6 +25,7 @@ import type { LicenseOfferSearchState, LicenseOrderSearchState } from 'gdc-commo
 import type { LicenseListSearchState } from 'gdc-common-utils-ts/utils/license-list-search';
 import type {
   BundleSearchQuery,
+  CommMsgExtendedCommunicationOutboxJob,
   CommunicationOutboxJob,
   CommunicationInput,
   DateRange,
@@ -230,10 +231,11 @@ export type RelatedPersonUpsertInput = {
 
 export type CommunicationIngestionInput = {
   /**
-   * Preferred high-level input created by `createOutboxJobFromDraft(...)`.
-   * The runtime renders this job according to the selected transport profile.
+   * Preferred claims-first job created by
+   * `createCommunicationOutboxJobFromCommMsgExtendedDraft(...)`. Legacy
+   * `createOutboxJobFromDraft(...)` jobs remain accepted temporarily.
    */
-  communicationJob?: CommunicationOutboxJob;
+  communicationJob?: CommunicationOutboxJob | CommMsgExtendedCommunicationOutboxJob;
   /**
    * Compatibility input for callers that already own one GW envelope.
    * New application code should pass `communicationJob` instead.
@@ -241,6 +243,9 @@ export type CommunicationIngestionInput = {
   communicationPayload?: CommunicationInput & Record<string, unknown>;
   /** Overrides the client default only for this clinical submission. */
   transportProfile?: TransportProfile;
+  /** Clinical representation rendered from canonical claims: built-in `api`/`r4` or an extension format. */
+  clinicalFormat?: string;
+  /** @deprecated Use `clinicalFormat`. This value selects representation and route, not transport. */
   pathFormatSegment?: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4' | 'api' | 'r4' | 'fhir.r4';
   autoConvertClaimsToFhirR4?: boolean;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
@@ -1151,8 +1156,8 @@ export async function ingestCommunicationAndUpdateIndexWithDeps(
   routeCtx: RouteContext,
   input: CommunicationIngestionInput,
   deps: {
-    individualCommunicationBatchPath: (ctx: RouteContext, pathFormatSegment: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4') => string;
-    individualCommunicationPollPath: (ctx: RouteContext, pathFormatSegment: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4') => string;
+    individualCommunicationBatchPath: (ctx: RouteContext, pathFormatSegment: string) => string;
+    individualCommunicationPollPath: (ctx: RouteContext, pathFormatSegment: string) => string;
     transformPayloadForFhirR4?: (
       payload: Record<string, unknown>,
       enabled: boolean,
@@ -1647,12 +1652,13 @@ export async function generateDigitalTwinFromSubjectDataWithDeps(
 }
 
 export function normalizeCommunicationPathFormatSegment(
-  raw?: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4' | 'api' | 'r4' | 'fhir.r4',
-): 'org.hl7.fhir.api' | 'org.hl7.fhir.r4' {
+  raw?: string,
+): string {
   const value = String(raw || '').trim().toLowerCase();
   if (!value || value === 'api' || value === 'org.hl7.fhir.api') return 'org.hl7.fhir.api';
   if (value === 'r4' || value === 'fhir.r4' || value === 'org.hl7.fhir.r4') return 'org.hl7.fhir.r4';
-  return 'org.hl7.fhir.api';
+  if (/^org\.hl7\.fhir\.[a-z0-9.-]+$/.test(value)) return value;
+  throw new Error(`Unsupported Communication clinical format '${String(raw || '')}'.`);
 }
 
 function createRuntimeUuid(): string {
