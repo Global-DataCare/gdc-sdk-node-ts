@@ -36,6 +36,9 @@ import type {
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
   IndividualMemberLifecycleInput,
+  IndividualMemberLicenseAddInput,
+  IndividualMemberLicenseInvitationInput,
+  IndividualMemberLicenseTransitionInput,
   IpsOrFhirImportInput,
   LicenseListRuntimeSearchInput,
   LicenseOfferRuntimeSearchInput,
@@ -284,6 +287,34 @@ export class IndividualControllerSdk {
     input: LicenseListRuntimeSearchInput = {},
   ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'listIndividualLicenses')(ctx, input);
+  }
+
+  /** Adds zero-cost member seats to the selected individual organization. */
+  public addFreeMemberLicenses(
+    ctx: RouteContext,
+    input: IndividualMemberLicenseAddInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'addFreeIndividualMemberLicenses')(ctx, input);
+  }
+
+  /**
+   * Reserves one member seat for an existing FHIR v3 RoleCode contact.
+   * ISCO professionals must use Consent without this operation.
+   */
+  public issueMemberInvitationLicense(
+    ctx: RouteContext,
+    input: IndividualMemberLicenseInvitationInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'issueIndividualMemberLicense')(ctx, input);
+  }
+
+  /** Accepts, deactivates or releases one member invitation seat. */
+  public transitionMemberLicense(
+    ctx: RouteContext,
+    action: '_accept' | '_deactivate' | '_release',
+    input: IndividualMemberLicenseTransitionInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'transitionIndividualMemberLicense')(ctx, action, input);
   }
 
   /**

@@ -2,7 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.2] - 2026-07-13
+
+### Changed
+- Normalized hosted `serviceProviderDid` route inputs back to the tenant id
+  segment so GW tenant paths no longer duplicate the `did:web` suffix:
+  - `src/runtime-route-context.ts`
+  - `tests/node-runtime-client.test.mjs`
+- Aligned the published dependency line with the shared compatibility release:
+  - `gdc-common-utils-ts@^2.2.2`
+  - `gdc-sdk-core-ts@~2.2.1`
+
 ## [Unreleased]
+
+### Added
+- Documented pass-through of the separate GDC `RelatedPerson.role` functional
+  claim in individual-controller upserts. CAREGIVER/ECON/DEPEN use active
+  v3-RoleClass semantics; relationship remains single kinship/legal
+  terminology, PERMITTED is not valid there, and POWATT is never inferred.
+- Added high-level individual-controller/runtime helpers for owner-scoped
+  zero-cost seat addition, FHIR v3-RoleCode member invitation issue and
+  accept/deactivate/release transitions. Shared validation rejects ISCO
+  professionals before transport because their employer owns their license.
+- Individual-member issue/accept helpers now carry the authorized subject DID
+  and allow a verified recipient to accept by code without knowing the owner
+  organization id; lifecycle searches keep owner scoping for controller
+  operations.
 
 ## [2.2.1] - 2026-07-06
 

@@ -30,6 +30,12 @@ The runtime contract is:
   payload is materialized
 - routing/channel selection belongs to the runtime/orchestrator layer, not to
   the semantic identity itself
+- a vital-sign day batch is treated as one atomic clinical artifact, just like
+  a consent or appointment payload
+- a multi-day set of batches for the same actor is treated as a collection of
+  atomic artifacts, not as one flat stream of individual measurements
+- keep the transport unit at the batch level; do not downgrade the assistant
+  flow to one write per observation
 
 When a GW-side route map or portal/domain split is involved, align the runtime
 behavior with the GW template contract:

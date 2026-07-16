@@ -50,6 +50,9 @@ import {
   ingestCommunicationAndUpdateIndexWithDeps,
   registerBlockchainArtifactAndUpdateIndexWithDeps,
   listIndividualLicensesWithDeps,
+  addFreeIndividualMemberLicensesWithDeps,
+  issueIndividualMemberLicenseWithDeps,
+  transitionIndividualMemberLicenseWithDeps,
   listOrganizationLicenseOffersWithDeps,
   listOrganizationLicenseOrdersWithDeps,
   listOrganizationLicensesWithDeps,
@@ -68,6 +71,8 @@ import {
   searchLatestIpsWithDeps,
   revokeProfessionalAccessWithDeps,
   upsertRelatedPersonAndPollWithDeps,
+  buildBlockchainArtifactBundleFromSearchResponse,
+  buildVitalSignBatchCommunicationFromSearchResponse,
   GwCoreLifecycleRequestMethod,
   GwCoreLifecycleRequestType,
 } from '../dist/index.js';
@@ -96,6 +101,9 @@ const INDIVIDUAL_ORG_PURGE_PATH = gwV1Path('individual', 'org.schema', 'Organiza
 const INDIVIDUAL_ORG_PURGE_POLL_PATH = gwV1Path('individual', 'org.schema', 'Organization', '_purge-response');
 const INDIVIDUAL_LICENSE_SEARCH_PATH = gwV1Path('individual', 'org.schema', 'License', '_search');
 const INDIVIDUAL_LICENSE_SEARCH_POLL_PATH = gwV1Path('individual', 'org.schema', 'License', '_search-response');
+const INDIVIDUAL_LICENSE_ADD_PATH = gwV1Path('individual', 'org.schema', 'License', '_add');
+const INDIVIDUAL_LICENSE_ACCEPT_PATH = gwV1Path('individual', 'org.schema', 'License', '_accept');
+const INDIVIDUAL_LICENSE_ISSUE_PATH = gwV1Path('individual', 'org.schema', 'License', '_issue');
 const INDIVIDUAL_OFFER_SEARCH_PATH = gwV1Path('individual', 'org.schema', 'Offer', '_search');
 const INDIVIDUAL_OFFER_SEARCH_POLL_PATH = gwV1Path('individual', 'org.schema', 'Offer', '_search-response');
 const INDIVIDUAL_ORDER_SEARCH_PATH = gwV1Path('individual', 'org.schema', 'Order', '_search');
@@ -422,6 +430,7 @@ test('searchIndividualLicensesWithDeps builds canonical License bundle search pa
     {
       licenseQuery: {
         subjectId: EXAMPLE_LICENSE_ACTIVE_RECORD.subjectId,
+        ownerOrganizationId: 'individual-org-patricia',
       },
     },
     {
@@ -436,6 +445,7 @@ test('searchIndividualLicensesWithDeps builds canonical License bundle search pa
   assert.equal(calls[0][0], INDIVIDUAL_LICENSE_SEARCH_PATH);
   assert.equal(calls[0][1], INDIVIDUAL_LICENSE_SEARCH_POLL_PATH);
   assert.equal(calls[0][2].body.entry[0].meta.subjectId, EXAMPLE_LICENSE_ACTIVE_RECORD.subjectId);
+  assert.equal(calls[0][2].body.entry[0].meta.ownerOrganizationId, 'individual-org-patricia');
 });
 
 test('listIndividualLicensesWithDeps reuses search route without mandatory filters', async () => {
@@ -454,6 +464,85 @@ test('listIndividualLicensesWithDeps reuses search route without mandatory filte
   );
   assert.equal(calls[0][0], INDIVIDUAL_LICENSE_SEARCH_PATH);
   assert.equal(calls[0][2].body.entry[0].type, 'License-search-request-v1.0');
+});
+
+test('individual member license helpers keep add, FHIR-role issue and acceptance as explicit steps', async () => {
+  /**
+   * Flow contract:
+   * 1. Adding a free seat changes only Patricia's pool.
+   * 2. Issuing reserves that seat for an existing RelatedPerson with a FHIR
+   *    v3 RoleCode.
+   * 3. Accepting binds the Firebase-verified recipient to the seat.
+   */
+  const calls = [];
+  const deps = {
+    individualLicenseActionPath: (_ctx, action) => gwV1Path('individual', 'org.schema', 'License', action),
+    individualLicenseActionPollPath: (_ctx, action) => gwV1Path('individual', 'org.schema', 'License', `${action}-response`),
+    submitAndPoll: async (...args) => {
+      calls.push(args);
+      return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+    },
+  };
+
+  // Step 1. The zero price is part of the request instead of being inferred
+  // from a missing payment record.
+  await addFreeIndividualMemberLicensesWithDeps(TEST_ROUTE_CTX, {
+    ownerOrganizationId: 'individual-org-patricia',
+    quantity: 1,
+  }, deps);
+  assert.equal(calls[0][0], INDIVIDUAL_LICENSE_ADD_PATH);
+  assert.equal(calls[0][2].body.data[0].meta.claims['org.schema.Offer.price'], 0);
+  assert.equal(calls[0][2].body.data[0].meta.ownerOrganizationId, 'individual-org-patricia');
+
+  // Step 2. A family/representative invitation carries its public contact,
+  // RelatedPerson and role while preserving separate workflow identifiers.
+  await issueIndividualMemberLicenseWithDeps(TEST_ROUTE_CTX, {
+    ownerOrganizationId: 'individual-org-patricia',
+    subjectDid: 'did:web:unid.online:card:uhc:personal:patricia',
+    relatedPersonId: 'related-fernando',
+    invitationId: 'invite-fernando',
+    role: 'v3-RoleCode|RESPRSN',
+    telephone: '+34600111222',
+  }, deps);
+  assert.equal(calls[1][0], INDIVIDUAL_LICENSE_ISSUE_PATH);
+  assert.equal(calls[1][2].body.data[0].meta.relatedPersonId, 'related-fernando');
+  assert.equal(calls[1][2].body.data[0].meta.subjectDid, 'did:web:unid.online:card:uhc:personal:patricia');
+
+  // Step 3. Acceptance forwards the authenticated subject and verified
+  // channel value so the GW does not treat the code as a bearer credential.
+  await transitionIndividualMemberLicenseWithDeps(TEST_ROUTE_CTX, '_accept', {
+    activationCode: 'lic-example',
+    subjectId: 'did:web:unid.online:person:fernando',
+    verifiedActorIdentifier: '+34600111222',
+  }, deps);
+  assert.equal(calls[2][0], INDIVIDUAL_LICENSE_ACCEPT_PATH);
+  assert.equal(calls[2][2].body.data[0].meta.verifiedActorIdentifier, '+34600111222');
+  assert.equal(calls[2][2].body.data[0].meta.ownerOrganizationId, undefined);
+});
+
+test('individual member issue helper rejects an ISCO professional before calling GW', async () => {
+  // Step 1. A doctor can receive Consent and Communication, but the patient's
+  // household license pool must remain untouched.
+  let called = false;
+  await assert.rejects(
+    issueIndividualMemberLicenseWithDeps(TEST_ROUTE_CTX, {
+      ownerOrganizationId: 'individual-org-patricia',
+      subjectDid: 'did:web:unid.online:card:uhc:personal:patricia',
+      relatedPersonId: 'related-doctor',
+      invitationId: 'invite-doctor',
+      role: 'ISCO-08|2211',
+      email: 'doctor@example.org',
+    }, {
+      individualLicenseActionPath: () => INDIVIDUAL_LICENSE_ISSUE_PATH,
+      individualLicenseActionPollPath: () => `${INDIVIDUAL_LICENSE_ISSUE_PATH}-response`,
+      submitAndPoll: async () => {
+        called = true;
+        throw new Error('must not be called');
+      },
+    }),
+    /ISCO professional roles do not consume individual-member licenses/,
+  );
+  assert.equal(called, false);
 });
 
 test('searchOrganizationLicenseOffersWithDeps builds canonical Offer bundle search payload', async () => {
@@ -683,9 +772,18 @@ test('importIpsOrFhirAndUpdateIndexWithDeps rewrites api path family when needed
 
 test('upsertRelatedPersonAndPollWithDeps preserves payload and routes', async () => {
   const calls = [];
+  const relatedPersonPayload = cloneExample(EXAMPLE_RELATED_PERSON_UPSERT_BUNDLE_PAYLOAD);
+  // Step 1. The caller keeps family relationship and operational functions in
+  // separate claims; the SDK is transport orchestration and must not collapse
+  // them or invent an access relationship.
+  relatedPersonPayload.body.entry[0].resource.meta = { claims: {
+    [RelatedPersonClaim.Relationship]:
+      'http://terminology.hl7.org/CodeSystem/v3-RoleCode|FAMMEMB',
+    [RelatedPersonClaim.Role]: 'ECON,BILL',
+  } };
   await upsertRelatedPersonAndPollWithDeps(
     cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
-    { relatedPersonPayload: cloneExample(EXAMPLE_RELATED_PERSON_UPSERT_BUNDLE_PAYLOAD) },
+    { relatedPersonPayload },
     {
       individualRelatedPersonBatchPath: () => INDIVIDUAL_RELATED_PERSON_BATCH_PATH,
       individualRelatedPersonPollPath: () => INDIVIDUAL_RELATED_PERSON_BATCH_POLL_PATH,
@@ -695,8 +793,14 @@ test('upsertRelatedPersonAndPollWithDeps preserves payload and routes', async ()
       },
     },
   );
+  // Step 2. GW receives exactly the two assertions and remains responsible for
+  // rejecting non-terminology values such as PERMITTED.
   assert.equal(calls[0][0], INDIVIDUAL_RELATED_PERSON_BATCH_PATH);
-  assert.deepEqual(calls[0][2], cloneExample(EXAMPLE_RELATED_PERSON_UPSERT_BUNDLE_PAYLOAD));
+  assert.deepEqual(calls[0][2], relatedPersonPayload);
+  assert.equal(
+    calls[0][2].body.entry[0].resource.meta.claims[RelatedPersonClaim.Role],
+    'ECON,BILL',
+  );
 });
 
 test('ingestCommunicationAndUpdateIndexWithDeps uses transformer on r4 path', async () => {
@@ -758,6 +862,135 @@ test('registerBlockchainArtifactAndUpdateIndexWithDeps builds a blockchain-ready
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['DocumentReference.subject'], 'did:web:example.com:subject:1');
   assert.equal(typeof calls[0][2].body.data[0].resource.meta.claims['DocumentReference.contenthash'], 'string');
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['DocumentReference.contenthash'].startsWith('z'), true);
+});
+
+test('buildBlockchainArtifactBundleFromSearchResponse selects paginated batch ids into a blockchain-ready bundle', () => {
+  const result = buildBlockchainArtifactBundleFromSearchResponse({
+    subject: 'did:web:subject.example',
+    searchResponse: {
+      resourceType: 'Bundle',
+      type: 'search-response',
+      total: 4,
+      data: [
+        {
+          id: 'urn:uuid:batch-1',
+          fullUrl: 'urn:uuid:batch-1',
+          type: 'bundle-batch-entry-v1.0',
+          audit: { txId: 'tx-batch-1' },
+          resource: {
+            resourceType: 'Bundle',
+            id: 'urn:uuid:batch-1',
+            meta: { claims: { 'Bundle.identifier': 'urn:uuid:batch-1' } },
+          },
+        },
+        {
+          id: 'urn:uuid:batch-2',
+          fullUrl: 'urn:uuid:batch-2',
+          type: 'bundle-batch-entry-v1.0',
+          resource: {
+            resourceType: 'Bundle',
+            id: 'urn:uuid:batch-2',
+            meta: { claims: { 'Bundle.identifier': 'urn:uuid:batch-2' } },
+          },
+        },
+        {
+          id: 'urn:uuid:batch-3',
+          fullUrl: 'urn:uuid:batch-3',
+          type: 'bundle-batch-entry-v1.0',
+          resource: {
+            resourceType: 'Bundle',
+            id: 'urn:uuid:batch-3',
+            meta: { claims: { 'Bundle.identifier': 'urn:uuid:batch-3' } },
+          },
+        },
+      ],
+    },
+    selectedResourceIds: ['urn:uuid:batch-2', 'urn:uuid:batch-3'],
+  });
+
+  assert.deepEqual(result.availableResourceIds, ['urn:uuid:batch-1', 'urn:uuid:batch-2', 'urn:uuid:batch-3']);
+  assert.deepEqual(result.anchoredResourceIds, ['urn:uuid:batch-1']);
+  assert.deepEqual(result.unanchoredResourceIds, ['urn:uuid:batch-2', 'urn:uuid:batch-3']);
+  assert.deepEqual(result.selectedResourceIds, ['urn:uuid:batch-2', 'urn:uuid:batch-3']);
+  assert.deepEqual(result.missingResourceIds, []);
+  assert.equal(result.totalCount, 4);
+  assert.equal(result.returnedCount, 3);
+  assert.equal(result.bundle.resourceType, 'Bundle');
+  assert.equal(result.bundle.type, 'batch');
+  assert.equal(result.bundle.data.length, 2);
+  assert.equal(result.bundle.meta.claims['BlockchainArtifactSelection.selectedCount'], 2);
+  assert.equal(result.bundle.data[0].resource.resourceType, 'DocumentReference');
+  assert.equal(result.bundle.data[0].resource.meta.claims['DocumentReference.identifier'], 'urn:uuid:batch-2');
+});
+
+test('buildBlockchainArtifactBundleFromSearchResponse rejects fully missing selected ids', () => {
+  assert.throws(() => buildBlockchainArtifactBundleFromSearchResponse({
+    subject: 'did:web:subject.example',
+    searchResponse: {
+      resourceType: 'Bundle',
+      type: 'search-response',
+      data: [],
+    },
+    selectedResourceIds: ['urn:uuid:missing-batch'],
+  }), /could not match any selected resource ids/);
+});
+
+test('buildVitalSignBatchCommunicationFromSearchResponse wraps unanchored batch artifacts into one Communication payload', () => {
+  const result = buildVitalSignBatchCommunicationFromSearchResponse({
+    subject: 'did:web:subject.example',
+    searchResponse: {
+      resourceType: 'Bundle',
+      type: 'search-response',
+      total: 3,
+      data: [
+        {
+          id: 'urn:uuid:batch-1',
+          fullUrl: 'urn:uuid:batch-1',
+          type: 'bundle-batch-entry-v1.0',
+          audit: { txId: 'tx-batch-1' },
+          resource: {
+            resourceType: 'Bundle',
+            id: 'urn:uuid:batch-1',
+            meta: { claims: { 'Bundle.identifier': 'urn:uuid:batch-1' } },
+          },
+        },
+        {
+          id: 'urn:uuid:batch-2',
+          fullUrl: 'urn:uuid:batch-2',
+          type: 'bundle-batch-entry-v1.0',
+          resource: {
+            resourceType: 'Bundle',
+            id: 'urn:uuid:batch-2',
+            meta: { claims: { 'Bundle.identifier': 'urn:uuid:batch-2' } },
+          },
+        },
+        {
+          id: 'urn:uuid:batch-3',
+          fullUrl: 'urn:uuid:batch-3',
+          type: 'bundle-batch-entry-v1.0',
+          resource: {
+            resourceType: 'Bundle',
+            id: 'urn:uuid:batch-3',
+            meta: { claims: { 'Bundle.identifier': 'urn:uuid:batch-3' } },
+          },
+        },
+      ],
+    },
+  });
+
+  assert.equal(result.pathFormatSegment, 'org.hl7.fhir.r4');
+  assert.equal(result.communicationPayload.resourceType, 'Communication');
+  assert.equal(result.communicationPayload.payload.length, 1);
+
+  const attachment = result.communicationPayload.payload[0].contentAttachment;
+  const decodedBundle = JSON.parse(Buffer.from(attachment.data, 'base64').toString('utf8'));
+
+  assert.equal(decodedBundle.resourceType, 'Bundle');
+  assert.equal(decodedBundle.type, 'batch');
+  assert.equal(decodedBundle.data.length, 2);
+  assert.equal(decodedBundle.data[0].type, 'DocumentReference');
+  assert.equal(decodedBundle.data[0].request.method, 'POST');
+  assert.equal(decodedBundle.data[0].request.url, 'individual/org.hl7.fhir.r4/DocumentReference/_batch');
 });
 
 test('grantProfessionalAccessWithDeps builds consent payload and returns built metadata', async () => {

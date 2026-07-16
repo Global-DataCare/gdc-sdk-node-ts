@@ -576,6 +576,12 @@ SDK:
 Lifecycle note:
 
 - `RelatedPerson` models member/caregiver relationship data, not employee lifecycle.
+- Keep `RelatedPerson.relationship` for kinship or an evidenced legal
+  relationship. Optional comma-separated `RelatedPerson.role` values describe
+  functions such as `CAREGIVER,ECON,DEPEN,BILL`; `PERMITTED` is a
+  Consent/access decision and is never a relationship. CAREGIVER/ECON/DEPEN
+  use v3-RoleClass (DEPEN is retired only in v3-RoleCode). Do not infer
+  `POWATT` from controller status.
 - `upsertRelatedPersonAndPoll(...)` reuses the shared bundle fixture style from
   `gdc-common-utils-ts/src/examples/related-person.ts`.
 - `disableIndividualMember(...)` now emits the shared identifier-first lifecycle

@@ -52,11 +52,15 @@ import {
   listIndividualLicenseOffersWithDeps,
   listIndividualLicenseOrdersWithDeps,
   listIndividualLicensesWithDeps,
+  addFreeIndividualMemberLicensesWithDeps,
+  issueIndividualMemberLicenseWithDeps,
+  transitionIndividualMemberLicenseWithDeps,
   listOrganizationLicenseOffersWithDeps,
   listOrganizationLicenseOrdersWithDeps,
   listOrganizationLicensesWithDeps,
   grantProfessionalAccessWithDeps,
   ingestCommunicationAndUpdateIndexWithDeps,
+  buildVitalSignBatchCommunicationFromSearchResponse,
   registerBlockchainArtifactAndUpdateIndexWithDeps,
   revokeProfessionalAccessWithDeps,
   searchCommunicationParticipantsWithDeps,
@@ -75,11 +79,15 @@ import {
   upsertRelatedPersonAndPollWithDeps,
   type CommunicationIngestionInput,
   type BlockchainArtifactRegistrationInput,
+  type VitalSignBatchCommunicationFromSearchResponseInput,
   type CommunicationParticipantRuntimeSearchInput,
   type ClinicalBundleSearchInput,
   type GrantProfessionalAccessInput,
   type GrantProfessionalAccessResult,
   type IndividualMemberLifecycleInput,
+  type IndividualMemberLicenseAddInput,
+  type IndividualMemberLicenseInvitationInput,
+  type IndividualMemberLicenseTransitionInput,
   type LicenseListRuntimeSearchInput,
   type LicenseOfferRuntimeSearchInput,
   type LicenseOrderRuntimeSearchInput,
@@ -874,6 +882,43 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     });
   }
 
+  /** Adds zero-cost seats to one individual organization's member pool. */
+  public async addFreeIndividualMemberLicenses(
+    ctx: RouteContext,
+    input: IndividualMemberLicenseAddInput,
+  ): Promise<SubmitAndPollResult> {
+    return addFreeIndividualMemberLicensesWithDeps(ctx, input, {
+      individualLicenseActionPath: this.paths.individualLicenseActionPath.bind(this.paths),
+      individualLicenseActionPollPath: this.paths.individualLicenseActionPollPath.bind(this.paths),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /** Reserves one individual seat for an existing FHIR v3-role contact. */
+  public async issueIndividualMemberLicense(
+    ctx: RouteContext,
+    input: IndividualMemberLicenseInvitationInput,
+  ): Promise<SubmitAndPollResult> {
+    return issueIndividualMemberLicenseWithDeps(ctx, input, {
+      individualLicenseActionPath: this.paths.individualLicenseActionPath.bind(this.paths),
+      individualLicenseActionPollPath: this.paths.individualLicenseActionPollPath.bind(this.paths),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /** Accepts, deactivates or releases one individual-member seat. */
+  public async transitionIndividualMemberLicense(
+    ctx: RouteContext,
+    action: '_accept' | '_deactivate' | '_release',
+    input: IndividualMemberLicenseTransitionInput,
+  ): Promise<SubmitAndPollResult> {
+    return transitionIndividualMemberLicenseWithDeps(ctx, action, input, {
+      individualLicenseActionPath: this.paths.individualLicenseActionPath.bind(this.paths),
+      individualLicenseActionPollPath: this.paths.individualLicenseActionPollPath.bind(this.paths),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
   public async searchIndividualLicenseOffers(
     ctx: RouteContext,
     input: LicenseOfferRuntimeSearchInput,
@@ -1035,6 +1080,25 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       individualDocumentReferencePollPath: this.paths.individualDocumentReferencePollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
+  }
+
+  /**
+   * Builds and submits a Communication carrying the selected vital-sign day
+   * batch artifacts from a paginated search response.
+   */
+  public async submitVitalSignBatchCommunicationFromSearchResponse(
+    ctx: RouteContext,
+    input: VitalSignBatchCommunicationFromSearchResponseInput,
+  ): Promise<SubmitAndPollResult> {
+    return ingestCommunicationAndUpdateIndexWithDeps(
+      ctx,
+      buildVitalSignBatchCommunicationFromSearchResponse(input),
+      {
+        individualCommunicationBatchPath: this.paths.individualCommunicationBatchPath.bind(this.paths),
+        individualCommunicationPollPath: this.paths.individualCommunicationPollPath.bind(this.paths),
+        submitAndPoll: this.submitAndPoll.bind(this),
+      },
+    );
   }
 
   /**
@@ -1202,6 +1266,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public individualFamilyOrganizationPurgePollPath(ctx?: RouteContext): string { return this.paths.individualFamilyOrganizationPurgePollPath(ctx); }
   public individualLicenseSearchPath(ctx?: RouteContext): string { return this.paths.individualLicenseSearchPath(ctx); }
   public individualLicenseSearchPollPath(ctx?: RouteContext): string { return this.paths.individualLicenseSearchPollPath(ctx); }
+  public individualLicenseActionPath(ctx: RouteContext | undefined, action: string): string { return this.paths.individualLicenseActionPath(ctx, action); }
+  public individualLicenseActionPollPath(ctx: RouteContext | undefined, action: string): string { return this.paths.individualLicenseActionPollPath(ctx, action); }
   public individualLicenseOfferSearchPath(ctx?: RouteContext): string { return this.paths.individualLicenseOfferSearchPath(ctx); }
   public individualLicenseOfferSearchPollPath(ctx?: RouteContext): string { return this.paths.individualLicenseOfferSearchPollPath(ctx); }
   public individualLicenseOrderSearchPath(ctx?: RouteContext): string { return this.paths.individualLicenseOrderSearchPath(ctx); }

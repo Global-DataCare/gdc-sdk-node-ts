@@ -93,6 +93,10 @@ export class RuntimeClientPaths {
   public individualFamilyOrganizationPurgePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Organization', `${GwCoreLifecycleAction.Purge}-response`); }
   public individualLicenseSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'License', '_search'); }
   public individualLicenseSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'License', '_search-response'); }
+  /** Builds one individual-member license mutation path. */
+  public individualLicenseActionPath(ctx: RouteContext | undefined, action: string): string { return this.v1Path(ctx, 'individual', 'org.schema', 'License', action); }
+  /** Builds the poll path paired with one individual-member license mutation. */
+  public individualLicenseActionPollPath(ctx: RouteContext | undefined, action: string): string { return this.v1Path(ctx, 'individual', 'org.schema', 'License', `${action}-response`); }
   public individualLicenseOfferSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Offer', '_search'); }
   public individualLicenseOfferSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Offer', '_search-response'); }
   public individualLicenseOrderSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.schema', 'Order', '_search'); }

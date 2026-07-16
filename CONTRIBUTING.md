@@ -53,6 +53,24 @@ Keep node tests as high-level as possible for the actor flow being exercised.
 Prefer shared fixtures/examples from `gdc-common-utils-ts` and avoid inline
 literals unless the test is explicitly about node-only runtime behavior.
 
+Use the same header block at the top of every test file, immediately below the
+copyright line, so the test intent is visible before the imports:
+
+- `101 note` or `Teaching goal` comment block
+- one-sentence contract summary
+- reused shared fixtures/examples
+- positive path and at least one negative/validation path
+- compatibility path when legacy aliases or fallback behavior exist
+- no ad hoc literals when shared fixtures exist
+- helper functions stay in dedicated helper modules, not beside the class
+
+TDD rule:
+
+1. add or update the failing test first
+2. implement the minimum change to pass
+3. add the compatibility case if the API supports legacy inputs
+4. refactor without changing behavior
+
 ## Live E2E Validation Order
 
 Do not skip validation stages when changing runtime flows, live suites, Docker

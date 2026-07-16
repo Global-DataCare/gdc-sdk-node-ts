@@ -18,6 +18,7 @@ import {
 } from 'gdc-common-utils-ts';
 import type { BundleEntry, BundleJsonApi } from 'gdc-common-utils-ts/models/bundle';
 import type { BackendOrganizationControllerProfile, BackendProfessionalProfile } from './backend-profile-runtime.js';
+import { buildBlockchainArtifactBundleFromSearchResponse, buildVitalSignBatchCommunicationFromSearchResponse } from './resource-operations.js';
 
 export type IpsRequestDraft = Readonly<{
   subjectId: string;
@@ -121,6 +122,28 @@ class ProfessionalSubjectIpsWorkspace {
   public async addVitalSign(input: BuildVitalSignObservationClaimsInput): Promise<IndividualBundleVault> {
     await this.bundleVault.upsertVitalSign(input);
     return this.bundleVault;
+  }
+
+  public buildVitalSignBatchCommunicationFromSearchResponse(
+    searchResponse: unknown,
+    selectedResourceIds?: readonly string[],
+  ) {
+    return buildVitalSignBatchCommunicationFromSearchResponse({
+      subject: this.subjectId,
+      searchResponse,
+      selectedResourceIds,
+    });
+  }
+
+  public buildBlockchainArtifactBundleFromSearchResponse(
+    searchResponse: unknown,
+    selectedResourceIds?: readonly string[],
+  ) {
+    return buildBlockchainArtifactBundleFromSearchResponse({
+      subject: this.subjectId,
+      searchResponse,
+      selectedResourceIds,
+    });
   }
 
   public get cache() {

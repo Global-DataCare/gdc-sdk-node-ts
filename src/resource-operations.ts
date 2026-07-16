@@ -6,13 +6,21 @@ import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-cla
 import {
   buildCommunicationParticipantSearchBundle,
   buildBlockchainArtifactDocumentReference,
+  BundleQuery,
   createInteroperableResourceOperationEditor,
   IndividualOrganizationLifecycleEditor,
   LicenseOfferSearchEditor,
   LicenseOrderSearchEditor,
   InteroperableLifecycleStatuses,
   LicenseListSearchEditor,
+  buildLicenseIssueEntry,
+  buildLicensePurchaseEntry,
 } from 'gdc-common-utils-ts';
+import type { DeviceAppType } from 'gdc-common-utils-ts/constants/device';
+import {
+  addFhirResourceToCommunication,
+  createCommunicationResource,
+} from 'gdc-sdk-core-ts';
 import type { LicenseOfferSearchState, LicenseOrderSearchState } from 'gdc-common-utils-ts/utils/license-commercial-search';
 import type { LicenseListSearchState } from 'gdc-common-utils-ts/utils/license-list-search';
 import type {
@@ -22,6 +30,7 @@ import type {
   EmployeeSearchValue,
   IndividualOrganizationLifecycleInput,
 } from 'gdc-sdk-core-ts';
+import type { BundleEntry, BundleJsonApi } from 'gdc-common-utils-ts/models/bundle';
 import {
   GwCoreLifecycleRequestMethod,
   GwCoreLifecycleRequestType,
@@ -115,6 +124,46 @@ export type LicenseListRuntimeSearchInput = {
 };
 
 /**
+ * Reserves one individual-organization seat for an existing RelatedPerson.
+ *
+ * Only FHIR v3 RoleCode members belong here. ISCO professionals receive
+ * Consent/Communication access but keep using the license paid by their
+ * professional organization.
+ */
+export type IndividualMemberLicenseInvitationInput = {
+  ownerOrganizationId: string;
+  /** Exact card/subject DID granted after the invitation is accepted. */
+  subjectDid: string;
+  relatedPersonId: string;
+  invitationId: string;
+  role: string;
+  email?: string;
+  telephone?: string;
+  type?: DeviceAppType;
+  requestThid?: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+};
+
+/** Adds zero-cost member seats to one individual organization. */
+export type IndividualMemberLicenseAddInput = {
+  ownerOrganizationId: string;
+  quantity: number;
+  requestThid?: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+};
+
+/** Input shared by invitation acceptance, deactivation and release. */
+export type IndividualMemberLicenseTransitionInput = {
+  /** Required for controller deactivation/release; acceptance resolves by code. */
+  ownerOrganizationId?: string;
+  activationCode: string;
+  subjectId?: string;
+  verifiedActorIdentifier?: string;
+  requestThid?: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+};
+
+/**
  * Runtime search/list input for commercial offer read-models exposed through
  * actor facades.
  */
@@ -166,6 +215,13 @@ export type IpsOrFhirImportInput = {
 };
 
 export type RelatedPersonUpsertInput = {
+  /**
+   * Canonical RelatedPerson bundle. Keep kinship/legal relationship in
+   * `RelatedPerson.relationship`; the optional GDC `RelatedPerson.role`
+   * extension may carry comma-separated functions such as
+   * `CAREGIVER,ECON,DEPEN,BILL`.
+   * Access decisions such as PERMITTED do not belong in either claim.
+   */
   relatedPersonPayload: { thid?: string } & Record<string, unknown>;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
@@ -191,6 +247,36 @@ export type BlockchainArtifactRegistrationInput = {
   requestThid?: string;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
+
+export type BlockchainArtifactSearchSelectionInput = Readonly<{
+  subject: string;
+  searchResponse: unknown;
+  selectedResourceIds?: readonly string[];
+}>;
+
+export type BlockchainArtifactSearchSelectionResult = Readonly<{
+  availableResourceIds: readonly string[];
+  anchoredResourceIds: readonly string[];
+  unanchoredResourceIds: readonly string[];
+  selectedResourceIds: readonly string[];
+  missingResourceIds: readonly string[];
+  returnedCount: number;
+  totalCount: number;
+  bundle: BundleJsonApi<BundleEntry>;
+}>;
+
+export type VitalSignBatchCommunicationFromSearchResponseInput = Readonly<{
+  subject: string;
+  searchResponse: unknown;
+  selectedResourceIds?: readonly string[];
+  sender?: string;
+  recipient?: string | string[];
+  sent?: string;
+  status?: string;
+  noteText?: string;
+  requestThid?: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+}>;
 
 /**
  * Runtime participant query for `Communication/_search`.
@@ -697,6 +783,123 @@ export async function listIndividualLicensesWithDeps(
   return searchIndividualLicensesWithDeps(routeCtx, input || {}, deps);
 }
 
+type IndividualLicenseMutationDeps = {
+  individualLicenseActionPath: (ctx: RouteContext, action: string) => string;
+  individualLicenseActionPollPath: (ctx: RouteContext, action: string) => string;
+  submitAndPoll: (
+    submitPath: string,
+    pollPath: string,
+    payload: { thid?: string } & Record<string, unknown>,
+    pollOptions?: { timeoutMs?: number; intervalMs?: number },
+  ) => Promise<SubmitAndPollResult>;
+};
+
+/**
+ * Reserves one available household/member seat for a selected contact.
+ *
+ * Ordered application flow:
+ * 1. Create/select RelatedPerson.
+ * 2. Author Consent rules.
+ * 3. Call this operation only for a FHIR v3 RoleCode member.
+ * 4. Put the returned activation code in the invitation Communication.
+ */
+export async function issueIndividualMemberLicenseWithDeps(
+  routeCtx: RouteContext,
+  input: IndividualMemberLicenseInvitationInput,
+  deps: IndividualLicenseMutationDeps,
+): Promise<SubmitAndPollResult> {
+  const entry = buildLicenseIssueEntry({
+    email: input.email,
+    telephone: input.telephone,
+    role: input.role,
+    userClass: 'individual',
+    type: input.type || 'web',
+    ownerOrganizationId: input.ownerOrganizationId,
+    relatedPersonId: input.relatedPersonId,
+    invitationId: input.invitationId,
+  });
+  (entry.meta as typeof entry.meta & { subjectDid: string }).subjectDid = input.subjectDid;
+  return deps.submitAndPoll(
+    deps.individualLicenseActionPath(routeCtx, '_issue'),
+    deps.individualLicenseActionPollPath(routeCtx, '_issue'),
+    {
+      thid: input.requestThid || `individual-license-issue-${createRuntimeUuid()}`,
+      body: { resourceType: 'Bundle', type: 'batch', data: [entry] },
+    },
+    input.pollOptions,
+  );
+}
+
+/**
+ * Adds free seats without creating contacts, permissions or invitations.
+ * Price zero is explicit so GW never routes this MVP operation through a
+ * payment-proof branch.
+ */
+export async function addFreeIndividualMemberLicensesWithDeps(
+  routeCtx: RouteContext,
+  input: IndividualMemberLicenseAddInput,
+  deps: IndividualLicenseMutationDeps,
+): Promise<SubmitAndPollResult> {
+  const entry = buildLicensePurchaseEntry({
+    quantity: input.quantity,
+    userClass: 'individual',
+    type: 'web',
+    price: 0,
+    priceCurrency: 'EUR',
+    ownerOrganizationId: input.ownerOrganizationId,
+  });
+  return deps.submitAndPoll(
+    deps.individualLicenseActionPath(routeCtx, '_add'),
+    deps.individualLicenseActionPollPath(routeCtx, '_add'),
+    {
+      thid: input.requestThid || `individual-license-add-${createRuntimeUuid()}`,
+      body: { resourceType: 'Bundle', type: 'batch', data: [entry] },
+    },
+    input.pollOptions,
+  );
+}
+
+/**
+ * Accepts, deactivates or releases one member seat.
+ *
+ * `_accept` needs the Firebase/BFF verified recipient plus the authenticated
+ * subject id. `_release` remains backend-guarded and cannot free an active
+ * member directly.
+ */
+export async function transitionIndividualMemberLicenseWithDeps(
+  routeCtx: RouteContext,
+  action: '_accept' | '_deactivate' | '_release',
+  input: IndividualMemberLicenseTransitionInput,
+  deps: IndividualLicenseMutationDeps,
+): Promise<SubmitAndPollResult> {
+  return deps.submitAndPoll(
+    deps.individualLicenseActionPath(routeCtx, action),
+    deps.individualLicenseActionPollPath(routeCtx, action),
+    {
+      thid: input.requestThid || `individual-license-${action.slice(1)}-${createRuntimeUuid()}`,
+      body: {
+        resourceType: 'Bundle',
+        type: 'batch',
+        data: [{
+          id: input.activationCode,
+          type: `IndividualMemberLicense${action}`,
+          meta: {
+            ...(input.ownerOrganizationId ? { ownerOrganizationId: input.ownerOrganizationId } : {}),
+            ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+            ...(input.verifiedActorIdentifier ? { verifiedActorIdentifier: input.verifiedActorIdentifier } : {}),
+            claims: {
+              '@context': 'org.schema',
+              'org.schema.IndividualProduct.serialNumber': input.activationCode,
+            },
+          },
+          request: { method: 'POST' },
+        }],
+      },
+    },
+    input.pollOptions,
+  );
+}
+
 export async function searchIndividualLicenseOffersWithDeps(
   routeCtx: RouteContext,
   input: LicenseOfferRuntimeSearchInput,
@@ -1036,6 +1239,134 @@ export async function searchClinicalBundleWithDeps(
   );
 }
 
+/**
+ * Builds one Communication-ready ingestion payload from a paginated search
+ * response that already selected the day batches to be anchored.
+ *
+ * The search response is normalized into a `Bundle.type=batch` attachment,
+ * and the resulting `Communication` is ready for `ingestCommunication...`.
+ */
+export function buildVitalSignBatchCommunicationFromSearchResponse(
+  input: VitalSignBatchCommunicationFromSearchResponseInput,
+): CommunicationIngestionInput {
+  const selection = buildBlockchainArtifactBundleFromSearchResponse({
+    subject: input.subject,
+    searchResponse: input.searchResponse,
+    selectedResourceIds: input.selectedResourceIds,
+  });
+
+  const communication = addFhirResourceToCommunication(
+    createCommunicationResource({
+      subject: input.subject,
+      sender: input.sender,
+      recipient: input.recipient,
+      sent: input.sent,
+      status: input.status || 'completed',
+      noteText: input.noteText || `Selected ${selection.selectedResourceIds.length} vital-sign batch item(s) for blockchain anchoring.`,
+      claims: {
+        'Communication.vital-sign-batch-selection.subject': input.subject,
+        'Communication.vital-sign-batch-selection.selected-count': selection.selectedResourceIds.length,
+        'Communication.vital-sign-batch-selection.unanchored-count': selection.unanchoredResourceIds.length,
+        'Communication.vital-sign-batch-selection.selected-ids': selection.selectedResourceIds.join(','),
+        'Communication.vital-sign-batch-selection.missing-ids': selection.missingResourceIds.join(','),
+      },
+    }),
+    selection.bundle as unknown as Record<string, unknown>,
+    {
+      attachmentContentType: 'application/fhir+json',
+      attachmentTitle: 'vital-sign-batch-selection.json',
+    },
+  );
+
+  return {
+    communicationPayload: communication as unknown as CommunicationInput & Record<string, unknown>,
+    pathFormatSegment: 'org.hl7.fhir.r4',
+    pollOptions: input.pollOptions,
+    autoConvertClaimsToFhirR4: false,
+  };
+}
+
+/**
+ * Builds one blockchain-ready batch bundle from a paginated search response.
+ *
+ * The helper keeps the original search result as the source of truth and only
+ * projects the selected `resource.id` values into a `Bundle.type=batch`
+ * payload for subsequent communication/registration.
+ */
+export function buildBlockchainArtifactBundleFromSearchResponse(
+  input: BlockchainArtifactSearchSelectionInput,
+): BlockchainArtifactSearchSelectionResult {
+  const bundle = normalizeBundleLike(input.searchResponse);
+  const query = new BundleQuery(bundle as BundleJsonApi<BundleEntry>);
+  const availableResourceIds = query.getResourceIds();
+  const availableEntries = query.getResourceEntriesByIds(availableResourceIds) as BundleEntry[];
+  const anchoredResourceIds = availableEntries
+    .filter((entry: BundleEntry) => hasAuditTxId(entry))
+    .map((entry: BundleEntry, index: number) => resolveBundleEntryStableId(entry, index));
+  const unanchoredResourceIds = availableResourceIds.filter((resourceId) => !anchoredResourceIds.includes(resourceId));
+  const requestedResourceIds = normalizeIdList(input.selectedResourceIds);
+  const selectedResourceIds = requestedResourceIds.length > 0
+    ? requestedResourceIds.filter((resourceId) => availableResourceIds.includes(resourceId))
+    : unanchoredResourceIds;
+  const missingResourceIds = requestedResourceIds.filter((resourceId) => !availableResourceIds.includes(resourceId));
+
+  if (requestedResourceIds.length > 0 && selectedResourceIds.length === 0) {
+    throw new Error('buildBlockchainArtifactBundleFromSearchResponse could not match any selected resource ids.');
+  }
+
+  const selectedEntries = query.getResourceEntriesByIds(selectedResourceIds) as BundleEntry[];
+  const artifactEntries = selectedEntries.map((entry: BundleEntry, index: number) => {
+    const resource = entry.resource && typeof entry.resource === 'object' ? entry.resource as Record<string, unknown> : undefined;
+    if (!resource) {
+      throw new Error(`buildBlockchainArtifactBundleFromSearchResponse requires resource data for selected entry at index ${index}.`);
+    }
+
+    const logicalIdentifier = asTrimmedString(resource.id || entry.id || entry.fullUrl || selectedResourceIds[index]);
+    const artifact = buildBlockchainArtifactDocumentReference({
+      subject: input.subject,
+      resource,
+      identifier: logicalIdentifier || undefined,
+      title: `${asTrimmedString(resource.resourceType) || 'resource'}.json`,
+    });
+
+    return {
+      type: 'DocumentReference',
+      meta: { claims: artifact.documentReference.meta?.claims || {} },
+      resource: artifact.documentReference,
+      request: {
+        method: 'POST' as const,
+        url: 'individual/org.hl7.fhir.r4/DocumentReference/_batch',
+      },
+    };
+  });
+
+  return {
+    availableResourceIds,
+    anchoredResourceIds,
+    unanchoredResourceIds,
+    selectedResourceIds,
+    missingResourceIds,
+    returnedCount: query.getResourceIds().length,
+    totalCount: typeof (bundle as { total?: unknown }).total === 'number'
+      ? Number((bundle as { total?: number }).total)
+      : query.getResourceIds().length,
+    bundle: {
+      resourceType: 'Bundle',
+      type: 'batch',
+      meta: {
+        claims: {
+          'BlockchainArtifactSelection.subject': input.subject,
+          'BlockchainArtifactSelection.availableCount': availableResourceIds.length,
+          'BlockchainArtifactSelection.selectedCount': selectedResourceIds.length,
+          'BlockchainArtifactSelection.missingCount': missingResourceIds.length,
+          'BlockchainArtifactSelection.selectedResourceIds': selectedResourceIds.join(','),
+        },
+      },
+      data: artifactEntries,
+    },
+  };
+}
+
 export async function searchLatestIpsWithDeps(
   routeCtx: RouteContext,
   input: Omit<ClinicalBundleSearchInput, 'includedTypes' | 'section'> & { section?: string | string[] },
@@ -1103,6 +1434,52 @@ export async function registerBlockchainArtifactAndUpdateIndexWithDeps(
     payload,
     input.pollOptions,
   );
+}
+
+function normalizeBundleLike(value: unknown): BundleJsonApi<BundleEntry> {
+  const root = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const body = root.body && typeof root.body === 'object' ? root.body as Record<string, unknown> : root;
+  const resourceType = asTrimmedString(body.resourceType) || 'Bundle';
+  const type = asTrimmedString(body.type) || 'batch';
+  const data = Array.isArray(body.data)
+    ? body.data
+    : (Array.isArray(body.entry) ? body.entry : []);
+  return {
+    ...(typeof body.id === 'string' ? { id: asTrimmedString(body.id) || undefined } : {}),
+    resourceType: resourceType as 'Bundle',
+    type,
+    total: typeof body.total === 'number' ? body.total : undefined,
+    meta: body.meta && typeof body.meta === 'object' ? body.meta as BundleJsonApi<BundleEntry>['meta'] : undefined,
+    data: data as BundleEntry[],
+  };
+}
+
+function normalizeIdList(value?: readonly string[]): string[] {
+  return [...(value || [])]
+    .map((item) => asTrimmedString(item))
+    .filter(Boolean);
+}
+
+function asTrimmedString(value: unknown): string {
+  if (value === undefined || value === null) {
+    return '';
+  }
+  return String(value).trim();
+}
+
+function resolveBundleEntryStableId(entry: BundleEntry, index: number): string {
+  const resource = entry.resource && typeof entry.resource === 'object' ? entry.resource as Record<string, unknown> : {};
+  return asTrimmedString(resource.id || entry.id || entry.fullUrl || `entry-${index}`);
+}
+
+function hasAuditTxId(entry: BundleEntry): boolean {
+  const entryAudit = entry && typeof entry === 'object' ? (entry as Record<string, unknown>).audit : undefined;
+  const entryMeta = entry && typeof entry === 'object' ? (entry as Record<string, unknown>).meta : undefined;
+  const resource = entry.resource && typeof entry.resource === 'object' ? entry.resource as Record<string, unknown> : {};
+  const resourceMeta = resource.meta && typeof resource.meta === 'object' ? resource.meta as Record<string, unknown> : {};
+  const audit = [entryAudit, entryMeta && typeof entryMeta === 'object' ? (entryMeta as Record<string, unknown>).audit : undefined, resourceMeta.audit]
+    .find((candidate) => candidate && typeof candidate === 'object') as Record<string, unknown> | undefined;
+  return Boolean(asTrimmedString(audit?.txId));
 }
 
 export async function grantProfessionalAccessWithDeps(

@@ -8,7 +8,11 @@ import {
   EXAMPLE_RELATED_PERSON_IDENTIFIER,
   EXAMPLE_RELATED_PERSON_PURGE_BUNDLE_ENTRY,
   EXAMPLE_HOST_ROUTE_CONTEXT,
+  EXAMPLE_HOSTING_OPERATOR_DID,
+  EXAMPLE_JURISDICTION,
   EXAMPLE_ORGANIZATION_DID_BINDING_BUNDLE,
+  EXAMPLE_SECTOR,
+  EXAMPLE_TENANT_IDENTIFIER,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
@@ -16,6 +20,7 @@ import {
   buildCommunicationParticipantSearchBundle,
   buildExampleCommunicationParticipantSearchInput,
   InteroperableLifecycleStatuses,
+  createHostedDidWeb,
 } from 'gdc-common-utils-ts';
 import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
 
@@ -193,6 +198,76 @@ test('NodeHttpClient exposes current GW CORE lifecycle paths for individual and 
     client.individualDocumentReferenceBatchPath(),
     '/acme-id/cds-ES/v1/health-care/individual/org.hl7.fhir.r4/DocumentReference/_batch',
   );
+});
+
+test('NodeHttpClient normalizes hosted serviceProviderDid route inputs to the tenant id segment', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalWarn = console.warn;
+  const requests = [];
+  const warnings = [];
+
+  globalThis.fetch = async (url, init) => {
+    requests.push([url, init]);
+    const isSubmit = requests.length === 1;
+    return new Response(JSON.stringify(
+      isSubmit
+        ? { ok: true }
+        : {
+            data: [{
+              meta: {
+                claims: {
+                  'org.schema.Offer.identifier': 'urn:offer:family-compat-001',
+                },
+              },
+            }],
+          },
+    ), {
+      status: isSubmit ? 202 : 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  console.warn = (...args) => {
+    warnings.push(args.join(' '));
+  };
+
+  try {
+    const client = new NodeHttpClient({
+      baseUrl: 'https://gw.example.org',
+    });
+    const serviceProviderDid = createHostedDidWeb(
+      EXAMPLE_HOSTING_OPERATOR_DID,
+      EXAMPLE_TENANT_IDENTIFIER,
+      {
+        jurisdiction: EXAMPLE_JURISDICTION,
+        version: 'v1',
+        sector: EXAMPLE_SECTOR,
+      },
+    );
+
+    const result = await client.startIndividualOrganization({
+      serviceProviderDid,
+      jurisdiction: 'ES',
+      sector: 'health-care',
+      alternateName: 'ana',
+      controllerEmail: 'ana.parent@example.org',
+    });
+
+    assert.equal(requests.length, 2);
+    assert.equal(
+      requests[0][0],
+      `https://gw.example.org/${EXAMPLE_TENANT_ROUTE_CONTEXT.tenantId}/cds-${EXAMPLE_TENANT_ROUTE_CONTEXT.jurisdiction}/v1/${EXAMPLE_TENANT_ROUTE_CONTEXT.sector}/individual/org.schema/Organization/_transaction`,
+    );
+    assert.equal(
+      requests[1][0],
+      `https://gw.example.org/${EXAMPLE_TENANT_ROUTE_CONTEXT.tenantId}/cds-${EXAMPLE_TENANT_ROUTE_CONTEXT.jurisdiction}/v1/${EXAMPLE_TENANT_ROUTE_CONTEXT.sector}/individual/org.schema/Organization/_transaction-response`,
+    );
+    assert.equal(result.offerId, 'urn:offer:family-compat-001');
+    assert.ok(warnings.some((warning) => warning.includes('serviceProviderDid is a compatibility alias for route tenant ids')));
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = originalWarn;
+  }
 });
 
 test('NodeHttpClient rejects deprecated host sector alias for host registry routes', () => {

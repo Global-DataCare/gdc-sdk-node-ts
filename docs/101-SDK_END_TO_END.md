@@ -1212,7 +1212,8 @@ Recommended mental model:
 
 - `Observation` resources such as heart rate, blood pressure, or similar
   smartwatch/device measurements are the atomic facts
-- a day-level or session-level vital-signs batch groups those facts together
+- a day-level or session-level vital-signs batch groups those facts together as
+  one atomic clinical artifact
 - that batch can be ingested into the IPS as a measurement bundle
 - the batch hash/CID can be anchored on-chain later, when policy says it is
   meaningful to certify the set, using the ledger certification path rather
@@ -1228,6 +1229,8 @@ Multi-caregiver rule:
   and start appending entries there
 - do not assume the individual has only one mutable batch per day unless the
   product explicitly chooses that shared-log model
+- several day batches from the same actor are a collection of atomic batch
+  artifacts, not a single flat list of raw observations
 
 In other words:
 

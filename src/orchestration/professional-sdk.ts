@@ -25,6 +25,7 @@ import type {
   ClinicalBundleSearchInput,
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
+  VitalSignBatchCommunicationFromSearchResponseInput,
 } from '../resource-operations.js';
 
 /**
@@ -130,6 +131,17 @@ export class ProfessionalSdk {
     input: BlockchainArtifactRegistrationInput,
   ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'registerBlockchainArtifactAndUpdateIndex')(ctx, input);
+  }
+
+  /**
+   * Converts a paginated vital-sign search response into one Communication
+   * carrying the selected day-batch artifacts and submits it.
+   */
+  public submitVitalSignBatchCommunicationFromSearchResponse(
+    ctx: RouteContext,
+    input: VitalSignBatchCommunicationFromSearchResponseInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'submitVitalSignBatchCommunicationFromSearchResponse')(ctx, input);
   }
 
   /**

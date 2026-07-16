@@ -121,8 +121,11 @@ Guidance for high-frequency measurements:
 - anchor the batch hash/CID on-chain only when the bundle becomes a committed
   clinical artifact, using the ledger certification path instead of the
   Communication indexing path
-- individual `Observation` samples remain the atomic facts; the batch is the
-  certification unit
+- individual `Observation` samples remain the atomic facts, but the day-level
+  batch is the atomic transport and certification unit
+- if the same actor has several day batches, treat the full set as a
+  collection of atomic batch artifacts, similar to consent or appointment
+  bundles
 
 ### Consent authoring
 

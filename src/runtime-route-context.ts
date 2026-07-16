@@ -1,11 +1,14 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
+import { extractTenantIdFromHostedDidWeb } from 'gdc-common-utils-ts';
 import type { HostRouteContext } from './host-onboarding.js';
 import type { RouteContext } from './individual-onboarding.js';
 
 export type HostNetworkWarningState = {
   warnedDefaultHostNetwork: boolean;
 };
+
+let warnedServiceProviderDidRouteTenant = false;
 
 export function requireRouteContext(ctx?: RouteContext, defaultCtx?: RouteContext): RouteContext {
   const resolved = ctx || defaultCtx;
@@ -22,7 +25,23 @@ export function routeCtxFromInput(
   input: { serviceProviderDid?: string; tenantId?: string; jurisdiction?: string; sector?: string },
   defaultCtx?: RouteContext,
 ): RouteContext {
-  const tenantId = String(input.serviceProviderDid || input.tenantId || '').trim();
+  const explicitTenantId = String(input.tenantId || '').trim();
+  const serviceProviderDid = String(input.serviceProviderDid || '').trim();
+  let tenantId = explicitTenantId;
+  if (!tenantId && serviceProviderDid) {
+    const extractedTenantId = extractTenantIdFromHostedDidWeb(serviceProviderDid);
+    if (extractedTenantId) {
+      if (!warnedServiceProviderDidRouteTenant) {
+        warnedServiceProviderDidRouteTenant = true;
+        console.warn(
+          `[gdc-sdk-node-ts] serviceProviderDid is a compatibility alias for route tenant ids. Pass tenantId instead. Extracted tenantId='${extractedTenantId}' from hosted did:web '${serviceProviderDid}'.`,
+        );
+      }
+      tenantId = extractedTenantId;
+    } else {
+      tenantId = serviceProviderDid;
+    }
+  }
   return requireRouteContext(
     tenantId && input.jurisdiction && input.sector
       ? { tenantId, jurisdiction: input.jurisdiction, sector: input.sector }
