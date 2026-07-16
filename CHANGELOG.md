@@ -16,9 +16,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
-- Added the route jurisdiction to the claim-driven individual bootstrap
-  payload so GW-generated Offer identifiers use `urn:cds:<jurisdiction>` and
-  can no longer receive `undefined` from the Node SDK flow.
+- Added live assertions that individual Offer identifiers contain the
+  jurisdiction/network selected by `RouteContext` and never contain
+  `undefined`; individual bootstrap no longer treats that network selector as
+  the individual's `Organization.addressCountry`.
 
 ### Added
 - Added `startIndividualOrganization(...).identity` and

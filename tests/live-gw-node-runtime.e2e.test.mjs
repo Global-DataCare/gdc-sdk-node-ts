@@ -1202,6 +1202,11 @@ test('LIVE professional lifecycle on GW', {
   });
   debug.record('individual-start', { response: individualStart });
   assert.equal(individualStart.registration.poll.status, 200, 'Individual controller facade must start subject organization registration.');
+  assert.ok(
+    individualStart.offerId.startsWith(`urn:cds:${jurisdiction.toUpperCase()}:v1:${sector}:`),
+    'Individual Offer URN must identify the jurisdiction/network selected by the route.',
+  );
+  assert.equal(individualStart.offerId.includes('undefined'), false);
 
   const individualOrder = await individualControllerSession.asIndividualController().confirmIndividualOrganizationOrder({
     tenantId: tenantRouteId,
@@ -1416,6 +1421,11 @@ async function runLiveIndividualLifecycleSuite() {
   }));
   debug.record('individual-suite-start', { response: individualStart });
   assert.equal(individualStart.registration.poll.status, 200, 'Individual lifecycle suite must create the hosted individual tenant.');
+  assert.ok(
+    individualStart.offerId.startsWith(`urn:cds:${jurisdiction.toUpperCase()}:v1:${sector}:`),
+    'Individual Offer URN must identify the jurisdiction/network selected by the route.',
+  );
+  assert.equal(individualStart.offerId.includes('undefined'), false);
 
   const individualOrder = await profiler.run('individual-order', () => individualControllerSession.asIndividualController().confirmIndividualOrganizationOrder({
     tenantId: tenantRouteId,

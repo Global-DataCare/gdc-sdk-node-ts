@@ -155,10 +155,6 @@ export async function startIndividualOrganizationWithDeps(
     '@context': 'org.schema',
     ...(deps.input.additionalClaims || {}),
     [ClaimsOrganizationSchemaorg.alternateName]: alternateName,
-    // The jurisdiction is present in the HTTP route too, but the GW Offer
-    // builder is deliberately claim-driven. Keep it in the signed/auditable
-    // payload so the generated Offer URN can never contain `undefined`.
-    [ClaimsOrganizationSchemaorg.addressCountry]: deps.routeCtx.jurisdiction,
     [ClaimsServiceSchemaorg.category]: deps.routeCtx.sector,
     [ClaimsPersonSchemaorg.hasOccupationalRoleValue]: controllerRole,
     ...(controllerEmail
@@ -237,10 +233,9 @@ export async function startIndividualOrganizationWithDeps(
  * Projects the reusable subject identity from an individual bootstrap receipt.
  *
  * `providerDidWeb` is deliberately read from `Offer.offeredBy` and preserved
- * byte-for-byte. Hosted deployments exist with both `:organization:taxid:`
- * and `;organization:taxid:` provider roots; those strings are exact identity
- * values, not interchangeable aliases. `buildIndividualDidWeb(...)` only adds
- * the individual suffix and never rewrites that provider lineage.
+ * byte-for-byte. The provider root uses the colon-delimited
+ * `:organization:taxid:` DID path. `buildIndividualDidWeb(...)` only adds the
+ * individual suffix and never rewrites that provider lineage.
  */
 export function readIndividualOrganizationBootstrapIdentity(
   responseBody: unknown,

@@ -44,7 +44,7 @@ test('startIndividualOrganizationWithDeps builds canonical registration payload 
   assert.equal(calls[0][0], '/acme-id/ES/health-care/org/_batch');
   assert.equal(calls[0][1], '/acme-id/ES/health-care/org/_batch-response');
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Organization.alternateName'], 'ana');
-  assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Organization.address.addressCountry'], 'ES');
+  assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Organization.address.addressCountry'], undefined);
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Organization.owner.email'], 'ana.parent@example.org');
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Person.email'], 'ana.parent@example.org');
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Person.hasOccupation.identifier.value'], 'RESPRSN');

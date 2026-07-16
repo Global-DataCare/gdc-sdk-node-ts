@@ -919,15 +919,20 @@ if (!subjectDid) {
 }
 ```
 
-`Offer.offeredBy` is the authoritative provider lineage. Preserve it exactly:
-the deployed provider root may contain either `:organization:taxid:` or
-`;organization:taxid:`. GW subject indexing/search uses the complete subject
-identifier as an exact value; the two spellings are not aliases.
+`Offer.offeredBy` is the authoritative provider lineage. Preserve it exactly.
+The hosted provider path is colon-delimited, including
+`:organization:taxid:`; a semicolon in that position was an SDK helper typo,
+not an alternative DID representation.
 
 For an older response that must be adapted manually, use the exported
 `readIndividualOrganizationBootstrapIdentity(responseBody)` helper. Do not
 hand-invent a `did:web` string or encode the textual UUID characters: the
 helper encodes the UUID's 16 bytes.
+
+The jurisdiction used in the individual Offer URN does not describe the
+individual's country. It identifies the data-space/blockchain network selected
+by `RouteContext.jurisdiction` and the `cds-<jurisdiction>` route. Consequently,
+individual bootstrap does not synthesize `Organization.addressCountry`.
 
 ### 7.5 Create a permission for a professional
 
