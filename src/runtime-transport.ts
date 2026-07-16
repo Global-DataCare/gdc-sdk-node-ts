@@ -13,13 +13,14 @@ export type RuntimeTransportConfig = Readonly<{
   defaultHeaders: Record<string, string>;
   requestTimeoutMs: number;
   httpTraceFile?: string;
+  fetchImpl?: typeof fetch;
 }>;
 
-export function buildRuntimeHeaders(config: RuntimeTransportConfig, contentType: string): Record<string, string> {
+export function buildRuntimeHeaders(config: RuntimeTransportConfig, contentType: string, accept: string = DIDCOMM_DEFAULT_ACCEPT_HEADER): Record<string, string> {
   const headers: Record<string, string> = {
     ...config.defaultHeaders,
     'Content-Type': contentType,
-    Accept: DIDCOMM_DEFAULT_ACCEPT_HEADER,
+    Accept: accept,
   };
   if (config.bearerToken) headers.Authorization = `Bearer ${config.bearerToken}`;
   return headers;
@@ -61,6 +62,26 @@ export async function postJsonWithRuntimeConfig(
   };
 }
 
+/** Submits an already-rendered JSON, FHIR, DIDComm or secure-form request. */
+export async function postRenderedWithRuntimeConfig(
+  config: RuntimeTransportConfig,
+  path: string,
+  request: { contentType: string; accept: string; body: Record<string, unknown> | string },
+): Promise<{ status: number; location?: string; body: unknown; retryAfterMs?: number }> {
+  const response = await fetchWithTimeout(config, path, {
+    method: 'POST',
+    headers: buildRuntimeHeaders(config, request.contentType, request.accept),
+    body: typeof request.body === 'string' ? request.body : JSON.stringify(request.body),
+  });
+  const retryAfter = Number(response.headers.get('retry-after'));
+  return {
+    status: response.status,
+    location: response.headers.get('location') || undefined,
+    body: await parseResponseBody(response),
+    retryAfterMs: Number.isFinite(retryAfter) ? retryAfter * 1000 : undefined,
+  };
+}
+
 export async function fetchWithTimeout(config: RuntimeTransportConfig, path: string, init: RequestInit): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.requestTimeoutMs);
@@ -76,7 +97,7 @@ export async function fetchWithTimeout(config: RuntimeTransportConfig, path: str
     },
   };
   try {
-    const response = await fetch(url, { ...init, signal: controller.signal });
+    const response = await (config.fetchImpl || fetch)(url, { ...init, signal: controller.signal });
     const responseClone = response.clone();
     const responseRaw = await responseClone.text();
     appendHttpTrace(config.httpTraceFile, {

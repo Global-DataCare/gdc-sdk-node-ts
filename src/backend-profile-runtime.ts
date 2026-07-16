@@ -26,6 +26,8 @@ import { createActorSessionsFromFacades } from './gdc-session-bridge.js';
 import type { ActorSession } from './session.js';
 import type { RuntimeClient } from './orchestration/client-port.js';
 import { IndividualControllerSdk } from './orchestration/individual-controller-sdk.js';
+import { IndividualMemberSdk } from './orchestration/individual-member-sdk.js';
+import { PersonalSdk } from './orchestration/personal-sdk.js';
 import { OrganizationControllerSdk } from './orchestration/organization-controller-sdk.js';
 import { ProfessionalSdk } from './orchestration/professional-sdk.js';
 import type { RouteContext } from './individual-onboarding.js';
@@ -82,6 +84,18 @@ export type BackendIndividualControllerProfile = {
   profile: BackendLoadedActorProfile;
   session: ActorSession;
   sdk: IndividualControllerSdk;
+};
+
+export type BackendPersonalProfile = {
+  profile: BackendLoadedActorProfile;
+  session: ActorSession;
+  sdk: PersonalSdk;
+};
+
+export type BackendIndividualMemberProfile = {
+  profile: BackendLoadedActorProfile;
+  session: ActorSession;
+  sdk: IndividualMemberSdk;
 };
 
 export type BackendOrganizationControllerProfile = {
@@ -691,6 +705,20 @@ export function requireBackendIndividualControllerSdk(
   return requireBackendIndividualControllerSession(profile).asIndividualController();
 }
 
+/** Returns the individual-member session from one loaded backend profile. */
+export function requireBackendIndividualMemberSession(
+  profile: BackendLoadedActorProfile,
+): ActorSession {
+  return requireBackendActorSession(profile, ActorKinds.IndividualMember);
+}
+
+/** Materializes the individual-member facade from one loaded backend profile. */
+export function requireBackendIndividualMemberSdk(
+  profile: BackendLoadedActorProfile,
+): IndividualMemberSdk {
+  return requireBackendIndividualMemberSession(profile).asIndividualMember();
+}
+
 /**
  * Returns the organization-controller session from one loaded backend profile.
  */
@@ -748,6 +776,29 @@ export async function loadBackendIndividualControllerProfile(
     session,
     sdk: session.asIndividualController(),
   };
+}
+
+/**
+ * Loads a self-managed individual profile. The canonical actor kind remains
+ * individual-controller, while PersonalSdk presents the reduced self surface.
+ */
+export async function loadBackendPersonalProfile(
+  client: BackendProfileRuntimeClient,
+  input: ProfileLoadRequest,
+): Promise<BackendPersonalProfile> {
+  const profile = await loadBackendProfile(client, input);
+  const session = requireBackendIndividualControllerSession(profile);
+  return { profile, session, sdk: session.asPersonal() };
+}
+
+/** Loads an accepted individual-member/RelatedPerson backend profile. */
+export async function loadBackendIndividualMemberProfile(
+  client: BackendProfileRuntimeClient,
+  input: ProfileLoadRequest,
+): Promise<BackendIndividualMemberProfile> {
+  const profile = await loadBackendProfile(client, input);
+  const session = requireBackendIndividualMemberSession(profile);
+  return { profile, session, sdk: session.asIndividualMember() };
 }
 
 /**

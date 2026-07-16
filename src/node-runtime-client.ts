@@ -9,8 +9,15 @@ import type { IndividualOrganizationLifecycleInput } from 'gdc-sdk-core-ts';
 import {
   buildAppHeaders,
   createBootstrapFacade,
+  decodeTransportResponse,
+  renderCommunicationOutboxRequest,
+  renderGatewayMessageRequest,
+  renderTransportPollRequest,
   resolveAppInfo,
+  TransportProfiles,
   type ResolvedAppInfo,
+  type SecureDidcommTransportAdapter,
+  type TransportProfile,
 } from 'gdc-sdk-core-ts';
 
 import { pollUntilCompleteWithMethod } from './async-polling.js';
@@ -38,6 +45,12 @@ import {
 } from './family-organization-registration.js';
 import { searchFamilyOrganizationWithDeps, type FamilyOrganizationSearchInput } from './family-organization-search.js';
 import { requestSmartTokenWithDeps, type SmartTokenRequestInput } from './smart-token.js';
+import {
+  activateEmployeeDeviceWithActivationCodeWithDeps,
+  activateEmployeeDeviceWithActivationRequestWithDeps,
+  type EmployeeDeviceActivationRequestInput,
+  type EmployeeDeviceActivationResult,
+} from './device-activation.js';
 import {
   extractOfferIdFromResponseBody,
   extractOfferPreviewFromResponseBody,
@@ -78,6 +91,7 @@ import {
   searchLatestIpsWithDeps,
   upsertRelatedPersonAndPollWithDeps,
   type CommunicationIngestionInput,
+  normalizeCommunicationPathFormatSegment,
   type BlockchainArtifactRegistrationInput,
   type VitalSignBatchCommunicationFromSearchResponseInput,
   type CommunicationParticipantRuntimeSearchInput,
@@ -115,6 +129,7 @@ import {
   parseResponseBody,
   pollBatchResponseWithRuntimeConfig,
   postJsonWithRuntimeConfig,
+  postRenderedWithRuntimeConfig,
   type RuntimeTransportConfig,
 } from './runtime-transport.js';
 import {
@@ -163,6 +178,12 @@ export type HttpRuntimeClientOptions = {
   ctx?: RouteContext;
   defaultHeaders?: Record<string, string>;
   requestTimeoutMs?: number;
+  /** Default wire profile for high-level clinical outbox submissions. */
+  transportProfile?: TransportProfile;
+  /** Wallet-backed pack/unpack adapter required by the secure-form profile. */
+  secureTransportAdapter?: SecureDidcommTransportAdapter;
+  /** Injectable fetch implementation for BFF adapters and deterministic tests. */
+  fetchImpl?: typeof fetch;
 };
 
 /**
@@ -186,6 +207,9 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   private readonly ctx?: RouteContext;
   private readonly defaultHeaders: Record<string, string>;
   private readonly requestTimeoutMs: number;
+  private readonly transportProfile: TransportProfile;
+  private readonly secureTransportAdapter?: SecureDidcommTransportAdapter;
+  private readonly fetchImpl?: typeof fetch;
   private readonly httpTraceFile?: string;
   private readonly tokenCache = new Map<string, { accessToken: string; tokenType: string; scopes: string[]; expiresAt: number }>();
   private readonly paths: RuntimeClientPaths;
@@ -197,6 +221,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       defaultHeaders: this.defaultHeaders,
       requestTimeoutMs: this.requestTimeoutMs,
       httpTraceFile: this.httpTraceFile,
+      fetchImpl: this.fetchImpl,
     };
   }
 
@@ -224,6 +249,9 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       ...(options.defaultHeaders || {}),
     };
     this.requestTimeoutMs = Math.max(1, Math.floor(options.requestTimeoutMs ?? 15_000));
+    this.transportProfile = options.transportProfile || TransportProfiles.DidcommPlainJson;
+    this.secureTransportAdapter = options.secureTransportAdapter;
+    this.fetchImpl = options.fetchImpl;
     this.httpTraceFile = String(process.env.SDK_HTTP_TRACE_FILE || '').trim() || undefined;
     this.paths = new RuntimeClientPaths(this.ctx);
   }
@@ -281,6 +309,32 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
     return submitAndPollWithMethods(this, submitPath, pollPath, payload, pollOptions);
+  }
+
+  private async submitAndPollWithBearerToken(
+    bearerToken: string | undefined,
+    submitPath: string,
+    pollPath: string,
+    payload: SubmitPayload,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    const config = { ...this.transportConfig, bearerToken };
+    const submitted = await postJsonWithRuntimeConfig(
+      config,
+      submitPath,
+      payload,
+      DIDCOMM_PLAINTEXT_JSON_MEDIA_TYPE,
+    );
+    const poll = await pollUntilCompleteWithMethod(
+      (path, request) => pollBatchResponseWithRuntimeConfig(config, path, request),
+      pollPath,
+      { thid: String(payload.thid) },
+      pollOptions,
+    );
+    return {
+      submit: { status: submitted.status, location: submitted.location, body: submitted.body },
+      poll,
+    };
   }
 
   /**
@@ -1035,6 +1089,31 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
+   * Registers any actor profile device through activation-code exchange plus
+   * GW DCR. The historical helper name says employee, but the transport is
+   * actor-neutral and is used by portal and telephone profile runtimes.
+   */
+  public async activateProfileDeviceWithActivationRequest(
+    input: EmployeeDeviceActivationRequestInput,
+  ): Promise<EmployeeDeviceActivationResult> {
+    const routeCtx = this.paths.routeCtxFromInput(input);
+    return activateEmployeeDeviceWithActivationRequestWithDeps({
+      routeCtx,
+      input,
+      activateEmployeeDeviceWithActivationCode: (ctx, activationInput) =>
+        activateEmployeeDeviceWithActivationCodeWithDeps({
+          routeCtx: ctx,
+          input: activationInput,
+          identityTokenExchangePath: this.paths.identityTokenExchangePath.bind(this.paths),
+          identityTokenExchangePollPath: this.paths.identityTokenExchangePollPath.bind(this.paths),
+          identityDeviceDcrPath: this.paths.identityDeviceDcrPath.bind(this.paths),
+          identityDeviceDcrPollPath: this.paths.identityDeviceDcrPollPath.bind(this.paths),
+          submitAndPollWithBearerToken: this.submitAndPollWithBearerToken.bind(this),
+        }),
+    });
+  }
+
+  /**
    * Creates or updates a `RelatedPerson` for non-employee family/caregiver
    * roles such as a grandfather, guardian, or external caregiver.
    */
@@ -1060,11 +1139,87 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     ctx: RouteContext,
     input: CommunicationIngestionInput,
   ): Promise<SubmitAndPollResult> {
+    if (input.communicationJob) {
+      return this.submitCommunicationOutboxJobAndPoll(ctx, input);
+    }
     return ingestCommunicationAndUpdateIndexWithDeps(ctx, input, {
       individualCommunicationBatchPath: this.paths.individualCommunicationBatchPath.bind(this.paths),
       individualCommunicationPollPath: this.paths.individualCommunicationPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
+  }
+
+  /**
+   * Renders and submits one canonical clinical outbox job without requiring
+   * BFF, portal or assistant consumers to know GW wire envelopes.
+   */
+  private async submitCommunicationOutboxJobAndPoll(
+    ctx: RouteContext,
+    input: CommunicationIngestionInput,
+  ): Promise<SubmitAndPollResult> {
+    const job = input.communicationJob!;
+    const profile = input.transportProfile || this.transportProfile;
+    const format = normalizeCommunicationPathFormatSegment(input.pathFormatSegment);
+    const submitPath = this.paths.individualCommunicationBatchPath(ctx, format);
+    const pollPath = this.paths.individualCommunicationPollPath(ctx, format);
+    const renderedSubmit = await renderCommunicationOutboxRequest(job, profile, this.secureTransportAdapter);
+    const submit = await postRenderedWithRuntimeConfig(this.transportConfig, submitPath, renderedSubmit);
+    const poll = await pollUntilCompleteWithMethod(
+      async (path, request) => {
+        const renderedPoll = await renderTransportPollRequest(request.thid, profile, this.secureTransportAdapter);
+        const response = await postRenderedWithRuntimeConfig(this.transportConfig, path, renderedPoll);
+        return {
+          status: response.status,
+          body: response.status === 202
+            ? response.body
+            : await decodeTransportResponse(response.body, profile, this.secureTransportAdapter),
+          retryAfterMs: response.retryAfterMs,
+        };
+      },
+      pollPath,
+      { thid: job.thid },
+      input.pollOptions,
+    );
+    return {
+      submit: {
+        status: submit.status,
+        location: submit.location,
+        body: submit.body,
+      },
+      poll,
+    };
+  }
+
+  /** Applies the configured wire profile to subject-scoped clinical searches. */
+  private async submitClinicalMessageAndPoll(
+    submitPath: string,
+    pollPath: string,
+    payload: SubmitPayload,
+    profile: TransportProfile,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    const renderedSubmit = await renderGatewayMessageRequest(payload, profile, this.secureTransportAdapter);
+    const submit = await postRenderedWithRuntimeConfig(this.transportConfig, submitPath, renderedSubmit);
+    const poll = await pollUntilCompleteWithMethod(
+      async (path, request) => {
+        const renderedPoll = await renderTransportPollRequest(request.thid, profile, this.secureTransportAdapter);
+        const response = await postRenderedWithRuntimeConfig(this.transportConfig, path, renderedPoll);
+        return {
+          status: response.status,
+          body: response.status === 202
+            ? response.body
+            : await decodeTransportResponse(response.body, profile, this.secureTransportAdapter),
+          retryAfterMs: response.retryAfterMs,
+        };
+      },
+      pollPath,
+      { thid: renderedSubmit.thid },
+      pollOptions,
+    );
+    return {
+      submit: { status: submit.status, location: submit.location, body: submit.body },
+      poll,
+    };
   }
 
   /**
@@ -1142,7 +1297,13 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return searchClinicalBundleWithDeps(ctx, input, {
       bundleSearchPath: this.paths.individualBundleSearchPath.bind(this.paths),
       bundleSearchPollPath: this.paths.individualBundleSearchPollPath.bind(this.paths),
-      submitAndPoll: this.submitAndPoll.bind(this),
+      submitAndPoll: (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
+        submitPath,
+        pollPath,
+        payload,
+        input.transportProfile || this.transportProfile,
+        pollOptions,
+      ),
     });
   }
 

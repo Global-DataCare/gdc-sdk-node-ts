@@ -5,6 +5,8 @@ export * from './runtime-contracts.js';
 export * from './identity-bootstrap.js';
 export * from './async-polling.js';
 export * from './backend-profile-runtime.js';
+export * from './server-profile-session.js';
+export * from './server-profile-protection.js';
 export * from './backend-profile-workspace.js';
 export * from './individual-controller-backend-runtime.js';
 export * from './organization-controller-backend-runtime.js';

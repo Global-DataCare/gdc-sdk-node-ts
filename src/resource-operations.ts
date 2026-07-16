@@ -25,10 +25,12 @@ import type { LicenseOfferSearchState, LicenseOrderSearchState } from 'gdc-commo
 import type { LicenseListSearchState } from 'gdc-common-utils-ts/utils/license-list-search';
 import type {
   BundleSearchQuery,
+  CommunicationOutboxJob,
   CommunicationInput,
   DateRange,
   EmployeeSearchValue,
   IndividualOrganizationLifecycleInput,
+  TransportProfile,
 } from 'gdc-sdk-core-ts';
 import type { BundleEntry, BundleJsonApi } from 'gdc-common-utils-ts/models/bundle';
 import {
@@ -227,7 +229,18 @@ export type RelatedPersonUpsertInput = {
 };
 
 export type CommunicationIngestionInput = {
-  communicationPayload: CommunicationInput & Record<string, unknown>;
+  /**
+   * Preferred high-level input created by `createOutboxJobFromDraft(...)`.
+   * The runtime renders this job according to the selected transport profile.
+   */
+  communicationJob?: CommunicationOutboxJob;
+  /**
+   * Compatibility input for callers that already own one GW envelope.
+   * New application code should pass `communicationJob` instead.
+   */
+  communicationPayload?: CommunicationInput & Record<string, unknown>;
+  /** Overrides the client default only for this clinical submission. */
+  transportProfile?: TransportProfile;
   pathFormatSegment?: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4' | 'api' | 'r4' | 'fhir.r4';
   autoConvertClaimsToFhirR4?: boolean;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
@@ -316,6 +329,8 @@ export type ClinicalBundleSearchInput = Omit<BundleSearchQuery, 'section' | 'sea
   extraSearchParams?: BundleSearchQuery['searchParams'];
   requestThid?: string;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
+  /** Overrides the client default for this subject-scoped clinical read. */
+  transportProfile?: TransportProfile;
 };
 
 export type ConsentActorTargetInput =
@@ -1150,6 +1165,9 @@ export async function ingestCommunicationAndUpdateIndexWithDeps(
     ) => Promise<SubmitAndPollResult>;
   },
 ): Promise<SubmitAndPollResult> {
+  if (!input.communicationPayload) {
+    throw new Error('Legacy communication ingestion requires communicationPayload.');
+  }
   const payload = {
     thid: input.communicationPayload.thid || `communication-${createRuntimeUuid()}`,
     ...input.communicationPayload,
@@ -1628,7 +1646,7 @@ export async function generateDigitalTwinFromSubjectDataWithDeps(
   return deps.submitAndPoll(submitPath, pollPath, payload, input.pollOptions);
 }
 
-function normalizeCommunicationPathFormatSegment(
+export function normalizeCommunicationPathFormatSegment(
   raw?: 'org.hl7.fhir.api' | 'org.hl7.fhir.r4' | 'api' | 'r4' | 'fhir.r4',
 ): 'org.hl7.fhir.api' | 'org.hl7.fhir.r4' {
   const value = String(raw || '').trim().toLowerCase();

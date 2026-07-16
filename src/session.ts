@@ -5,6 +5,7 @@ import type { ActorKind, Capability } from 'gdc-common-utils-ts/models/actor-ses
 import { HostOnboardingSdk } from './orchestration/host-onboarding-sdk.js';
 import { IndividualControllerSdk } from './orchestration/individual-controller-sdk.js';
 import { IndividualMemberSdk } from './orchestration/individual-member-sdk.js';
+import { PersonalSdk } from './orchestration/personal-sdk.js';
 import { OrganizationControllerSdk } from './orchestration/organization-controller-sdk.js';
 import { OrganizationEmployeeSdk } from './orchestration/organization-employee-sdk.js';
 import { ProfessionalSdk } from './orchestration/professional-sdk.js';
@@ -78,6 +79,15 @@ export class ActorSession {
     return new IndividualControllerSdk(this.requireClient(), this.capabilities);
   }
 
+  /**
+   * Presents the reduced self-service surface for an individual-controller
+   * actor whose selected relationship mode is ONESELF.
+   */
+  public asPersonal(): PersonalSdk {
+    this.assertActorKind(ActorKinds.IndividualController);
+    return new PersonalSdk(this.requireClient());
+  }
+
   public asIndividualMember(): IndividualMemberSdk {
     this.assertActorKind(ActorKinds.IndividualMember);
     return new IndividualMemberSdk(this.requireClient());
@@ -116,6 +126,7 @@ export class NodeActorSession {
   public asOrganizationController(): OrganizationControllerSdk { return this.inner.asOrganizationController(); }
   public asOrganizationEmployee(): OrganizationEmployeeSdk { return this.inner.asOrganizationEmployee(); }
   public asIndividualController(): IndividualControllerSdk { return this.inner.asIndividualController(); }
+  public asPersonal(): PersonalSdk { return this.inner.asPersonal(); }
   public asIndividualMember(): IndividualMemberSdk { return this.inner.asIndividualMember(); }
   public asProfessional(): ProfessionalSdk { return this.inner.asProfessional(); }
 }

@@ -16,6 +16,20 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Added the production server profile/session runtime with DCR registration,
+  registered-key SMART assertions and subject-scoped sessions.
+- Added the `gdc-pin-host-envelope-v1` double envelope: random DEK, host/KMS
+  wrapping and a PIN-derived scrypt layer, including fail-before-KMS tests.
+- Documented Cloud KMS, authority boundaries, key recovery and the portable
+  offline/native confidential-client adaptation.
+- Added consent-scoped clinical ingestion, Bundle search and latest IPS reads
+  to `IndividualMemberSdk`, delegating to the same runtime client used by
+  controller and personal actors.
+- Added canonical clinical outbox submission through `IndividualControllerSdk`
+  and `ProfessionalSdk`: one `CommunicationOutboxJob` can now be rendered as
+  FHIR JSON, demo DIDComm plaintext, or protected form-encoded DIDComm JWE.
+- Added injectable `fetchImpl`, `transportProfile`, and wallet-backed secure
+  `pack`/`unpack` configuration to `NodeHttpClient`.
 - Documented pass-through of the separate GDC `RelatedPerson.role` functional
   claim in individual-controller upserts. CAREGIVER/ECON/DEPEN use active
   v3-RoleClass semantics; relationship remains single kinship/legal

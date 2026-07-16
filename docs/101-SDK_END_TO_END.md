@@ -1154,10 +1154,15 @@ Important:
 ### 7.10 Send the communication and wait for indexing
 
 ```ts
-await client.ingestCommunicationAndUpdateIndex(tenantContext, {
-  communicationPayload: job.payload,
+await individualControllerProfile.sdk.ingestCommunicationAndUpdateIndex(tenantContext, {
+  communicationJob: job,
+  pathFormatSegment: 'r4',
 });
 ```
+
+The actor facade accepts the canonical outbox job and delegates wire rendering
+to the configured runtime transport. Application code must not rebuild
+`body.entry`, `request=<JWE>` or polling envelopes.
 
 This is the converged runtime path for:
 

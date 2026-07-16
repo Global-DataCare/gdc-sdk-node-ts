@@ -30,7 +30,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createPrivateKey, sign as cryptoSign } from 'node:crypto';
+import { createPrivateKey, randomUUID, sign as cryptoSign } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -59,9 +59,6 @@ import {
   EXAMPLE_TENANT_IDENTIFIER,
   EXAMPLE_SIGNED_TERMS_PDF_URL,
   EXAMPLE_SMART_PRESENTATION_SUBMISSION,
-  buildExampleCommunicationIngestionPayload,
-  buildExampleLiveMedicationCases,
-  buildExampleMedicationIpsDocumentBundle,
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
 import {
@@ -92,7 +89,11 @@ import {
 } from 'gdc-common-utils-ts';
 import {
   ActorKinds,
+  addFhirResourceToDraft,
   closeBackendProfile,
+  createCommunicationDraft,
+  createHeartRateObservation,
+  createOutboxJobFromDraft,
   createIndividualOrganizationLifecycleFacade,
   DirectBackendProfileRuntime,
   EmployeeDraft,
@@ -591,21 +592,52 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
 
     // Step 5: the individual controller ingests clinical data and grants the
     // professional consent required for later SMART/IPS access.
-    const medication = buildExampleLiveMedicationCases(Date.now())[0];
-    const medicationIpsBundle = buildExampleMedicationIpsDocumentBundle({
-      subjectDid: suiteSubjectDid,
-      medication,
+    const observedAt = new Date().toISOString();
+    const heartRate = createHeartRateObservation({
+      subject: suiteSubjectDid,
+      effectiveDateTime: observedAt,
+      value: 72,
     });
-    const ingestionPayload = buildExampleCommunicationIngestionPayload({
-      subjectDid: suiteSubjectDid,
-      sent: medication.effectiveDateTime,
-      ipsBundleBase64: Buffer.from(JSON.stringify(medicationIpsBundle), 'utf8').toString('base64'),
+    heartRate.id = `observation-${randomUUID()}`;
+    const ipsDocument = {
+      resourceType: 'Bundle',
+      type: 'document',
+      entry: [
+        {
+          resource: {
+            resourceType: 'Composition',
+            id: `composition-${randomUUID()}`,
+            status: 'final',
+            subject: { reference: suiteSubjectDid },
+            date: observedAt,
+            type: { coding: [{ system: 'http://loinc.org', code: '60591-5' }] },
+            section: [{
+              code: { coding: [{ system: 'http://loinc.org', code: '8716-3' }] },
+              entry: [{ reference: `Observation/${heartRate.id}` }],
+            }],
+          },
+        },
+        { resource: heartRate },
+      ],
+    };
+    const clinicalDraft = addFhirResourceToDraft(createCommunicationDraft({
+      subject: suiteSubjectDid,
+      sender: individualControllerLoadRequest.profileDid,
+      recipient: EXAMPLE_PROFILE_PROVIDER_DID,
+      sent: observedAt,
+      noteText: 'IPS update with vital signs',
+    }), ipsDocument, {
+      attachmentTitle: 'ips-document.json',
+      noteText: 'Imported IPS document',
+    });
+    const clinicalJob = createOutboxJobFromDraft(clinicalDraft, {
+      batchOptions: { requestUrl: 'individual/org.hl7.fhir.r4/Communication' },
     });
     const ingestion = await profiler.run('individual-controller-ingest-clinical-data', () => individualControllerSdk.ingestCommunicationAndUpdateIndex(
       ctx,
       {
-        communicationPayload: ingestionPayload,
-        pathFormatSegment: 'api',
+        communicationJob: clinicalJob,
+        pathFormatSegment: 'r4',
         pollOptions,
       },
     ));

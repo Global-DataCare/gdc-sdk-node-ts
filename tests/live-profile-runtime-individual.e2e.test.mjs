@@ -13,6 +13,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { IndividualOrganizationLifecycleEditor } from 'gdc-common-utils-ts';
@@ -30,17 +31,18 @@ import {
   EXAMPLE_SECTOR,
   EXAMPLE_SUBJECT_DID,
   EXAMPLE_TENANT_IDENTIFIER,
-  buildExampleCommunicationIngestionPayload,
-  buildExampleLiveMedicationCases,
-  buildExampleMedicationIpsDocumentBundle,
 } from 'gdc-common-utils-ts/examples';
 import {
   ActorKinds,
+  addFhirResourceToDraft,
   BackendSubjectIndexReadModes,
   DirectBackendProfileRuntime,
   IndividualControllerBackendRuntime,
   closeBackendProfile,
   connectBackendToSubjectIndex,
+  createCommunicationDraft,
+  createHeartRateObservation,
+  createOutboxJobFromDraft,
   getBackendSubjectIndexComposition,
   prepareConnectToSubjectIndex,
   prepareGetSubjectIndexComposition,
@@ -210,21 +212,47 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
   debug.record('individual-order', { response: individualOrder });
   assert.equal(individualOrder.poll.status, 200);
 
-  const medication = buildExampleLiveMedicationCases(Date.now())[0];
-  const medicationIpsBundle = buildExampleMedicationIpsDocumentBundle({
-    subjectDid: suiteSubjectDid,
-    medication,
+  const observedAt = new Date().toISOString();
+  const observation = createHeartRateObservation({
+    subject: suiteSubjectDid,
+    effectiveDateTime: observedAt,
+    value: 72,
   });
-  const ingestionPayload = buildExampleCommunicationIngestionPayload({
-    subjectDid: suiteSubjectDid,
-    sent: medication.effectiveDateTime,
-    ipsBundleBase64: Buffer.from(JSON.stringify(medicationIpsBundle), 'utf8').toString('base64'),
+  observation.id = `observation-${randomUUID()}`;
+  const documentBundle = {
+    resourceType: 'Bundle',
+    type: 'document',
+    entry: [
+      {
+        resource: {
+          resourceType: 'Composition',
+          id: `composition-${randomUUID()}`,
+          status: 'final',
+          subject: { reference: suiteSubjectDid },
+          date: observedAt,
+          type: { coding: [{ system: 'http://loinc.org', code: '60591-5' }] },
+          section: [{
+            code: { coding: [{ system: 'http://loinc.org', code: '8716-3' }] },
+            entry: [{ reference: `Observation/${observation.id}` }],
+          }],
+        },
+      },
+      { resource: observation },
+    ],
+  };
+  const draft = addFhirResourceToDraft(createCommunicationDraft({
+    subject: suiteSubjectDid,
+    sender: profile.descriptor.profileDid,
+    sent: observedAt,
+  }), documentBundle, {
+    attachmentTitle: 'ips-document.json',
   });
+  const job = createOutboxJobFromDraft(draft);
   const ingestion = await profiler.run('medication-ingest', () => profile.sdk.ingestCommunicationAndUpdateIndex(
     ctx,
     {
-      communicationPayload: ingestionPayload,
-      pathFormatSegment: 'api',
+      communicationJob: job,
+      pathFormatSegment: 'r4',
       pollOptions,
     },
   ));

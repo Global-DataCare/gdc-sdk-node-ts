@@ -11,7 +11,11 @@ import {
 import { requireClientMethod, type NodeRuntimeClient } from './client-port.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type { RouteContext } from '../individual-onboarding.js';
-import type { RelatedPersonUpsertInput } from '../resource-operations.js';
+import type {
+  ClinicalBundleSearchInput,
+  CommunicationIngestionInput,
+  RelatedPersonUpsertInput,
+} from '../resource-operations.js';
 
 export class IndividualMemberSdk {
   constructor(private readonly client: NodeRuntimeClient) {}
@@ -29,6 +33,30 @@ export class IndividualMemberSdk {
    */
   public requestSmartToken(input: SmartTokenRequestInput): Promise<SmartTokenExchangeResult> {
     return requireClientMethod(this.client, 'requestSmartToken')(input);
+  }
+
+  /**
+   * Writes clinical content for a subject only after GW authorizes this member's
+   * SMART token and accepted RelatedPerson/Consent relationship.
+   */
+  public ingestCommunicationAndUpdateIndex(
+    ctx: RouteContext,
+    input: CommunicationIngestionInput,
+  ) {
+    return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /** Reads subject-scoped clinical documents permitted to this member. */
+  public searchClinicalBundle(ctx: RouteContext, input: ClinicalBundleSearchInput) {
+    return requireClientMethod(this.client, 'searchClinicalBundle')(ctx, input);
+  }
+
+  /** Reads the latest permitted IPS document for the selected subject. */
+  public getLatestIps(
+    ctx: RouteContext,
+    input: Omit<ClinicalBundleSearchInput, 'includedTypes'>,
+  ) {
+    return requireClientMethod(this.client, 'getLatestIps')(ctx, input);
   }
 
   /**

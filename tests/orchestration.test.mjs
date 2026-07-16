@@ -193,6 +193,20 @@ test('IndividualMemberSdk exposes canonical identity VC and VP helpers through t
   );
 });
 
+test('IndividualMemberSdk delegates consent-scoped clinical operations to the shared runtime client', async () => {
+  const calls = [];
+  const sdk = new IndividualMemberSdk({
+    async ingestCommunicationAndUpdateIndex(...args) { calls.push(['ingest', args]); return { ok: true }; },
+    async searchClinicalBundle(...args) { calls.push(['search', args]); return { ok: true }; },
+    async getLatestIps(...args) { calls.push(['latest', args]); return { ok: true }; },
+  });
+  const ctx = { tenantId: 'VATES-TEST', jurisdiction: 'ES', sector: 'health-care' };
+  await sdk.ingestCommunicationAndUpdateIndex(ctx, { communicationPayload: { subject: 'did:web:subject.example' } });
+  await sdk.searchClinicalBundle(ctx, { subject: 'did:web:subject.example' });
+  await sdk.getLatestIps(ctx, { subject: 'did:web:subject.example' });
+  assert.deepEqual(calls.map(([name]) => name), ['ingest', 'search', 'latest']);
+});
+
 test('PersonalSdk delegates to the runtime client', async () => {
   const calls = [];
   const client = {
@@ -239,6 +253,14 @@ test('NodeActorSession refuses mismatched actor facade materialization', () => {
   });
 
   assert.throws(() => session.asOrganizationController(), new RegExp(`cannot be used as '${ActorKinds.OrganizationController}'`));
+});
+
+test('individual-controller session can expose the reduced PersonalSdk for ONESELF mode', () => {
+  const session = new NodeActorSession({
+    actorKind: ActorKinds.IndividualController,
+    capabilities: [],
+  }, {});
+  assert.ok(session.asPersonal() instanceof PersonalSdk);
 });
 
 test('IndividualControllerSdk throws when a delegated runtime method is missing', () => {
