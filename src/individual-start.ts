@@ -1,10 +1,18 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
 import {
+  ClaimsOfferSchemaorg,
   ClaimsOrganizationSchemaorg,
   ClaimsPersonSchemaorg,
   ClaimsServiceSchemaorg,
 } from 'gdc-common-utils-ts/constants';
+import {
+  buildIndividualDidWeb,
+  encodeHexToMultibase58btc,
+  extractPrimaryClaims,
+  readFamilyOrganizationSummaryFromResponseBody,
+} from 'gdc-common-utils-ts';
+import type { FamilyRegistrationStatus } from 'gdc-common-utils-ts/utils/family-organization-summary';
 import { GwCoreLifecycleRequestType } from './constants/lifecycle.js';
 import { resolvePollOptionsFromSeconds } from './poll-options.js';
 import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
@@ -70,6 +78,30 @@ export type IndividualOrganizationStartResult = {
   registration: SubmitAndPollResult;
   offerId: string;
   offerPreview: OfferPreview;
+  /** Lifecycle state returned by GW for this registration receipt. */
+  registrationStatus?: FamilyRegistrationStatus;
+  /** False when the same family registration is already active. */
+  orderConfirmationRequired: boolean;
+  /**
+   * Canonical subject identity projected from the GW registration receipt.
+   *
+   * It is optional only for compatibility with older/non-conforming GW
+   * responses. Current GW responses expose both `resource.id` and
+   * `Offer.offeredBy`, allowing every BFF/channel to consume the same derived
+   * identity without rebuilding a provider DID from route fragments or VAT.
+   */
+  identity?: IndividualOrganizationBootstrapIdentity;
+};
+
+export type IndividualOrganizationBootstrapIdentity = {
+  /** Technical UUID returned as `Bundle.data[0].resource.id`. */
+  resourceId: string;
+  /** Stable UUID-byte identifier serialized as multibase base58btc. */
+  individualId: string;
+  /** Authoritative provider DID returned by GW in `Offer.offeredBy`. */
+  providerDidWeb: string;
+  /** Canonical child DID built beneath the exact provider DID returned by GW. */
+  subjectDid: string;
 };
 
 type StartIndividualOrganizationDeps = {
@@ -121,6 +153,7 @@ export async function startIndividualOrganizationWithDeps(
 
   const claims: Record<string, unknown> = {
     '@context': 'org.schema',
+    ...(deps.input.additionalClaims || {}),
     [ClaimsOrganizationSchemaorg.alternateName]: alternateName,
     [ClaimsServiceSchemaorg.category]: deps.routeCtx.sector,
     [ClaimsPersonSchemaorg.hasOccupationalRoleValue]: controllerRole,
@@ -136,7 +169,6 @@ export async function startIndividualOrganizationWithDeps(
           [ClaimsPersonSchemaorg.telephone]: controllerTelephone,
         }
       : {}),
-    ...(deps.input.additionalClaims || {}),
   };
 
   const registrationPayload = {
@@ -186,11 +218,57 @@ export async function startIndividualOrganizationWithDeps(
     throw new Error('startIndividualOrganization failed: missing offerId in registration response.');
   }
 
+  const registrationSummary = readFamilyOrganizationSummaryFromResponseBody(registration.poll.body);
   return {
     registration,
     offerId,
     offerPreview: deps.getOfferPreviewFromResponse(registration),
+    registrationStatus: registrationSummary?.status,
+    orderConfirmationRequired: registrationSummary?.status !== 'already_exists',
+    identity: readIndividualOrganizationBootstrapIdentity(registration.poll.body),
   };
+}
+
+/**
+ * Projects the reusable subject identity from an individual bootstrap receipt.
+ *
+ * `providerDidWeb` is deliberately read from `Offer.offeredBy` and preserved
+ * byte-for-byte. The provider root uses the colon-delimited
+ * `:organization:taxid:` DID path. `buildIndividualDidWeb(...)` only adds the
+ * individual suffix and never rewrites that provider lineage.
+ */
+export function readIndividualOrganizationBootstrapIdentity(
+  responseBody: unknown,
+): IndividualOrganizationBootstrapIdentity | undefined {
+  const root = asRecord(responseBody);
+  const body = asRecord(root?.body) || root;
+  const entries = Array.isArray(body?.data) ? body.data : [];
+  const first = asRecord(entries[0]);
+  const resource = asRecord(first?.resource);
+  const resourceId = String(resource?.id || '').trim();
+  const claims = extractPrimaryClaims(responseBody);
+  const providerDidWeb = String(claims[ClaimsOfferSchemaorg.offeredBy] || '').trim();
+  if (!resourceId || !providerDidWeb) return undefined;
+
+  let individualId: string;
+  try {
+    individualId = encodeHexToMultibase58btc(resourceId);
+  } catch {
+    return undefined;
+  }
+
+  return {
+    resourceId,
+    individualId,
+    providerDidWeb,
+    subjectDid: buildIndividualDidWeb({ providerDidWeb, individualId }),
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
 }
 
 function createRuntimeUuid(): string {

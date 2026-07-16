@@ -805,19 +805,32 @@ What you get back:
 - async poll result
 - `offerId`
 - `offerPreview`
+- `registrationStatus` and `orderConfirmationRequired`
+- `identity`, projected from the GW receipt when available:
+  - `resourceId`: technical UUID returned by GW
+  - `individualId`: that UUID encoded from its 16 bytes as multibase base58btc
+  - `providerDidWeb`: exact `Offer.offeredBy` returned by GW
+  - `subjectDid`: canonical individual DID beneath that exact provider DID
 
 ### 7.3 Confirm the returned order or offer
 
 ```ts
-await individualSdk.confirmIndividualOrganizationOrder({
-  tenantId: tenantContext.tenantId,
-  jurisdiction: tenantContext.jurisdiction,
-  sector: tenantContext.sector,
-  offerId: individualStart.offerId,
-  timeoutSeconds: 9,
-  intervalSeconds: 2,
-});
+if (individualStart.orderConfirmationRequired) {
+  await individualSdk.confirmIndividualOrganizationOrder({
+    tenantId: tenantContext.tenantId,
+    jurisdiction: tenantContext.jurisdiction,
+    sector: tenantContext.sector,
+    offerId: individualStart.offerId,
+    timeoutSeconds: 9,
+    intervalSeconds: 2,
+  });
+}
 ```
+
+An `already_exists` receipt refers to an active registration whose original
+Offer was already confirmed. Confirming that same Offer again correctly finds
+a non-pending record. For create-or-resume channel flows, prefer
+`ensureFamilyOrganizationRegistration(...)`, which searches before starting.
 
 ### 7.3a Identity layers after individual bootstrap
 
@@ -897,27 +910,29 @@ Practical rule:
 
 ### 7.4 Build the subject DID
 
-Once the provider lineage is known, derive the individual DID from it.
+Prefer the identity already projected by the high-level bootstrap call:
 
 ```ts
-const authorityResolver = new StaticAuthorityResolver();
-
-const authority = await authorityResolver.resolveAuthority({
-  authorityBaseUrl: 'https://api.example.org',
-  tenantId: tenantContext.tenantId,
-  jurisdiction: tenantContext.jurisdiction,
-  sector: tenantContext.sector,
-});
-
-const organizationDid = authority.tenantDidWeb!;
-
-const subjectDid = buildIndividualDidWeb({
-  organizationDidWeb: organizationDid,
-  subjectId: 'subject-001',
-});
+const subjectDid = individualStart.identity?.subjectDid;
+if (!subjectDid) {
+  throw new Error('GW registration receipt did not expose the subject identity.');
+}
 ```
 
-Do not hand-invent a `did:web` string in docs if a builder or resolver already exists.
+`Offer.offeredBy` is the authoritative provider lineage. Preserve it exactly.
+The hosted provider path is colon-delimited, including
+`:organization:taxid:`; a semicolon in that position was an SDK helper typo,
+not an alternative DID representation.
+
+For an older response that must be adapted manually, use the exported
+`readIndividualOrganizationBootstrapIdentity(responseBody)` helper. Do not
+hand-invent a `did:web` string or encode the textual UUID characters: the
+helper encodes the UUID's 16 bytes.
+
+The jurisdiction used in the individual Offer URN does not describe the
+individual's country. It identifies the data-space/blockchain network selected
+by `RouteContext.jurisdiction` and the `cds-<jurisdiction>` route. Consequently,
+individual bootstrap does not synthesize `Organization.addressCountry`.
 
 ### 7.5 Create a permission for a professional
 

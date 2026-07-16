@@ -571,6 +571,11 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     }));
     debug.record('individual-controller-start-individual', { response: individualStart });
     assert.equal(individualStart.registration.poll.status, 200);
+    assert.ok(
+      individualStart.offerId.startsWith(`urn:cds:${suiteJurisdiction.toUpperCase()}:v1:${suiteSector}:`),
+      'Individual Offer URN must identify the jurisdiction/network selected by the route.',
+    );
+    assert.equal(individualStart.offerId.includes('undefined'), false);
 
     const individualOrder = await profiler.run('individual-controller-confirm-order', () => individualControllerSdk.confirmIndividualOrganizationOrder({
       tenantId: suiteTenantRouteId,

@@ -15,6 +15,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Added live assertions that individual Offer identifiers contain the
+  jurisdiction/network selected by `RouteContext` and never contain
+  `undefined`; individual bootstrap no longer treats that network selector as
+  the individual's `Organization.addressCountry`.
+
+### Added
+- Added `startIndividualOrganization(...).identity` and
+  `readIndividualOrganizationBootstrapIdentity(...)` so BFF/channel clients
+  receive the resource UUID, multibase individual id, authoritative
+  `Offer.offeredBy`, and derived subject DID without parsing GW payloads or
+  rebuilding tenant identity strings.
+- Added `registrationStatus` and `orderConfirmationRequired` to prevent BFFs
+  from reconfirming the historical Offer returned for an already-active
+  individual registration.
+
 ## [2.3.0] - 2026-07-16
 
 - Clinical ingestion now accepts the claims-first `CommMsgExtended` outbox,
