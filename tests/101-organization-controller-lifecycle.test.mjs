@@ -1,3 +1,11 @@
+/**
+ * 101 note:
+ * - `gdc-common-utils-ts` owns the canonical step-by-step editors/readers and payload examples.
+ * - This file starts after that shared authoring step and teaches the highest-level `sdk-node` runtime surface for this topic.
+ * - Reuse `sdk-core` and `common-utils` contracts instead of re-teaching raw claims or low-level editors here.
+ * - Read `docs/101-README.md` for the ordered path and keep actor role plus submit/poll explicit.
+ */
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -35,6 +43,16 @@ import {
 } from 'gdc-common-utils-ts/examples';
 
 /**
+ * 101 boundary:
+ * - this test teaches the highest-level controller/runtime lifecycle surface
+ *   currently owned by `gdc-sdk-node-ts`
+ * - it assumes lower layers already defined the shared employee/editor and
+ *   communication semantics in `gdc-common-utils-ts`
+ * - continue downward when you need those lower layers:
+ *   - `gdc-sdk-core-ts/tests/101-employees.test.mjs`
+ *   - `gdc-common-utils-ts/__tests__/101-employee-examples.test.ts`
+ *   - `gdc-common-utils-ts/__tests__/101-communication-profile-wallet-e2e.test.ts`
+ *
  * This 101 intentionally stays narrow.
  *
  * It is the canonical controller lifecycle contract for Node/BFF integrators:
@@ -46,6 +64,11 @@ import {
  * - only then disable and purge the tenant
  *
  * It does not cover employees, SMART, dialogue, or clinical flows.
+ *
+ * Current canonical controller-teaching rule:
+ * - treat the controller/responsible-party role as the current canonical
+ *   beginner identity narrative
+ * - do not force older executive-director examples into new 101 flows
  */
 test('101: organization controller lifecycle preserves contracted seats across Organization/_issue before disable and purge', async (t) => {
   await t.test('new Organization/_transaction lifecycle', async () => {

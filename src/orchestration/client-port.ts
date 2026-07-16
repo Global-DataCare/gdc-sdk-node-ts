@@ -36,12 +36,17 @@ import type { OrganizationLicenseOrderConfirmInput } from '../organization-licen
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type {
   CommunicationIngestionInput,
+  BlockchainArtifactRegistrationInput,
   CommunicationParticipantRuntimeSearchInput,
   ClinicalBundleSearchInput,
+  VitalSignBatchCommunicationFromSearchResponseInput,
   DigitalTwinGenerationInput,
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
   IndividualMemberLifecycleInput,
+  IndividualMemberLicenseAddInput,
+  IndividualMemberLicenseInvitationInput,
+  IndividualMemberLicenseTransitionInput,
   IpsOrFhirImportInput,
   OrganizationEmployeeCreationInput,
   OrganizationEmployeeLifecycleInput,
@@ -118,6 +123,10 @@ export type RuntimeClient = {
     hostCtx: HostRouteContext,
     input: LegalOrganizationOrderInput,
     pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  submitVitalSignBatchCommunicationFromSearchResponse?: (
+    ctx: RouteContext,
+    input: VitalSignBatchCommunicationFromSearchResponseInput,
   ) => Promise<SubmitAndPollResult>;
   disableHost?: (
     hostCtx: HostRouteContext,
@@ -251,6 +260,10 @@ export type RuntimeClient = {
     ctx: RouteContext,
     input: CommunicationIngestionInput,
   ) => Promise<SubmitAndPollResult>;
+  registerBlockchainArtifactAndUpdateIndex?: (
+    ctx: RouteContext,
+    input: BlockchainArtifactRegistrationInput,
+  ) => Promise<SubmitAndPollResult>;
   searchCommunicationParticipants?: (
     ctx: RouteContext,
     input: CommunicationParticipantRuntimeSearchInput,
@@ -270,6 +283,19 @@ export type RuntimeClient = {
   listIndividualLicenses?: (
     ctx: RouteContext,
     input?: LicenseListRuntimeSearchInput,
+  ) => Promise<SubmitAndPollResult>;
+  addFreeIndividualMemberLicenses?: (
+    ctx: RouteContext,
+    input: IndividualMemberLicenseAddInput,
+  ) => Promise<SubmitAndPollResult>;
+  issueIndividualMemberLicense?: (
+    ctx: RouteContext,
+    input: IndividualMemberLicenseInvitationInput,
+  ) => Promise<SubmitAndPollResult>;
+  transitionIndividualMemberLicense?: (
+    ctx: RouteContext,
+    action: '_accept' | '_deactivate' | '_release',
+    input: IndividualMemberLicenseTransitionInput,
   ) => Promise<SubmitAndPollResult>;
   searchIndividualLicenseOffers?: (
     ctx: RouteContext,

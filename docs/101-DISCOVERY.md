@@ -1,5 +1,11 @@
 # Discovery 101 for Node Backends
 
+> 101 note
+> - Teach here: the highest-level `sdk-node` actor/profile/runtime surface for this topic.
+> - Reuse lower-layer helpers from `sdk-core` and `common-utils` instead of re-teaching raw claims or low-level editors.
+> - Read [101-README.md](./101-README.md) for the ordered path and keep actor role plus submit/poll explicit.
+
+
 This guide is intentionally short.
 
 Teaching rule for this `101`:

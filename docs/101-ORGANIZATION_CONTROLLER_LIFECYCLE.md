@@ -1,5 +1,11 @@
 # Organization Controller Lifecycle 101
 
+> 101 note
+> - Teach here: the highest-level `sdk-node` actor/profile/runtime surface for this topic.
+> - Reuse lower-layer helpers from `sdk-core` and `common-utils` instead of re-teaching raw claims or low-level editors.
+> - Read [101-README.md](./101-README.md) for the ordered path and keep actor role plus submit/poll explicit.
+
+
 This is the canonical and reproducible guide for the **organization
 controller** lifecycle in `gdc-sdk-node-ts`.
 
@@ -84,7 +90,7 @@ Expected result:
 
 ## Which SDK surface is used
 
-The test does not use private plumbing. It stays on public runtime helpers and
+The test does not use private helpers. It stays on public runtime helpers and
 facades:
 
 - `OrganizationControllerSdk.submitLegalOrganizationVerificationTransaction(...)`
@@ -184,5 +190,5 @@ test remains the baseline because it is reproducible on any machine.
   - [101-SDK_END_TO_END.md](./101-SDK_END_TO_END.md)
 - For lower-level integration API notes:
   - [101-SDK_INTEGRATION.md](./101-SDK_INTEGRATION.md)
-- For the raw recovery helper contract:
+- For the lower-level recovery helper contract:
   - [../src/organization-controller-recovery.ts](../src/organization-controller-recovery.ts)

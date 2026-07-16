@@ -1,3 +1,10 @@
+/**
+ * 101 note:
+ * - Teach the highest-level `sdk-node` actor/profile/runtime surface for this topic.
+ * - Reuse `sdk-core` and `common-utils` helpers instead of re-teaching raw claims or low-level editors here.
+ * - Read `docs/101-README.md` for the ordered path and keep actor role plus submit/poll explicit.
+ */
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPrivateKey, sign as cryptoSign } from 'node:crypto';
@@ -6,7 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ActorCapabilities } from 'gdc-common-utils-ts/constants/actor-session';
-import { EXAMPLE_CONTROLLER_BINDING, EXAMPLE_JURISDICTION, EXAMPLE_LIVE_GW_BASE_URL_LOCAL, EXAMPLE_SECTOR, cloneExample } from 'gdc-common-utils-ts/examples';
+import { EXAMPLE_CONTROLLER_BINDING, EXAMPLE_JURISDICTION, EXAMPLE_LIVE_GW_BASE_URL_LOCAL, EXAMPLE_SECTOR, EXAMPLE_TENANT_IDENTIFIER, cloneExample } from 'gdc-common-utils-ts/examples';
 import {
   addLegalRepresentativeCredential,
   addOrganizationCredential,
@@ -50,7 +57,7 @@ const suiteHostIdentifierValue = env('HOST_ID_VALUE', `live-controller-host-${ru
 const pollIntervalMs = Math.max(1, Number(env('LIVE_GW_POLL_INTERVAL_MS', '200')));
 const pollTimeoutMs = Math.max(1000, Number(env('LIVE_GW_POLL_TIMEOUT_MS', '60000')));
 const controllerSignerSeed = env('CONTROLLER_SIGNER_SEED', 'organization-controller-seed-001');
-const controllerOrganizationTaxId = env('LIVE_CONTROLLER_ORGANIZATION_TAX_ID', 'VATES-B42215152');
+const controllerOrganizationTaxId = env('LIVE_CONTROLLER_ORGANIZATION_TAX_ID', EXAMPLE_TENANT_IDENTIFIER);
 const liveHostVerificationDefaultPdfPath = env(
   'LIVE_GW_HOST_VERIFICATION_PDF_PATH',
   path.join(__dirname, '..', '..', 'examples', 'TEST-A4-Antifraud.pdf'),

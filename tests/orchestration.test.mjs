@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 
 import {
   ClaimsPersonSchemaorg,
+  EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY,
+  EXAMPLE_INDIVIDUAL_SUBJECT_IDENTITY,
+  EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY,
   EXAMPLE_PROFESSIONAL_IDENTITY,
+  IndividualCredentialTypes,
   ProfessionalCredentialTypes,
   W3cCredentialTypes,
   normalizeSameAsHash,
@@ -13,6 +17,7 @@ import {
   ActorCapabilities,
   ActorKinds,
   IndividualControllerSdk,
+  IndividualMemberSdk,
   NodeActorSession,
   PersonalSdk,
   ProfessionalSdk,
@@ -103,6 +108,86 @@ test('ProfessionalSdk exposes canonical identity VC and VP helpers through the s
     typeof sdk.buildUnsignedIdentityVpJwt({
       clientId: EXAMPLE_PROFESSIONAL_IDENTITY.actorDid,
       ...EXAMPLE_PROFESSIONAL_IDENTITY,
+    }),
+    'string',
+  );
+});
+
+test('IndividualControllerSdk exposes canonical identity VC and VP helpers through the shared common-utils layer', () => {
+  const sdk = new IndividualControllerSdk({});
+  const expectedSameAs = normalizeSameAsHash(EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY.email);
+  const expectedTelephone = normalizeTelephoneHash(EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY.telephone);
+
+  assert.deepEqual(sdk.getIdentitySameAs(EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY), [expectedSameAs]);
+  assert.deepEqual(sdk.getIdentityVC(EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY), {
+    type: [W3cCredentialTypes.VerifiableCredential, IndividualCredentialTypes.IndividualControllerCredential],
+    credentialSubject: {
+      id: EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY.actorDid,
+      subject: EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY.subjectDid,
+      relationship: EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY.relationship,
+      authorityBasis: EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY.authorityBasis,
+      sameAs: expectedSameAs,
+      [ClaimsPersonSchemaorg.telephone]: expectedTelephone,
+      [ClaimsPersonSchemaorg.hasCredentialMaterial]: EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY.credentialMaterial,
+    },
+    evidence: [...EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY.evidence],
+  });
+  assert.deepEqual(sdk.getSubjectVC(EXAMPLE_INDIVIDUAL_SUBJECT_IDENTITY), {
+    type: [W3cCredentialTypes.VerifiableCredential, IndividualCredentialTypes.IndividualSubjectCredential],
+    credentialSubject: {
+      id: EXAMPLE_INDIVIDUAL_SUBJECT_IDENTITY.subjectDid,
+      sameAs: normalizeSameAsHash(EXAMPLE_INDIVIDUAL_SUBJECT_IDENTITY.sameAs),
+      [ClaimsPersonSchemaorg.telephone]: normalizeTelephoneHash(EXAMPLE_INDIVIDUAL_SUBJECT_IDENTITY.telephone),
+      alternateName: 'Ana',
+    },
+    evidence: [...EXAMPLE_INDIVIDUAL_SUBJECT_IDENTITY.evidence],
+  });
+  assert.equal(
+    sdk.buildIdentityVpPayload({
+      clientId: EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY.actorDid,
+      ...EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY,
+    }).vp.holder,
+    EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY.actorDid,
+  );
+  assert.equal(
+    typeof sdk.buildUnsignedIdentityVpJwt({
+      clientId: EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY.actorDid,
+      ...EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY,
+    }),
+    'string',
+  );
+});
+
+test('IndividualMemberSdk exposes canonical identity VC and VP helpers through the shared common-utils layer', () => {
+  const sdk = new IndividualMemberSdk({});
+  const expectedSameAs = normalizeSameAsHash(EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY.email);
+  const expectedTelephone = normalizeTelephoneHash(EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY.telephone);
+
+  assert.deepEqual(sdk.getIdentitySameAs(EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY), [expectedSameAs]);
+  assert.deepEqual(sdk.getIdentityVC(EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY), {
+    type: [W3cCredentialTypes.VerifiableCredential, IndividualCredentialTypes.IndividualMemberCredential],
+    credentialSubject: {
+      id: EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY.actorDid,
+      subject: EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY.subjectDid,
+      relationship: EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY.relationship,
+      authorityBasis: EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY.authorityBasis,
+      sameAs: expectedSameAs,
+      [ClaimsPersonSchemaorg.telephone]: expectedTelephone,
+      [ClaimsPersonSchemaorg.hasCredentialMaterial]: EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY.credentialMaterial,
+    },
+    evidence: [...EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY.evidence],
+  });
+  assert.equal(
+    sdk.buildIdentityVpPayload({
+      clientId: EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY.actorDid,
+      ...EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY,
+    }).vp.holder,
+    EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY.actorDid,
+  );
+  assert.equal(
+    typeof sdk.buildUnsignedIdentityVpJwt({
+      clientId: EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY.actorDid,
+      ...EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY,
     }),
     'string',
   );

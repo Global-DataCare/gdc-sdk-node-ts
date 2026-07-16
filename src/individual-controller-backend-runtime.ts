@@ -6,7 +6,7 @@ import type { IndividualOrganizationConfirmOrderInput, RouteContext } from './in
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from './individual-start.js';
 import type { EnsureFamilyOrganizationRegistrationInput, EnsureFamilyOrganizationRegistrationResult } from './family-organization-registration.js';
 import type { FamilyOrganizationSearchInput } from './family-organization-search.js';
-import type { ClinicalBundleSearchInput } from './resource-operations.js';
+import type { BlockchainArtifactRegistrationInput, ClinicalBundleSearchInput } from './resource-operations.js';
 import {
   loadBackendIndividualControllerProfile,
   type BackendIndividualControllerProfile,
@@ -108,5 +108,17 @@ export class IndividualControllerBackendRuntime {
     input: Omit<ClinicalBundleSearchInput, 'includedTypes'>,
   ): Promise<SubmitAndPollResult> {
     return profile.sdk.getLatestIps(ctx, input);
+  }
+
+  /**
+   * Registers one FHIR resource or raw artifact on blockchain before it is
+   * attached to a subject communication.
+   */
+  public registerBlockchainArtifactAndUpdateIndex(
+    profile: BackendIndividualControllerProfile,
+    ctx: RouteContext,
+    input: BlockchainArtifactRegistrationInput,
+  ): Promise<SubmitAndPollResult> {
+    return profile.sdk.registerBlockchainArtifactAndUpdateIndex(ctx, input);
   }
 }

@@ -1,6 +1,20 @@
 # SDK Integration 101 for Node Backends
 
-This file is no longer the main tutorial.
+> 101 note
+> - Teach here: the highest-level `sdk-node` actor/profile/runtime surface after shared authoring in `gdc-common-utils-ts`.
+> - Reuse lower-layer contracts from `sdk-core` and `common-utils` instead of re-teaching raw claims or low-level editors.
+> - The beginner payload path is document `Bundle` with `Composition` first -> `Communication` -> DIDComm/plain; backend search stays on FHIR params such as `Composition.section`.
+> - In secure/FAPI-backed mode, encrypted DIDComm is the submit path; JWE in the `request` / `response` layer belongs to auth/security around the flow, not to the FHIR payload model.
+> - Read [101-README.md](./101-README.md) for the ordered path and keep actor role plus submit/poll explicit.
+
+This file is no longer the main tutorial. It starts after common-utils payload
+authoring and at the runtime boundary where `ProfileRuntime` loads one
+workspace/session and exposes one actor facade.
+
+When a lower-layer `gdc-common-utils-ts` 101 already covers payload authoring
+or wallet/profile fixtures, this guide should show the next step:
+`ProfileRuntime.loadProfile(...)` and the actor facade returned from the loaded
+workspace.
 
 If you want the full copy/paste onboarding flow, start here:
 
@@ -46,14 +60,19 @@ Use that GW CORE document when you need the product-facing distinction between:
 Teaching rule for this `101`:
 
 - start from the highest-level runtime surface a new developer should call
-- then point to the shared/core document for the lower-level model
+- then point to the shared/common-utils authoring document for the lower-level model
 - do not start from GW wire payloads, raw claims maps, or low-level bundle
   internals
+- the beginner payload path is document `Bundle` with `Composition` first,
+  then `Communication`, then DIDComm/plain
+- every `101` snippet in this file should link the next lower executable 101
+  test/doc so developers can descend one layer at a time without guessing
 
 Employee lifecycle/search semantics and the runtime-neutral employee bundle
 contract are documented centrally in:
 
 - [gdc-sdk-core-ts/docs/101-EMPLOYEES.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-EMPLOYEES.md)
+- [gdc-sdk-core-ts/tests/101-employees.test.mjs](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/tests/101-employees.test.mjs)
 
 When teaching employee flows in this runtime guide, keep this order:
 
@@ -65,6 +84,7 @@ If you are confused about DIDComm envelope vs batch body vs entry type vs FHIR
 resource vs `CommMsgExtended`, read first:
 
 - [gdc-common-utils-ts/docs/101-COMMUNICATION_LAYERING.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/101-COMMUNICATION_LAYERING.md)
+- [gdc-common-utils-ts/__tests__/101-communication-profile-wallet-e2e.test.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/__tests__/101-communication-profile-wallet-e2e.test.ts)
 
 If you need the exact local GW commands, TTY order, tenant bootstrap, Docker
 variant, and port-stop commands, use:
@@ -80,6 +100,8 @@ variant, and port-stop commands, use:
   - `service.capabilities`
 - Teach `orgControllerDid` for the legal-organization controller DID.
 - Teach `organizationActivation` as the local activation variable name.
+- Teach the current controller/responsible-person default as `RESPRSN` when
+  the snippet needs one canonical controller-role example.
 
 ## Package Map
 
@@ -330,6 +352,15 @@ Main methods:
 - `grantProfessionalAccess(...)`
 - `importIpsOrFhirAndUpdateIndex(...)`
 - `requestSmartToken(...)`
+- `getIdentityVC(...)`
+- `getSubjectVC(...)`
+
+Identity rule:
+
+- `getIdentityVC(...)` is the controller-side actor proof
+- `getSubjectVC(...)` is the dependent subject proof
+- use both when one future VP needs to express both the acting controller and
+  the child/pet/dependent subject
 
 ### Individual member / caregiver
 
@@ -340,6 +371,7 @@ Use:
 Main methods:
 
 - `requestSmartToken(...)`
+- `getIdentityVC(...)`
 
 ## Flow Map
 
@@ -544,6 +576,12 @@ SDK:
 Lifecycle note:
 
 - `RelatedPerson` models member/caregiver relationship data, not employee lifecycle.
+- Keep `RelatedPerson.relationship` for kinship or an evidenced legal
+  relationship. Optional comma-separated `RelatedPerson.role` values describe
+  functions such as `CAREGIVER,ECON,DEPEN,BILL`; `PERMITTED` is a
+  Consent/access decision and is never a relationship. CAREGIVER/ECON/DEPEN
+  use v3-RoleClass (DEPEN is retired only in v3-RoleCode). Do not infer
+  `POWATT` from controller status.
 - `upsertRelatedPersonAndPoll(...)` reuses the shared bundle fixture style from
   `gdc-common-utils-ts/src/examples/related-person.ts`.
 - `disableIndividualMember(...)` now emits the shared identifier-first lifecycle
@@ -593,7 +631,7 @@ Use `gdc-sdk-core-ts` when you need to prepare payloads before runtime submissio
 - `createCommunicationFacade(...)`
 - consent-access helpers in `src/consent-access.ts`
 
-Use `gdc-common-utils-ts` for shared constants and semantic helpers:
+Use `gdc-common-utils-ts` for shared constants and semantic authoring helpers:
 
 - `buildControllerBindingInput(...)`
 - `buildOrganizationDidWeb(...)`

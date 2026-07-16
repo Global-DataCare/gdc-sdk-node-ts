@@ -151,9 +151,6 @@ These pieces are stable enough to keep using as the baseline:
 
 These do not belong in the baseline registration contract:
 
-- reminder task creation
-- product-specific voice/chat orchestration
-- downstream notification policies
 - non-core menu logic
 
 Those can extend the registration flow later, but they are not the base flow.

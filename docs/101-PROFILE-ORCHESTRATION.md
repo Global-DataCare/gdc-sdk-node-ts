@@ -1,5 +1,12 @@
 # 101 Profile Orchestration Map
 
+> 101 note
+> - Teach here: the highest-level `sdk-node` actor/profile/runtime surface after shared authoring in `gdc-common-utils-ts`.
+> - Reuse lower-layer contracts from `sdk-core` and `common-utils` instead of re-teaching raw claims or low-level editors.
+> - The runtime story is `loadProfile(...) -> workspace/session -> actor facade -> submit/poll`; the lower-layer payload path remains document `Bundle` with `Composition` first -> `Communication` -> DIDComm/plain, and backend search stays on FHIR params such as `Composition.section`.
+> - Read [101-README.md](./101-README.md) for the ordered path and keep actor role plus submit/poll explicit.
+
+
 ## Purpose
 
 This repo should not re-teach every editor/builder already documented in
@@ -8,15 +15,21 @@ This repo should not re-teach every editor/builder already documented in
 The job of `gdc-sdk-node-ts` `101` tests is different:
 
 - show how one protected profile is loaded and unlocked
-- show how one actor session exposes one role facade
+- show how one loaded workspace/session exposes one role facade
 - show how several role profiles depend on each other in one real lifecycle
 - reuse the shared high-level editors/readers from `gdc-common-utils-ts`
-- keep frontend/web, backend/BFF, and voice/call-center aligned on the same
+- keep frontend/web, backend/BFF, and other systems aligned on the same
   programming model
 
 Canonical top-level contract:
 
-`loadProfile(...) -> unlock PIN/secret -> session -> actor facade -> common-utils helper`
+`ProfileRuntime -> loadProfile(...) -> workspace/session -> actor facade -> submit/poll`
+
+Naming rule:
+
+- keep `ProfileRuntime` as the public name for the unlocked user profile flow
+- keep runtime-specific naming in the injected adapters or factories
+- keep tenant/service wallets separate from the end-user profile runtime
 
 Important reading order:
 
@@ -38,18 +51,18 @@ Public actor surfaces to teach first:
 ## Layer rule
 
 - `gdc-common-utils-ts`
-  Owns business editors, readers, viewers, search helpers, and semantic
-  examples.
+  Owns the canonical step-by-step editors/readers, viewers, search helpers,
+  and semantic examples.
 - `gdc-sdk-core-ts`
   Owns neutral actor/sector facade contracts.
 - `gdc-sdk-node-ts`
-  Owns runtime orchestration for BFF/backend/voice:
+  Owns runtime orchestration for BFF/backend:
   profile loading, route binding, submit/poll, and actor-to-actor lifecycle.
 
 ## Common-Utils 101 Map
 
 These tests already explain the high-level building blocks. Node/backend `101`
-tests should reuse their helpers instead of reauthoring claim plumbing.
+tests should reuse their authoring surface instead of rebuilding claim maps.
 
 ### Individual / family onboarding
 
@@ -95,9 +108,24 @@ tests should reuse their helpers instead of reauthoring claim plumbing.
 - Main helper surface:
   - `new BundleEditor().newEntry().asVitalSign()...`
   - `asObservation()...`
-- Use from web/expo/BFF/voice when:
+- Use from web/expo/BFF when:
   - one controller or assistant captures a new vital sign
-  - one app wants chainable `get/set` editing instead of raw FHIR claims
+  - one app wants chainable `get/set` editing instead of hand-building FHIR claims
+
+Guidance for high-frequency measurements:
+
+- do not force every smartwatch/device reading onto blockchain immediately
+- group measurements into a day-level or session-level vital-signs batch first
+- project that batch into the IPS when the user, professional, or system
+  decides it is meaningful
+- anchor the batch hash/CID on-chain only when the bundle becomes a committed
+  clinical artifact, using the ledger certification path instead of the
+  Communication indexing path
+- individual `Observation` samples remain the atomic facts, but the day-level
+  batch is the atomic transport and certification unit
+- if the same actor has several day batches, treat the full set as a
+  collection of atomic batch artifacts, similar to consent or appointment
+  bundles
 
 ### Consent authoring
 
@@ -166,7 +194,7 @@ Common-utils inputs usually reused here:
 Use one protected professional profile to:
 
 - present employee proof / obtain SMART token
-- search or read the latest IPS/clinical bundle
+- search the latest IPS/clinical bundle via FHIR params such as `Composition.section`
 - render section summaries, XHTML, and section counts
 - respect consent/role-based denial when scopes do not match
 
@@ -194,11 +222,6 @@ The actor story above is the same for all channels.
 - performs submit/poll against GW
 - orchestrates several actor profiles in one business flow
 
-### Voice / call center / node
-
-- same as backend/BFF
-- only input/output modality changes:
-  menu prompts, alias selection, PIN capture by voice, and narrated summaries
 
 ## What this repo should teach
 
@@ -208,11 +231,12 @@ for technical runtime composition only:
 - not the place where claim paths are invented
 - not the place where generic editors are re-explained in full
 - yes the place where several role profiles are chained in one end-to-end story
-- yes the place where each step points back to the owning `common-utils` helper
+- yes the place where each step points back to the owning `common-utils`
+  authoring test
 
 ## Immediate rewrite rule
 
-When one new backend/BFF/voice use case is added:
+When one new backend/BFF use case is added:
 
 1. Find the existing `gdc-common-utils-ts` `101` that already teaches the
    editor/reader/viewer.

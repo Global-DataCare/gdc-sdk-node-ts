@@ -2,6 +2,16 @@
 
 import { ActorCapabilities, ActorKinds } from 'gdc-common-utils-ts/constants/actor-session';
 import {
+  buildIndividualControllerIdentityVpPayload,
+  buildUnsignedIndividualControllerIdentityVpJwt,
+  getIndividualControllerIdentitySameAs,
+  getIndividualControllerIdentityVC,
+  getIndividualSubjectVC,
+  type IndividualControllerCredentialInput,
+  type IndividualControllerVpPayloadInput,
+  type IndividualSubjectCredentialInput,
+} from 'gdc-common-utils-ts';
+import {
   requireClientMethod,
   submitAndPollWithClient,
   type NodeRuntimeClient,
@@ -18,6 +28,7 @@ import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartR
 import type { NodeCapability } from '../session.js';
 import type { IndividualOrganizationLifecycleInput } from 'gdc-sdk-core-ts';
 import type {
+  BlockchainArtifactRegistrationInput,
   ClinicalBundleSearchInput,
   CommunicationIngestionInput,
   CommunicationParticipantRuntimeSearchInput,
@@ -25,6 +36,9 @@ import type {
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
   IndividualMemberLifecycleInput,
+  IndividualMemberLicenseAddInput,
+  IndividualMemberLicenseInvitationInput,
+  IndividualMemberLicenseTransitionInput,
   IpsOrFhirImportInput,
   LicenseListRuntimeSearchInput,
   LicenseOfferRuntimeSearchInput,
@@ -206,6 +220,17 @@ export class IndividualControllerSdk {
   }
 
   /**
+   * Registers one FHIR resource or raw artifact on blockchain before it is
+   * attached to a subject communication.
+   */
+  public registerBlockchainArtifactAndUpdateIndex(
+    ctx: RouteContext,
+    input: BlockchainArtifactRegistrationInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'registerBlockchainArtifactAndUpdateIndex')(ctx, input);
+  }
+
+  /**
    * Searches indexed communication channel records by subject and participant
    * identifiers.
    */
@@ -264,6 +289,34 @@ export class IndividualControllerSdk {
     return requireClientMethod(this.client, 'listIndividualLicenses')(ctx, input);
   }
 
+  /** Adds zero-cost member seats to the selected individual organization. */
+  public addFreeMemberLicenses(
+    ctx: RouteContext,
+    input: IndividualMemberLicenseAddInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'addFreeIndividualMemberLicenses')(ctx, input);
+  }
+
+  /**
+   * Reserves one member seat for an existing FHIR v3 RoleCode contact.
+   * ISCO professionals must use Consent without this operation.
+   */
+  public issueMemberInvitationLicense(
+    ctx: RouteContext,
+    input: IndividualMemberLicenseInvitationInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'issueIndividualMemberLicense')(ctx, input);
+  }
+
+  /** Accepts, deactivates or releases one member invitation seat. */
+  public transitionMemberLicense(
+    ctx: RouteContext,
+    action: '_accept' | '_deactivate' | '_release',
+    input: IndividualMemberLicenseTransitionInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'transitionIndividualMemberLicense')(ctx, action, input);
+  }
+
   /**
    * Searches commercial license offers known for the individual/family
    * context.
@@ -312,6 +365,50 @@ export class IndividualControllerSdk {
    */
   public requestSmartToken(input: SmartTokenRequestInput): Promise<SmartTokenExchangeResult> {
     return requireClientMethod(this.client, 'requestSmartToken')(input);
+  }
+
+  /**
+   * Returns the normalized public continuity aliases that would be embedded in
+   * the individual-controller identity VC for SMART/OpenID4VP flows.
+   */
+  public getIdentitySameAs(input: IndividualControllerCredentialInput): string[] {
+    return getIndividualControllerIdentitySameAs(input);
+  }
+
+  /**
+   * Builds the canonical individual-controller identity VC used by shared
+   * SMART VP helpers.
+   */
+  public getIdentityVC(input: IndividualControllerCredentialInput): Record<string, unknown> {
+    return getIndividualControllerIdentityVC(input);
+  }
+
+  /**
+   * Builds one canonical subject VC for the dependent subject managed by the
+   * current controller, for example a child, pet, or another represented
+   * individual.
+   */
+  public getSubjectVC(input: IndividualSubjectCredentialInput): Record<string, unknown> {
+    return getIndividualSubjectVC(input);
+  }
+
+  /**
+   * Builds the canonical individual-controller identity VP payload used by
+   * shared SMART/OpenID4VP helpers.
+   */
+  public buildIdentityVpPayload(input: IndividualControllerVpPayloadInput): Record<string, unknown> {
+    return buildIndividualControllerIdentityVpPayload(input);
+  }
+
+  /**
+   * Builds one unsigned compact VP JWT for the canonical
+   * individual-controller identity payload.
+   */
+  public buildUnsignedIdentityVpJwt(
+    input: IndividualControllerVpPayloadInput,
+    options: Readonly<{ nowSeconds?: number; ttlSeconds?: number; nonce?: string }> = {},
+  ): string {
+    return buildUnsignedIndividualControllerIdentityVpJwt(input, options);
   }
 
   /**

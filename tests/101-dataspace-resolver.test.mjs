@@ -1,3 +1,10 @@
+/**
+ * 101 note:
+ * - Teach the highest-level `sdk-node` actor/profile/runtime surface for this topic.
+ * - Reuse `sdk-core` and `common-utils` helpers instead of re-teaching raw claims or low-level editors here.
+ * - Read `docs/101-README.md` for the ordered path and keep actor role plus submit/poll explicit.
+ */
+
 import assert from 'node:assert/strict';
 import test from 'node:test';
 

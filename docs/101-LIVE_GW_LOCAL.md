@@ -1,5 +1,11 @@
 # 101 Live GW Local
 
+> 101 note
+> - Teach here: the highest-level `sdk-node` actor/profile/runtime surface for this topic.
+> - Reuse lower-layer helpers from `sdk-core` and `common-utils` instead of re-teaching raw claims or low-level editors.
+> - Read [101-README.md](./101-README.md) for the ordered path and keep actor role plus submit/poll explicit.
+
+
 This is the canonical live/local reference for running the SDK against a real
 local `GW CORE`.
 
@@ -238,7 +244,7 @@ Design rules kept by that `101`:
 - use public high-level actor facades/profile wrappers for the main steps
 - keep the dependency chain explicit: tenant before individual, individual
   before professional read
-- avoid inline route plumbing in the main happy path
+  - avoid inline route wiring in the main happy path
 - keep final cleanup at the end of the conversation lifecycle
 
 One compatibility note remains:

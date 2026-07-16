@@ -7,7 +7,10 @@ execution adapters, or orchestration tests.
 Short rule:
 
 - `101` tests must read like executable tutorials
-- shared fixtures/types belong in `gdc-common-utils-ts`, not as local literals
+- `gdc-common-utils-ts` owns the canonical step-by-step editors/readers,
+  shared fixtures, and reusable payload examples
+- `gdc-sdk-node-ts` starts after that shared authoring step and at
+  `ProfileRuntime -> loadProfile(...) -> workspace/session -> actor facade`
   in node runtime tests
 
 Node runtime package for consuming the shared GDC SDK contracts against real
@@ -69,7 +72,8 @@ If you are integrating this package for the first time, open these in order:
 2. [docs/101-SDK_INTEGRATION.md](./docs/101-SDK_INTEGRATION.md)
    Real backend setup plus the public runtime entrypoints:
    `HostOnboardingSdk`, `OrganizationControllerSdk`,
-   `IndividualControllerSdk`, `ProfessionalSdk`, and route-context usage.
+   `IndividualControllerSdk`, `ProfessionalSdk`, route-context usage, and the
+   canonical `ProfileRuntime -> loadProfile(...) -> workspace/session -> actor facade -> submit/poll` shape.
 3. [tests/101-live-full-cycle-bff-runtime.e2e.test.mjs](./tests/101-live-full-cycle-bff-runtime.e2e.test.mjs)
    Canonical live backend/BFF walkthrough on a fresh local GW lifecycle:
    host/tenant activation, employee provisioning, individual bootstrap,
@@ -194,7 +198,8 @@ Current live `101` flow covered by the test suite:
 2. provision one professional employee through the organization controller
 3. load the individual-controller profile and bootstrap one hosted individual
 4. confirm the returned order and verify the invoice bundle projection
-5. ingest one IPS/clinical `Communication` through the individual controller
+5. ingest one IPS/clinical `Communication` whose attached payload is the
+   canonical document `Bundle` with `Composition` first entry
 6. grant professional consent for one patient-summary section
 7. load the professional profile and request one SMART token
 8. read the allowed IPS bundle as the professional actor
@@ -293,8 +298,9 @@ npm run test:e2e:live-gw
 
 Implementation note:
 
-- the public runtime contract is still `Bundle/_search`
-- `gdc-sdk-node-ts` submits that request as-is
+- the beginner search story stays on FHIR parameters such as
+  `Composition.section`
+- `gdc-sdk-node-ts` submits the search request through the runtime facade
 - GW CORE resolves it internally from indexed subject sections and returns the
   consolidated IPS bundle document
 

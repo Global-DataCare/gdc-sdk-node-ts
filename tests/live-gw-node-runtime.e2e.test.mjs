@@ -34,7 +34,7 @@
  * - build a separate `101` Node walkthrough that uses JobManager + virtual API
  *   + actor facades + bundle editor/viewer + consent view model
  * - that future `101` must explain each user conversation step explicitly and
- *   should avoid inline route plumbing in the spec body
+ *   should avoid inline route wiring in the spec body
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -2020,9 +2020,10 @@ test('LIVE didcomm-plain communication conversation indexes DocumentReference an
   // Important architecture note:
   // this request does not call Bundle/_search directly from the test.
   // The test sends a Communication whose content-reference asks for
-  // `individual/.../Bundle/_search?...`. GW stores the Communication,
-  // then resolves that embedded request internally and returns the
-  // consolidated Bundle document in the Communication batch response.
+  // `individual/.../Bundle/_search?...` with FHIR params such as
+  // `composition.section=...`. GW stores the Communication, then resolves
+  // that embedded request internally and returns the consolidated Bundle
+  // document in the Communication batch response.
   const ipsSearchEntries = getBatchEntries(
     ipsSearch.poll.body,
     'IPS communication search after communication ingestion',

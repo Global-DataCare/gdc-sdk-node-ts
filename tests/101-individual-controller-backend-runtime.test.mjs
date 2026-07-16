@@ -1,3 +1,11 @@
+/**
+ * 101 note:
+ * - `gdc-common-utils-ts` owns the canonical step-by-step editors/readers and payload examples.
+ * - This file starts after that shared authoring step and teaches the highest-level `sdk-node` runtime surface for this topic.
+ * - Reuse `sdk-core` and `common-utils` contracts instead of re-teaching raw claims or low-level editors here.
+ * - Read `docs/101-README.md` for the ordered path and keep actor role plus submit/poll explicit.
+ */
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -9,6 +17,7 @@ import assert from 'node:assert/strict';
  * - no ad hoc literals when one shared fixture/type already exists
  * - prefer reusable examples from `gdc-common-utils-ts`
  * - keep the flow step by step and didactic
+ * - start from `ProfileRuntime -> loadProfile(...) -> workspace/session -> actor facade`
  */
 import {
   EXAMPLE_CLINICAL_BUNDLE_SEARCH_INPUT,
