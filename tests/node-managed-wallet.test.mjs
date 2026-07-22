@@ -106,7 +106,7 @@ test('NodeManagedWallet protects and restores confidential documents with runtim
 
   await wallet.provisionManagedKeys(context, {
     ownerScope: 'runtime',
-    purposes: ['comm-signing'],
+    purposes: ['document-at-rest'],
     seedMaterial: 'storage-seed-001',
     mode: 'deterministic',
   });
@@ -118,6 +118,26 @@ test('NodeManagedWallet protects and restores confidential documents with runtim
   const restoredDoc = await wallet.unprotectManagedConfidentialData(protectedDoc, context);
 
   assert.ok(protectedDoc.jwe);
+  const protectedHeader = JSON.parse(Buffer.from(protectedDoc.jwe.split('.')[0], 'base64url').toString());
+  assert.equal(protectedHeader.enc, 'A256GCM');
+  assert.equal(protectedHeader.gdc_pq_profile, 'confidential-pqc-v1');
+  assert.equal(protectedHeader.gdc_key_purpose, 'document-at-rest');
   assert.equal(protectedDoc.content, undefined);
   assert.deepEqual(restoredDoc.content, { confidential: true, note: 'hello' });
+});
+
+test('confidential document fails closed for another storage profile and after tampering', async () => {
+  const wallet = new NodeManagedWallet({ cryptoHelper: new NodeCryptoHelper() });
+  const first = { profile: { profileId: 'profile-a' } };
+  const second = { profile: { profileId: 'profile-b' } };
+  for (const context of [first, second]) {
+    await wallet.provisionManagedKeys(context, {
+      ownerScope: 'profile', purposes: ['document-at-rest'], seedMaterial: context.profile.profileId, mode: 'deterministic',
+    });
+  }
+  const protectedDoc = await wallet.protectManagedConfidentialData({ id: 'doc', content: { health: 'private' } }, first);
+  await assert.rejects(wallet.unprotectManagedConfidentialData(protectedDoc, second));
+  const parts = protectedDoc.jwe.split('.');
+  parts[3] = `${parts[3].slice(0, -1)}${parts[3].endsWith('A') ? 'B' : 'A'}`;
+  await assert.rejects(wallet.unprotectManagedConfidentialData({ ...protectedDoc, jwe: parts.join('.') }, first));
 });

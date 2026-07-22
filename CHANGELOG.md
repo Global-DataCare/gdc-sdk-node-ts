@@ -15,6 +15,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Added an executable individual-controller 101 that submits a completed typed
+  contact Bundle through a Communication outbox job. Direct RelatedPerson
+  `upsert*` methods are now documented as compatibility route plumbing.
+- Added `resolveDidWebKeyAgreementJwk(...)` so Node runtimes resolve recipient
+  public keys from the recipient DID document, with a validated local transport
+  override for the same DID identity.
+- Added an independent ML-KEM-768 `document-at-rest` key to managed profile
+  wallets and a PIN-session confidential-storage adapter. Documents use the
+  shared `confidential-pqc-v1` AES CEK recipient envelope.
+- Added deterministic legacy-profile upgrade after PIN unlock: the protected
+  wallet seed restores the storage pair and only its public JWK/policy label is
+  added to durable profile metadata.
+
+### Changed
+- `ServerProfileSessionManager` now encrypts transport for each stored
+  profile's `providerDid`; it no longer accepts one process-global
+  `recipientDid` that could mix provider tenants.
+
 ## [2.3.1] - 2026-07-17
 
 ### Changed

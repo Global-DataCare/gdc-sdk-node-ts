@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   ActorKinds,
+  NodeManagedWallet,
   ServerProfileSessionManager,
   openServerProfileSecret,
   protectServerProfileSecret,
@@ -18,6 +19,8 @@ import {
  *    the persisted profile never becomes KMS-only decryptable.
  * 4. Actor mode and allowed subjects come from the stored profile, never from
  *    a clinical request made by a portal or telephone channel.
+ * 5. The same protected seed deterministically restores a distinct ML-KEM
+ *    document-at-rest key, while each document receives a fresh AES CEK.
  */
 function memoryDeps() {
   const profiles = new Map();
@@ -49,6 +52,16 @@ function memoryDeps() {
 test('production profile flow enrolls DCR, unlocks with registered-key assertion and returns SMART session', async () => {
   const deps = memoryDeps();
   const calls = [];
+  const recipientDids = [];
+  const recipientWallet = new NodeManagedWallet();
+  const recipientContext = { runtime: { runtimeId: 'gw-recipient', runtimeType: 'backend-service' } };
+  await recipientWallet.provisionManagedKeys(recipientContext, {
+    ownerScope: 'runtime', purposes: ['comm-encryption'], mode: 'deterministic', seedMaterial: 'gw-recipient-seed',
+  });
+  const [recipientKey] = await recipientWallet.getPublicJwks(recipientContext, {
+    ownerScope: 'runtime', purpose: 'comm-encryption',
+  });
+  const recipientPublicJwk = recipientKey.publicJwk;
   const responses = [
     Response.json({}, { status: 202 }),
     Response.json({ access_token: 'initial-access-token' }),
@@ -60,12 +73,15 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   const manager = new ServerProfileSessionManager({
     ...deps,
     gatewayBaseUrl: 'https://gw.example',
-    recipientDid: 'did:key:gw',
-    resolveRecipientJwk: async () => ({ kty: 'EC', crv: 'P-384', x: 'x', y: 'y', use: 'enc' }),
+    resolveRecipientJwk: async (did) => {
+      recipientDids.push(did);
+      return recipientPublicJwk;
+    },
     fetchImpl: async (url, init) => {
       calls.push({ url, init });
       return responses.shift();
     },
+    requiredConfidentialStorageProfile: 'confidential-pqc-v1',
     profileProtection: { cost: 1_024 },
   });
   const base = {
@@ -86,7 +102,10 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   const enrolled = await manager.enroll(base);
   assert.equal(enrolled.clientId, 'device-client-1');
   assert.equal(enrolled.deviceDid, 'did:key:device-1');
-  assert.ok(enrolled.publicJwks.length >= 3);
+  assert.ok(enrolled.publicJwks.length >= 5);
+  assert.equal(enrolled.publicJwks.some((key) => key.kid === enrolled.storagePublicJwk.kid), false);
+  assert.equal(enrolled.storagePublicJwk.crv, 'ML-KEM-768');
+  assert.equal(enrolled.confidentialStorageProfile, 'confidential-pqc-v1');
 
   const unlocked = await manager.unlock({
     ownerId: base.ownerId,
@@ -104,6 +123,15 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   assert.equal(claims.iss, 'device-client-1');
   assert.equal(smartRequest.body.vp_token, 'signed-vp-token');
   assert.ok(deps.sessions.get(unlocked.sessionId).sealedUnlockedWalletSeed);
+  await unlocked.secureTransportAdapter.pack({ id: 'message-1', body: { ok: true } });
+  assert.deepEqual(recipientDids, [base.providerDid]);
+  const protectedDocument = await unlocked.confidentialStorageAdapter.protect({ id: 'health-1', content: { note: 'private' } });
+  assert.equal(typeof protectedDocument.jwe, 'string');
+  const resolvedAgain = await manager.resolveSession(base.ownerId, unlocked.sessionId);
+  assert.deepEqual(
+    await resolvedAgain.confidentialStorageAdapter.unprotect(protectedDocument),
+    { id: 'health-1', content: { note: 'private' } },
+  );
 });
 
 test('profile unlock rejects subjects outside the stored profile and rejects a bad PIN before host KMS', async () => {
@@ -120,7 +148,7 @@ test('profile unlock rejects subjects outside the stored profile and rejects a b
     createdAt: now.toISOString(), updatedAt: now.toISOString(),
   });
   const manager = new ServerProfileSessionManager({
-    ...deps, gatewayBaseUrl: 'https://gw.example', recipientDid: 'did:key:gw',
+    ...deps, gatewayBaseUrl: 'https://gw.example',
     resolveRecipientJwk: async () => ({}), maxFailedUnlocks: 1, now: () => now,
   });
   await assert.rejects(manager.unlock({ ownerId: 'owner-1', profileId: 'profile-1', subjectDid: 'did:web:not-allowed', scopes: [], pin: '123456', idToken: 'id' }), /not linked/);

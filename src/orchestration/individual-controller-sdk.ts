@@ -204,7 +204,11 @@ export class IndividualControllerSdk {
   }
 
   /**
-   * Creates or updates a `RelatedPerson` for non-employee caregivers or family members.
+   * Compatibility adapter for the older direct `RelatedPerson` route.
+   *
+   * @deprecated Author one or more typed RelatedPerson entries in a Bundle,
+   * attach that completed Bundle to a Communication outbox job, and call
+   * `ingestCommunicationAndUpdateIndex(...)`.
    */
   public upsertRelatedPersonAndPoll(ctx: RouteContext, input: RelatedPersonUpsertInput): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualUpsertRelatedPerson, ActorKinds.IndividualController, 'upsertRelatedPersonAndPoll');

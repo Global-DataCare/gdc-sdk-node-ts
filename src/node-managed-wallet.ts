@@ -32,7 +32,6 @@ type StoredManagedKey = {
 
 type StoredOwnerState = {
   keys: StoredManagedKey[];
-  storageKey?: Uint8Array;
 };
 
 export type NodeManagedWalletPolicy = {
@@ -54,6 +53,7 @@ const DEFAULT_POLICY: NodeManagedWalletPolicy = {
     'vc-signing': 'ES384',
     'comm-signing': 'ML-DSA-44',
     'comm-encryption': 'ML-KEM-768',
+    'document-at-rest': 'ML-KEM-768',
   },
 };
 
@@ -151,10 +151,6 @@ export class NodeManagedWallet implements IWallet {
       created.push(descriptor.descriptor.publicJwk);
     }
 
-    if (!ownerState.storageKey) {
-      ownerState.storageKey = await this.createStorageKey(request, ownerId);
-    }
-
     return { keys: created };
   }
 
@@ -192,9 +188,7 @@ export class NodeManagedWallet implements IWallet {
     return this.cryptoHelper.digestString(data, algorithm);
   }
 
-  /**
-   * Protects one confidential document using one owner-specific symmetric storage key.
-   */
+  /** Protects one document with a random AES-256-GCM CEK wrapped to the owner's storage ML-KEM key. */
   public async protectConfidentialData(doc: any, entityId: string): Promise<any> {
     return this.protectManagedConfidentialData!(doc, {
       profile: { profileId: entityId },
@@ -207,10 +201,29 @@ export class NodeManagedWallet implements IWallet {
    */
   public async protectManagedConfidentialData(doc: any, context: WalletExecutionContext, _options?: { key?: WalletKeySelection }): Promise<any> {
     if (!doc?.content) return doc;
-    const storageKey = this.requireStorageKey(context);
+    const storageKey = this.requireManagedKey(context, {
+      ownerScope: context.profile?.profileId ? 'profile' : 'runtime',
+      purpose: 'document-at-rest',
+    }, 'enc');
     const ownerId = this.resolveStorageOwnerId(context);
-    const contentString = JSON.stringify(doc.content);
-    const encrypted = await this.cryptography.encrypt(contentString, storageKey, ownerId);
+    const ownerBinding = createHash('sha256').update(ownerId).digest('base64url');
+    const privateJwk: MlkemPrivateJwk = {
+      ...(storageKey.descriptor.publicJwk as any),
+      dBytes: storageKey.privateMaterial as Uint8Array,
+    };
+    const encrypted = await this.cryptography.encryptJweToCompact(
+      JSON.stringify(doc.content),
+      {
+        typ: 'gdc-confidential-document+jwe',
+        cty: 'application/json',
+        enc: 'A256GCM',
+        gdc_pq_profile: 'confidential-pqc-v1',
+        gdc_key_purpose: 'document-at-rest',
+        gdc_owner_binding: ownerBinding,
+      },
+      privateJwk,
+      storageKey.descriptor.publicJwk as any,
+    );
     const { content, ...docWithoutContent } = doc;
     return {
       ...docWithoutContent,
@@ -233,13 +246,26 @@ export class NodeManagedWallet implements IWallet {
    */
   public async unprotectManagedConfidentialData(doc: any, context: WalletExecutionContext, _options?: { key?: WalletKeySelection }): Promise<any> {
     if (!doc?.jwe) return doc;
-    const storageKey = this.requireStorageKey(context);
+    const storageKey = this.requireManagedKey(context, {
+      ownerScope: context.profile?.profileId ? 'profile' : 'runtime',
+      purpose: 'document-at-rest',
+    }, 'enc');
     const ownerId = this.resolveStorageOwnerId(context);
-    const decrypted = await this.cryptography.decrypt(doc.jwe, storageKey, ownerId);
+    const privateJwk: MlkemPrivateJwk = {
+      ...(storageKey.descriptor.publicJwk as any),
+      dBytes: storageKey.privateMaterial as Uint8Array,
+    };
+    const decrypted = await this.cryptography.decryptJwe(doc.jwe, privateJwk);
+    const header = decrypted.protectedHeader as Record<string, unknown>;
+    if (header.gdc_pq_profile !== 'confidential-pqc-v1'
+      || header.gdc_key_purpose !== 'document-at-rest'
+      || header.gdc_owner_binding !== createHash('sha256').update(ownerId).digest('base64url')) {
+      throw new Error('Confidential document is not bound to this storage owner and policy.');
+    }
     const { jwe, ...docWithoutJwe } = doc;
     return {
       ...docWithoutJwe,
-      content: JSON.parse(decrypted),
+      content: JSON.parse(Content.bytesToStringUTF8(decrypted.decryptedBytes)),
     };
   }
 
@@ -564,25 +590,6 @@ export class NodeManagedWallet implements IWallet {
       },
       privateMaterial: signer.getPrivateMaterial(),
     };
-  }
-
-  private async createStorageKey(request: WalletProvisionRequest, ownerId: string): Promise<Uint8Array> {
-    if (request.mode === 'deterministic' && request.seedMaterial !== undefined) {
-      return this.deriveSeedBytes(request.seedMaterial, ownerId, 'document-at-rest', 32);
-    }
-    return this.cryptoHelper.getRandomBytes(32);
-  }
-
-  private requireStorageKey(context: WalletExecutionContext): Uint8Array {
-    if (context.profile?.profileId) {
-      const state = this.owners.get(`profile:${context.profile.profileId}:${context.walletId ?? 'default'}`);
-      if (state?.storageKey) return state.storageKey;
-    }
-    if (context.runtime?.runtimeId) {
-      const state = this.owners.get(`runtime:${context.runtime.runtimeId}:${context.walletId ?? 'default'}`);
-      if (state?.storageKey) return state.storageKey;
-    }
-    throw new Error('NodeManagedWallet has no storage key for the provided context. Provision keys first.');
   }
 
   private requireManagedKey(context: WalletExecutionContext, selection: WalletKeySelection, expectedUse?: 'sig' | 'enc'): StoredManagedKey {

@@ -21,7 +21,10 @@ export class IndividualMemberSdk {
   constructor(private readonly client: NodeRuntimeClient) {}
 
   /**
-   * Creates or updates the member/caregiver `RelatedPerson` relationship to the subject.
+   * Compatibility adapter for the older direct `RelatedPerson` route.
+   *
+   * @deprecated Author a typed RelatedPerson Bundle, attach it to a
+   * Communication outbox job, and call `ingestCommunicationAndUpdateIndex(...)`.
    */
   public upsertRelatedPersonAndPoll(ctx: RouteContext, input: RelatedPersonUpsertInput) {
     return requireClientMethod(this.client, 'upsertRelatedPersonAndPoll')(ctx, input);

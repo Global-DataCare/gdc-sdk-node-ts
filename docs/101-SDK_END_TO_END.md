@@ -97,7 +97,7 @@ It owns:
 - onboarding flows
 - employee creation
 - consent-related index-data submission
-- `RelatedPerson` upsert
+- compatibility execution for the legacy direct `RelatedPerson` route
 - `Communication` ingestion
 - SMART token requests
 - subject document search via FHIR params such as `Composition.section`
@@ -179,10 +179,8 @@ import {
   IndividualControllerSdk,
   IndividualMemberSdk,
   createCommMsgExtendedDraft,
-  attachFhirResourceAsAttachmentToCommMsgExtendedDraft,
+  attachBundleToCommMsgExtendedDraft,
   createCommunicationOutboxJobFromCommMsgExtendedDraft,
-  createHeartRateObservation,
-  createBloodPressureObservation,
   initializeCommunicationIdentity,
   type HostRouteContext,
   type TenantContext,
@@ -995,53 +993,55 @@ In this journey, keep using the same subject/controller facade:
 
 ```ts
 import {
-  EXAMPLE_BUNDLE_TYPE_BATCH,
-  EXAMPLE_INTEROPERABLE_CONTEXT_FHIR_API,
-  EXAMPLE_RELATED_PERSON_ROLE,
-  InteroperableOperationMethods,
-  RelatedPersonClaim,
-  ResourceTypesFhirR4,
-  setRelatedPersonActive,
-  setRelatedPersonIdentifier,
+  BundleEditableResourceTypes,
+  BundleEditor,
+  BundleOperations,
+  BundleTypes,
 } from 'gdc-common-utils-ts';
+import {
+  attachBundleToCommMsgExtendedDraft,
+  createCommMsgExtendedDraft,
+  createCommunicationOutboxJobFromCommMsgExtendedDraft,
+} from 'gdc-sdk-node-ts';
 
-const relatedPersonIdentifier = existingRelationship.identifier;
-const relatedPersonDisplayName = existingRelationship.name;
-const relatedPersonTelecom = `mailto:${existingRelationship.email}`;
+const contacts = new BundleEditor()
+  .setBundleOperation(BundleOperations.create)
+  .setBundleType(BundleTypes.batch)
+  .setAllowedResourceType(BundleEditableResourceTypes.relatedPerson);
 
-let relatedPersonClaims = {
-  '@context': EXAMPLE_INTEROPERABLE_CONTEXT_FHIR_API,
-};
+contacts
+  .newEntryAs(BundleEditableResourceTypes.relatedPerson)
+  .setIdentifier(existingRelationship.identifier)
+  .setActive(true)
+  .setSubject(subjectDid)
+  .setRelationship(existingRelationship.relationship)
+  .setName(existingRelationship.name)
+  .setTelecom(`mailto:${existingRelationship.email}`)
+  .doneEntry();
 
-relatedPersonClaims = setRelatedPersonIdentifier(
-  relatedPersonClaims,
-  relatedPersonIdentifier,
+// The front may send after this one edit, or add more contacts first.
+const contactsBundle = contacts.buildJsonApi();
+
+let communicationDraft = createCommMsgExtendedDraft({
+  subject: subjectDid,
+  sender: subjectDid,
+  recipient: organizationDid,
+});
+communicationDraft = attachBundleToCommMsgExtendedDraft(
+  communicationDraft,
+  contactsBundle,
 );
-relatedPersonClaims = setRelatedPersonActive(relatedPersonClaims, true);
-relatedPersonClaims = {
-  ...relatedPersonClaims,
-  [RelatedPersonClaim.Patient]: subjectDid,
-  [RelatedPersonClaim.Relationship]: EXAMPLE_RELATED_PERSON_ROLE,
-  [RelatedPersonClaim.Name]: relatedPersonDisplayName,
-  [RelatedPersonClaim.Telecom]: relatedPersonTelecom,
-};
 
-const relatedPersonPayload = {
-  resourceType: ResourceTypesFhirR4.Bundle,
-  type: EXAMPLE_BUNDLE_TYPE_BATCH,
-  entry: [{
-    request: { method: InteroperableOperationMethods.Post },
-    resource: {
-      resourceType: ResourceTypesFhirR4.RelatedPerson,
-      meta: { claims: relatedPersonClaims },
-    },
-  }],
-};
+const communicationJob =
+  createCommunicationOutboxJobFromCommMsgExtendedDraft(communicationDraft);
 
-await individualSdk.upsertRelatedPersonAndPoll(tenantContext, {
-  relatedPersonPayload,
+await individualSdk.ingestCommunicationAndUpdateIndex(tenantContext, {
+  communicationJob,
 });
 ```
+
+`upsertRelatedPersonAndPoll(...)` remains internal compatibility plumbing for
+the older direct GW route. Do not use it as the 101 authoring contract.
 
 ### 7.9 Disable a `RelatedPerson`
 
@@ -1103,18 +1103,18 @@ Practical rule:
 
 Optional narrower facade:
 
-- `IndividualMemberSdk` is available for member-side apps that only need
-  `upsertRelatedPersonAndPoll(...)` plus token access
+- `IndividualMemberSdk` is available for an already-authorized member to send
+  Communication jobs and request subject-scoped token access
 - the relationship lifecycle operations
   `disableIndividualMember(...)` and `purgeIndividualMember(...)`
   remain owned by `IndividualControllerSdk`
 
-### 7.9 Build a communication with IPS or FHIR content
+### 7.11 Build a communication with IPS or FHIR content
 
 Recommended pattern:
 
-1. create a draft
-2. add FHIR resources
+1. author one Bundle containing one or several clinical resources
+2. attach that completed Bundle to a Communication draft
 3. freeze it into an outbox job
 4. send the communication
 
@@ -1127,6 +1127,27 @@ const professionalDid = buildProfessionalDidWeb({
   role: HealthcareActorRoles.Physician,
 });
 
+const clinicalBundleEditor = new BundleEditor()
+  .setBundleOperation(BundleOperations.create)
+  .setBundleType(BundleTypes.batch)
+  .setAllowedResourceType(BundleEditableResourceTypes.observation);
+
+clinicalBundleEditor
+  .newEntryAs(BundleEditableResourceTypes.vitalSign)
+  .setSubject(subjectDid)
+  .setDate('2026-05-22T10:00:00Z')
+  .setHeartRate(72)
+  .ensureIdentifier();
+
+clinicalBundleEditor
+  .newEntryAs(BundleEditableResourceTypes.vitalSign)
+  .setSubject(subjectDid)
+  .setDate('2026-05-22T10:00:00Z')
+  .setSystolicBloodPressure(120)
+  .ensureIdentifier();
+
+const clinicalBundle = clinicalBundleEditor.buildJsonApi();
+
 let communicationDraft = createCommMsgExtendedDraft({
   subject: subjectDid,
   sender: professionalDid,
@@ -1134,28 +1155,9 @@ let communicationDraft = createCommMsgExtendedDraft({
   noteText: 'IPS update with vital signs',
 });
 
-const heartRate = createHeartRateObservation({
-  subject: subjectDid,
-  effectiveDateTime: '2026-05-22T10:00:00Z',
-  value: 72,
-});
-
-const bloodPressure = createBloodPressureObservation({
-  subject: subjectDid,
-  effectiveDateTime: '2026-05-22T10:00:00Z',
-  systolic: 120,
-  diastolic: 78,
-});
-
-communicationDraft = attachFhirResourceAsAttachmentToCommMsgExtendedDraft(
+communicationDraft = attachBundleToCommMsgExtendedDraft(
   communicationDraft,
-  heartRate,
-  { noteText: 'Heart rate' },
-);
-communicationDraft = attachFhirResourceAsAttachmentToCommMsgExtendedDraft(
-  communicationDraft,
-  bloodPressure,
-  { noteText: 'Blood pressure' },
+  clinicalBundle,
 );
 
 const communicationJob =
@@ -1164,9 +1166,9 @@ const communicationJob =
 
 Important:
 
-- the attachment helper serializes each FHIR resource into canonical
-  `Communication.content-attachment-*` claims
-- each attachment is one atomic `body.data[]` Communication entry
+- the Bundle remains the semantic unit containing one or several changes
+- the frontend decides whether to commit after one edit or after a section
+- individual resource `upsert*` calls are internal compatibility plumbing
 - `createCommunicationOutboxJobFromCommMsgExtendedDraft(...)` does not send anything
 - it only freezes the current draft into:
   - `communicationJob.payload`: claims-first `CommMsgExtended`
@@ -1174,7 +1176,7 @@ Important:
 - it does not create or store a DIDComm envelope
 - network submission starts in the next step
 
-### 7.10 Send the communication and wait for indexing
+### 7.12 Send the communication and wait for indexing
 
 ```ts
 await individualControllerProfile.sdk.ingestCommunicationAndUpdateIndex(tenantContext, {
@@ -1186,6 +1188,19 @@ await individualControllerProfile.sdk.ingestCommunicationAndUpdateIndex(tenantCo
 The actor facade accepts the canonical outbox job and delegates wire rendering
 to the configured runtime transport. Application code must not rebuild
 `body.data`, `body.entry`, DIDComm envelopes or `request=<JWE>`.
+
+This call returns the remote operation result; it does not replace the
+frontend's subject ViewModel. After optimistic rendering, the frontend handles
+per-entry failures and refreshes through the `_search` that belongs to the
+displayed aggregate:
+
+- `Composition/_search` / `searchClinicalBundle(...)` for the clinical
+  document and its sections;
+- the subject permission/Consent search for the full permission list;
+- `RelatedPerson/_search` for the full contacts/related-entities list.
+
+Those are distinct searches. There is no generic reconciliation endpoint.
+The normalized result replaces only its corresponding local working copy.
 
 This is the converged runtime path for:
 
@@ -1208,7 +1223,7 @@ Scope note:
   content-hash anchoring pattern when they need it, but they are separate
   manager contracts
 
-### 7.11 Search the latest IPS
+### 7.13 Search the latest IPS
 
 ```ts
 const latestIps = await client.searchLatestIps(tenantContext, {
@@ -1216,7 +1231,7 @@ const latestIps = await client.searchLatestIps(tenantContext, {
 });
 ```
 
-### 7.12 Search a clinical bundle with explicit filters
+### 7.14 Search a clinical bundle with explicit filters
 
 ```ts
 const bundleSearch = await client.searchClinicalBundle(tenantContext, {
@@ -1230,7 +1245,7 @@ const bundleSearch = await client.searchClinicalBundle(tenantContext, {
 });
 ```
 
-### 7.12.1 Vital signs as a measurement batch, not always as an immediate ledger write
+### 7.14.1 Vital signs as a measurement batch, not always as an immediate ledger write
 
 Frequent device measurements can be accumulated first in a dedicated
 vital-signs batch container and only projected into the IPS when the user,
@@ -1266,7 +1281,7 @@ In other words:
 - high-frequency vital signs may stay off-ledger until they are aggregated
 - the ledger should record the meaningful bundle hash, not every noisy sample
 
-### 7.13 Register a blockchain artifact before sending the follow-up communication
+### 7.15 Register a blockchain artifact before sending the follow-up communication
 
 Use the artifact registration path when the clinical bundle you are writing to
 confidential storage also needs an on-chain CID/hash artifact.
@@ -1389,8 +1404,9 @@ Individual/family today:
 
 Member and consent boundaries:
 
-- `upsertRelatedPersonAndPoll(...)`
-  manages the `RelatedPerson` membership/caregiver record
+- typed RelatedPerson Bundle authoring followed by
+  `ingestCommunicationAndUpdateIndex(...)` manages the
+  membership/caregiver record
 - `disableIndividualMember(...)` and `purgeIndividualMember(...)`
   are real controller lifecycle operations today:
   `disableIndividualMember(...)` uses the current `RelatedPerson/_batch` path,

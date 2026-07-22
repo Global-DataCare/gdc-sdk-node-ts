@@ -3,7 +3,7 @@
 import { randomBytes } from 'node:crypto';
 import type { JWK } from 'gdc-common-utils-ts/models/jwk';
 import type { ActorKind } from 'gdc-common-utils-ts/models/actor-session';
-import type { WalletExecutionContext } from 'gdc-sdk-core-ts';
+import type { ConfidentialStorageProfile, WalletExecutionContext } from 'gdc-sdk-core-ts';
 import { NodeManagedWallet } from './node-managed-wallet.js';
 import { NodeHttpClient } from './node-runtime-client.js';
 import type { RouteContext } from './individual-onboarding.js';
@@ -35,6 +35,10 @@ export type ServerProfileRecord = Readonly<{
   clientId: string;
   deviceDid: string;
   publicJwks: Record<string, unknown>[];
+  /** Public recipient key for local confidential storage; not a DCR communication key. */
+  storagePublicJwk?: Record<string, unknown>;
+  /** Server-owned policy; browser input is never authoritative for this value. */
+  confidentialStorageProfile?: ConfidentialStorageProfile;
   protectedWalletSeed: PinProtectedProfileSecret;
   protectedVpToken: PinProtectedProfileSecret;
   failedUnlocks: number;
@@ -98,19 +102,25 @@ export type ResolvedServerProfileSession = Readonly<{
   scopes: string[];
   accessToken: string;
   secureTransportAdapter: SecureDidcommTransportAdapter;
+  /** Storage adapter available only while the PIN-unlocked session is alive. */
+  confidentialStorageAdapter: Readonly<{
+    protect(document: Readonly<{ id?: string; content: unknown }>): Promise<unknown>;
+    unprotect(document: Readonly<{ id?: string; jwe: string }>): Promise<unknown>;
+  }>;
 }>;
 
 export type ServerProfileSessionManagerOptions = Readonly<{
   store: ServerProfileStore;
   sealer: ServerProfileSealer;
   gatewayBaseUrl: string;
-  recipientDid: string;
   resolveRecipientJwk: (recipientDid: string) => Promise<JWK>;
   fetchImpl?: typeof fetch;
   sessionTtlSeconds?: number;
   maxFailedUnlocks?: number;
   lockSeconds?: number;
   profileProtection?: ProfileProtectionOptions;
+  /** Product/tenant policy applied to enrollment and upgraded on next PIN unlock. */
+  requiredConfidentialStorageProfile?: ConfidentialStorageProfile;
   now?: () => Date;
 }>;
 
@@ -131,6 +141,8 @@ export class ServerProfileSessionManager {
     const wallet = await this.createWallet(input.profileId, seed);
     const context = walletContext(input.profileId);
     const publicKeys = await wallet.getPublicJwks(context, {});
+    const storagePublicJwk = publicKeys.find((entry) => entry.purpose === 'document-at-rest')?.publicJwk;
+    if (!storagePublicJwk) throw new Error('Server profile enrollment requires a document-at-rest ML-KEM key.');
     const client = this.createClient(input.routeContext, input.idToken);
     const activation = await client.activateProfileDeviceWithActivationRequest({
       ...input.routeContext,
@@ -140,7 +152,7 @@ export class ServerProfileSessionManager {
         application_type: 'web',
         actor_did: input.actorDid,
         profile_did: input.profileDid,
-        jwks: { keys: publicKeys.map((entry) => entry.publicJwk) },
+        jwks: { keys: publicKeys.filter((entry) => entry.purpose !== 'document-at-rest').map((entry) => entry.publicJwk) },
       },
     });
     const dcrBody = terminalBody(activation.dcr.poll.body);
@@ -160,7 +172,9 @@ export class ServerProfileSessionManager {
       allowedSubjectDids: unique(input.allowedSubjectDids),
       clientId,
       deviceDid,
-      publicJwks: publicKeys.map((entry) => entry.publicJwk as Record<string, unknown>),
+      publicJwks: publicKeys.filter((entry) => entry.purpose !== 'document-at-rest').map((entry) => entry.publicJwk as Record<string, unknown>),
+      storagePublicJwk: storagePublicJwk as Record<string, unknown>,
+      confidentialStorageProfile: this.options.requiredConfidentialStorageProfile ?? 'confidential-basic-v1',
       protectedWalletSeed: await protectServerProfileSecret(seed, input.pin, `${input.profileId}:wallet-seed`, this.options.sealer, this.options.profileProtection),
       protectedVpToken: await protectServerProfileSecret(input.vpToken, input.pin, `${input.profileId}:vp-token`, this.options.sealer, this.options.profileProtection),
       failedUnlocks: 0,
@@ -176,7 +190,7 @@ export class ServerProfileSessionManager {
   }
 
   public async unlock(input: ServerProfileUnlockInput): Promise<ResolvedServerProfileSession> {
-    const profile = await this.requireOwnedProfile(input.ownerId, input.profileId);
+    let profile = await this.requireOwnedProfile(input.ownerId, input.profileId);
     this.requireSubject(profile, input.subjectDid);
     const now = this.now();
     if (profile.lockedUntil && new Date(profile.lockedUntil) > now) {
@@ -197,6 +211,7 @@ export class ServerProfileSessionManager {
       await this.options.store.putProfile({ ...profile, failedUnlocks: failures, lockedUntil, updatedAt: now.toISOString() });
       throw new Error('Profile PIN rejected.');
     }
+    profile = await this.ensureRequiredStorageProfile(profile, seed);
     const wallet = await this.createWallet(profile.profileId, seed);
     const assertion = await buildWalletClientAssertion(wallet, profile, this.options.gatewayBaseUrl, now);
     const token = await this.createClient(profile.routeContext, input.idToken).requestSmartToken({
@@ -249,8 +264,12 @@ export class ServerProfileSessionManager {
       scopes: session.scopes,
       accessToken: await this.options.sealer.unseal(session.sealedAccessToken, `${sessionId}:access-token`),
       secureTransportAdapter: {
-        pack: (message) => wallet.packForRecipientWithContext!(message, this.options.recipientDid, { context }),
+        pack: (message) => wallet.packForRecipientWithContext!(message, profile.providerDid, { context }),
         unpack: async (jwe) => (await wallet.unpackWithContext!(jwe, { context })).content,
+      },
+      confidentialStorageAdapter: {
+        protect: (document) => wallet.protectManagedConfidentialData!(document, context),
+        unprotect: (document) => wallet.unprotectManagedConfidentialData!(document, context),
       },
     };
   }
@@ -274,7 +293,7 @@ export class ServerProfileSessionManager {
     const context = walletContext(profileId);
     await wallet.provisionManagedKeys(context, {
       ownerScope: 'profile',
-      purposes: ['actor-signing'],
+      purposes: ['actor-signing', 'document-at-rest'],
       mode: 'deterministic',
       seedMaterial: seed,
     });
@@ -285,6 +304,33 @@ export class ServerProfileSessionManager {
       seedMaterial: seed,
     });
     return wallet;
+  }
+
+  /**
+   * Upgrade legacy profiles deterministically after successful PIN unlock.
+   * The protected seed already owns the storage pair, so migration neither
+   * exports a private key nor calls KMS/GW. Only its public JWK and policy label
+   * are added to the durable profile record.
+   */
+  private async ensureRequiredStorageProfile(profile: ServerProfileRecord, seed: string): Promise<ServerProfileRecord> {
+    const required = this.options.requiredConfidentialStorageProfile ?? profile.confidentialStorageProfile ?? 'confidential-basic-v1';
+    if (required !== 'confidential-pqc-v1') return profile;
+    const wallet = await this.createWallet(profile.profileId, seed);
+    const storageKeys = await wallet.getPublicJwks(walletContext(profile.profileId), {
+      ownerScope: 'profile', purpose: 'document-at-rest', alg: 'ML-KEM-768',
+    });
+    const storagePublicJwk = storageKeys[0]?.publicJwk as Record<string, unknown> | undefined;
+    if (!storagePublicJwk) throw new Error('Required ML-KEM storage key could not be provisioned.');
+    const hasKey = profile.storagePublicJwk?.kid === storagePublicJwk.kid;
+    if (profile.confidentialStorageProfile === required && hasKey) return profile;
+    const upgraded: ServerProfileRecord = {
+      ...profile,
+      confidentialStorageProfile: required,
+      storagePublicJwk,
+      updatedAt: this.now().toISOString(),
+    };
+    await this.options.store.putProfile(upgraded);
+    return upgraded;
   }
 
   private async requireOwnedProfile(ownerId: string, profileId: string): Promise<ServerProfileRecord> {

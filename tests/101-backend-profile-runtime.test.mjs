@@ -31,7 +31,6 @@ import assert from 'node:assert/strict';
  */
 import {
   ActorKinds,
-  CommunicationAttachedBundleSession,
   EXAMPLE_CLINICAL_BUNDLE_SEARCH_INPUT,
   EXAMPLE_CONSENT_ACCESS_RULES,
   EXAMPLE_DEVICE_CLIENT_ID,
@@ -48,6 +47,7 @@ import {
   EXAMPLE_LICENSE_ORDER_LIST_RESPONSE_BODY,
   EXAMPLE_ORGANIZATION_CONTROLLER_ROLE,
   EXAMPLE_ORGANIZATION_EMPLOYEE_INPUT,
+  EXAMPLE_OBSERVATION_COMPONENT_IDENTIFIER,
   EXAMPLE_OTP_CODE,
   EXAMPLE_PROFESSIONAL_CONSENT_SCENARIOS,
   EXAMPLE_PROFILE_APP_TYPE_FAMILY,
@@ -64,11 +64,14 @@ import {
   EXAMPLE_RELATED_PERSON_LIST_RESPONSE_BODY,
   EXAMPLE_SUBJECT_DID,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
+  EXAMPLE_VITAL_SIGNS_EFFECTIVE_DATE_TIME,
+  EXAMPLE_VITAL_SIGN_VALUE_SYSTOLIC,
+  VitalSignsCodes,
+  VitalSignsUnits,
   buildConsentPermissionTemplateImportExportSessionExample,
   buildExampleEmployeeClaims,
   buildIpsClinicalHistoryBundleExample,
   buildUnsignedProfessionalSmartVpJwt,
-  buildVitalSignObservationClaims,
   readEmployeeSearchResults,
   readFamilyOrganizationSummaryFromResponseBody,
   readRelatedPersonListRecords,
@@ -77,6 +80,11 @@ import {
   summarizeLicenseListRecords,
   toClinicalResourceExpandedViews,
 } from 'gdc-common-utils-ts';
+import {
+  BundleEditableResourceTypes,
+  BundleEditor,
+  BundleOperations,
+} from '../../gdc-common-utils-ts/dist/index.js';
 import {
   BackendSubjectIndexReadModes,
   IndividualControllerBackendRuntime,
@@ -478,32 +486,18 @@ test('101: backend profile runtime tells the complete high-level story for app, 
 
   // Step 7. Controller adds one new clinical item in one new section through
   // shared bundle helpers instead of editing raw entries.
-  const clinicalBundleEditor = new CommunicationAttachedBundleSession({
-    communicationClaims: ipsBundleExample.communicationClaims,
-    initialBundle: structuredClone(ipsBundleExample.bundleInMemory),
-  });
-  clinicalBundleEditor.upsertActiveObservationEntry({
-    claims: buildVitalSignObservationClaims({
-      identifier: 'observation-vital-sign-001',
-      subject: EXAMPLE_SUBJECT_DID,
-      effectiveDateTime: '2026-06-18T10:00:00Z',
-      code: {
-        system: 'http://loinc.org',
-        code: '8480-6',
-        display: 'Systolic blood pressure',
-        claim: 'http://loinc.org|8480-6',
-      },
-      valueQuantity: {
-        value: 120,
-        unit: 'mm[Hg]',
-        system: 'http://unitsofmeasure.org',
-        code: 'mm[Hg]',
-      },
-    }),
-    fullUrl: 'urn:uuid:observation-vital-sign-001',
-  });
-  clinicalBundleEditor.saveAndReleaseActiveEntry();
-  const enrichedClinicalBundle = clinicalBundleEditor.getBundleInMemory();
+  const clinicalBundleEditor = new BundleEditor()
+    .setBundleOperation(BundleOperations.create)
+    .setBundle(structuredClone(ipsBundleExample.bundleInMemory));
+  clinicalBundleEditor
+    .newEntryAs(BundleEditableResourceTypes.vitalSign)
+    .setIdentifier(EXAMPLE_OBSERVATION_COMPONENT_IDENTIFIER)
+    .setSubject(EXAMPLE_SUBJECT_DID)
+    .setDate(EXAMPLE_VITAL_SIGNS_EFFECTIVE_DATE_TIME)
+    .setVitalSignType(VitalSignsCodes.SystolicBloodPressure, VitalSignsUnits.MillimeterOfMercury)
+    .setValueQuantityNumber(EXAMPLE_VITAL_SIGN_VALUE_SYSTOLIC)
+    .doneEntry();
+  const enrichedClinicalBundle = clinicalBundleEditor.buildJsonApi();
   const enrichedClinicalSummary = summarizeClinicalBundle(enrichedClinicalBundle);
   const enrichedClinicalViews = toClinicalResourceExpandedViews(enrichedClinicalBundle);
 

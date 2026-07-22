@@ -25,7 +25,8 @@ import {
  * Teaching goal:
  * show the shared backend/session model that both a portal BFF and a
  * short-lived service session can use:
- * 1. initialize one runtime wallet,
+ * 1. initialize one runtime wallet with independent communication and
+ *    post-quantum document-at-rest keys,
  * 2. keep one local memory vault for the active session,
  * 3. cache the draft/job locally without waiting for transport completion,
  * 4. submit and poll through injected transport callbacks,
@@ -50,7 +51,7 @@ test('101: wallet-backed job manager caches locally first and then syncs through
 
   await wallet.provisionManagedKeys(walletContext, {
     ownerScope: 'runtime',
-    purposes: ['comm-signing', 'comm-encryption'],
+    purposes: ['comm-signing', 'comm-encryption', 'document-at-rest'],
     seedMaterial: 'portal-runtime-seed-001',
     mode: 'deterministic',
   });

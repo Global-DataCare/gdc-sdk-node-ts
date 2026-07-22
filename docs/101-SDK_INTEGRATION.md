@@ -571,7 +571,9 @@ SDK:
 
 SDK:
 
-- `upsertRelatedPersonAndPoll(...)`
+- typed `BundleEditor` RelatedPerson entries
+- `ingestCommunicationAndUpdateIndex(...)` after attaching the completed
+  Bundle to a Communication outbox job
 
 Lifecycle note:
 
@@ -582,8 +584,8 @@ Lifecycle note:
   Consent/access decision and is never a relationship. CAREGIVER/ECON/DEPEN
   use v3-RoleClass (DEPEN is retired only in v3-RoleCode). Do not infer
   `POWATT` from controller status.
-- `upsertRelatedPersonAndPoll(...)` reuses the shared bundle fixture style from
-  `gdc-common-utils-ts/src/examples/related-person.ts`.
+- `upsertRelatedPersonAndPoll(...)` is retained as internal compatibility
+  plumbing for the older direct GW route; do not teach it as the authoring API.
 - `disableIndividualMember(...)` now emits the shared identifier-first lifecycle
   resource contract over the current `RelatedPerson/_batch` runtime path.
 - `purgeIndividualMember(...)` now uses the explicit
@@ -607,7 +609,8 @@ Use this mental model for current GW CORE:
   prefer `individualEditor`; `organizationEditor` is a legacy deprecated alias.
   only `IndividualControllerSdk` should expose these operations.
 - `member`:
-  `upsertRelatedPersonAndPoll(...)` manages the caregiver/family relationship record.
+  a typed RelatedPerson Bundle carried by Communication manages the
+  caregiver/family relationship record.
   `requestSmartToken(...)` is the runtime access step after that relationship exists.
   `disableIndividualMember(...)` is supported through the current
   `RelatedPerson/_batch` runtime path using the shared identifier-first

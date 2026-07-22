@@ -28,6 +28,7 @@ export * from './UserProfileIndexStore.js';
 export * from './wallet-backed-job-manager.js';
 export * from './node-crypto-helper.js';
 export * from './node-managed-wallet.js';
+export * from './did-web-recipient.js';
 export * from './constants/lifecycle.js';
 export * from './consent-claim-helpers.js';
 export * from './session.js';
