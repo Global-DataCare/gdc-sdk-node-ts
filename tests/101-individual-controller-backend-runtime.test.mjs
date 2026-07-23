@@ -20,7 +20,6 @@ import assert from 'node:assert/strict';
  * - start from `ProfileRuntime -> loadProfile(...) -> workspace/session -> actor facade`
  */
 import {
-  EXAMPLE_CLINICAL_BUNDLE_SEARCH_INPUT,
   EXAMPLE_FAMILY_ORGANIZATION_SEARCH_INPUT,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_INPUT,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_RESPONSE,
@@ -36,10 +35,11 @@ import {
   EXAMPLE_PROFILE_RUNTIME_CLASS_SERVER,
   EXAMPLE_SUBJECT_DID,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
-  readFirstBundleResourceFromResponseBody,
+  BundleReader,
 } from 'gdc-common-utils-ts';
 import {
   ActorKinds,
+  createCommunicationFacade,
   IndividualControllerBackendRuntime,
   createBackendProfileRuntime,
   prepareLoadProfile,
@@ -92,36 +92,23 @@ test('101: backend individual-controller runtime wraps the current CORE baseline
         assert.equal(input.offerId, EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_INPUT.offerId);
         return EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_RESPONSE;
       },
-      async searchClinicalBundle(ctx, input) {
+      async requestClinicalSummary(ctx, input) {
         assert.equal(ctx.tenantId, EXAMPLE_TENANT_ROUTE_CONTEXT.tenantId);
-        assert.equal(input.subject, EXAMPLE_CLINICAL_BUNDLE_SEARCH_INPUT.subject);
-        return {
-          submit: { status: 202, body: { accepted: true } },
-          poll: {
-            status: 200,
-            body: {
-              data: [{
-                resource: { resourceType: 'Bundle', id: 'clinical-index-1' },
-              }],
-            },
-            attempts: 1,
-          },
+        assert.equal(input.subjectId, EXAMPLE_SUBJECT_DID);
+        const bundle = {
+          resourceType: 'Bundle',
+          type: 'document',
+          id: 'clinical-summary-1',
+          entry: [],
         };
-      },
-      async getLatestIps(ctx, input) {
-        assert.equal(ctx.tenantId, EXAMPLE_TENANT_ROUTE_CONTEXT.tenantId);
-        assert.equal(input.subject, EXAMPLE_SUBJECT_DID);
         return {
-          submit: { status: 202, body: { accepted: true } },
-          poll: {
-            status: 200,
-            body: {
-              data: [{
-                resource: { resourceType: 'Bundle', id: 'latest-ips-1' },
-              }],
-            },
-            attempts: 1,
+          operation: {
+            submit: { status: 202, body: { accepted: true } },
+            poll: { status: 200, body: {}, attempts: 1 },
           },
+          bundle,
+          reader: new BundleReader(bundle),
+          document: createCommunicationFacade().getFhirDocument(bundle),
         };
       },
     },
@@ -139,23 +126,18 @@ test('101: backend individual-controller runtime wraps the current CORE baseline
     profile,
     EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_INPUT,
   );
-  const clinicalBundle = await runtime.searchClinicalBundle(
+  const clinicalSummary = await runtime.requestClinicalSummary(
     profile,
     EXAMPLE_TENANT_ROUTE_CONTEXT,
-    EXAMPLE_CLINICAL_BUNDLE_SEARCH_INPUT,
+    {
+      subjectId: EXAMPLE_SUBJECT_DID,
+      requesterId: EXAMPLE_SUBJECT_DID,
+    },
   );
-  const latestIps = await runtime.getLatestIps(
-    profile,
-    EXAMPLE_TENANT_ROUTE_CONTEXT,
-    { subject: EXAMPLE_SUBJECT_DID },
-  );
-  const firstClinicalBundle = readFirstBundleResourceFromResponseBody(clinicalBundle.poll.body);
-  const firstLatestIpsBundle = readFirstBundleResourceFromResponseBody(latestIps.poll.body);
 
   assert.equal(profile.session.actorKind, ActorKinds.IndividualController);
   assert.equal(familyRegistration.status, 'already_exists');
   assert.equal(familyRegistration.summary?.subjectInfo?.alternateName, EXAMPLE_FAMILY_ORGANIZATION_SEARCH_INPUT.usualname);
   assert.equal(orderResult.poll.status, EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_RESPONSE.poll.status);
-  assert.equal(firstClinicalBundle?.id, 'clinical-index-1');
-  assert.equal(firstLatestIpsBundle?.id, 'latest-ips-1');
+  assert.equal(clinicalSummary.bundle.id, 'clinical-summary-1');
 });

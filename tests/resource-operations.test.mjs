@@ -18,6 +18,7 @@ import {
   EXAMPLE_RELATED_PERSON_PURGE_BUNDLE_ENTRY,
   EXAMPLE_RELATED_PERSON_PAYLOAD,
   EXAMPLE_RELATED_PERSON_UPSERT_BUNDLE_PAYLOAD,
+  EXAMPLE_SUBJECT_DID,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
@@ -49,6 +50,7 @@ import {
   importIpsOrFhirAndUpdateIndexWithDeps,
   ingestCommunicationAndUpdateIndexWithDeps,
   registerBlockchainArtifactAndUpdateIndexWithDeps,
+  requestClinicalSummaryWithDeps,
   listIndividualLicensesWithDeps,
   addFreeIndividualMemberLicensesWithDeps,
   issueIndividualMemberLicenseWithDeps,
@@ -1124,6 +1126,86 @@ test('searchClinicalBundleWithDeps builds canonical bundle search query with fil
   assert.match(requestUrl, /end=2026-12-31/);
   assert.match(requestUrl, /code=LOINC%7C11450-4/);
   assert.match(requestUrl, new RegExp(`author=${encodeURIComponent(input.author)}`));
+});
+
+test('requestClinicalSummaryWithDeps reads Subject/$summary through Communication and returns a section reader', async () => {
+  const calls = [];
+  const summaryDocument = {
+    resourceType: 'Bundle',
+    type: 'document',
+    entry: [{
+      resource: {
+        resourceType: 'Composition',
+        section: [{
+          code: { coding: [{ system: 'http://loinc.org', code: '48765-2' }] },
+          entry: [{ reference: 'urn:uuid:allergy-summary-1' }],
+        }],
+      },
+    }, {
+      resource: {
+        resourceType: 'AllergyIntolerance',
+        id: 'allergy-summary-1',
+        recordedDate: '2026-07-20T10:00:00Z',
+      },
+    }],
+  };
+
+  const result = await requestClinicalSummaryWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      subjectId: EXAMPLE_SUBJECT_DID,
+      requesterId: EXAMPLE_SUBJECT_DID,
+      filterSections: ['LOINC|48765-2'],
+    },
+    {
+      submitSummaryCommunication: async (ctx, input) => {
+        calls.push({ ctx, input });
+        return {
+          submit: { status: 202, body: { accepted: true } },
+          poll: {
+            status: 200,
+            attempts: 1,
+            body: {
+              data: [{
+                type: 'Bundle-summary-response-v1.0',
+                resource: summaryDocument,
+              }],
+            },
+          },
+        };
+      },
+    },
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].input.clinicalFormat, 'api');
+  assert.equal(calls[0].input.communicationJob.status, 'ready');
+  assert.equal(result.bundle.type, 'document');
+  assert.equal(result.reader.getDocumentSectionByCode('LOINC|48765-2')?.entryReferences[0], 'urn:uuid:allergy-summary-1');
+  assert.equal(result.document.getResourceCount({
+    sections: ['LOINC|48765-2'],
+    types: ['AllergyIntolerance'],
+    date: { start: '2026-07-01', end: '2026-07-31' },
+  }), 1);
+});
+
+test('requestClinicalSummaryWithDeps rejects a completed response without a document Bundle', async () => {
+  await assert.rejects(
+    requestClinicalSummaryWithDeps(
+      cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+      {
+        subjectId: EXAMPLE_SUBJECT_DID,
+        requesterId: EXAMPLE_SUBJECT_DID,
+      },
+      {
+        submitSummaryCommunication: async () => ({
+          submit: { status: 202, body: { accepted: true } },
+          poll: { status: 200, attempts: 1, body: { data: [] } },
+        }),
+      },
+    ),
+    /did not return a FHIR document Bundle/,
+  );
 });
 
 test('searchLatestIpsWithDeps defaults to IPS section and core included types', async () => {

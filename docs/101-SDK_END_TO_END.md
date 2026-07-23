@@ -1223,15 +1223,57 @@ Scope note:
   content-hash anchoring pattern when they need it, but they are separate
   manager contracts
 
-### 7.13 Search the latest IPS
+### 7.13 Read the available clinical summary
 
 ```ts
-const latestIps = await client.searchLatestIps(tenantContext, {
-  subject: subjectDid,
+const summary = await individualControllerProfile.sdk.requestClinicalSummary(
+  tenantContext,
+  {
+    subjectId: subjectDid,
+    requesterId: actorDid,
+    filterSections: [
+      HealthcareBasicSections.AllergiesAndIntolerances.attributeValue,
+    ],
+  },
+);
+
+const allergySection =
+  summary.reader.getDocumentSectionByCode(
+    HealthcareBasicSections.AllergiesAndIntolerances.attributeValue,
+  );
+const allergyCount =
+  summary.reader.getDocumentSectionResourceCount(
+    HealthcareBasicSections.AllergiesAndIntolerances.attributeValue,
+  );
+const recentAllergies = summary.document.getResourcesByFilter({
+  sections: [
+    HealthcareBasicSections.AllergiesAndIntolerances.attributeValue,
+  ],
+  types: [ResourceTypesFhirR4.AllergyIntolerance],
+  date: {
+    start: '2026-01-01',
+    end: '2026-12-31',
+  },
 });
 ```
 
-### 7.14 Search a clinical bundle with explicit filters
+This is the canonical 101 read flow:
+
+`Communication -> Subject/$summary -> FHIR Parameters -> Bundle document`.
+
+It does not call `ingestCommunicationAndUpdateIndex(...)`. That method is
+reserved for writes whose resources must be persisted/projected. The summary
+result exposes two complementary readers:
+
+- `summary.reader` is the shared `BundleReader`: section enumeration, section
+  counts, resource references and generic bundle navigation
+- `summary.document` is the SDK Core `FhirDocumentFacade`: resource retrieval,
+  combined section/type/date filters, text search and typed clinical helpers
+
+`LifecycleResultReader` has a different responsibility: analyze operation
+outcomes, response statuses and issues. It is not the clinical document reader.
+
+### 7.14 Compatibility: direct indexed Bundle search
 
 ```ts
 const bundleSearch = await client.searchClinicalBundle(tenantContext, {
@@ -1244,6 +1286,11 @@ const bundleSearch = await client.searchClinicalBundle(tenantContext, {
   ],
 });
 ```
+
+Keep `searchClinicalBundle(...)` and `getLatestIps(...)` for compatibility or
+specialized index queries. Do not teach them as the primary way for portal,
+telephone or mobile channels to load the individual's available clinical
+summary.
 
 ### 7.14.1 Vital signs as a measurement batch, not always as an immediate ledger write
 

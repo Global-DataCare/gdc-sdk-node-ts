@@ -16,6 +16,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Added `requestClinicalSummary(...)` across personal, controller, member and
+  professional facades. It returns the authoritative GW Bundle with
+  `BundleReader` and `FhirDocumentFacade` instead of routing reads through
+  `ingestCommunicationAndUpdateIndex(...)`.
 - Added an executable individual-controller 101 that submits a completed typed
   contact Bundle through a Communication outbox job. Direct RelatedPerson
   `upsert*` methods are now documented as compatibility route plumbing.
@@ -30,6 +34,10 @@ All notable changes to this project will be documented in this file.
   added to durable profile metadata.
 
 ### Changed
+- Reworked the individual-controller 101 around Communication `$summary`,
+  section counts, resource resolution and section/type/date filters. Direct
+  Bundle search/latest-IPS methods are documented as compatibility or
+  specialized index queries.
 - `ServerProfileSessionManager` now encrypts transport for each stored
   profile's `providerDid`; it no longer accepts one process-global
   `recipientDid` that could mix provider tenants.

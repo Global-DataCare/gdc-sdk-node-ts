@@ -76,6 +76,7 @@ import {
   ingestCommunicationAndUpdateIndexWithDeps,
   buildVitalSignBatchCommunicationFromSearchResponse,
   registerBlockchainArtifactAndUpdateIndexWithDeps,
+  requestClinicalSummaryWithDeps,
   revokeProfessionalAccessWithDeps,
   searchCommunicationParticipantsWithDeps,
   purgeIndividualMemberWithDeps,
@@ -97,6 +98,8 @@ import {
   type VitalSignBatchCommunicationFromSearchResponseInput,
   type CommunicationParticipantRuntimeSearchInput,
   type ClinicalBundleSearchInput,
+  type ClinicalSummaryReadResult,
+  type ClinicalSummaryRequestInput,
   type GrantProfessionalAccessInput,
   type GrantProfessionalAccessResult,
   type IndividualMemberLifecycleInput,
@@ -1151,6 +1154,23 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       individualCommunicationBatchPath: this.paths.individualCommunicationBatchPath.bind(this.paths),
       individualCommunicationPollPath: this.paths.individualCommunicationPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
+   * Reads the authoritative clinical document currently available for one
+   * subject through an auditable `Communication` request to `Subject/$summary`.
+   *
+   * Unlike `ingestCommunicationAndUpdateIndex(...)`, this method does not
+   * represent a write or projection lifecycle. It returns the GW document and
+   * a `BundleReader` for section-by-section navigation.
+   */
+  public async requestClinicalSummary(
+    ctx: RouteContext,
+    input: ClinicalSummaryRequestInput,
+  ): Promise<ClinicalSummaryReadResult> {
+    return requestClinicalSummaryWithDeps(ctx, input, {
+      submitSummaryCommunication: this.submitCommunicationOutboxJobAndPoll.bind(this),
     });
   }
 

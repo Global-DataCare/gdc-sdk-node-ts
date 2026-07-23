@@ -20,6 +20,10 @@ import type { DeviceAppType } from 'gdc-common-utils-ts/constants/device';
 import {
   addFhirResourceToCommunication,
   createCommunicationResource,
+  buildClinicalSummaryCommunicationJob,
+  readClinicalSummaryOperationResult,
+  type ClinicalSummaryReadResult,
+  type ClinicalSummaryRequestInput,
 } from 'gdc-sdk-core-ts';
 import type { LicenseOfferSearchState, LicenseOrderSearchState } from 'gdc-common-utils-ts/utils/license-commercial-search';
 import type { LicenseListSearchState } from 'gdc-common-utils-ts/utils/license-list-search';
@@ -46,6 +50,11 @@ import {
 } from 'gdc-sdk-core-ts';
 import type { SubmitAndPollResult } from './orchestration/client-port.js';
 import type { RouteContext } from './individual-onboarding.js';
+
+export type {
+  ClinicalSummaryReadResult,
+  ClinicalSummaryRequestInput,
+} from 'gdc-sdk-core-ts';
 
 export type OrganizationEmployeeCreationInput = {
   /**
@@ -1229,6 +1238,36 @@ export async function searchCommunicationParticipantsWithDeps(
     payload,
     input.pollOptions,
   );
+}
+
+/**
+ * Requests the subject's available clinical document through the canonical
+ * auditable read lifecycle:
+ *
+ * `Communication -> Subject/$summary -> FHIR Parameters -> Bundle document`.
+ *
+ * The dependency name intentionally says `submit`, not `ingest`: GW receives a
+ * Communication transport record, but the business operation is a read and
+ * must not be exposed to applications as index ingestion.
+ */
+export async function requestClinicalSummaryWithDeps(
+  routeCtx: RouteContext,
+  input: ClinicalSummaryRequestInput,
+  deps: {
+    submitSummaryCommunication: (
+      ctx: RouteContext,
+      input: CommunicationIngestionInput,
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<ClinicalSummaryReadResult> {
+  const communicationJob = buildClinicalSummaryCommunicationJob(input);
+  const operation = await deps.submitSummaryCommunication(routeCtx, {
+    communicationJob,
+    clinicalFormat: input.clinicalFormat || 'api',
+    transportProfile: input.transportProfile,
+    pollOptions: input.pollOptions,
+  });
+  return readClinicalSummaryOperationResult(operation);
 }
 
 export async function searchClinicalBundleWithDeps(

@@ -30,6 +30,8 @@ import type { IndividualOrganizationLifecycleInput } from 'gdc-sdk-core-ts';
 import type {
   BlockchainArtifactRegistrationInput,
   ClinicalBundleSearchInput,
+  ClinicalSummaryReadResult,
+  ClinicalSummaryRequestInput,
   CommunicationIngestionInput,
   CommunicationParticipantRuntimeSearchInput,
   DigitalTwinGenerationInput,
@@ -221,6 +223,21 @@ export class IndividualControllerSdk {
   public ingestCommunicationAndUpdateIndex(ctx: RouteContext, input: CommunicationIngestionInput): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualIngestCommunication, ActorKinds.IndividualController, 'ingestCommunicationAndUpdateIndex');
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /**
+   * Reads the subject's available clinical document through
+   * `Communication -> Subject/$summary -> FHIR Parameters`.
+   *
+   * The returned `BundleReader` navigates the authoritative GW document by
+   * section. This method never ingests resources or updates the index.
+   */
+  public requestClinicalSummary(
+    ctx: RouteContext,
+    input: ClinicalSummaryRequestInput,
+  ): Promise<ClinicalSummaryReadResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualReadClinicalSummary, ActorKinds.IndividualController, 'requestClinicalSummary');
+    return requireClientMethod(this.client, 'requestClinicalSummary')(ctx, input);
   }
 
   /**

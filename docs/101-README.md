@@ -42,6 +42,8 @@ Current executable entrypoints:
   [tests/101-organization-controller-lifecycle.test.mjs](../tests/101-organization-controller-lifecycle.test.mjs)
 - individual-controller runtime:
   [tests/101-individual-controller-backend-runtime.test.mjs](../tests/101-individual-controller-backend-runtime.test.mjs)
+- individual clinical summary through Communication `$summary`:
+  [tests/101-individual-summary-communication.test.mjs](../tests/101-individual-summary-communication.test.mjs)
 - wallet-backed backend/session jobs:
   [tests/101-wallet-backed-job-manager.test.mjs](../tests/101-wallet-backed-job-manager.test.mjs)
 
