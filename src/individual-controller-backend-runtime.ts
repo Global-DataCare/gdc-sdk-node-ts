@@ -6,7 +6,12 @@ import type { IndividualOrganizationConfirmOrderInput, RouteContext } from './in
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from './individual-start.js';
 import type { EnsureFamilyOrganizationRegistrationInput, EnsureFamilyOrganizationRegistrationResult } from './family-organization-registration.js';
 import type { FamilyOrganizationSearchInput } from './family-organization-search.js';
-import type { BlockchainArtifactRegistrationInput, ClinicalBundleSearchInput } from './resource-operations.js';
+import type {
+  BlockchainArtifactRegistrationInput,
+  ClinicalBundleSearchInput,
+  ClinicalSummaryReadResult,
+  ClinicalSummaryRequestInput,
+} from './resource-operations.js';
 import {
   loadBackendIndividualControllerProfile,
   type BackendIndividualControllerProfile,
@@ -24,8 +29,8 @@ import type { ProfileLoadRequest } from 'gdc-sdk-core-ts';
  * - load an individual-controller profile
  * - start individual registration/bootstrap
  * - confirm the returned order/offer
- * - search the subject clinical index
- * - request the latest IPS-oriented bundle
+ * - request the available subject clinical summary through Communication
+ * - use direct index searches only for compatibility/specialized queries
  */
 export class IndividualControllerBackendRuntime {
   constructor(
@@ -87,8 +92,20 @@ export class IndividualControllerBackendRuntime {
   }
 
   /**
-   * Searches the current subject clinical bundle index through the loaded
-   * individual-controller facade.
+   * Reads the authoritative subject document through the canonical
+   * `Communication -> Subject/$summary -> FHIR Parameters` lifecycle.
+   */
+  public requestClinicalSummary(
+    profile: BackendIndividualControllerProfile,
+    ctx: RouteContext,
+    input: ClinicalSummaryRequestInput,
+  ): Promise<ClinicalSummaryReadResult> {
+    return profile.sdk.requestClinicalSummary(ctx, input);
+  }
+
+  /**
+   * Compatibility/specialized direct search over the subject bundle index.
+   * Prefer `requestClinicalSummary(...)` for the available clinical document.
    */
   public searchClinicalBundle(
     profile: BackendIndividualControllerProfile,

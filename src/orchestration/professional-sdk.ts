@@ -23,6 +23,8 @@ import type {
   CommunicationIngestionInput,
   CommunicationParticipantRuntimeSearchInput,
   ClinicalBundleSearchInput,
+  ClinicalSummaryReadResult,
+  ClinicalSummaryRequestInput,
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
   VitalSignBatchCommunicationFromSearchResponseInput,
@@ -102,6 +104,14 @@ export class ProfessionalSdk {
     input: ClinicalBundleSearchInput,
   ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'searchClinicalBundle')(ctx, input);
+  }
+
+  /** Reads the consent-authorized clinical `$summary` document without ingestion. */
+  public requestClinicalSummary(
+    ctx: RouteContext,
+    input: ClinicalSummaryRequestInput,
+  ): Promise<ClinicalSummaryReadResult> {
+    return requireClientMethod(this.client, 'requestClinicalSummary')(ctx, input);
   }
 
   /**

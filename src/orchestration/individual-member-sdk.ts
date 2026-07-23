@@ -13,6 +13,8 @@ import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-
 import type { RouteContext } from '../individual-onboarding.js';
 import type {
   ClinicalBundleSearchInput,
+  ClinicalSummaryReadResult,
+  ClinicalSummaryRequestInput,
   CommunicationIngestionInput,
   RelatedPersonUpsertInput,
 } from '../resource-operations.js';
@@ -47,6 +49,14 @@ export class IndividualMemberSdk {
     input: CommunicationIngestionInput,
   ) {
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /** Reads the member-authorized `$summary` document without mutating the subject index. */
+  public requestClinicalSummary(
+    ctx: RouteContext,
+    input: ClinicalSummaryRequestInput,
+  ): Promise<ClinicalSummaryReadResult> {
+    return requireClientMethod(this.client, 'requestClinicalSummary')(ctx, input);
   }
 
   /** Reads subject-scoped clinical documents permitted to this member. */

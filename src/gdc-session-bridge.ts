@@ -31,6 +31,7 @@ const capabilityMap: Record<Capability, NodeCapability> = {
   [ActorCapabilities.IndividualImportIps]: ActorCapabilities.IndividualImportIps,
   [ActorCapabilities.IndividualGenerateDigitalTwin]: ActorCapabilities.IndividualGenerateDigitalTwin,
   [ActorCapabilities.IndividualIngestCommunication]: ActorCapabilities.IndividualIngestCommunication,
+  [ActorCapabilities.IndividualReadClinicalSummary]: ActorCapabilities.IndividualReadClinicalSummary,
   [ActorCapabilities.IndividualUpsertRelatedPerson]: ActorCapabilities.IndividualUpsertRelatedPerson,
   [ActorCapabilities.IndividualMemberDisable]: ActorCapabilities.IndividualMemberDisable,
   [ActorCapabilities.IndividualMemberPurge]: ActorCapabilities.IndividualMemberPurge,

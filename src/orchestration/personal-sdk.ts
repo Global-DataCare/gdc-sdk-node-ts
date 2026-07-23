@@ -13,6 +13,8 @@ import type { RouteContext } from '../individual-onboarding.js';
 import type {
   BlockchainArtifactRegistrationInput,
   ClinicalBundleSearchInput,
+  ClinicalSummaryReadResult,
+  ClinicalSummaryRequestInput,
   CommunicationIngestionInput,
   CommunicationParticipantRuntimeSearchInput,
   DigitalTwinGenerationInput,
@@ -46,6 +48,14 @@ export class PersonalSdk {
   /** Ingests canonical Communication and waits for projection completion. */
   public ingestCommunicationAndUpdateIndex(ctx: RouteContext, input: CommunicationIngestionInput): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /** Reads the current subject through Communication `$summary`; it performs no ingestion. */
+  public requestClinicalSummary(
+    ctx: RouteContext,
+    input: ClinicalSummaryRequestInput,
+  ): Promise<ClinicalSummaryReadResult> {
+    return requireClientMethod(this.client, 'requestClinicalSummary')(ctx, input);
   }
 
   /** Registers one FHIR resource or raw artifact on blockchain before communication. */
