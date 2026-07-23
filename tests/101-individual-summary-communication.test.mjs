@@ -103,14 +103,21 @@ test('101: individual controller requests and reads the available clinical summa
   const allergyEntries =
     summary.reader.getDocumentSectionResourceEntries(section);
 
-  // Step 4. Scope the existing read facade for cards and the filtered UI
+  // Step 4. Distinguish every flat Bundle entry from top-level UI resources.
+  // Contained children stay available for audit/FHIR reconstruction but must
+  // not be rendered as independent cards.
+  const totalEntryCount = summary.reader.getEntryCount();
+  const visibleResourceCount = summary.reader.getVisibleResourceCount();
+  const visibleResourceIds = summary.reader.getVisibleResourceIds();
+
+  // Step 5. Scope the existing read facade for cards and the filtered UI
   // badge. Each filter returns a new facade; no new GW request is performed.
   const allergyView = summary.document
     .filterBySections([section])
     .filterByTypes([ResourceTypesFhirR4.AllergyIntolerance])
     .filterByClinicalDateRange('2026-01-01', '2026-12-31');
   const allergyResources = allergyView.getResources();
-  const visibleCount = allergyView.getResourceCount();
+  const filteredCount = allergyView.getResourceCount();
 
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].input.filterSections, [section]);
@@ -127,7 +134,10 @@ test('101: individual controller requests and reads the available clinical summa
     ResourceTypesFhirR4.AllergyIntolerance,
   );
   assert.equal(allergyResources.length, 1);
-  assert.equal(visibleCount, 1);
+  assert.equal(totalEntryCount, 2);
+  assert.equal(visibleResourceCount, 2);
+  assert.equal(visibleResourceIds.length, 2);
+  assert.equal(filteredCount, 1);
   assert.equal(
     summary.document.getResources(ResourceTypesFhirR4.AllergyIntolerance).length,
     1,

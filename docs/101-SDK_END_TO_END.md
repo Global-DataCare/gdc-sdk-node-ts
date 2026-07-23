@@ -1257,13 +1257,18 @@ const allergyEntries = summary.reader.getDocumentSectionResourceEntries(
   allergySectionCode,
 );
 
+// Structural visibility: all flat entries versus top-level UI resources.
+const totalEntryCount = summary.reader.getEntryCount();
+const visibleResourceCount = summary.reader.getVisibleResourceCount();
+const visibleResourceIds = summary.reader.getVisibleResourceIds();
+
 // Resolved FHIR resources for cards and filtered badges.
 const allergyView = summary.document
   .filterBySections([allergySectionCode])
   .filterByTypes([ResourceTypesFhirR4.AllergyIntolerance])
   .filterByClinicalDateRange('2026-01-01', '2026-12-31');
 const recentAllergies = allergyView.getResources();
-const visibleAllergyCount = allergyView.getResourceCount();
+const filteredAllergyCount = allergyView.getResourceCount();
 
 // Other local reads over the same returned Bundle.
 const allResources = summary.document.getResources();
@@ -1296,10 +1301,18 @@ result exposes two complementary readers:
 - `summary.document` is the SDK Core `FhirDocumentFacade`: resource retrieval,
   combined section/type/date filters, text search and typed clinical helpers
 
-The two counts answer different questions:
+The counts answer different questions:
 
 - `declaredAllergyCount` counts references declared in `Composition.section`
-- `visibleAllergyCount` counts resources after section/type/date filters
+- `totalEntryCount` includes every flat Bundle entry, including imported
+  children that represent native FHIR `contained[]`
+- `visibleResourceCount` excludes those contained children so a UI does not
+  render them as independent top-level cards
+- `filteredAllergyCount` counts resources after section/type/date filters
+
+Structural visibility is not active/inactive clinical status. Use all entries
+for audit, debugging or rebuilding `contained[]`; use visible resources for UI
+navigation.
 
 `filterByClinicalDateRange(from, to)` describes the query window, not one
 specific FHIR property shape. A point-valued FHIR `date`, `dateTime` or
