@@ -1252,44 +1252,23 @@ const allergyReferences =
 // Stable IDs or complete Bundle entries for a selected section.
 const allergyIds = summary.reader.getDocumentSectionResourceIds(
   allergySectionCode,
-  {
-    resourceTypes: [ResourceTypesFhirR4.AllergyIntolerance],
-    dateFrom: '2026-01-01',
-    dateTo: '2026-12-31',
-  },
 );
 const allergyEntries = summary.reader.getDocumentSectionResourceEntries(
   allergySectionCode,
-  {
-    resourceTypes: [ResourceTypesFhirR4.AllergyIntolerance],
-    dateFrom: '2026-01-01',
-    dateTo: '2026-12-31',
-  },
 );
 
 // Resolved FHIR resources for cards and filtered badges.
-const allergyFilter = {
-  sections: [allergySectionCode],
-  types: [ResourceTypesFhirR4.AllergyIntolerance],
-  date: {
-    start: '2026-01-01',
-    end: '2026-12-31',
-  },
-};
-const recentAllergies =
-  summary.document.getResourcesByFilter(allergyFilter);
-const visibleAllergyCount =
-  summary.document.getResourceCount(allergyFilter);
+const allergyView = summary.document
+  .filterBySections([allergySectionCode])
+  .filterByTypes([ResourceTypesFhirR4.AllergyIntolerance])
+  .filterByClinicalDateRange('2026-01-01', '2026-12-31');
+const recentAllergies = allergyView.getResources();
+const visibleAllergyCount = allergyView.getResourceCount();
 
 // Other local reads over the same returned Bundle.
 const allResources = summary.document.getResources();
 const allAllergies =
   summary.document.getResources(ResourceTypesFhirR4.AllergyIntolerance);
-const allergiesByDate = summary.document.getByDates(
-  ResourceTypesFhirR4.AllergyIntolerance,
-  '2026-01-01',
-  '2026-12-31',
-);
 const allergiesContainingIbuprofen =
   summary.document.getContainingTextOrDisplay(
     ResourceTypesFhirR4.AllergyIntolerance,
@@ -1300,6 +1279,13 @@ const allergiesContainingIbuprofen =
 This is the canonical 101 read flow:
 
 `Communication -> Subject/$summary -> FHIR Parameters -> Bundle document`.
+
+All-sections rule:
+
+- omit `filterSections` to request every available section
+- do not send `filterSections: ['*']`
+- `section=*` is the SMART permission wildcard; it is not the application-level
+  `$summary` section selector
 
 It does not call `ingestCommunicationAndUpdateIndex(...)`. That method is
 reserved for writes whose resources must be persisted/projected. The summary
@@ -1314,6 +1300,11 @@ The two counts answer different questions:
 
 - `declaredAllergyCount` counts references declared in `Composition.section`
 - `visibleAllergyCount` counts resources after section/type/date filters
+
+`filterByClinicalDateRange(from, to)` describes the query window, not one
+specific FHIR property shape. A point-valued FHIR `date`, `dateTime` or
+`instant` matches when it falls inside the window. A FHIR `Period` matches when
+it overlaps the window. Date-only upper bounds include that complete day.
 
 All reader/facade calls after `requestClinicalSummary(...)` are local reads over
 `summary.bundle`. They do not trigger more GW requests. Missing sections
