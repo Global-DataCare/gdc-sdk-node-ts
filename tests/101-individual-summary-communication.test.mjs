@@ -13,10 +13,12 @@ import assert from 'node:assert/strict';
 
 import {
   ActorCapabilities,
+  AllergyIntoleranceClaim,
   BundleReader,
   EXAMPLE_SUBJECT_DID,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
   HealthcareBasicSections,
+  ResourceTypesFhirR4,
 } from 'gdc-common-utils-ts';
 import {
   createCommunicationFacade,
@@ -46,10 +48,19 @@ test('101: individual controller requests and reads the available clinical summa
             },
           },
           {
+            fullUrl: 'urn:uuid:allergy-summary-1',
             resource: {
               resourceType: 'AllergyIntolerance',
               id: 'allergy-summary-1',
               recordedDate: '2026-07-20T10:00:00Z',
+              code: { text: 'Ibuprofeno' },
+              meta: {
+                claims: {
+                  [AllergyIntoleranceClaim.Identifier]: 'allergy-summary-1',
+                  [AllergyIntoleranceClaim.OnsetDateTime]:
+                    '2026-07-20T10:00:00Z',
+                },
+              },
             },
           },
         ],
@@ -78,21 +89,78 @@ test('101: individual controller requests and reads the available clinical summa
     },
   );
 
-  // Step 2. Navigate the authoritative returned document by section.
+  // Step 2. Build the section navigation and its unfiltered count badge.
+  const sections = summary.reader.getDocumentSections();
   const allergies = summary.reader.getDocumentSectionByCode(section);
+  const declaredCount =
+    summary.reader.getDocumentSectionResourceCount(section);
+  const references =
+    summary.reader.getDocumentSectionResourceReferences(section);
 
-  // Step 3. The SDK Core document facade resolves resources and combines
-  // section, resource-type and date filters without another network request.
-  const allergyResources = summary.document.getResourcesByFilter({
+  // Step 3. Resolve stable IDs and complete Bundle entries for one section.
+  const entryFilter = {
+    resourceTypes: [ResourceTypesFhirR4.AllergyIntolerance],
+    dateFrom: '2026-01-01',
+    dateTo: '2026-12-31',
+  };
+  const allergyIds =
+    summary.reader.getDocumentSectionResourceIds(section, entryFilter);
+  const allergyEntries =
+    summary.reader.getDocumentSectionResourceEntries(section, entryFilter);
+
+  // Step 4. Resolve card resources and the filtered UI badge. These calls read
+  // the returned Bundle in memory and do not perform another GW request.
+  const resourceFilter = {
     sections: [section],
-    types: ['AllergyIntolerance'],
+    types: [ResourceTypesFhirR4.AllergyIntolerance],
     date: { start: '2026-01-01', end: '2026-12-31' },
-  });
+  };
+  const allergyResources =
+    summary.document.getResourcesByFilter(resourceFilter);
+  const visibleCount =
+    summary.document.getResourceCount(resourceFilter);
 
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].input.filterSections, [section]);
   assert.equal(summary.bundle.type, 'document');
+  assert.equal(summary.reader.getDocumentSectionCount(), 1);
+  assert.equal(sections.length, 1);
   assert.deepEqual(allergies?.entryReferences, ['urn:uuid:allergy-summary-1']);
-  assert.equal(summary.reader.getDocumentSectionResourceCount(section), 1);
+  assert.equal(declaredCount, 1);
+  assert.deepEqual(references, ['urn:uuid:allergy-summary-1']);
+  assert.deepEqual(allergyIds, ['urn:uuid:allergy-summary-1']);
+  assert.equal(allergyEntries.length, 1);
+  assert.equal(
+    allergyEntries[0]?.resource?.resourceType,
+    ResourceTypesFhirR4.AllergyIntolerance,
+  );
   assert.equal(allergyResources.length, 1);
+  assert.equal(visibleCount, 1);
+  assert.equal(
+    summary.document.getResources(ResourceTypesFhirR4.AllergyIntolerance).length,
+    1,
+  );
+  assert.equal(
+    summary.document.getByDates(
+      ResourceTypesFhirR4.AllergyIntolerance,
+      '2026-01-01',
+      '2026-12-31',
+    ).length,
+    1,
+  );
+  assert.equal(
+    summary.document.getContainingTextOrDisplay(
+      ResourceTypesFhirR4.AllergyIntolerance,
+      'ibuprofeno',
+    ).length,
+    1,
+  );
+  assert.equal(
+    summary.reader.getDocumentSectionResourceCount('missing-section'),
+    0,
+  );
+  assert.deepEqual(
+    summary.reader.getDocumentSectionResourceEntries('missing-section'),
+    [],
+  );
 });

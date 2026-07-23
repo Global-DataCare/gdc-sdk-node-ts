@@ -2,18 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.2.2] - 2026-07-13
-
-### Changed
-- Normalized hosted `serviceProviderDid` route inputs back to the tenant id
-  segment so GW tenant paths no longer duplicate the `did:web` suffix:
-  - `src/runtime-route-context.ts`
-  - `tests/node-runtime-client.test.mjs`
-- Aligned the published dependency line with the shared compatibility release:
-  - `gdc-common-utils-ts@^2.2.2`
-  - `gdc-sdk-core-ts@~2.2.1`
-
 ## [Unreleased]
+
+## [2.3.3] - 2026-07-23
 
 ### Added
 - Added `requestClinicalSummary(...)` across personal, controller, member and
@@ -34,6 +25,9 @@ All notable changes to this project will be documented in this file.
   added to durable profile metadata.
 
 ### Changed
+- Completed the end-to-end clinical-summary 101 with section enumeration,
+  declared counts, references, IDs, Bundle entries, filtered resource counts,
+  date/text queries and the UHC UNID screen mapping.
 - Reworked the individual-controller 101 around Communication `$summary`,
   section counts, resource resolution and section/type/date filters. Direct
   Bundle search/latest-IPS methods are documented as compatibility or
@@ -41,6 +35,10 @@ All notable changes to this project will be documented in this file.
 - `ServerProfileSessionManager` now encrypts transport for each stored
   profile's `providerDid`; it no longer accepts one process-global
   `recipientDid` that could mix provider tenants.
+
+### Fixed
+- Added the missing npm `prepublishOnly` gate so patch publication always runs
+  type checking, build and the complete Node SDK test suite.
 
 ## [2.3.1] - 2026-07-17
 
@@ -99,6 +97,17 @@ All notable changes to this project will be documented in this file.
   and allow a verified recipient to accept by code without knowing the owner
   organization id; lifecycle searches keep owner scoping for controller
   operations.
+
+## [2.2.2] - 2026-07-13
+
+### Changed
+- Normalized hosted `serviceProviderDid` route inputs back to the tenant id
+  segment so GW tenant paths no longer duplicate the `did:web` suffix:
+  - `src/runtime-route-context.ts`
+  - `tests/node-runtime-client.test.mjs`
+- Aligned the published dependency line with the shared compatibility release:
+  - `gdc-common-utils-ts@^2.2.2`
+  - `gdc-sdk-core-ts@~2.2.1`
 
 ## [2.2.1] - 2026-07-06
 
