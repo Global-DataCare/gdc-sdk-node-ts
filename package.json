@@ -1,6 +1,6 @@
 {
   "name": "gdc-sdk-node-ts",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "description": "Next-generation Node runtime package for the GDC SDK family",
   "license": "Apache-2.0",
   "author": "Antifraud Services Inc.",
@@ -13,6 +13,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "type-check": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run type-check && npm test",
     "local:close": "PORTS=3000 bash ./scripts/local-close.sh",
     "docker:close": "PORTS=8000 bash ./scripts/local-close.sh",
     "test": "npm run build && node --test tests/*.test.mjs",

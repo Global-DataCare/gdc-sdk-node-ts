@@ -1226,35 +1226,75 @@ Scope note:
 ### 7.13 Read the available clinical summary
 
 ```ts
+const allergySectionCode =
+  HealthcareBasicSections.AllergiesAndIntolerances.attributeValue;
+
 const summary = await individualControllerProfile.sdk.requestClinicalSummary(
   tenantContext,
   {
     subjectId: subjectDid,
     requesterId: actorDid,
-    filterSections: [
-      HealthcareBasicSections.AllergiesAndIntolerances.attributeValue,
-    ],
+    // Omit filterSections when the screen needs every available section.
+    filterSections: [allergySectionCode],
   },
 );
 
+// Composition.section structure for navigation and unfiltered badges.
+const sections = summary.reader.getDocumentSections();
+const numberOfSections = summary.reader.getDocumentSectionCount();
 const allergySection =
-  summary.reader.getDocumentSectionByCode(
-    HealthcareBasicSections.AllergiesAndIntolerances.attributeValue,
-  );
-const allergyCount =
-  summary.reader.getDocumentSectionResourceCount(
-    HealthcareBasicSections.AllergiesAndIntolerances.attributeValue,
-  );
-const recentAllergies = summary.document.getResourcesByFilter({
-  sections: [
-    HealthcareBasicSections.AllergiesAndIntolerances.attributeValue,
-  ],
+  summary.reader.getDocumentSectionByCode(allergySectionCode);
+const declaredAllergyCount =
+  summary.reader.getDocumentSectionResourceCount(allergySectionCode);
+const allergyReferences =
+  summary.reader.getDocumentSectionResourceReferences(allergySectionCode);
+
+// Stable IDs or complete Bundle entries for a selected section.
+const allergyIds = summary.reader.getDocumentSectionResourceIds(
+  allergySectionCode,
+  {
+    resourceTypes: [ResourceTypesFhirR4.AllergyIntolerance],
+    dateFrom: '2026-01-01',
+    dateTo: '2026-12-31',
+  },
+);
+const allergyEntries = summary.reader.getDocumentSectionResourceEntries(
+  allergySectionCode,
+  {
+    resourceTypes: [ResourceTypesFhirR4.AllergyIntolerance],
+    dateFrom: '2026-01-01',
+    dateTo: '2026-12-31',
+  },
+);
+
+// Resolved FHIR resources for cards and filtered badges.
+const allergyFilter = {
+  sections: [allergySectionCode],
   types: [ResourceTypesFhirR4.AllergyIntolerance],
   date: {
     start: '2026-01-01',
     end: '2026-12-31',
   },
-});
+};
+const recentAllergies =
+  summary.document.getResourcesByFilter(allergyFilter);
+const visibleAllergyCount =
+  summary.document.getResourceCount(allergyFilter);
+
+// Other local reads over the same returned Bundle.
+const allResources = summary.document.getResources();
+const allAllergies =
+  summary.document.getResources(ResourceTypesFhirR4.AllergyIntolerance);
+const allergiesByDate = summary.document.getByDates(
+  ResourceTypesFhirR4.AllergyIntolerance,
+  '2026-01-01',
+  '2026-12-31',
+);
+const allergiesContainingIbuprofen =
+  summary.document.getContainingTextOrDisplay(
+    ResourceTypesFhirR4.AllergyIntolerance,
+    'ibuprofeno',
+  );
 ```
 
 This is the canonical 101 read flow:
@@ -1269,6 +1309,20 @@ result exposes two complementary readers:
   counts, resource references and generic bundle navigation
 - `summary.document` is the SDK Core `FhirDocumentFacade`: resource retrieval,
   combined section/type/date filters, text search and typed clinical helpers
+
+The two counts answer different questions:
+
+- `declaredAllergyCount` counts references declared in `Composition.section`
+- `visibleAllergyCount` counts resources after section/type/date filters
+
+All reader/facade calls after `requestClinicalSummary(...)` are local reads over
+`summary.bundle`. They do not trigger more GW requests. Missing sections
+produce `undefined`, `0` or `[]` as appropriate, so the UI can render an empty
+state without inventing a section.
+
+UHC UNID applies this same document model in `IpsClinicalViewer`: section cards
+come from `Composition.section`, the badge is the visible resource length, and
+global or per-section type/text/date filters narrow the in-memory card list.
 
 `LifecycleResultReader` has a different responsibility: analyze operation
 outcomes, response statuses and issues. It is not the clinical document reader.
