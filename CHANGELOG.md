@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.3.4] - 2026-07-23
+
+### Changed
+- Replaced raw clinical resource filter objects in the end-to-end 101 with the
+  immutable `FhirDocumentFacade` chain:
+  `filterBySections` -> `filterByTypes` -> `filterByClinicalDateRange` ->
+  read/count.
+
 ## [2.3.3] - 2026-07-23
 
 ### Added

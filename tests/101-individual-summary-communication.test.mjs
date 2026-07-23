@@ -98,27 +98,19 @@ test('101: individual controller requests and reads the available clinical summa
     summary.reader.getDocumentSectionResourceReferences(section);
 
   // Step 3. Resolve stable IDs and complete Bundle entries for one section.
-  const entryFilter = {
-    resourceTypes: [ResourceTypesFhirR4.AllergyIntolerance],
-    dateFrom: '2026-01-01',
-    dateTo: '2026-12-31',
-  };
   const allergyIds =
-    summary.reader.getDocumentSectionResourceIds(section, entryFilter);
+    summary.reader.getDocumentSectionResourceIds(section);
   const allergyEntries =
-    summary.reader.getDocumentSectionResourceEntries(section, entryFilter);
+    summary.reader.getDocumentSectionResourceEntries(section);
 
-  // Step 4. Resolve card resources and the filtered UI badge. These calls read
-  // the returned Bundle in memory and do not perform another GW request.
-  const resourceFilter = {
-    sections: [section],
-    types: [ResourceTypesFhirR4.AllergyIntolerance],
-    date: { start: '2026-01-01', end: '2026-12-31' },
-  };
-  const allergyResources =
-    summary.document.getResourcesByFilter(resourceFilter);
-  const visibleCount =
-    summary.document.getResourceCount(resourceFilter);
+  // Step 4. Scope the existing read facade for cards and the filtered UI
+  // badge. Each filter returns a new facade; no new GW request is performed.
+  const allergyView = summary.document
+    .filterBySections([section])
+    .filterByTypes([ResourceTypesFhirR4.AllergyIntolerance])
+    .filterByClinicalDateRange('2026-01-01', '2026-12-31');
+  const allergyResources = allergyView.getResources();
+  const visibleCount = allergyView.getResourceCount();
 
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].input.filterSections, [section]);
@@ -140,14 +132,7 @@ test('101: individual controller requests and reads the available clinical summa
     summary.document.getResources(ResourceTypesFhirR4.AllergyIntolerance).length,
     1,
   );
-  assert.equal(
-    summary.document.getByDates(
-      ResourceTypesFhirR4.AllergyIntolerance,
-      '2026-01-01',
-      '2026-12-31',
-    ).length,
-    1,
-  );
+  assert.equal(allergyView.getResources().length, 1);
   assert.equal(
     summary.document.getContainingTextOrDisplay(
       ResourceTypesFhirR4.AllergyIntolerance,
