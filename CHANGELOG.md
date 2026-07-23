@@ -11,6 +11,8 @@ All notable changes to this project will be documented in this file.
   immutable `FhirDocumentFacade` chain:
   `filterBySections` -> `filterByTypes` -> `filterByClinicalDateRange` ->
   read/count.
+- Distinguished total Bundle entries, top-level UI-visible resources and
+  section/type/date-filtered resources in the executable 101.
 
 ## [2.3.3] - 2026-07-23
 
