@@ -73,6 +73,8 @@ import {
   listOrganizationLicenseOrdersWithDeps,
   listOrganizationLicensesWithDeps,
   grantProfessionalAccessWithDeps,
+  buildClinicalSectionUpdateIngestion,
+  buildClinicalSummaryUpdateIngestion,
   ingestCommunicationAndUpdateIndexWithDeps,
   buildVitalSignBatchCommunicationFromSearchResponse,
   registerBlockchainArtifactAndUpdateIndexWithDeps,
@@ -98,8 +100,10 @@ import {
   type VitalSignBatchCommunicationFromSearchResponseInput,
   type CommunicationParticipantRuntimeSearchInput,
   type ClinicalBundleSearchInput,
+  type ClinicalSectionUpdateInput,
   type ClinicalSummaryReadResult,
   type ClinicalSummaryRequestInput,
+  type ClinicalSummaryUpdateInput,
   type GrantProfessionalAccessInput,
   type GrantProfessionalAccessResult,
   type IndividualMemberLifecycleInput,
@@ -1155,6 +1159,40 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       individualCommunicationPollPath: this.paths.individualCommunicationPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
+  }
+
+  /**
+   * Updates exactly one clinical section.
+   *
+   * The attached payload must be a `Bundle.type=batch|collection`, and the
+   * exact section is carried on the outer Communication. This flow is suitable
+   * for vital-sign or other explicitly section-scoped updates; it does not
+   * replace a multi-section IPS document.
+   */
+  public async updateClinicalSection(
+    ctx: RouteContext,
+    input: ClinicalSectionUpdateInput,
+  ): Promise<SubmitAndPollResult> {
+    return this.ingestCommunicationAndUpdateIndex(
+      ctx,
+      buildClinicalSectionUpdateIngestion(input),
+    );
+  }
+
+  /**
+   * Updates several clinical sections as one Composition-first document.
+   *
+   * The attached payload must be `Bundle.type=document` with `Composition` in
+   * `entry[0]`; its `section[].entry[]` references delimit the updated data.
+   */
+  public async updateClinicalSummary(
+    ctx: RouteContext,
+    input: ClinicalSummaryUpdateInput,
+  ): Promise<SubmitAndPollResult> {
+    return this.ingestCommunicationAndUpdateIndex(
+      ctx,
+      buildClinicalSummaryUpdateIngestion(input),
+    );
   }
 
   /**

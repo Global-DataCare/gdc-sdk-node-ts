@@ -3,7 +3,9 @@
 > 101 note
 > - Teach here: the highest-level `sdk-node` actor/profile/runtime surface after shared authoring in `gdc-common-utils-ts`.
 > - Reuse lower-layer contracts from `sdk-core` and `common-utils` instead of re-teaching raw claims or low-level editors.
-> - When payload authoring appears, teach document `Bundle` with `Composition` first -> `Communication` -> DIDComm/plain; search stays separate through FHIR params such as `Composition.section`.
+> - For clinical payloads, teach either one explicit section as
+>   `batch|collection + Communication Composition.section`, or several
+>   sections as a document `Bundle` with `Composition` first.
 > - Read [101-README.md](./101-README.md) for the ordered path and keep actor role plus submit/poll explicit.
 
 
@@ -1109,14 +1111,11 @@ Optional narrower facade:
   `disableIndividualMember(...)` and `purgeIndividualMember(...)`
   remain owned by `IndividualControllerSdk`
 
-### 7.11 Build a communication with IPS or FHIR content
+### 7.11 Update exactly one clinical section
 
-Recommended pattern:
-
-1. author one Bundle containing one or several clinical resources
-2. attach that completed Bundle to a Communication draft
-3. freeze it into an outbox job
-4. send the communication
+Use `updateClinicalSection(...)` when every entry belongs to one section. The
+Bundle is `batch` or `collection`; the method puts the exact section on the
+outer Communication. Vital-sign measurement batches use this flow.
 
 ```ts
 const emailProfessional = 'doctor@example.org';
@@ -1148,46 +1147,63 @@ clinicalBundleEditor
 
 const clinicalBundle = clinicalBundleEditor.buildJsonApi();
 
-let communicationDraft = createCommMsgExtendedDraft({
+await individualControllerProfile.sdk.updateClinicalSection(tenantContext, {
   subject: subjectDid,
   sender: professionalDid,
   recipient: organizationDid,
+  section: HealthcareBasicSections.VitalSigns.attributeValue,
+  bundle: clinicalBundle,
   noteText: 'IPS update with vital signs',
-});
-
-communicationDraft = attachBundleToCommMsgExtendedDraft(
-  communicationDraft,
-  clinicalBundle,
-);
-
-const communicationJob =
-  createCommunicationOutboxJobFromCommMsgExtendedDraft(communicationDraft);
-```
-
-Important:
-
-- the Bundle remains the semantic unit containing one or several changes
-- the frontend decides whether to commit after one edit or after a section
-- individual resource `upsert*` calls are internal compatibility plumbing
-- `createCommunicationOutboxJobFromCommMsgExtendedDraft(...)` does not send anything
-- it only freezes the current draft into:
-  - `communicationJob.payload`: claims-first `CommMsgExtended`
-  - `communicationJob.status`: local outbox status such as `ready`
-- it does not create or store a DIDComm envelope
-- network submission starts in the next step
-
-### 7.12 Send the communication and wait for indexing
-
-```ts
-await individualControllerProfile.sdk.ingestCommunicationAndUpdateIndex(tenantContext, {
-  communicationJob,
   clinicalFormat: 'r4',
 });
 ```
 
-The actor facade accepts the canonical outbox job and delegates wire rendering
-to the configured runtime transport. Application code must not rebuild
-`body.data`, `body.entry`, DIDComm envelopes or `request=<JWE>`.
+Important:
+
+- every resource in this Bundle belongs to the one declared section
+- the GW must not infer a default section
+- individual resource `upsert*` calls are internal compatibility plumbing
+- this flow does not replace a multi-section IPS document
+
+### 7.12 Update one or several summary sections
+
+```ts
+const summaryDocumentEditor = new BundleEditor()
+  .setBundleOperation(BundleOperations.create)
+  .setBundleType(BundleTypes.document)
+  .setCompositionSubject(subjectDid)
+  .setCompositionType(HealthcareDocumentTypes.IPS.attributeValue)
+  .setCompositionTitle('International Patient Summary')
+  .setCompositionDate(new Date().toISOString())
+  .setCompositionAuthorList([professionalDid]);
+
+summaryDocumentEditor
+  .newEntryAs(BundleEditableResourceTypes.allergyIntolerance)
+  .setSubject(subjectDid)
+  .ensureIdentifier();
+
+summaryDocumentEditor
+  .newEntryAs(BundleEditableResourceTypes.vitalSign)
+  .setSubject(subjectDid)
+  .setDate('2026-05-22T10:00:00Z')
+  .setHeartRate(72)
+  .ensureIdentifier();
+
+const summaryDocument = summaryDocumentEditor.buildDocument();
+
+await individualControllerProfile.sdk.updateClinicalSummary(tenantContext, {
+  subject: subjectDid,
+  sender: professionalDid,
+  recipient: organizationDid,
+  bundle: summaryDocument,
+  clinicalFormat: 'r4',
+});
+```
+
+`updateClinicalSummary(...)` requires `Bundle.type=document`, Composition in
+`entry[0]`, and `Composition.section[].entry[]` references. It is the
+multi-section document boundary. Consent, employee, RelatedPerson and
+Appointment Bundles keep their own aggregate contracts.
 
 This call returns the remote operation result; it does not replace the
 frontend's subject ViewModel. After optimistic rendering, the frontend handles
@@ -1324,6 +1340,9 @@ All reader/facade calls after `requestClinicalSummary(...)` are local reads over
 produce `undefined`, `0` or `[]` as appropriate, so the UI can render an empty
 state without inventing a section.
 
+Use `summary.document.resetFilters()` to return to an unfiltered immutable
+document view. `clearFilters()` remains available as a compatibility alias.
+
 UHC UNID applies this same document model in `IpsClinicalViewer`: section cards
 come from `Composition.section`, the badge is the visible resource length, and
 global or per-section type/text/date filters narrow the in-memory card list.
@@ -1349,6 +1368,11 @@ Keep `searchClinicalBundle(...)` and `getLatestIps(...)` for compatibility or
 specialized index queries. Do not teach them as the primary way for portal,
 telephone or mobile channels to load the individual's available clinical
 summary.
+
+`searchClinicalBundle(...)` returns the raw submit/poll search result, not a
+`ClinicalSummaryReadResult`. Therefore `document.resetFilters()` belongs to the
+`requestClinicalSummary(...)` result; it cannot repair an empty remote index
+search.
 
 ### 7.14.1 Vital signs as a measurement batch, not always as an immediate ledger write
 

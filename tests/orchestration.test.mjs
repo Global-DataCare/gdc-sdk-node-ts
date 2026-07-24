@@ -25,6 +25,38 @@ import {
   submitAndPollWithClient,
 } from '../dist/index.js';
 
+test('clinical actor facades expose distinct section and summary update methods', async () => {
+  // Step 1. The public facade must keep one-section and multi-section writes
+  // discoverable instead of forcing callers through generic ingestion.
+  const calls = [];
+  const sdk = new PersonalSdk({
+    async updateClinicalSection(...args) {
+      calls.push(['section', args]);
+      return { ok: true };
+    },
+    async updateClinicalSummary(...args) {
+      calls.push(['summary', args]);
+      return { ok: true };
+    },
+  });
+
+  // Step 2. Each method delegates through its own runtime port.
+  await sdk.updateClinicalSection({}, {
+    subject: 'did:web:subject.example',
+    section: 'LOINC|8716-3',
+    bundle: { resourceType: 'Bundle', type: 'collection', data: [{}] },
+  });
+  await sdk.updateClinicalSummary({}, {
+    subject: 'did:web:subject.example',
+    bundle: {
+      resourceType: 'Bundle',
+      type: 'document',
+      entry: [{ resource: { resourceType: 'Composition' } }],
+    },
+  });
+  assert.deepEqual(calls.map(([name]) => name), ['section', 'summary']);
+});
+
 test('IndividualControllerSdk delegates to the runtime client', async () => {
   const calls = [];
   const client = {

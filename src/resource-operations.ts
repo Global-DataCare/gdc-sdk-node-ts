@@ -21,7 +21,11 @@ import {
   addFhirResourceToCommunication,
   createCommunicationResource,
   buildClinicalSummaryCommunicationJob,
+  createClinicalSectionUpdateOutboxJob,
+  createClinicalSummaryUpdateOutboxJob,
   readClinicalSummaryOperationResult,
+  type ClinicalSectionUpdateCommunicationInput,
+  type ClinicalUpdateCommunicationInput,
   type ClinicalSummaryReadResult,
   type ClinicalSummaryRequestInput,
 } from 'gdc-sdk-core-ts';
@@ -259,6 +263,42 @@ export type CommunicationIngestionInput = {
   autoConvertClaimsToFhirR4?: boolean;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
+
+type ClinicalUpdateRuntimeOptions = Readonly<{
+  transportProfile?: TransportProfile;
+  clinicalFormat?: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+}>;
+
+/** Updates exactly one clinical section through a scoped batch/collection. */
+export type ClinicalSectionUpdateInput =
+  ClinicalSectionUpdateCommunicationInput & ClinicalUpdateRuntimeOptions;
+
+/** Updates one complete multi-section clinical summary document. */
+export type ClinicalSummaryUpdateInput =
+  ClinicalUpdateCommunicationInput & ClinicalUpdateRuntimeOptions;
+
+export function buildClinicalSectionUpdateIngestion(
+  input: ClinicalSectionUpdateInput,
+): CommunicationIngestionInput {
+  return {
+    communicationJob: createClinicalSectionUpdateOutboxJob(input),
+    clinicalFormat: input.clinicalFormat,
+    transportProfile: input.transportProfile,
+    pollOptions: input.pollOptions,
+  };
+}
+
+export function buildClinicalSummaryUpdateIngestion(
+  input: ClinicalSummaryUpdateInput,
+): CommunicationIngestionInput {
+  return {
+    communicationJob: createClinicalSummaryUpdateOutboxJob(input),
+    clinicalFormat: input.clinicalFormat,
+    transportProfile: input.transportProfile,
+    pollOptions: input.pollOptions,
+  };
+}
 
 export type BlockchainArtifactRegistrationInput = {
   subject: string;

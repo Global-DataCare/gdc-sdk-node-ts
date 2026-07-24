@@ -647,6 +647,10 @@ modules below.
 - [`NodeHttpClient.ingestCommunicationAndUpdateIndex(...)`](src/node-runtime-client.ts)
 - [`NodeHttpClient.submitCommunicationAndPoll(...)`](src/node-runtime-client.ts)
 - [`NodeHttpClient.searchClinicalBundle(...)`](src/node-runtime-client.ts)
+- [`NodeHttpClient.updateClinicalSection(...)`](src/node-runtime-client.ts) for
+  one explicit section carried by a batch/collection Communication
+- [`NodeHttpClient.updateClinicalSummary(...)`](src/node-runtime-client.ts) for
+  a Composition-first multi-section document
 - [`NodeHttpClient.searchLatestIps(...)`](src/node-runtime-client.ts)
 - [`NodeHttpClient.grantProfessionalAccess(...)`](src/node-runtime-client.ts)
 - [`NodeHttpClient.requestSmartToken(...)`](src/node-runtime-client.ts)
