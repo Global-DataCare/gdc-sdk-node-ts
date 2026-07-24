@@ -30,8 +30,10 @@ import type { IndividualOrganizationLifecycleInput } from 'gdc-sdk-core-ts';
 import type {
   BlockchainArtifactRegistrationInput,
   ClinicalBundleSearchInput,
+  ClinicalSectionUpdateInput,
   ClinicalSummaryReadResult,
   ClinicalSummaryRequestInput,
+  ClinicalSummaryUpdateInput,
   CommunicationIngestionInput,
   CommunicationParticipantRuntimeSearchInput,
   DigitalTwinGenerationInput,
@@ -223,6 +225,18 @@ export class IndividualControllerSdk {
   public ingestCommunicationAndUpdateIndex(ctx: RouteContext, input: CommunicationIngestionInput): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualIngestCommunication, ActorKinds.IndividualController, 'ingestCommunicationAndUpdateIndex');
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /** Updates one exact clinical section through a section-scoped batch/collection. */
+  public updateClinicalSection(ctx: RouteContext, input: ClinicalSectionUpdateInput): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualIngestCommunication, ActorKinds.IndividualController, 'updateClinicalSection');
+    return requireClientMethod(this.client, 'updateClinicalSection')(ctx, input);
+  }
+
+  /** Updates the multi-section summary through a Composition-first document. */
+  public updateClinicalSummary(ctx: RouteContext, input: ClinicalSummaryUpdateInput): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualIngestCommunication, ActorKinds.IndividualController, 'updateClinicalSummary');
+    return requireClientMethod(this.client, 'updateClinicalSummary')(ctx, input);
   }
 
   /**

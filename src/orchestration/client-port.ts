@@ -39,8 +39,10 @@ import type {
   BlockchainArtifactRegistrationInput,
   CommunicationParticipantRuntimeSearchInput,
   ClinicalBundleSearchInput,
+  ClinicalSectionUpdateInput,
   ClinicalSummaryReadResult,
   ClinicalSummaryRequestInput,
+  ClinicalSummaryUpdateInput,
   VitalSignBatchCommunicationFromSearchResponseInput,
   DigitalTwinGenerationInput,
   GrantProfessionalAccessInput,
@@ -261,6 +263,14 @@ export type RuntimeClient = {
   ingestCommunicationAndUpdateIndex?: (
     ctx: RouteContext,
     input: CommunicationIngestionInput,
+  ) => Promise<SubmitAndPollResult>;
+  updateClinicalSection?: (
+    ctx: RouteContext,
+    input: ClinicalSectionUpdateInput,
+  ) => Promise<SubmitAndPollResult>;
+  updateClinicalSummary?: (
+    ctx: RouteContext,
+    input: ClinicalSummaryUpdateInput,
   ) => Promise<SubmitAndPollResult>;
   requestClinicalSummary?: (
     ctx: RouteContext,

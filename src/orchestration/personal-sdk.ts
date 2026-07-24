@@ -13,8 +13,10 @@ import type { RouteContext } from '../individual-onboarding.js';
 import type {
   BlockchainArtifactRegistrationInput,
   ClinicalBundleSearchInput,
+  ClinicalSectionUpdateInput,
   ClinicalSummaryReadResult,
   ClinicalSummaryRequestInput,
+  ClinicalSummaryUpdateInput,
   CommunicationIngestionInput,
   CommunicationParticipantRuntimeSearchInput,
   DigitalTwinGenerationInput,
@@ -48,6 +50,16 @@ export class PersonalSdk {
   /** Ingests canonical Communication and waits for projection completion. */
   public ingestCommunicationAndUpdateIndex(ctx: RouteContext, input: CommunicationIngestionInput): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /** Updates one exact clinical section through a section-scoped batch/collection. */
+  public updateClinicalSection(ctx: RouteContext, input: ClinicalSectionUpdateInput): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'updateClinicalSection')(ctx, input);
+  }
+
+  /** Updates the multi-section clinical summary through a Composition-first document. */
+  public updateClinicalSummary(ctx: RouteContext, input: ClinicalSummaryUpdateInput): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'updateClinicalSummary')(ctx, input);
   }
 
   /** Reads the current subject through Communication `$summary`; it performs no ingestion. */

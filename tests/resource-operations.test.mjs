@@ -24,6 +24,7 @@ import {
 } from 'gdc-common-utils-ts/examples';
 import {
   buildCommunicationParticipantSearchBundle,
+  HealthcareBasicSections,
   buildExampleCommunicationParticipantSearchInput,
   buildFhirParametersResourceFromSearchParams,
   ClaimsOrganizationSchemaorg,
@@ -75,6 +76,8 @@ import {
   upsertRelatedPersonAndPollWithDeps,
   buildBlockchainArtifactBundleFromSearchResponse,
   buildVitalSignBatchCommunicationFromSearchResponse,
+  buildClinicalSectionUpdateIngestion,
+  buildClinicalSummaryUpdateIngestion,
   GwCoreLifecycleRequestMethod,
   GwCoreLifecycleRequestType,
 } from '../dist/index.js';
@@ -1187,6 +1190,43 @@ test('requestClinicalSummaryWithDeps reads Subject/$summary through Communicatio
     types: ['AllergyIntolerance'],
     date: { start: '2026-07-01', end: '2026-07-31' },
   }), 1);
+});
+
+test('clinical update builders keep one-section and multi-section boundaries explicit', () => {
+  // Step 1. A section update carries one batch/collection plus its exact
+  // Composition section on the outer Communication.
+  const sectionUpdate = buildClinicalSectionUpdateIngestion({
+    subject: EXAMPLE_SUBJECT_DID,
+    sender: EXAMPLE_SUBJECT_DID,
+    section: HealthcareBasicSections.VitalSigns.attributeValue,
+    bundle: {
+      resourceType: 'Bundle',
+      type: 'collection',
+      data: [{ resource: { resourceType: 'Observation', id: 'vital-sign-1' } }],
+    },
+  });
+  const sectionClaims = sectionUpdate.communicationJob.payload.body.data[0].resource.meta.claims;
+  assert.equal(sectionClaims['Composition.section'], HealthcareBasicSections.VitalSigns.attributeValue);
+
+  // Step 2. A summary update accepts only a Composition-first document.
+  const summaryUpdate = buildClinicalSummaryUpdateIngestion({
+    subject: EXAMPLE_SUBJECT_DID,
+    sender: EXAMPLE_SUBJECT_DID,
+    bundle: {
+      resourceType: 'Bundle',
+      type: 'document',
+      entry: [{ resource: { resourceType: 'Composition', status: 'final' } }],
+    },
+  });
+  assert.equal(summaryUpdate.communicationJob.status, 'ready');
+
+  assert.throws(
+    () => buildClinicalSummaryUpdateIngestion({
+      subject: EXAMPLE_SUBJECT_DID,
+      bundle: { resourceType: 'Bundle', type: 'batch', data: [] },
+    }),
+    /Bundle\.type=document/i,
+  );
 });
 
 test('requestClinicalSummaryWithDeps rejects a completed response without a document Bundle', async () => {

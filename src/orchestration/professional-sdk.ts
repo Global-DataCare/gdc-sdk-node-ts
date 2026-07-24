@@ -23,8 +23,10 @@ import type {
   CommunicationIngestionInput,
   CommunicationParticipantRuntimeSearchInput,
   ClinicalBundleSearchInput,
+  ClinicalSectionUpdateInput,
   ClinicalSummaryReadResult,
   ClinicalSummaryRequestInput,
+  ClinicalSummaryUpdateInput,
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
   VitalSignBatchCommunicationFromSearchResponseInput,
@@ -130,6 +132,16 @@ export class ProfessionalSdk {
    */
   public ingestCommunicationAndUpdateIndex(ctx: RouteContext, input: CommunicationIngestionInput): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /** Updates one consent-authorized clinical section through a scoped batch/collection. */
+  public updateClinicalSection(ctx: RouteContext, input: ClinicalSectionUpdateInput): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'updateClinicalSection')(ctx, input);
+  }
+
+  /** Updates a consent-authorized multi-section summary document. */
+  public updateClinicalSummary(ctx: RouteContext, input: ClinicalSummaryUpdateInput): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'updateClinicalSummary')(ctx, input);
   }
 
   /**

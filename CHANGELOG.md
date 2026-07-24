@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.3.5] - 2026-07-24
+
+- Added `updateClinicalSection(...)` for one explicitly scoped
+  batch/collection and `updateClinicalSummary(...)` for Composition-first
+  multi-section document updates across clinical actor facades.
+- Raised the SDK dependency baseline to `gdc-common-utils-ts@^2.3.6` and
+  `gdc-sdk-core-ts@~2.3.4`.
+
 ## [2.3.4] - 2026-07-23
 
 ### Changed
