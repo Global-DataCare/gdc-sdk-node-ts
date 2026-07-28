@@ -662,19 +662,21 @@ const authority = await authorityResolver.resolveAuthority({
 const organizationDid = authority.tenantDidWeb!;
 
 const emailProfessional = 'doctor@example.org';
+const professionalRole =
+  HealthcareActorRoles.GeneralistMedicalPractitioner;
 
-const professionalDid = buildProfessionalDidWeb({
+const professionalActorDid = buildProfessionalDidWeb({
   organizationDidWeb: organizationDid,
   email: emailProfessional,
-  role: HealthcareActorRoles.Physician,
+  role: professionalRole,
 });
 
 await professionalSdk.createOrganizationEmployee(tenantContext, {
   employeeClaims: {
     '@context': 'org.schema',
-    [ClaimsPersonSchemaorg.identifier]: professionalDid,
+    [ClaimsPersonSchemaorg.identifier]: professionalActorDid,
     [ClaimsPersonSchemaorg.email]: emailProfessional,
-    [ClaimsPersonSchemaorg.hasOccupationalRoleValue]: HealthcareActorRoles.Physician,
+    [ClaimsPersonSchemaorg.hasOccupationalRoleValue]: professionalRole,
     [ClaimsPersonSchemaorg.memberOfOrgTaxId]: tenantContext.tenantId,
   },
 });
@@ -686,7 +688,7 @@ Where each value comes from:
   provider/organization lineage
 - `emailProfessional`
   directory or HR/admin input
-- `professionalDid`
+- `professionalActorDid`
   canonical professional DID built from organization lineage and role
 - `employeeClaims`
   flattened claim view expected by the current runtime
@@ -709,22 +711,31 @@ await professionalSdk.activateEmployeeDeviceWithActivationRequest({
 ### 6.6 Request a SMART token for subject access
 
 ```ts
-const subjectDid = buildIndividualDidWeb({
-  organizationDidWeb: organizationDid,
-  subjectId: 'subject-001',
+const subjectDid = '<subject-did-returned-by-individual-onboarding>';
+const consentActions = [
+  HealthcareConsentActions.PatientSummaryDocument,
+  HealthcareConsentActions.AllergiesAndIntolerances,
+];
+const clientId = 'did:web:portal.example.org:acme';
+const vpToken = professionalSdk.buildUnsignedIdentityVpJwt({
+  clientId,
+  actorDid: professionalActorDid,
+  email: emailProfessional,
+  role: professionalRole,
 });
 
 const token = await professionalSdk.requestSmartToken({
-  actorDid: professionalDid,
-  clientId: 'did:web:portal.example.org:acme',
+  actorDid: professionalActorDid,
+  clientId,
   subjectDid,
   idToken: '<openid4vp-id-token>',
-  vpToken: '<openid4vp-vp-token>',
+  vpToken,
+  purpose: HealthcareConsentPurposes.Treatment,
   smartTokenKind: 'openid-smart',
   scopes: [
     buildSmartCompositionReadScope({
       subjectDid,
-      sections: HealthcareBasicSections.PatientSummaryDocument.claim,
+      sections: consentActions,
     }),
   ],
 });
@@ -937,18 +948,20 @@ individual bootstrap does not synthesize `Organization.addressCountry`.
 ### 7.5 Create a permission for a professional
 
 ```ts
-const emailProfessional = 'doctor@example.org';
-
 await individualSdk.grantProfessionalAccess(tenantContext, {
   subjectDid,
-  actorId: emailProfessional,
-  actorRole: HealthcareActorRoles.Physician,
+  actorId: professionalActorDid,
+  actorRole: professionalRole,
   purpose: HealthcareConsentPurposes.Treatment,
-  actions: [HealthcareConsentActions.PatientSummaryDocument],
+  actions: consentActions,
 });
 ```
 
 This is the minimum permission-grant example most new integrators need first.
+The grant, professional VP and SMART request must reuse the exact same
+`professionalActorDid`. A previous email-addressed grant must be recreated for
+that DID. Do not append `organization/Consent.cruds` to the clinical scope
+unless another rule grants that capability.
 
 ### 7.6 Disable the hosted individual
 

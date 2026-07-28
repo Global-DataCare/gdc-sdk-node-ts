@@ -194,6 +194,12 @@ export type HttpRuntimeClientOptions = {
   communicationFormatRenderers?: CommunicationClinicalFormatRenderers;
   /** Injectable fetch implementation for BFF adapters and deterministic tests. */
   fetchImpl?: typeof fetch;
+  /**
+   * Optional trusted provider-index/DID resolver for subject-scoped SMART
+   * requests. The runtime uses the resolved endpoint for transport and JWT
+   * audience; application-level callers do not need to pass `audience`.
+   */
+  smartTokenEndpointResolver?: (subjectDid: string) => Promise<string | undefined>;
 };
 
 /**
@@ -221,6 +227,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   private readonly secureTransportAdapter?: SecureDidcommTransportAdapter;
   private readonly communicationFormatRenderers: CommunicationClinicalFormatRenderers;
   private readonly fetchImpl?: typeof fetch;
+  private readonly smartTokenEndpointResolver?: (subjectDid: string) => Promise<string | undefined>;
   private readonly httpTraceFile?: string;
   private readonly tokenCache = new Map<string, { accessToken: string; tokenType: string; scopes: string[]; expiresAt: number }>();
   private readonly paths: RuntimeClientPaths;
@@ -264,6 +271,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     this.secureTransportAdapter = options.secureTransportAdapter;
     this.communicationFormatRenderers = options.communicationFormatRenderers || {};
     this.fetchImpl = options.fetchImpl;
+    this.smartTokenEndpointResolver = options.smartTokenEndpointResolver;
     this.httpTraceFile = String(process.env.SDK_HTTP_TRACE_FILE || '').trim() || undefined;
     this.paths = new RuntimeClientPaths(this.ctx);
   }
@@ -1095,6 +1103,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       identityTokenExchangePollPath: this.paths.identityTokenExchangePollPath.bind(this.paths),
       identityOpenIdSmartTokenPath: this.paths.identityOpenIdSmartTokenPath.bind(this.paths),
       identityOpenIdSmartTokenPollPath: this.paths.identityOpenIdSmartTokenPollPath.bind(this.paths),
+      resolveSmartTokenEndpoint: this.smartTokenEndpointResolver,
       submitAndPoll: this.submitAndPoll.bind(this),
       setTokenCache: (tokenCacheKey, token) => this.tokenCache.set(tokenCacheKey, token),
     });

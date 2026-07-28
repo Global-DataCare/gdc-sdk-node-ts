@@ -43,7 +43,7 @@ import {
   EXAMPLE_CONTROLLER_BINDING,
   EXAMPLE_DEVICE_CLIENT_ID,
   EXAMPLE_EMAIL_PROFESSIONAL,
-  EXAMPLE_HEALTHCARE_ACTOR_ROLE_PHYSICIAN,
+  EXAMPLE_HEALTHCARE_ACTOR_ROLE_GENERALIST_MEDICAL_PRACTITIONER,
   EXAMPLE_HOSTED_PROVIDER_DID,
   EXAMPLE_JURISDICTION,
   EXAMPLE_LIVE_CONSENT_GRANT_INPUT,
@@ -78,6 +78,7 @@ import {
   buildProfessionalDidWeb,
   buildUnsignedProfessionalSmartVpJwt,
   BundleReader,
+  HealthcareConsentActions,
   createJwtSigner,
   createVP,
   createLegalOrganizationOnboardingEditor,
@@ -271,7 +272,10 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
   const serviceUrl = env('SERVICE_URL', 'https://provider.example.org');
   const signatureFlow = env('LEGAL_ORG_SIGNATURE_FLOW', 'certificate').toLowerCase();
   const employeeEmail = env('EMPLOYEE_EMAIL', EXAMPLE_EMAIL_PROFESSIONAL);
-  const employeeRole = env('EMPLOYEE_ROLE', EXAMPLE_HEALTHCARE_ACTOR_ROLE_PHYSICIAN);
+  const employeeRole = env(
+    'EMPLOYEE_ROLE',
+    EXAMPLE_HEALTHCARE_ACTOR_ROLE_GENERALIST_MEDICAL_PRACTITIONER,
+  );
   const professionalActorDid = env(
     'PROFESSIONAL_ACTOR_DID',
     buildProfessionalDidWeb({
@@ -287,7 +291,10 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     'INDIVIDUAL_ALTERNATE_NAME',
     `${runSlug}-${EXAMPLE_REGISTERED_SUBJECT_ALTERNATE_NAME}`,
   );
-  const consentSection = env('SMART_SCOPE_SECTION', 'patient-summary');
+  const consentSection = env(
+    'SMART_SCOPE_SECTION',
+    HealthcareConsentActions.AllergiesAndIntolerances,
+  );
   const controllerVpAudience = env('CONTROLLER_VP_AUDIENCE', `host:${suiteHostIdentifierValue}`);
   const controllerSigner = await createJwtSigner({
     alg: env('CONTROLLER_SIGNER_ALG', 'ES384'),

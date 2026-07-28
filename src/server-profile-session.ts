@@ -7,6 +7,7 @@ import type { ConfidentialStorageProfile, WalletExecutionContext } from 'gdc-sdk
 import { NodeManagedWallet } from './node-managed-wallet.js';
 import { NodeHttpClient } from './node-runtime-client.js';
 import type { RouteContext } from './individual-onboarding.js';
+import { buildIdentityOpenIdSmartTokenPath } from './runtime-paths.js';
 import type { SecureDidcommTransportAdapter } from 'gdc-sdk-core-ts';
 import {
   ProfilePinRejectedError,
@@ -213,14 +214,18 @@ export class ServerProfileSessionManager {
     }
     profile = await this.ensureRequiredStorageProfile(profile, seed);
     const wallet = await this.createWallet(profile.profileId, seed);
-    const assertion = await buildWalletClientAssertion(wallet, profile, this.options.gatewayBaseUrl, now);
+    const smartTokenEndpoint = [
+      this.options.gatewayBaseUrl.replace(/\/+$/, ''),
+      buildIdentityOpenIdSmartTokenPath(profile.routeContext),
+    ].join('');
+    const assertion = await buildWalletClientAssertion(wallet, profile, smartTokenEndpoint, now);
     const token = await this.createClient(profile.routeContext, input.idToken).requestSmartToken({
       ...profile.routeContext,
       actorDid: profile.actorDid,
       subjectDid: input.subjectDid,
       clientId: profile.clientId,
       issuer: profile.clientId,
-      audience: this.options.gatewayBaseUrl,
+      audience: smartTokenEndpoint,
       idToken: input.idToken,
       vpToken,
       clientAssertion: assertion,

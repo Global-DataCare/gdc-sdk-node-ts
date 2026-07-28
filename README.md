@@ -66,43 +66,46 @@ If you are integrating this package for the first time, open these in order:
 1. [gdc-sdk-core-ts/docs/101-SDK_PACKAGE_BOUNDARIES.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-SDK_PACKAGE_BOUNDARIES.md)
    Why `core`, `node`, and `front` are separate packages, what belongs in each
    one, and why actor-scoped facades must stay aligned across runtimes.
-1. [docs/101-SDK_END_TO_END.md](./docs/101-SDK_END_TO_END.md)
+2. [docs/101-SDK_END_TO_END.md](./docs/101-SDK_END_TO_END.md)
   Ordered onboarding guide with end-to-end journeys, copy/paste snippets, and
   the recommended reading path for new backend integrators.
-2. [docs/101-SDK_INTEGRATION.md](./docs/101-SDK_INTEGRATION.md)
+3. [docs/101-PROFESSIONAL-CONSENT-SMART.md](./docs/101-PROFESSIONAL-CONSENT-SMART.md)
+   Canonical professional DID, consent, VP and SMART flow without literal
+   sections or caller-built audience URLs.
+4. [docs/101-SDK_INTEGRATION.md](./docs/101-SDK_INTEGRATION.md)
    Real backend setup plus the public runtime entrypoints:
    `HostOnboardingSdk`, `OrganizationControllerSdk`,
    `IndividualControllerSdk`, `ProfessionalSdk`, route-context usage, and the
    canonical `ProfileRuntime -> loadProfile(...) -> workspace/session -> actor facade -> submit/poll` shape.
-3. [tests/101-live-full-cycle-bff-runtime.e2e.test.mjs](./tests/101-live-full-cycle-bff-runtime.e2e.test.mjs)
+5. [tests/101-live-full-cycle-bff-runtime.e2e.test.mjs](./tests/101-live-full-cycle-bff-runtime.e2e.test.mjs)
    Canonical live backend/BFF walkthrough on a fresh local GW lifecycle:
    host/tenant activation, employee provisioning, individual bootstrap,
    consent grant, professional SMART token, clinical read, and final cleanup.
-4. [docs/101-LIVE_GW_LOCAL.md](./docs/101-LIVE_GW_LOCAL.md)
+6. [docs/101-LIVE_GW_LOCAL.md](./docs/101-LIVE_GW_LOCAL.md)
    Exact TTY/local/Docker commands for running the SDK against a real local GW
    CORE, including tenant bootstrap and employee-seat setup.
-5. [docs/101-DISCOVERY.md](./docs/101-DISCOVERY.md)
+7. [docs/101-DISCOVERY.md](./docs/101-DISCOVERY.md)
    Node/BFF dataspace discovery, hosting-operator resolution, provider
    resolution, and the correct integration boundary for fallback and cache.
-6. [gdc-sdk-core-ts/docs/101-SDK_FLOWS.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-SDK_FLOWS.md)
+8. [gdc-sdk-core-ts/docs/101-SDK_FLOWS.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-SDK_FLOWS.md)
    Actor split and business-flow map across organization, individual,
    permissions, invitation, import, and SMART flows.
-7. [gwtemplate-node-ts/docs/PORTAL_API_TO_GW_CORE.md](https://github.com/Global-DataCare/gwtemplate-node-ts/blob/main/docs/PORTAL_API_TO_GW_CORE.md)
+9. [gwtemplate-node-ts/docs/PORTAL_API_TO_GW_CORE.md](https://github.com/Global-DataCare/gwtemplate-node-ts/blob/main/docs/PORTAL_API_TO_GW_CORE.md)
    Canonical portal/BFF functional map over GW CORE, including the domain
    split between `employees`, `related persons`, `members`, and `consents`.
-8. [gdc-common-utils-ts/src/examples/](https://github.com/Global-DataCare/gdc-common-utils-ts/tree/main/src/examples)
+10. [gdc-common-utils-ts/src/examples/](https://github.com/Global-DataCare/gdc-common-utils-ts/tree/main/src/examples)
    Shared payload values used by the docs and tests.
-9. [gdc-common-utils-ts/docs/101-LIFECYCLE.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/101-LIFECYCLE.md)
+11. [gdc-common-utils-ts/docs/101-LIFECYCLE.md](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/docs/101-LIFECYCLE.md)
    Canonical `enable/disable/delete` semantics and copy/paste placeholders.
-10. [tests/101-backend-profile-runtime.test.mjs](./tests/101-backend-profile-runtime.test.mjs)
+12. [tests/101-backend-profile-runtime.test.mjs](./tests/101-backend-profile-runtime.test.mjs)
    Technical runtime slice for profile/device/session orchestration internals.
    Read this after the public actor SDK guides, not before them.
-11. [tests/101-individual-controller-backend-runtime.test.mjs](./tests/101-individual-controller-backend-runtime.test.mjs)
+13. [tests/101-individual-controller-backend-runtime.test.mjs](./tests/101-individual-controller-backend-runtime.test.mjs)
    Technical wrapper slice around the generic profile runtime. This is not the
    main onboarding path for new integrators.
-12. [docs/V2_INDIVIDUAL_REGISTRATION_RECONCILIATION.md](./docs/V2_INDIVIDUAL_REGISTRATION_RECONCILIATION.md)
+14. [docs/V2_INDIVIDUAL_REGISTRATION_RECONCILIATION.md](./docs/V2_INDIVIDUAL_REGISTRATION_RECONCILIATION.md)
    Historical reconciliation note for the current CORE registration baseline.
-13. [docs/NEXT_STEPS.md](./docs/NEXT_STEPS.md)
+15. [docs/NEXT_STEPS.md](./docs/NEXT_STEPS.md)
    Follow-up scope after GW CORE live validation, including the future user job
    manager boundary.
 

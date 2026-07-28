@@ -1,3 +1,8 @@
+/**
+ * Flow contract: the trusted Node runtime resolves the concrete provider SMART
+ * endpoint, uses it for both transport and JWT audience, and honors an explicit
+ * compatibility audience without allowing application code to poison discovery.
+ */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -63,7 +68,95 @@ test('requestSmartTokenWithDeps uses openid-smart flow when requested', async ()
   assert.equal(calls[0][0], '/acme-id/cds-ES/v1/health-care/identity/openid/smart/token');
   assert.equal(calls[0][2].body.client_id, 'device-1');
   assert.equal(calls[0][2].body.vp_token, EXAMPLE_OPENID_SMART_TOKEN_INPUT.vpToken);
+  assert.equal(
+    calls[0][2].aud,
+    'http://localhost:3000/acme-id/cds-ES/v1/health-care/identity/openid/smart/token',
+  );
   assert.equal(result.accessToken, 'smart-token-openid-001');
+});
+
+test('requestSmartTokenWithDeps resolves the SMART audience from the subject provider when configured', async () => {
+  const calls = [];
+  const resolvedSubjects = [];
+  await requestSmartTokenWithDeps({
+    input: cloneExample(EXAMPLE_OPENID_SMART_TOKEN_INPUT),
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    baseUrl: 'https://configured-gateway.example',
+    resolveSmartTokenEndpoint: async (subjectDid) => {
+      resolvedSubjects.push(subjectDid);
+      return 'https://resolved-provider.example/tenant/identity/openid/smart/token';
+    },
+    identityTokenExchangePath: () => '/unused',
+    identityTokenExchangePollPath: () => '/unused',
+    identityOpenIdSmartTokenPath: () => '/configured/identity/openid/smart/token',
+    identityOpenIdSmartTokenPollPath: () => '/configured/identity/openid/smart/_batch-response',
+    submitAndPoll: async (...args) => {
+      calls.push(args);
+      return cloneExample(EXAMPLE_SMART_TOKEN_RESPONSE);
+    },
+    setTokenCache: () => {},
+  });
+
+  assert.deepEqual(resolvedSubjects, [EXAMPLE_OPENID_SMART_TOKEN_INPUT.subjectDid]);
+  assert.equal(
+    calls[0][0],
+    'https://resolved-provider.example/tenant/identity/openid/smart/token',
+  );
+  assert.equal(
+    calls[0][1],
+    'https://resolved-provider.example/tenant/identity/openid/smart/_batch-response',
+  );
+  assert.equal(
+    calls[0][2].aud,
+    'https://resolved-provider.example/tenant/identity/openid/smart/token',
+  );
+});
+
+test('requestSmartTokenWithDeps preserves an explicit compatibility audience without discovery', async () => {
+  const calls = [];
+  let resolverCalled = false;
+  await requestSmartTokenWithDeps({
+    input: {
+      ...cloneExample(EXAMPLE_OPENID_SMART_TOKEN_INPUT),
+      audience: 'https://explicit.example/identity/openid/smart/token',
+    },
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    baseUrl: 'https://configured-gateway.example',
+    resolveSmartTokenEndpoint: async () => {
+      resolverCalled = true;
+      return 'https://unexpected.example/identity/openid/smart/token';
+    },
+    identityTokenExchangePath: () => '/unused',
+    identityTokenExchangePollPath: () => '/unused',
+    identityOpenIdSmartTokenPath: () => '/configured/identity/openid/smart/token',
+    identityOpenIdSmartTokenPollPath: () => '/configured/identity/openid/smart/_batch-response',
+    submitAndPoll: async (...args) => {
+      calls.push(args);
+      return cloneExample(EXAMPLE_SMART_TOKEN_RESPONSE);
+    },
+    setTokenCache: () => {},
+  });
+
+  assert.equal(resolverCalled, false);
+  assert.equal(calls[0][2].aud, 'https://explicit.example/identity/openid/smart/token');
+});
+
+test('requestSmartTokenWithDeps rejects a discovered URL that is not a SMART token endpoint', async () => {
+  await assert.rejects(
+    requestSmartTokenWithDeps({
+      input: cloneExample(EXAMPLE_OPENID_SMART_TOKEN_INPUT),
+      routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+      baseUrl: 'https://configured-gateway.example',
+      resolveSmartTokenEndpoint: async () => 'https://untrusted.example/not-smart',
+      identityTokenExchangePath: () => '/unused',
+      identityTokenExchangePollPath: () => '/unused',
+      identityOpenIdSmartTokenPath: () => '/configured/identity/openid/smart/token',
+      identityOpenIdSmartTokenPollPath: () => '/configured/identity/openid/smart/_batch-response',
+      submitAndPoll: async () => cloneExample(EXAMPLE_SMART_TOKEN_RESPONSE),
+      setTokenCache: () => {},
+    }),
+    /must target \/identity\/openid\/smart\/token/,
+  );
 });
 
 test('requestSmartTokenWithDeps can auto-build client_assertion for openid-smart flow', async () => {

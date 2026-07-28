@@ -101,6 +101,13 @@ type RequestSmartTokenDeps = {
   identityTokenExchangePollPath: (ctx: RouteContext) => string;
   identityOpenIdSmartTokenPath: (ctx: RouteContext) => string;
   identityOpenIdSmartTokenPollPath: (ctx: RouteContext) => string;
+  /**
+   * Trusted runtime resolver for the provider that owns the subject.
+   *
+   * Product code may back this with an index/DID discovery adapter. The
+   * high-level caller does not receive or manage the resolver's cache.
+   */
+  resolveSmartTokenEndpoint?: (subjectDid: string) => Promise<string | undefined>;
   submitAndPoll: (
     submitPath: string,
     pollPath: string,
@@ -145,7 +152,19 @@ export async function requestSmartTokenWithDeps(
   if (deps.input.smartTokenKind === 'openid-smart') {
     const actorDid = String(deps.input.actorDid || '').trim() || undefined;
     const resolvedClientId = deps.input.clientId || actorDid || deps.input.subjectDid || deps.routeCtx.tenantId;
-    const resolvedAudience = deps.input.audience || deps.routeCtx.tenantId;
+    const configuredSubmitPath = deps.identityOpenIdSmartTokenPath(deps.routeCtx);
+    const configuredPollPath = deps.identityOpenIdSmartTokenPollPath(deps.routeCtx);
+    const explicitAudience = String(deps.input.audience || '').trim();
+    const subjectDid = String(deps.input.subjectDid || '').trim();
+    const discoveredEndpoint = !explicitAudience && subjectDid && deps.resolveSmartTokenEndpoint
+      ? normalizeResolvedSmartTokenEndpoint(await deps.resolveSmartTokenEndpoint(subjectDid))
+      : undefined;
+    const configuredEndpoint = joinRuntimeUrl(deps.baseUrl, configuredSubmitPath);
+    const resolvedAudience = explicitAudience || discoveredEndpoint || configuredEndpoint;
+    const submitPath = discoveredEndpoint || configuredSubmitPath;
+    const pollPath = discoveredEndpoint
+      ? smartTokenPollEndpointFromTokenEndpoint(discoveredEndpoint)
+      : configuredPollPath;
     const clientAssertion = await resolveClientAssertion({
       clientAssertion: deps.input.clientAssertion,
       clientAssertionBuilder: deps.input.clientAssertionBuilder,
@@ -179,8 +198,8 @@ export async function requestSmartTokenWithDeps(
     };
 
     const exchange = await deps.submitAndPoll(
-      deps.identityOpenIdSmartTokenPath(deps.routeCtx),
-      deps.identityOpenIdSmartTokenPollPath(deps.routeCtx),
+      submitPath,
+      pollPath,
       smartPayload,
       pollOptions,
     );
@@ -207,6 +226,37 @@ export async function requestSmartTokenWithDeps(
   );
 
   return resolveTokenExchangeResult(exchange, normalizedScopes, tokenCacheKey, deps.setTokenCache);
+}
+
+function joinRuntimeUrl(baseUrl: string, path: string): string {
+  return `${String(baseUrl || '').replace(/\/+$/, '')}/${String(path || '').replace(/^\/+/, '')}`;
+}
+
+function normalizeResolvedSmartTokenEndpoint(value: string | undefined): string | undefined {
+  const normalized = String(value || '').trim();
+  if (!normalized) return undefined;
+  let endpoint: URL;
+  try {
+    endpoint = new URL(normalized);
+  } catch {
+    throw new Error('Resolved SMART token endpoint must be an absolute HTTP(S) URL.');
+  }
+  if (!['http:', 'https:'].includes(endpoint.protocol)) {
+    throw new Error('Resolved SMART token endpoint must use HTTP(S).');
+  }
+  if (!endpoint.pathname.endsWith('/identity/openid/smart/token')) {
+    throw new Error('Resolved SMART token endpoint must target /identity/openid/smart/token.');
+  }
+  return endpoint.toString();
+}
+
+function smartTokenPollEndpointFromTokenEndpoint(tokenEndpoint: string): string {
+  const endpoint = new URL(tokenEndpoint);
+  endpoint.pathname = endpoint.pathname.replace(
+    /\/identity\/openid\/smart\/token$/,
+    '/identity/openid/smart/_batch-response',
+  );
+  return endpoint.toString();
 }
 
 async function resolveClientAssertion(input: {

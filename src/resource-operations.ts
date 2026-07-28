@@ -418,15 +418,19 @@ export type GrantProfessionalAccessInput = {
   /**
    * Canonical flat actor identifier for the actor receiving the permission.
    *
-   * Preferred input forms:
-   * - `did:web:...`
+   * Canonical professional grant input:
+   * - the exact `did:web:...:employee:<multibase>:<role>` actor DID reused by
+   *   the employee profile, VP credential subject and SMART request
+   *
+   * Compatibility input forms:
    * - `user@example.org`
    * - `tel:+34600111222`
    * - `ES`
    * - comma-separated lists or string arrays of those tokens
    *
-   * A legacy structured object is still accepted for compatibility, but new
-   * integrations should send canonical strings or string arrays.
+   * Email/phone targets and legacy structured objects remain accepted for
+   * compatibility, but they do not automatically authorize a later SMART
+   * request made with a different derived professional DID.
    */
   actorId?: ConsentActorTargetInput;
   /**
