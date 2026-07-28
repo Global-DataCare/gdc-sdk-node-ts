@@ -55,6 +55,11 @@ export class ProfessionalSdk {
    * - `subjectDid`
    * - requested `scopes`
    *
+   * The actor DID must be the same identifier used by the consent grant and
+   * the professional VP. High-level callers omit `audience`; the runtime
+   * resolves the subject provider's SMART endpoint or uses the exact endpoint
+   * of its configured GW route.
+   *
    * Tenant route context can be inherited from the configured
    * `NodeHttpClient({ ctx })` instead of being repeated on every call.
    */

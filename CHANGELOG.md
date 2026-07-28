@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.3.6] - 2026-07-28
+
+### Fixed
+
+- Resolve a trusted subject-provider SMART endpoint when configured and use it
+  for both transport and JWT audience; otherwise derive the exact audience from
+  the configured GW route instead of falling back to a tenant id or base URL.
+- Make server-profile client assertions target the exact SMART token endpoint.
+- Align professional examples around one derived actor DID reused by Consent,
+  VP and SMART, remove ungranted `Consent.cruds` scopes, and add an executable
+  professional-access 101.
+
+### Changed
+
+- Raise dependencies to `gdc-common-utils-ts@^2.3.8` and
+  `gdc-sdk-core-ts@~2.3.5`.
+
 ## [2.3.5] - 2026-07-24
 
 - Added `updateClinicalSection(...)` for one explicitly scoped
