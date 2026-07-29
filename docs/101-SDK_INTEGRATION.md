@@ -562,17 +562,18 @@ SDK:
 
 ### IPS/FHIR ingestion
 
-SDK:
+Backend/BFF SDK only:
 
 - `importIpsOrFhirAndUpdateIndex(...)`
 - `ingestCommunicationAndUpdateIndex(...)`
 
 ### Related person
 
-SDK:
+Browser authoring plus backend execution:
 
 - typed `BundleEditor` RelatedPerson entries
-- `ingestCommunicationAndUpdateIndex(...)` after attaching the completed
+- browser submits the completed command Bundle to its authenticated BFF
+- backend calls `ingestCommunicationAndUpdateIndex(...)` after attaching that
   Bundle to a Communication outbox job
 
 Lifecycle note:

@@ -1034,9 +1034,11 @@ contacts
   .setTelecom(`mailto:${existingRelationship.email}`)
   .doneEntry();
 
-// The front may send after this one edit, or add more contacts first.
+// The browser may stop after this edit or add more contacts before sending the
+// command Bundle to its authenticated BFF.
 const contactsBundle = contacts.buildJsonApi();
 
+// Backend/BFF only from this point onward.
 let communicationDraft = createCommMsgExtendedDraft({
   subject: subjectDid,
   sender: subjectDid,
@@ -1050,7 +1052,7 @@ communicationDraft = attachBundleToCommMsgExtendedDraft(
 const communicationJob =
   createCommunicationOutboxJobFromCommMsgExtendedDraft(communicationDraft);
 
-await individualSdk.ingestCommunicationAndUpdateIndex(tenantContext, {
+await backendIndividualSdk.ingestCommunicationAndUpdateIndex(tenantContext, {
   communicationJob,
 });
 ```
@@ -1546,7 +1548,7 @@ Individual/family today:
 
 Member and consent boundaries:
 
-- typed RelatedPerson Bundle authoring followed by
+- typed RelatedPerson Bundle authoring in the UI, followed in the backend by
   `ingestCommunicationAndUpdateIndex(...)` manages the
   membership/caregiver record
 - `disableIndividualMember(...)` and `purgeIndividualMember(...)`
