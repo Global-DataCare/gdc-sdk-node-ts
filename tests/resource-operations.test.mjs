@@ -503,7 +503,7 @@ test('individual member license helpers keep add, FHIR-role issue and acceptance
   // RelatedPerson and role while preserving separate workflow identifiers.
   await issueIndividualMemberLicenseWithDeps(TEST_ROUTE_CTX, {
     ownerOrganizationId: 'individual-org-patricia',
-    subjectDid: 'did:web:unid.online:card:uhc:personal:patricia',
+    subjectDid: 'did:web:example.test:card:personal:patricia',
     relatedPersonId: 'related-fernando',
     invitationId: 'invite-fernando',
     role: 'v3-RoleCode|RESPRSN',
@@ -511,13 +511,13 @@ test('individual member license helpers keep add, FHIR-role issue and acceptance
   }, deps);
   assert.equal(calls[1][0], INDIVIDUAL_LICENSE_ISSUE_PATH);
   assert.equal(calls[1][2].body.data[0].meta.relatedPersonId, 'related-fernando');
-  assert.equal(calls[1][2].body.data[0].meta.subjectDid, 'did:web:unid.online:card:uhc:personal:patricia');
+  assert.equal(calls[1][2].body.data[0].meta.subjectDid, 'did:web:example.test:card:personal:patricia');
 
   // Step 3. Acceptance forwards the authenticated subject and verified
   // channel value so the GW does not treat the code as a bearer credential.
   await transitionIndividualMemberLicenseWithDeps(TEST_ROUTE_CTX, '_accept', {
     activationCode: 'lic-example',
-    subjectId: 'did:web:unid.online:person:fernando',
+    subjectId: 'did:web:example.test:person:fernando',
     verifiedActorIdentifier: '+34600111222',
   }, deps);
   assert.equal(calls[2][0], INDIVIDUAL_LICENSE_ACCEPT_PATH);
@@ -532,7 +532,7 @@ test('individual member issue helper rejects an ISCO professional before calling
   await assert.rejects(
     issueIndividualMemberLicenseWithDeps(TEST_ROUTE_CTX, {
       ownerOrganizationId: 'individual-org-patricia',
-      subjectDid: 'did:web:unid.online:card:uhc:personal:patricia',
+      subjectDid: 'did:web:example.test:card:personal:patricia',
       relatedPersonId: 'related-doctor',
       invitationId: 'invite-doctor',
       role: 'ISCO-08|2211',
