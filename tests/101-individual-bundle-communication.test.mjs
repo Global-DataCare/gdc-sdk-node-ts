@@ -2,7 +2,7 @@
  * Teaching goal:
  * - common-utils authors one Bundle containing one or several contact edits
  * - sdk-core turns the completed Bundle into one Communication outbox job
- * - sdk-node submits that job through the actor facade
+ * - sdk-node submits that job through the backend/BFF actor facade
  *
  * The direct `upsertRelatedPersonAndPoll` route is compatibility plumbing and
  * is deliberately absent from this 101.
@@ -34,7 +34,7 @@ import {
 
 import { IndividualControllerSdk } from '../dist/index.js';
 
-test('101: node actor facade submits a completed contact Bundle through Communication', async () => {
+test('101: backend node facade submits a completed contact Bundle through Communication', async () => {
   // Step 1. Author the semantic Bundle and choose the commit boundary.
   const contacts = new BundleEditor()
     .setBundleOperation(BundleOperations.create)
@@ -58,7 +58,7 @@ test('101: node actor facade submits a completed contact Bundle through Communic
   draft = attachBundleToCommMsgExtendedDraft(draft, contacts.buildJsonApi());
   const communicationJob = createCommunicationOutboxJobFromCommMsgExtendedDraft(draft);
 
-  // Step 3. The Node facade submits the already-authored intent.
+  // Step 3. The authenticated backend/BFF Node facade submits the intent.
   const calls = [];
   const sdk = new IndividualControllerSdk({
     async ingestCommunicationAndUpdateIndex(ctx, input) {

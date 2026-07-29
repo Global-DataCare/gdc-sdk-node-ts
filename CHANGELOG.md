@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.3.8] - 2026-07-29
+
+- Clarify every 101 ingestion snippet as authenticated backend/BFF execution.
+  Browser UI authors and renders the optimistic Bundle but never updates the
+  clinical index directly.
+- Consume Common Utils 2.3.10 and SDK Core 2.3.7.
+
 ## [2.3.7] - 2026-07-29
 
 - Re-export the Core coded-clinical authoring/display contract so Node and
