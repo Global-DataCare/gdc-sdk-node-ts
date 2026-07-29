@@ -31,7 +31,7 @@ function createClinicalOutboxJob() {
       resource: {
         resourceType: 'Composition',
         status: 'final',
-        subject: { reference: 'did:web:unid.online:card:uhc:personal:subject-1' },
+        subject: { reference: 'did:web:example.test:card:personal:subject-1' },
       },
     }],
   });
@@ -133,7 +133,7 @@ test('subject-scoped clinical search uses the same protected profile as ingestio
     fetchImpl: createFetchRecorder(TransportProfiles.DidcommEncryptedForm, calls),
   }));
   const result = await sdk.searchClinicalBundle(ctx, {
-    subject: 'did:web:unid.online:card:uhc:personal:subject-1',
+    subject: 'did:web:example.test:card:personal:subject-1',
     includedTypes: ['Composition', 'DocumentReference'],
   });
 

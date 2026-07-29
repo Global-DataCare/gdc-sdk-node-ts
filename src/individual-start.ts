@@ -65,7 +65,7 @@ export type IndividualOrganizationBootstrapInput = {
    *
    * Telephone-driven onboarding is not required by CORE GW. Keep this only for
    * deployments that add phone-first notification or consent extensions such as
-   * UNID GW.
+   * a product gateway extension.
    */
   controllerTelephone?: string;
   controllerRole?: string;

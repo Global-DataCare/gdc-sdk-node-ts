@@ -457,13 +457,13 @@ Use this package when your backend needs to:
 ## What This Package Does Not Own
 
 - the canonical invitation/OTP/PIN contract
-- UNID-specific reminder runtime semantics
+- application-specific reminder runtime semantics
 - frontend session UX
 
 Those belong to:
 
 - `gdc-sdk-core-ts` for shared contracts
-- runtime extensions such as UNID/UHC for product-specific behavior
+- runtime extensions for product-specific behavior
 - `gdc-sdk-front-ts` for frontend-facing consumption
 
 ## Minimal Examples

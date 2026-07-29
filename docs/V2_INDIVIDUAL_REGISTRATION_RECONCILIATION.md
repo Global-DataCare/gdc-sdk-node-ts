@@ -4,7 +4,7 @@
 
 This note reconciles the current individual/family registration baseline across:
 
-- legacy consumer flows such as `uhc-unid-chat-node`
+- legacy product-consumer flows
 - the current `gdc-sdk-node-ts` runtime
 - the current GW CORE behavior in `gwtemplate-node-ts`
 
@@ -55,9 +55,8 @@ And the current order confirmation remains:
 
 ## What The Legacy Consumer Was Doing
 
-In `uhc-unid-chat-node`, the old flow still submitted the registration as:
-
-- [uhc-unid-chat-node/src/infrastructure/gw-client/GwClientFacade.ts](</Users/fernando/GITS/gdc-workspace/uhc-unid-chat-node/src/infrastructure/gw-client/GwClientFacade.ts:181>)
+In a legacy product consumer, the old flow still submitted the registration
+through its gateway-client facade.
 
 Important observation:
 
@@ -119,9 +118,7 @@ Legacy consumer:
 - later requested subject data-plane SMART scopes including `Composition.rs`
 - then used that token for subject data-plane operations
 
-Relevant legacy anchor:
-
-- [uhc-unid-chat-node/src/infrastructure/gw-client/GwClientFacade.ts](</Users/fernando/GITS/gdc-workspace/uhc-unid-chat-node/src/infrastructure/gw-client/GwClientFacade.ts:243>)
+The relevant legacy anchor remains in that product's gateway-client facade.
 
 Current SDK baseline:
 
@@ -160,7 +157,7 @@ Those can extend the registration flow later, but they are not the base flow.
 For the next v2 backend work:
 
 1. keep individual registration based on the current CORE family flow
-2. treat `uhc-unid-chat-node` only as a consumer/reference
+2. treat legacy product applications only as consumers/references
 3. revalidate post-registration subject-index and SMART/token behavior against
    current GW CORE before wiring them as canonical adapters
 

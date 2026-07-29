@@ -1358,7 +1358,7 @@ state without inventing a section.
 Use `summary.document.resetFilters()` to return to an unfiltered immutable
 document view. `clearFilters()` remains available as a compatibility alias.
 
-UHC UNID applies this same document model in `IpsClinicalViewer`: section cards
+An application can apply this same document model in its clinical viewer: section cards
 come from `Composition.section`, the badge is the visible resource length, and
 global or per-section type/text/date filters narrow the in-memory card list.
 

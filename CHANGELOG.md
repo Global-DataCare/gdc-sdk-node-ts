@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.3.9] - 2026-07-30
+
+- Consume Common Utils 2.3.12 and Core 2.3.9.
+- Enforce product-neutral shared SDK source, tests and documentation before
+  publication.
+
 ## [2.3.8] - 2026-07-29
 
 - Clarify every 101 ingestion snippet as authenticated backend/BFF execution.
@@ -74,7 +80,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Completed the end-to-end clinical-summary 101 with section enumeration,
   declared counts, references, IDs, Bundle entries, filtered resource counts,
-  date/text queries and the UHC UNID screen mapping.
+  date/text queries and application screen mapping.
 - Reworked the individual-controller 101 around Communication `$summary`,
   section counts, resource resolution and section/type/date filters. Direct
   Bundle search/latest-IPS methods are documented as compatibility or

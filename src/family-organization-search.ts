@@ -34,7 +34,7 @@ type SearchFamilyOrganizationWithDeps = {
 
 /**
  * Searches one existing family/individual organization registration by the
- * current phone-first business key used by UHC/UNID channel flows.
+ * current phone-first business key used by extension channel flows.
  *
  * Returns one normalized summary when the registration exists, otherwise
  * `null`.
