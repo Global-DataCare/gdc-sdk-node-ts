@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.3.7] - 2026-07-29
+
+- Re-export the Core coded-clinical authoring/display contract so Node and
+  frontend consumers use the same name-preserving Bundle flow.
+
 ## [2.3.6] - 2026-07-28
 
 ### Fixed
