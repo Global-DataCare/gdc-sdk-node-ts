@@ -18,11 +18,28 @@ import type {
   ClinicalSummaryRequestInput,
   ClinicalSummaryUpdateInput,
   CommunicationIngestionInput,
+  IndividualMemberLicenseTransitionInput,
   RelatedPersonUpsertInput,
 } from '../resource-operations.js';
 
 export class IndividualMemberSdk {
   constructor(private readonly client: NodeRuntimeClient) {}
+
+  /**
+   * Accepts one controller-issued invitation as the authenticated individual
+   * member. The trusted runtime supplies the verified actor identifier; the
+   * invitation alone never widens later Consent-derived SMART scopes.
+   */
+  public acceptMemberInvitation(
+    ctx: RouteContext,
+    input: IndividualMemberLicenseTransitionInput,
+  ) {
+    return requireClientMethod(this.client, 'transitionIndividualMemberLicense')(
+      ctx,
+      '_accept',
+      input,
+    );
+  }
 
   /**
    * Compatibility adapter for the older direct `RelatedPerson` route.

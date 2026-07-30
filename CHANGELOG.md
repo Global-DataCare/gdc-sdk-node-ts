@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.3.10] - 2026-07-30
+
+- Add `IndividualMemberSdk.acceptMemberInvitation(...)` so invitation
+  acceptance is performed through the authenticated member facade.
+- Encode one-section batch/collection Communications with
+  `Communication.topic`.
+- Consume Common Utils 2.3.15 and Core 2.3.10.
+
 ## [2.3.9] - 2026-07-30
 
 - Consume Common Utils 2.3.12 and Core 2.3.9.
