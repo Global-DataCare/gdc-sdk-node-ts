@@ -6,6 +6,8 @@ import {
   EXAMPLE_INDIVIDUAL_CONTROLLER_IDENTITY,
   EXAMPLE_INDIVIDUAL_SUBJECT_IDENTITY,
   EXAMPLE_INDIVIDUAL_MEMBER_IDENTITY,
+  EXAMPLE_EMAIL_RELATED_PERSON,
+  EXAMPLE_OTP_CODE,
   EXAMPLE_PROFESSIONAL_IDENTITY,
   IndividualCredentialTypes,
   ProfessionalCredentialTypes,
@@ -111,6 +113,30 @@ test('ProfessionalSdk keeps role-scoped surface separation', () => {
   assert.equal(typeof ProfessionalSdk.prototype.activateEmployeeDeviceWithActivationRequest, 'undefined');
   assert.equal(typeof ProfessionalSdk.prototype.disableEmployee, 'undefined');
   assert.equal(typeof ProfessionalSdk.prototype.purgeEmployee, 'undefined');
+});
+
+test('IndividualMemberSdk accepts the controller invitation through its actor facade', async () => {
+  const calls = [];
+  const sdk = new IndividualMemberSdk({
+    async transitionIndividualMemberLicense(...args) {
+      calls.push(args);
+      return { submit: {}, poll: {} };
+    },
+  });
+
+  await sdk.acceptMemberInvitation({}, {
+    activationCode: EXAMPLE_OTP_CODE,
+    verifiedActorIdentifier: EXAMPLE_EMAIL_RELATED_PERSON,
+  });
+
+  assert.deepEqual(calls, [[
+    {},
+    '_accept',
+    {
+      activationCode: EXAMPLE_OTP_CODE,
+      verifiedActorIdentifier: EXAMPLE_EMAIL_RELATED_PERSON,
+    },
+  ]]);
 });
 
 test('ProfessionalSdk exposes canonical identity VC and VP helpers through the shared common-utils layer', () => {

@@ -4,7 +4,7 @@
 > - Teach here: the highest-level `sdk-node` actor/profile/runtime surface after shared authoring in `gdc-common-utils-ts`.
 > - Reuse lower-layer contracts from `sdk-core` and `common-utils` instead of re-teaching raw claims or low-level editors.
 > - For clinical payloads, teach either one explicit section as
->   `batch|collection + Communication Composition.section`, or several
+>   `batch|collection + Communication.topic`, or several
 >   sections as a document `Bundle` with `Composition` first.
 > - Read [101-README.md](./101-README.md) for the ordered path and keep actor role plus submit/poll explicit.
 

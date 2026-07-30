@@ -1194,7 +1194,8 @@ test('requestClinicalSummaryWithDeps reads Subject/$summary through Communicatio
 
 test('clinical update builders keep one-section and multi-section boundaries explicit', () => {
   // Step 1. A section update carries one batch/collection plus its exact
-  // Composition section on the outer Communication.
+  // The section-scoped batch/collection uses the canonical Communication
+  // topic claim. Composition.section remains inside document graphs.
   const sectionUpdate = buildClinicalSectionUpdateIngestion({
     subject: EXAMPLE_SUBJECT_DID,
     sender: EXAMPLE_SUBJECT_DID,
@@ -1206,7 +1207,8 @@ test('clinical update builders keep one-section and multi-section boundaries exp
     },
   });
   const sectionClaims = sectionUpdate.communicationJob.payload.body.data[0].resource.meta.claims;
-  assert.equal(sectionClaims['Composition.section'], HealthcareBasicSections.VitalSigns.attributeValue);
+  assert.equal(sectionClaims['Communication.topic'], HealthcareBasicSections.VitalSigns.attributeValue);
+  assert.equal('Composition.section' in sectionClaims, false);
 
   // Step 2. A summary update accepts only a Composition-first document.
   const summaryUpdate = buildClinicalSummaryUpdateIngestion({
