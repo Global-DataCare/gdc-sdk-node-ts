@@ -572,6 +572,29 @@ Reusable payload examples:
 - [gdc-common-utils-ts/src/examples/lifecycle.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/lifecycle.ts)
 - [gdc-common-utils-ts/src/examples/api-flow-examples.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/api-flow-examples.ts)
 
+## Local terminology route for Next.js
+
+`LocalTerminologyBffService` keeps complete JSON catalogs in the application
+BFF and returns only matching options:
+
+```ts
+const terminology = new LocalTerminologyBffService(catalogs);
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  return Response.json(terminology.search({
+    text: url.searchParams.get('text') || '',
+    language: url.searchParams.get('language') || 'en',
+    jurisdiction: url.searchParams.get('jurisdiction') || undefined,
+    systems: url.searchParams.getAll('system'),
+    limit: 20,
+  }));
+}
+```
+
+The application validates which systems are allowed for the specific coded
+form field. This MVP service performs no external terminology request.
+
 ## API Index
 
 ## Full Public Surface
