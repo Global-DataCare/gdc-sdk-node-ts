@@ -134,6 +134,80 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   );
 });
 
+test('server-only bootstrap seed and stable derivation id reproduce controller public keys', async () => {
+  const bootstrapSeed = Buffer.alloc(32, 7).toString('base64url');
+  const derivationId = 'organization-controller:cto@example.org:v1';
+  const enroll = async (profileId) => {
+    const deps = memoryDeps();
+    const responses = [
+      Response.json({}, { status: 202 }),
+      Response.json({ access_token: 'initial-access-token' }),
+      Response.json({}, { status: 202 }),
+      Response.json({ client_id: `client-${profileId}` }),
+    ];
+    const manager = new ServerProfileSessionManager({
+      ...deps,
+      gatewayBaseUrl: 'https://gw.example',
+      resolveRecipientJwk: async () => ({}),
+      fetchImpl: async () => responses.shift(),
+      profileProtection: { cost: 1_024 },
+    });
+    return manager.enroll({
+      ownerId: `owner-${profileId}`,
+      profileId,
+      walletSeed: bootstrapSeed,
+      walletKeyDerivationId: derivationId,
+      actorKind: ActorKinds.OrganizationController,
+      actorMode: 'controller',
+      actorDid: 'did:web:controller.example',
+      profileDid: 'did:web:controller.example',
+      providerDid: 'did:web:tenant.example',
+      routeContext: { tenantId: 'VATES-TEST', jurisdiction: 'ES', sector: 'health-research' },
+      allowedSubjectDids: ['did:web:tenant.example'],
+      pin: '123456',
+      idToken: 'id-token',
+      activationCode: 'activation-code',
+      vpToken: 'vp-token',
+    });
+  };
+  const first = await enroll('firebase-profile-a');
+  const second = await enroll('firebase-profile-b');
+  assert.equal(first.walletKeyDerivationId, derivationId);
+  assert.deepEqual(first.publicJwks, second.publicJwks);
+  assert.deepEqual(first.storagePublicJwk, second.storagePublicJwk);
+});
+
+test('server profile enrollment rejects malformed recovery seeds', async () => {
+  const deps = memoryDeps();
+  const manager = new ServerProfileSessionManager({
+    ...deps, gatewayBaseUrl: 'https://gw.example', resolveRecipientJwk: async () => ({}),
+  });
+  await assert.rejects(manager.enroll({
+    ownerId: 'owner', profileId: 'profile', walletSeed: 'not-a-32-byte-seed',
+    actorKind: ActorKinds.OrganizationController, actorMode: 'controller',
+    actorDid: 'did:web:actor', profileDid: 'did:web:profile', providerDid: 'did:web:provider',
+    routeContext: { tenantId: 'tenant', jurisdiction: 'ES', sector: 'health-research' },
+    allowedSubjectDids: ['did:web:tenant'], pin: '123456', idToken: 'id',
+    activationCode: 'code', vpToken: 'vp',
+  }), /32-byte base64url/);
+});
+
+test('server bootstrap derives public controller binding material without a gateway call', async () => {
+  const deps = memoryDeps();
+  const manager = new ServerProfileSessionManager({
+    ...deps, gatewayBaseUrl: 'https://gw.example', resolveRecipientJwk: async () => ({}),
+    fetchImpl: async () => { throw new Error('network must not be used'); },
+  });
+  const keys = await manager.prepareEnrollmentPublicKeys({
+    walletSeed: Buffer.alloc(32, 9).toString('base64url'),
+    walletKeyDerivationId: 'organization-controller:cto@example.org:v1',
+  });
+  const actorKey = keys.find((entry) => entry.purpose === 'actor-signing');
+  assert.equal(actorKey.alg, 'ES384');
+  assert.match(actorKey.kid, /^urn:ietf:params:oauth:jwk-thumbprint:sha-256:/);
+  assert.equal('d' in actorKey.publicJwk, false);
+});
+
 test('profile unlock rejects subjects outside the stored profile and rejects a bad PIN before host KMS', async () => {
   const deps = memoryDeps();
   const now = new Date('2026-07-16T12:00:00.000Z');

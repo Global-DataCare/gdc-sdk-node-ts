@@ -61,7 +61,7 @@ export async function recoverOrganizationControllerWithIssueWithDeps(
     deps.input.issuePollOptions,
   );
 
-  const activationCode = readActivationCodeFromIssueResult(issue);
+  const activationCode = readOrganizationIssueActivationCode(issue);
   if (!activationCode) {
     throw new Error('recoverOrganizationControllerWithIssue: missing org.schema.IndividualProduct.serialNumber in Organization/_issue response.');
   }
@@ -88,7 +88,8 @@ export async function recoverOrganizationControllerWithIssueWithDeps(
   };
 }
 
-function readActivationCodeFromIssueResult(result: SubmitAndPollResult): string {
+/** Reads the opaque activation code from a successful Organization/_issue poll result. */
+export function readOrganizationIssueActivationCode(result: SubmitAndPollResult): string {
   const pollBody = (result?.poll?.body || {}) as Record<string, unknown>;
   const body = ((pollBody.body as Record<string, unknown> | undefined) || pollBody);
   const data = Array.isArray(body.data) ? body.data : Array.isArray(pollBody.data) ? pollBody.data : [];
