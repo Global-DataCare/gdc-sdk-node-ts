@@ -138,6 +138,8 @@ test('confidential document fails closed for another storage profile and after t
   const protectedDoc = await wallet.protectManagedConfidentialData({ id: 'doc', content: { health: 'private' } }, first);
   await assert.rejects(wallet.unprotectManagedConfidentialData(protectedDoc, second));
   const parts = protectedDoc.jwe.split('.');
-  parts[3] = `${parts[3].slice(0, -1)}${parts[3].endsWith('A') ? 'B' : 'A'}`;
+  // Mutate a full ciphertext sextet. Changing the final base64url character can
+  // affect only unused padding bits and occasionally decode to identical bytes.
+  parts[3] = `${parts[3].startsWith('A') ? 'B' : 'A'}${parts[3].slice(1)}`;
   await assert.rejects(wallet.unprotectManagedConfidentialData({ ...protectedDoc, jwe: parts.join('.') }, first));
 });
