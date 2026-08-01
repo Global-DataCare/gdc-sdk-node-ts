@@ -25,6 +25,8 @@ export type ServerActorMode = 'self' | 'controller' | 'member';
 /** Durable public metadata plus PIN-and-host protected private material. */
 export type ServerProfileRecord = Readonly<{
   profileId: string;
+  /** Stable key-derivation identity. Defaults to profileId for legacy records. */
+  walletKeyDerivationId?: string;
   ownerId: string;
   actorKind: ActorKind;
   actorMode: ServerActorMode;
@@ -83,6 +85,22 @@ export type ServerProfileEnrollmentInput = Readonly<{
   idToken: string;
   activationCode: string;
   vpToken: string;
+  /**
+   * Optional server-only recovery seed. It must be 32 bytes encoded as
+   * base64url and must never be accepted from an untrusted browser payload.
+   */
+  walletSeed?: string;
+  /** Stable identity used to reproduce the same keys independently of profile storage IDs. */
+  walletKeyDerivationId?: string;
+}>;
+
+export type ServerProfileEnrollmentPublicKey = Readonly<{
+  ownerScope: string;
+  purpose: string;
+  use: string;
+  alg: string;
+  kid: string;
+  publicJwk: Record<string, unknown>;
 }>;
 
 /** One explicit unlock request; scopes and subject remain session-bound. */
@@ -138,9 +156,11 @@ export class ServerProfileSessionManager {
 
   public async enroll(input: ServerProfileEnrollmentInput): Promise<ServerProfileRecord> {
     requireEnrollment(input);
-    const seed = randomBytes(32).toString('base64url');
-    const wallet = await this.createWallet(input.profileId, seed);
-    const context = walletContext(input.profileId);
+    const seed = input.walletSeed || randomBytes(32).toString('base64url');
+    if (input.walletSeed) requireBase64UrlSeed32(input.walletSeed);
+    const walletKeyDerivationId = normalizedWalletKeyDerivationId(input.walletKeyDerivationId, input.profileId);
+    const wallet = await this.createWallet(walletKeyDerivationId, seed);
+    const context = walletContext(walletKeyDerivationId);
     const publicKeys = await wallet.getPublicJwks(context, {});
     const storagePublicJwk = publicKeys.find((entry) => entry.purpose === 'document-at-rest')?.publicJwk;
     if (!storagePublicJwk) throw new Error('Server profile enrollment requires a document-at-rest ML-KEM key.');
@@ -163,6 +183,7 @@ export class ServerProfileSessionManager {
     const now = this.now();
     const record: ServerProfileRecord = {
       profileId: input.profileId,
+      walletKeyDerivationId,
       ownerId: input.ownerId,
       actorKind: input.actorKind,
       actorMode: input.actorMode,
@@ -184,6 +205,30 @@ export class ServerProfileSessionManager {
     };
     await this.options.store.putProfile(record);
     return record;
+  }
+
+  /**
+   * Derives only the public enrollment descriptors for a server-governed
+   * recovery seed. This is intended for pre-DCR controller binding requests;
+   * no private material or seed is returned.
+   */
+  public async prepareEnrollmentPublicKeys(input: Readonly<{
+    walletSeed: string;
+    walletKeyDerivationId: string;
+  }>): Promise<ServerProfileEnrollmentPublicKey[]> {
+    requireBase64UrlSeed32(input.walletSeed);
+    const walletKeyDerivationId = normalizedWalletKeyDerivationId(input.walletKeyDerivationId, '');
+    if (!walletKeyDerivationId) throw new Error('prepareEnrollmentPublicKeys requires walletKeyDerivationId.');
+    const wallet = await this.createWallet(walletKeyDerivationId, input.walletSeed);
+    const descriptors = await wallet.getPublicJwks(walletContext(walletKeyDerivationId), {});
+    return descriptors.map((entry) => ({
+      ownerScope: entry.ownerScope,
+      purpose: entry.purpose,
+      use: entry.use,
+      alg: entry.alg,
+      kid: entry.kid,
+      publicJwk: entry.publicJwk as Record<string, unknown>,
+    }));
   }
 
   public listProfiles(ownerId: string): Promise<ServerProfileRecord[]> {
@@ -213,7 +258,8 @@ export class ServerProfileSessionManager {
       throw new Error('Profile PIN rejected.');
     }
     profile = await this.ensureRequiredStorageProfile(profile, seed);
-    const wallet = await this.createWallet(profile.profileId, seed);
+    const walletKeyDerivationId = profile.walletKeyDerivationId || profile.profileId;
+    const wallet = await this.createWallet(walletKeyDerivationId, seed);
     const smartTokenEndpoint = [
       this.options.gatewayBaseUrl.replace(/\/+$/, ''),
       buildIdentityOpenIdSmartTokenPath(profile.routeContext),
@@ -260,8 +306,9 @@ export class ServerProfileSessionManager {
     }
     const profile = await this.requireOwnedProfile(ownerId, session.profileId);
     const seed = await this.options.sealer.unseal(session.sealedUnlockedWalletSeed, `${sessionId}:unlocked-wallet-seed`);
-    const wallet = await this.createWallet(profile.profileId, seed);
-    const context = walletContext(profile.profileId);
+    const walletKeyDerivationId = profile.walletKeyDerivationId || profile.profileId;
+    const wallet = await this.createWallet(walletKeyDerivationId, seed);
+    const context = walletContext(walletKeyDerivationId);
     return {
       sessionId,
       profile,
@@ -293,9 +340,9 @@ export class ServerProfileSessionManager {
     });
   }
 
-  private async createWallet(profileId: string, seed: string): Promise<NodeManagedWallet> {
+  private async createWallet(walletKeyDerivationId: string, seed: string): Promise<NodeManagedWallet> {
     const wallet = new NodeManagedWallet({ resolveRecipientJwk: this.options.resolveRecipientJwk });
-    const context = walletContext(profileId);
+    const context = walletContext(walletKeyDerivationId);
     await wallet.provisionManagedKeys(context, {
       ownerScope: 'profile',
       purposes: ['actor-signing', 'document-at-rest'],
@@ -320,8 +367,9 @@ export class ServerProfileSessionManager {
   private async ensureRequiredStorageProfile(profile: ServerProfileRecord, seed: string): Promise<ServerProfileRecord> {
     const required = this.options.requiredConfidentialStorageProfile ?? profile.confidentialStorageProfile ?? 'confidential-basic-v1';
     if (required !== 'confidential-pqc-v1') return profile;
-    const wallet = await this.createWallet(profile.profileId, seed);
-    const storageKeys = await wallet.getPublicJwks(walletContext(profile.profileId), {
+    const walletKeyDerivationId = profile.walletKeyDerivationId || profile.profileId;
+    const wallet = await this.createWallet(walletKeyDerivationId, seed);
+    const storageKeys = await wallet.getPublicJwks(walletContext(walletKeyDerivationId), {
       ownerScope: 'profile', purpose: 'document-at-rest', alg: 'ML-KEM-768',
     });
     const storagePublicJwk = storageKeys[0]?.publicJwk as Record<string, unknown> | undefined;
@@ -358,7 +406,7 @@ async function buildWalletClientAssertion(
   now: Date,
 ): Promise<string> {
   const seconds = Math.floor(now.getTime() / 1000);
-  return wallet.signCompactJws!(walletContext(profile.profileId), {
+  return wallet.signCompactJws!(walletContext(profile.walletKeyDerivationId || profile.profileId), {
     header: { alg: 'ES384', typ: 'JWT' },
     claims: {
       iss: profile.clientId,
@@ -372,11 +420,21 @@ async function buildWalletClientAssertion(
   });
 }
 
-function walletContext(profileId: string): WalletExecutionContext {
+function walletContext(walletKeyDerivationId: string): WalletExecutionContext {
   return {
-    profile: { profileId },
-    runtime: { runtimeId: `${profileId}:server-runtime`, runtimeType: 'backend-service' },
+    profile: { profileId: walletKeyDerivationId },
+    runtime: { runtimeId: `${walletKeyDerivationId}:server-runtime`, runtimeType: 'backend-service' },
   };
+}
+
+function normalizedWalletKeyDerivationId(value: string | undefined, profileId: string): string {
+  return String(value || profileId).trim();
+}
+
+function requireBase64UrlSeed32(seed: string): void {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(seed) || Buffer.from(seed, 'base64url').byteLength !== 32) {
+    throw new Error('Profile enrollment walletSeed must be a 32-byte base64url value.');
+  }
 }
 
 function requireEnrollment(input: ServerProfileEnrollmentInput): void {

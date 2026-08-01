@@ -10,7 +10,18 @@ import {
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
 
-import { recoverOrganizationControllerWithIssueWithDeps } from '../dist/index.js';
+import {
+  readOrganizationIssueActivationCode,
+  recoverOrganizationControllerWithIssueWithDeps,
+} from '../dist/index.js';
+
+test('readOrganizationIssueActivationCode reads the governed reissue result', () => {
+  assert.equal(readOrganizationIssueActivationCode({
+    poll: { body: { body: { data: [{ meta: { claims: {
+      'org.schema.IndividualProduct.serialNumber': 'lic-controller-code',
+    } } }] } } },
+  }), 'lic-controller-code');
+});
 
 test('recoverOrganizationControllerWithIssueWithDeps performs Organization/_issue then exchange then dcr', async () => {
   const calls = [];

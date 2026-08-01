@@ -574,7 +574,9 @@ export class NodeManagedWallet implements IWallet {
       alg: algorithm as any,
       purpose: `${ownerId}:${purpose}`,
       seed: request.mode === 'deterministic' && request.seedMaterial !== undefined
-        ? this.deriveSignerSeed(request.seedMaterial, ownerId, purpose)
+        ? (algorithm.startsWith('ML-DSA')
+          ? this.deriveSeedBytes(request.seedMaterial, ownerId, purpose, 32)
+          : this.deriveSignerSeed(request.seedMaterial, ownerId, purpose))
         : undefined,
       cryptography: this.cryptography,
     });

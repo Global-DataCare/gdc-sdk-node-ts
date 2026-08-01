@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.3.14 - 2026-08-01
+
+- Added an explicit server-only `walletSeed` and stable
+  `walletKeyDerivationId` to `ServerProfileSessionManager.enroll`. This lets a
+  controlled bootstrap recover the same controller key pair without coupling
+  key derivation to a Firebase/profile storage identifier. Existing profiles
+  remain compatible and continue to derive from `profileId`.
+- Reject malformed bootstrap seeds before any gateway call and persist only
+  the PIN-and-host-protected seed envelope; public/browser APIs do not receive
+  the recovery seed.
+- Corrected deterministic ML-DSA wallet provisioning to pass an exact 32-byte
+  derived seed to the PQC key generator. Previously the long textual derivation
+  was rejected internally and silently replaced by randomness.
+- Added `prepareEnrollmentPublicKeys` so a BFF can submit the public
+  controller binding to `Organization/_issue` before DCR without handling
+  wallet internals or receiving private key material.
+- Exported the canonical `Organization/_issue` activation-code reader so BFFs
+  do not duplicate response-envelope parsing before profile enrollment.
+
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
