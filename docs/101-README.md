@@ -44,6 +44,9 @@ Current executable entrypoints:
   [tests/101-individual-controller-backend-runtime.test.mjs](../tests/101-individual-controller-backend-runtime.test.mjs)
 - individual clinical summary through Communication `$summary`:
   [tests/101-individual-summary-communication.test.mjs](../tests/101-individual-summary-communication.test.mjs)
+- professional access request, subject inbox, correlated Consent and SMART:
+  [docs/101-PROFESSIONAL-CONSENT-SMART.md](./101-PROFESSIONAL-CONSENT-SMART.md) and
+  [tests/101-professional-access-request-lifecycle.test.mjs](../tests/101-professional-access-request-lifecycle.test.mjs)
 - wallet-backed backend/session jobs:
   [tests/101-wallet-backed-job-manager.test.mjs](../tests/101-wallet-backed-job-manager.test.mjs)
 

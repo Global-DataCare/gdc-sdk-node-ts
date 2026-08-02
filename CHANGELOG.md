@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2.3.20 - 2026-08-02
+
+- Expand the professional consent 101 with copy-ready subject-provider
+  transport, permission-request inbox, correlated decision and GW-backed active
+  Consent examples; add an executable inverse access-request lifecycle.
+
 ## 2.3.19 - 2026-08-02
 
 - Add `ProfessionalSdk.requestProfessionalAccess(...)` to build, authenticate,

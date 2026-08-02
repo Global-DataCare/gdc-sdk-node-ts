@@ -2,9 +2,155 @@
 
 ## Teaching goal
 
-Create one canonical professional identity and reuse it in employee/profile
-state, the consent grant, the professional VP and the SMART request. Application
-code must not construct LOINC values, gateway IPs or SMART endpoint URLs.
+Create one canonical professional identity and reuse it in the permission
+request, employee/profile state, the consent decision, the professional VP and
+the SMART request. Application code must not construct LOINC values, gateway
+IPs or SMART endpoint URLs.
+
+This tutorial covers both directions:
+
+1. the professional requests access before a SMART token exists;
+2. the subject receives and answers that request;
+3. the professional requests SMART only after the correlated Consent exists.
+
+## 1. Configure subject-provider transport with the professional ID token
+
+```ts
+import {
+  GatewayActiveConsentProvider,
+  HttpRuntimeClient,
+  IndividualControllerSdk,
+  ProfessionalSdk,
+  evaluateRequestedAccess,
+  getMissingPermissions,
+} from 'gdc-sdk-node-ts';
+
+const subjectProviderContext = {
+  tenantId: subjectProviderTenantId,
+  jurisdiction: 'ES',
+  sector: 'health-care',
+};
+
+const professionalRuntime = new HttpRuntimeClient({
+  baseUrl: subjectProviderGwUrl,
+  bearerToken: professionalIdToken,
+  ctx: subjectProviderContext,
+});
+const professionalSdk = new ProfessionalSdk(professionalRuntime);
+```
+
+`bearerToken` is the professional's verified OpenID/Firebase `id_token`. It
+authenticates the HTTP call that stores the request. It is not a SMART token
+and it does not grant clinical access. If the runtime uses encrypted DIDComm,
+configure its wallet-backed `secureTransportAdapter` here; applications do not
+need another Voice/X-Portal proxy or a second portal token.
+
+The route belongs to the provider that owns the subject. A product may resolve
+email to `subjectDid` through its authenticated patient directory, invitation
+or lookup service. The generic SDK deliberately does not expose a global
+email-to-DID resolver.
+
+## 2. Evaluate current Consent and submit only the missing access
+
+```ts
+const actor = {
+  actorKind: 'professional' as const,
+  did: professionalActorDid,
+  organizationDid: organizationDidWeb,
+};
+
+const consentProvider = new GatewayActiveConsentProvider(
+  professionalRuntime,
+  subjectProviderContext,
+);
+const evaluation = await evaluateRequestedAccess(consentProvider, {
+  subject: subjectDid,
+  actor,
+  actorRole: professionalRole,
+  purpose: HealthcareConsentPurposes.Treatment,
+  sections: requestedSections,
+  resourceTypes: [],
+});
+const missing = getMissingPermissions(evaluation);
+
+const request = await professionalSdk.requestProfessionalAccess(
+  subjectProviderContext,
+  {
+    subject: subjectDid,
+    requester: actor,
+    requesterRole: professionalRole,
+    purpose: HealthcareConsentPurposes.Treatment,
+    missing,
+    sender: professionalActorDid,
+    recipient: subjectDid,
+    justification: 'Access required for the current treatment episode.',
+  },
+);
+```
+
+`requestProfessionalAccess(...)` builds and submits the canonical
+permission-request `Communication` through `Communication/_batch`; callers do
+not call `ingestClinicalCommunication` themselves. The operation requires no
+SMART token because it writes an auditable request, not clinical data access.
+Keep `request.thid` and `request.communicationIdentifier` for correlation.
+
+## 3. Let the subject list and answer the request
+
+```ts
+const subjectRuntime = new HttpRuntimeClient({
+  baseUrl: subjectProviderGwUrl,
+  bearerToken: subjectIdToken,
+  ctx: subjectProviderContext,
+});
+const subjectSdk = new IndividualControllerSdk(subjectRuntime);
+
+const inbox = await subjectSdk.listProfessionalAccessRequests(
+  subjectProviderContext,
+  { subject: subjectDid, recipientActorId: subjectDid },
+);
+
+const decision = await subjectSdk.respondToProfessionalAccessRequest(
+  subjectProviderContext,
+  {
+    requestThid: request.thid,
+    requestCommunicationIdentifier: request.communicationIdentifier,
+    subjectDid,
+    actorId: professionalActorDid,
+    actorRole: professionalRole,
+    purpose: HealthcareConsentPurposes.Treatment,
+    actions: requestedSections,
+    decision: 'permit',
+  },
+);
+```
+
+The GW is the canonical inbox: `listProfessionalAccessRequests(...)` searches
+stored permission-request Communications. Email, push or SMS may notify the
+subject, but they are optional delivery channels. The response uses the normal
+Consent grant operation and adds `Consent.event-basedon` plus
+`Consent.source-reference`; there is no separate uncorrelated grant contract.
+
+Use `decision: 'deny'` with the same request identifiers for an explicit
+denial.
+
+## 4. ActiveConsentProvider is supplied by the Node SDK
+
+`GatewayActiveConsentProvider` reads the subject's active Consent resources
+from GW and filters expired or wrong-subject rules. Applications do not need a
+parallel consent table. A custom `ActiveConsentProvider` remains useful only
+for another authoritative persistence runtime.
+
+## 5. Match the professional actor safely
+
+The Consent actor should be the exact professional DID reused by the employee
+or member profile, VP credential subject and SMART request. Current GW also
+accepts a hosted/external `did:web` alias when the verified VP binds the
+requesting actor and both DIDs have the same terminal hashed identifier and
+role. Literal path labels such as `employee` versus `member` are not security
+identifiers. An `id_token` or an unverified DID suffix alone never creates that
+alias.
+
+## 6. Build one professional actor DID
 
 ## 1. Build one professional actor DID
 
@@ -39,7 +185,7 @@ the SHA3-256 actor DID.
 An internal employee UUID may remain a resource, profile or database key. It
 is not the `actorDid` used for consent evaluation.
 
-## 2. Select shared consent actions
+## 7. Select shared consent actions
 
 ```ts
 const consentActions = [
@@ -53,7 +199,7 @@ Do not copy `LOINC|...` literals into application code. The
 contract as a compatibility action even though LOINC `60591-5` is an IPS
 document type rather than a Composition section.
 
-## 3. Grant access to the canonical actor
+## 8. Direct grant without a preceding request
 
 ```ts
 await individualSdk.grantProfessionalAccess(ctx, {
@@ -68,7 +214,11 @@ await individualSdk.grantProfessionalAccess(ctx, {
 A grant previously addressed to an email or a different identifier does not
 become a grant for this DID. Create a new grant when migrating that actor.
 
-## 4. Build the professional VP with the same actor
+Use this direct subject-initiated grant when there is no prior professional
+request. For the inverse flow, prefer
+`respondToProfessionalAccessRequest(...)` so the Consent remains correlated.
+
+## 9. Build the professional VP with the same actor
 
 ```ts
 const vpToken = professionalSdk.buildUnsignedIdentityVpJwt({
@@ -83,7 +233,7 @@ The unsigned helper is for demo/test fixtures. Production uses a signed VP
 from the protected professional wallet, but its credential subject still uses
 the same `professionalActorDid`.
 
-## 5. Request only the consented clinical scope
+## 10. Request only the consented clinical scope
 
 ```ts
 const clinicalScope = buildSmartCompositionReadScope({
@@ -120,4 +270,6 @@ developer-facing flow and does not contain employees or consent records.
 ## Executable source
 
 The same flow is asserted by
-[`tests/101-professional-consent-smart.test.mjs`](../tests/101-professional-consent-smart.test.mjs).
+[`tests/101-professional-consent-smart.test.mjs`](../tests/101-professional-consent-smart.test.mjs)
+and the inverse request lifecycle by
+[`tests/101-professional-access-request-lifecycle.test.mjs`](../tests/101-professional-access-request-lifecycle.test.mjs).
