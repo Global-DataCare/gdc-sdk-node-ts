@@ -98,6 +98,8 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
     idToken: 'firebase-id-token',
     activationCode: 'activation-code',
     vpToken: 'signed-vp-token',
+    dcrRedirectUris: ['https://portal.example/__/auth/handler'],
+    dcrClientName: 'Example Professional Portal',
   };
   const enrolled = await manager.enroll(base);
   assert.equal(enrolled.clientId, 'device-client-1');
@@ -106,6 +108,9 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   assert.equal(enrolled.publicJwks.some((key) => key.kid === enrolled.storagePublicJwk.kid), false);
   assert.equal(enrolled.storagePublicJwk.crv, 'ML-KEM-768');
   assert.equal(enrolled.confidentialStorageProfile, 'confidential-pqc-v1');
+  const dcrRequest = JSON.parse(String(calls[2].init.body));
+  assert.deepEqual(dcrRequest.redirect_uris, ['https://portal.example/__/auth/handler']);
+  assert.equal(dcrRequest.client_name, 'Example Professional Portal');
 
   const unlocked = await manager.unlock({
     ownerId: base.ownerId,
@@ -206,6 +211,51 @@ test('server bootstrap derives public controller binding material without a gate
   assert.equal(actorKey.alg, 'ES384');
   assert.match(actorKey.kid, /^urn:ietf:params:oauth:jwk-thumbprint:sha-256:/);
   assert.equal('d' in actorKey.publicJwk, false);
+});
+
+test('server bootstrap submits organization reissue through encrypted DIDComm form transport', async () => {
+  const deps = memoryDeps();
+  const calls = [];
+  const recipientWallet = new NodeManagedWallet();
+  const recipientContext = { runtime: { runtimeId: 'organization-recipient', runtimeType: 'backend-service' } };
+  await recipientWallet.provisionManagedKeys(recipientContext, {
+    ownerScope: 'runtime', purposes: ['comm-encryption'], mode: 'deterministic', seedMaterial: 'organization-recipient-seed',
+  });
+  const [recipientKey] = await recipientWallet.getPublicJwks(recipientContext, {
+    ownerScope: 'runtime', purpose: 'comm-encryption',
+  });
+  const manager = new ServerProfileSessionManager({
+    ...deps,
+    gatewayBaseUrl: 'https://gw.example',
+    resolveRecipientJwk: async () => recipientKey.publicJwk,
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return calls.length === 1
+        ? Response.json({}, { status: 202 })
+        : Response.json({ error: 'terminal-test-response' }, { status: 400 });
+    },
+  });
+
+  const result = await manager.submitLegalOrganizationIssueWithBootstrapWallet({
+    walletSeed: Buffer.alloc(32, 7).toString('base64url'),
+    walletKeyDerivationId: 'organization-controller:cto@example.org:v1',
+    bearerToken: 'firebase-id-token',
+    providerDid: 'did:web:gw.example:tenant',
+    routeContext: { tenantId: 'tenant', jurisdiction: 'ES', sector: 'health-research' },
+    hostContext: { jurisdiction: 'ES', hostNetwork: 'test-network' },
+    verificationInput: {
+      claims: { 'org.schema.Service.category': 'health-research' },
+      controller: { publicKeyJwk: { kty: 'EC', kid: 'controller-key' } },
+      verification: { resourceType: 'contract' },
+      attachments: [{ id: 'contract', media_type: 'application/pdf', data: { base64: 'cGRm' } }],
+    },
+  });
+  assert.equal(result.poll.status, 400);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].init.headers['Content-Type'], 'application/x-www-form-urlencoded');
+  assert.match(String(calls[0].init.body), /^request=/);
+  assert.equal(calls[1].init.headers['Content-Type'], 'application/x-www-form-urlencoded');
+  assert.match(String(calls[1].init.body), /^request=/);
 });
 
 test('profile unlock rejects subjects outside the stored profile and rejects a bad PIN before host KMS', async () => {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.3.16 - 2026-08-02
+
+- Add a server-profile bootstrap operation for existing-organization
+  `Organization/_issue` that derives the governed wallet internally and uses
+  encrypted DIDComm form transport. Strict gateways no longer require a BFF
+  to assemble wallet transport plumbing or downgrade to DIDComm plaintext.
+- Carry explicit web `redirect_uris` and `client_name` metadata from the
+  server-profile enrollment input into OpenID DCR.
+
 ## 2.3.15 - 2026-08-02
 
 - Read controller activation material from wrapped and multi-entry

@@ -3,10 +3,18 @@
 import { randomBytes } from 'node:crypto';
 import type { JWK } from 'gdc-common-utils-ts/models/jwk';
 import type { ActorKind } from 'gdc-common-utils-ts/models/actor-session';
-import type { ConfidentialStorageProfile, WalletExecutionContext } from 'gdc-sdk-core-ts';
+import type { LegalOrganizationVerificationTransactionInput } from 'gdc-common-utils-ts/utils/legal-organization-verification-transaction';
+import {
+  TransportProfiles,
+  type ConfidentialStorageProfile,
+  type PollOptions,
+  type SubmitAndPollResult,
+  type WalletExecutionContext,
+} from 'gdc-sdk-core-ts';
 import { NodeManagedWallet } from './node-managed-wallet.js';
 import { NodeHttpClient } from './node-runtime-client.js';
 import type { RouteContext } from './individual-onboarding.js';
+import type { HostRouteContext } from './host-onboarding.js';
 import { buildIdentityOpenIdSmartTokenPath } from './runtime-paths.js';
 import type { SecureDidcommTransportAdapter } from 'gdc-sdk-core-ts';
 import {
@@ -85,6 +93,10 @@ export type ServerProfileEnrollmentInput = Readonly<{
   idToken: string;
   activationCode: string;
   vpToken: string;
+  /** Registered web redirect URIs included in the OpenID DCR metadata. */
+  dcrRedirectUris?: string[];
+  /** Human-readable DCR client name. */
+  dcrClientName?: string;
   /**
    * Optional server-only recovery seed. It must be 32 bytes encoded as
    * base64url and must never be accepted from an untrusted browser payload.
@@ -101,6 +113,18 @@ export type ServerProfileEnrollmentPublicKey = Readonly<{
   alg: string;
   kid: string;
   publicJwk: Record<string, unknown>;
+}>;
+
+/** Server-only existing-tenant reissue performed with deterministic bootstrap keys. */
+export type ServerProfileOrganizationIssueInput = Readonly<{
+  walletSeed: string;
+  walletKeyDerivationId: string;
+  bearerToken: string;
+  providerDid: string;
+  routeContext: RouteContext;
+  hostContext: HostRouteContext;
+  verificationInput: LegalOrganizationVerificationTransactionInput;
+  pollOptions?: PollOptions;
 }>;
 
 /** One explicit unlock request; scopes and subject remain session-bound. */
@@ -171,6 +195,8 @@ export class ServerProfileSessionManager {
       idToken: input.idToken,
       dcrPayload: {
         application_type: 'web',
+        ...(input.dcrRedirectUris?.length ? { redirect_uris: unique(input.dcrRedirectUris) } : {}),
+        ...(input.dcrClientName ? { client_name: input.dcrClientName } : {}),
         actor_did: input.actorDid,
         profile_did: input.profileDid,
         jwks: { keys: publicKeys.filter((entry) => entry.purpose !== 'document-at-rest').map((entry) => entry.publicJwk) },
@@ -229,6 +255,39 @@ export class ServerProfileSessionManager {
       kid: entry.kid,
       publicJwk: entry.publicJwk as Record<string, unknown>,
     }));
+  }
+
+  /**
+   * Reissues an existing organization controller activation through protected
+   * DIDComm transport before a durable profile exists. The deterministic seed
+   * remains server-only and the caller receives only the normal GW response.
+   */
+  public async submitLegalOrganizationIssueWithBootstrapWallet(
+    input: ServerProfileOrganizationIssueInput,
+  ): Promise<SubmitAndPollResult> {
+    requireBase64UrlSeed32(input.walletSeed);
+    const walletKeyDerivationId = normalizedWalletKeyDerivationId(input.walletKeyDerivationId, '');
+    if (!walletKeyDerivationId) {
+      throw new Error('submitLegalOrganizationIssueWithBootstrapWallet requires walletKeyDerivationId.');
+    }
+    const wallet = await this.createWallet(walletKeyDerivationId, input.walletSeed);
+    const context = walletContext(walletKeyDerivationId);
+    const client = new NodeHttpClient({
+      baseUrl: this.options.gatewayBaseUrl,
+      ctx: input.routeContext,
+      bearerToken: input.bearerToken,
+      fetchImpl: this.options.fetchImpl,
+      transportProfile: TransportProfiles.DidcommEncryptedForm,
+      secureTransportAdapter: {
+        pack: (message) => wallet.packForRecipientWithContext!(message, input.providerDid, { context }),
+        unpack: async (jwe) => (await wallet.unpackWithContext!(jwe, { context })).content,
+      },
+    });
+    return client.submitLegalOrganizationIssue(
+      input.hostContext,
+      input.verificationInput,
+      input.pollOptions,
+    );
   }
 
   public listProfiles(ownerId: string): Promise<ServerProfileRecord[]> {
