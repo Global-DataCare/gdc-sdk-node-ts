@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.17 - 2026-08-02
+
+- Send the requester Firebase/OpenID `id_token` as its own SMART token field.
+- Allow individual/controller exchanges to omit `vp_token`, while professional
+  employee exchanges can continue to provide a verifiable presentation.
+
 ## 2.3.16 - 2026-08-02
 
 - Add a server-profile bootstrap operation for existing-organization

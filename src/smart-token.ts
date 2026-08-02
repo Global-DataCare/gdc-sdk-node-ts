@@ -68,6 +68,8 @@ export type SmartTokenRequestInput = SmartTokenRequestContract & {
   presentationSubmission?: Record<string, unknown>;
   purpose?: string;
   requestBodyClaims?: Record<string, unknown>;
+  /** Compatibility bridge until every installed gdc-sdk-core-ts carries this field. */
+  vpTokenFallback?: 'id-token' | 'omit';
   smartTokenKind?: 'token-exchange' | 'openid-smart';
   tokenCacheKey?: string;
   endpointId?: string;
@@ -185,7 +187,14 @@ export async function requestSmartTokenWithDeps(
         code_challenge: deps.input.codeChallenge || 'demo-code-challenge',
         code_challenge_method: deps.input.codeChallengeMethod || 'S256',
         acr_values: deps.input.acrValues || 'urn:antifraud:acr:openid4vp:employee',
-        vp_token: deps.input.vpToken || deps.input.idToken,
+        id_token: deps.input.idToken,
+        ...(
+          deps.input.vpToken
+            ? { vp_token: deps.input.vpToken }
+            : deps.input.vpTokenFallback === 'omit'
+              ? {}
+              : { vp_token: deps.input.idToken }
+        ),
         presentation_submission: deps.input.presentationSubmission,
         expires_in: 300,
         token_type: 'Bearer',

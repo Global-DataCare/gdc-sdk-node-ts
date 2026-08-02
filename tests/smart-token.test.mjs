@@ -67,12 +67,38 @@ test('requestSmartTokenWithDeps uses openid-smart flow when requested', async ()
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], '/acme-id/cds-ES/v1/health-care/identity/openid/smart/token');
   assert.equal(calls[0][2].body.client_id, 'device-1');
+  assert.equal(calls[0][2].body.id_token, EXAMPLE_OPENID_SMART_TOKEN_INPUT.idToken);
   assert.equal(calls[0][2].body.vp_token, EXAMPLE_OPENID_SMART_TOKEN_INPUT.vpToken);
   assert.equal(
     calls[0][2].aud,
     'http://localhost:3000/acme-id/cds-ES/v1/health-care/identity/openid/smart/token',
   );
   assert.equal(result.accessToken, 'smart-token-openid-001');
+});
+
+test('requestSmartTokenWithDeps keeps requester id_token separate and omits vp_token for an individual provider flow', async () => {
+  const calls = [];
+  await requestSmartTokenWithDeps({
+    input: {
+      ...cloneExample(EXAMPLE_OPENID_SMART_TOKEN_INPUT),
+      vpToken: undefined,
+      vpTokenFallback: 'omit',
+    },
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    baseUrl: 'https://ca.vetchain.example',
+    identityTokenExchangePath: () => '/unused',
+    identityTokenExchangePollPath: () => '/unused',
+    identityOpenIdSmartTokenPath: () => '/connecthealth-ca/cds-CA/v1/animal-care/identity/openid/smart/token',
+    identityOpenIdSmartTokenPollPath: () => '/connecthealth-ca/cds-CA/v1/animal-care/identity/openid/smart/_batch-response',
+    submitAndPoll: async (...args) => {
+      calls.push(args);
+      return cloneExample(EXAMPLE_SMART_TOKEN_RESPONSE);
+    },
+    setTokenCache: () => {},
+  });
+
+  assert.equal(calls[0][2].body.id_token, EXAMPLE_OPENID_SMART_TOKEN_INPUT.idToken);
+  assert.equal('vp_token' in calls[0][2].body, false);
 });
 
 test('requestSmartTokenWithDeps resolves the SMART audience from the subject provider when configured', async () => {
