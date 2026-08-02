@@ -4,6 +4,7 @@ import { HealthcareBasicSections, ResourceTypesFhirR4 } from 'gdc-common-utils-t
 import { Format } from 'gdc-common-utils-ts/constants/Schemas';
 import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
 import {
+  BundleEditor,
   buildCommunicationParticipantSearchBundle,
   buildBlockchainArtifactDocumentReference,
   BundleQuery,
@@ -16,6 +17,10 @@ import {
   buildLicenseIssueEntry,
   buildLicensePurchaseEntry,
 } from 'gdc-common-utils-ts';
+import {
+  EmployeeBundleOperations,
+  EmployeeResourceTypes,
+} from 'gdc-common-utils-ts/utils/employee';
 import type { DeviceAppType } from 'gdc-common-utils-ts/constants/device';
 import {
   addFhirResourceToCommunication,
@@ -24,6 +29,7 @@ import {
   createClinicalSectionUpdateOutboxJob,
   createClinicalSummaryUpdateOutboxJob,
   readClinicalSummaryOperationResult,
+  TransportProfiles,
   type ClinicalSectionUpdateCommunicationInput,
   type ClinicalUpdateCommunicationInput,
   type ClinicalSummaryReadResult,
@@ -40,6 +46,7 @@ import type {
   EmployeeSearchValue,
   IndividualOrganizationLifecycleInput,
   TransportProfile,
+  SubmitPayload,
 } from 'gdc-sdk-core-ts';
 import type { BundleEntry, BundleJsonApi } from 'gdc-common-utils-ts/models/bundle';
 import {
@@ -1766,14 +1773,23 @@ function buildEmployeeLifecyclePayload(input: {
   type: string;
   thid: string;
   body: {
-    data: Array<{
-      type: string;
-      request: { method: string };
-      resource: { id?: string; meta: { claims: Record<string, unknown> } };
-    }>;
+    data: Array<Record<string, unknown>>;
   };
 } {
   const claims = input.employeeClaims || {};
+  const editor = new BundleEditor()
+    .setBundleOperation(EmployeeBundleOperations.create)
+    .setAllowedResourceType(EmployeeResourceTypes.employee);
+  const employee = editor.newEntry(input.resourceId).asEmployee();
+  for (const [claim, value] of Object.entries(claims)) {
+    employee.setClaim(claim, value);
+  }
+  const authored = employee.doneEntry().buildJsonApi();
+  const data = authored.data.map((entry) => ({
+    ...entry,
+    type: input.requestType,
+    request: { method: input.requestMethod },
+  }));
   return {
     jti: `jti-${createRuntimeUuid()}`,
     iss: input.routeCtx.tenantId,
@@ -1781,14 +1797,34 @@ function buildEmployeeLifecyclePayload(input: {
     type: 'application/didcomm-plain+json',
     thid: `${input.thidPrefix}-${createRuntimeUuid()}`,
     body: {
-      data: [buildEmployeeBatchEntry({
-        type: input.requestType,
-        method: input.requestMethod as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
-        claims,
-        // Keep the transport-local GW profile anchor separate from the
-        // exportable employee identifier carried in claims.
-        resourceId: input.resourceId,
-      })],
+      data,
+    },
+  };
+}
+
+/**
+ * Selects only the outer employee wire representation.
+ *
+ * The BundleEditor-authored entries remain identical across transports:
+ * JSON-API `data[]` stays inside DIDComm, while the legacy FHIR profile maps
+ * those entries to standard `Bundle.entry[]`. Authorization and encryption
+ * remain runtime concerns rather than browser-authored payload fields.
+ */
+export function prepareEmployeeLifecycleMessageForTransport(
+  message: SubmitPayload,
+  profile: TransportProfile,
+): SubmitPayload {
+  if (profile !== TransportProfiles.FhirJson) return message;
+  const envelopeBody = message.body as { data?: unknown[] } | undefined;
+  if (!Array.isArray(envelopeBody?.data)) {
+    throw new Error('Employee FHIR transport requires Bundle data entries.');
+  }
+  return {
+    ...message,
+    body: {
+      resourceType: ResourceTypesFhirR4.Bundle,
+      type: 'batch',
+      entry: envelopeBody.data,
     },
   };
 }

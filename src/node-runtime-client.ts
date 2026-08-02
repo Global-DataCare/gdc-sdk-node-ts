@@ -84,6 +84,7 @@ import {
   purgeIndividualMemberWithDeps,
   purgeIndividualOrganizationWithDeps,
   purgeOrganizationEmployeeWithDeps,
+  prepareEmployeeLifecycleMessageForTransport,
   searchIndividualLicensesWithDeps,
   searchIndividualLicenseOffersWithDeps,
   searchIndividualLicenseOrdersWithDeps,
@@ -613,7 +614,13 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return createOrganizationEmployeeWithDeps(ctx, input, pollOptions, {
       employeeBatchPath: this.paths.employeeBatchPath.bind(this.paths),
       employeePollPath: this.paths.employeePollPath.bind(this.paths),
-      submitAndPoll: this.submitAndPoll.bind(this),
+      submitAndPoll: (submitPath, pollPath, payload, options) => this.submitClinicalMessageAndPoll(
+        submitPath,
+        pollPath,
+        prepareEmployeeLifecycleMessageForTransport(payload, this.transportProfile),
+        this.transportProfile,
+        options,
+      ),
     });
   }
 
