@@ -29,8 +29,12 @@ import type {
   ClinicalSummaryUpdateInput,
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
+  ProfessionalAccessRequestInput,
+  ProfessionalAccessRequestResult,
+  ProfessionalAccessRequestSearchInput,
   VitalSignBatchCommunicationFromSearchResponseInput,
 } from '../resource-operations.js';
+import { buildProfessionalAccessRequestSearchInput } from '../resource-operations.js';
 
 /**
  * Professional-oriented facade for runtime actions that belong to the
@@ -137,6 +141,28 @@ export class ProfessionalSdk {
    */
   public ingestCommunicationAndUpdateIndex(ctx: RouteContext, input: CommunicationIngestionInput): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /**
+   * Requests subject-controlled access without requiring a SMART token. The
+   * runtime persists one canonical permission-request Communication.
+   */
+  public requestProfessionalAccess(
+    ctx: RouteContext,
+    input: ProfessionalAccessRequestInput,
+  ): Promise<ProfessionalAccessRequestResult> {
+    return requireClientMethod(this.client, 'requestProfessionalAccess')(ctx, input);
+  }
+
+  /** Lists permission requests sent by or involving this professional. */
+  public listProfessionalAccessRequests(
+    ctx: RouteContext,
+    input: ProfessionalAccessRequestSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchCommunicationParticipants')(
+      ctx,
+      buildProfessionalAccessRequestSearchInput(input),
+    );
   }
 
   /** Updates one consent-authorized clinical section through a scoped batch/collection. */

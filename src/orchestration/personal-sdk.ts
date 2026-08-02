@@ -10,6 +10,8 @@ import {
 } from './client-port.js';
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
 import type { RouteContext } from '../individual-onboarding.js';
+import { buildProfessionalAccessRequestDecisionGrant } from '../resource-operations.js';
+import { buildProfessionalAccessRequestSearchInput } from '../resource-operations.js';
 import type {
   BlockchainArtifactRegistrationInput,
   ClinicalBundleSearchInput,
@@ -22,6 +24,8 @@ import type {
   DigitalTwinGenerationInput,
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
+  ProfessionalAccessRequestDecisionInput,
+  ProfessionalAccessRequestSearchInput,
   IpsOrFhirImportInput,
   LicenseListRuntimeSearchInput,
   LicenseOfferRuntimeSearchInput,
@@ -40,6 +44,28 @@ export class PersonalSdk {
   /** Grants professional access via Consent for a subject. */
   public grantProfessionalAccess(ctx: RouteContext, input: GrantProfessionalAccessInput): Promise<GrantProfessionalAccessResult> {
     return requireClientMethod(this.client, 'grantProfessionalAccess')(ctx, input);
+  }
+
+  /** Approves or denies a permission request while retaining its correlation. */
+  public respondToProfessionalAccessRequest(
+    ctx: RouteContext,
+    input: ProfessionalAccessRequestDecisionInput,
+  ): Promise<GrantProfessionalAccessResult> {
+    return requireClientMethod(this.client, 'grantProfessionalAccess')(
+      ctx,
+      buildProfessionalAccessRequestDecisionGrant(input),
+    );
+  }
+
+  /** Lists canonical permission requests addressed to this subject. */
+  public listProfessionalAccessRequests(
+    ctx: RouteContext,
+    input: ProfessionalAccessRequestSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchCommunicationParticipants')(
+      ctx,
+      buildProfessionalAccessRequestSearchInput(input),
+    );
   }
 
   /** Imports IPS/FHIR payload and updates document index projections. */

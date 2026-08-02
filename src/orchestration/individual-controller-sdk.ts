@@ -27,6 +27,8 @@ import type { IndividualOrganizationConfirmOrderInput, RouteContext } from '../i
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
 import type { NodeCapability } from '../session.js';
 import type { IndividualOrganizationLifecycleInput } from 'gdc-sdk-core-ts';
+import { buildProfessionalAccessRequestDecisionGrant } from '../resource-operations.js';
+import { buildProfessionalAccessRequestSearchInput } from '../resource-operations.js';
 import type {
   BlockchainArtifactRegistrationInput,
   ClinicalBundleSearchInput,
@@ -49,6 +51,8 @@ import type {
   LicenseOrderRuntimeSearchInput,
   RevokeProfessionalAccessInput,
   RevokeProfessionalAccessResult,
+  ProfessionalAccessRequestDecisionInput,
+  ProfessionalAccessRequestSearchInput,
   RelatedPersonUpsertInput,
 } from '../resource-operations.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
@@ -186,6 +190,29 @@ export class IndividualControllerSdk {
   public grantProfessionalAccess(ctx: RouteContext, input: GrantProfessionalAccessInput): Promise<GrantProfessionalAccessResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.ConsentGrantProfessionalAccess, ActorKinds.IndividualController, 'grantProfessionalAccess');
     return requireClientMethod(this.client, 'grantProfessionalAccess')(ctx, input);
+  }
+
+  /** Approves or denies a permission request while retaining its correlation. */
+  public respondToProfessionalAccessRequest(
+    ctx: RouteContext,
+    input: ProfessionalAccessRequestDecisionInput,
+  ): Promise<GrantProfessionalAccessResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.ConsentGrantProfessionalAccess, ActorKinds.IndividualController, 'respondToProfessionalAccessRequest');
+    return requireClientMethod(this.client, 'grantProfessionalAccess')(
+      ctx,
+      buildProfessionalAccessRequestDecisionGrant(input),
+    );
+  }
+
+  /** Lists canonical permission requests addressed to this subject. */
+  public listProfessionalAccessRequests(
+    ctx: RouteContext,
+    input: ProfessionalAccessRequestSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchCommunicationParticipants')(
+      ctx,
+      buildProfessionalAccessRequestSearchInput(input),
+    );
   }
 
   /**

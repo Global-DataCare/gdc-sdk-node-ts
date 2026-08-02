@@ -31,6 +31,7 @@ export * from './node-managed-wallet.js';
 export * from './did-web-recipient.js';
 export * from './constants/lifecycle.js';
 export * from './consent-claim-helpers.js';
+export * from './gateway-active-consent-provider.js';
 export * from './session.js';
 export * from './node-runtime-client.js';
 export * from './gdc-session-bridge.js';

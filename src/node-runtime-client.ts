@@ -76,6 +76,7 @@ import {
   buildClinicalSectionUpdateIngestion,
   buildClinicalSummaryUpdateIngestion,
   ingestCommunicationAndUpdateIndexWithDeps,
+  requestProfessionalAccessWithDeps,
   buildVitalSignBatchCommunicationFromSearchResponse,
   registerBlockchainArtifactAndUpdateIndexWithDeps,
   requestClinicalSummaryWithDeps,
@@ -117,6 +118,8 @@ import {
   type OrganizationEmployeeCreationInput,
   type OrganizationEmployeeLifecycleInput,
   type OrganizationEmployeeSearchInput,
+  type ProfessionalAccessRequestInput,
+  type ProfessionalAccessRequestResult,
   type RevokeProfessionalAccessInput,
   type RevokeProfessionalAccessResult,
   type RelatedPersonUpsertInput,
@@ -1190,6 +1193,28 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       individualCommunicationBatchPath: this.paths.individualCommunicationBatchPath.bind(this.paths),
       individualCommunicationPollPath: this.paths.individualCommunicationPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
+   * Records a subject-scoped permission-request Communication before SMART
+   * authorization exists. The configured bearer authenticates HTTP and the
+   * configured secure transport adapter signs/encrypts DIDComm when enabled.
+   */
+  public async requestProfessionalAccess(
+    ctx: RouteContext,
+    input: ProfessionalAccessRequestInput,
+  ): Promise<ProfessionalAccessRequestResult> {
+    return requestProfessionalAccessWithDeps(ctx, input, {
+      individualCommunicationBatchPath: this.paths.individualCommunicationBatchPath.bind(this.paths),
+      individualCommunicationPollPath: this.paths.individualCommunicationPollPath.bind(this.paths),
+      submitAndPoll: (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
+        submitPath,
+        pollPath,
+        payload,
+        input.transportProfile || this.transportProfile,
+        pollOptions,
+      ),
     });
   }
 

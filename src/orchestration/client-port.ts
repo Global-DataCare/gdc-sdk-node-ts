@@ -55,6 +55,8 @@ import type {
   OrganizationEmployeeCreationInput,
   OrganizationEmployeeLifecycleInput,
   OrganizationEmployeeSearchInput,
+  ProfessionalAccessRequestInput,
+  ProfessionalAccessRequestResult,
   RevokeProfessionalAccessInput,
   RevokeProfessionalAccessResult,
   RelatedPersonUpsertInput,
@@ -264,6 +266,10 @@ export type RuntimeClient = {
     ctx: RouteContext,
     input: CommunicationIngestionInput,
   ) => Promise<SubmitAndPollResult>;
+  requestProfessionalAccess?: (
+    ctx: RouteContext,
+    input: ProfessionalAccessRequestInput,
+  ) => Promise<ProfessionalAccessRequestResult>;
   updateClinicalSection?: (
     ctx: RouteContext,
     input: ClinicalSectionUpdateInput,
