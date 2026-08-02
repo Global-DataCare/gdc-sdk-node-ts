@@ -41,6 +41,8 @@ import { ClaimConsent } from 'gdc-common-utils-ts/models/consent-rule';
 import {
   EmployeeDraft,
   createOrganizationEmployeeWithDeps,
+  prepareEmployeeLifecycleMessageForTransport,
+  TransportProfiles,
   disableIndividualMemberWithDeps,
   disableIndividualOrganizationWithDeps,
   listIndividualLicenseOffersWithDeps,
@@ -166,6 +168,31 @@ test('createOrganizationEmployeeWithDeps builds employee batch payload', async (
     employeeClaims[ClaimsPersonSchemaorg.hasOccupationalRoleValue],
   );
   assert.equal(calls[0][2].body.data[0].resource.resourceType, 'Employee');
+  assert.match(calls[0][2].body.data[0].resource.id, /^urn:uuid:/);
+  assert.equal(calls[0][2].body.data[0].fullUrl, calls[0][2].body.data[0].resource.id);
+});
+
+test('employee lifecycle keeps BundleEditor data in DIDComm and maps only FHIR transport to Bundle.entry', () => {
+  const message = {
+    thid: 'employee-transport',
+    body: {
+      data: [{
+        type: 'Employee:Create',
+        request: { method: 'POST' },
+        resource: { resourceType: 'Employee', meta: { claims: { '@context': 'org.schema' } } },
+      }],
+    },
+  };
+  assert.equal(
+    prepareEmployeeLifecycleMessageForTransport(message, TransportProfiles.DidcommEncryptedForm),
+    message,
+  );
+  const fhir = prepareEmployeeLifecycleMessageForTransport(message, TransportProfiles.FhirJson);
+  assert.deepEqual(fhir.body, {
+    resourceType: 'Bundle',
+    type: 'batch',
+    entry: message.body.data,
+  });
 });
 
 test('searchOrganizationEmployeesWithDeps builds Employee bundle search payload', async () => {

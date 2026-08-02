@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.18 - 2026-08-02
+
+- Author employee creation entries through the shared `BundleEditor` contract.
+- Apply the selected FHIR JSON, DIDComm plain, or DIDComm encrypted transport
+  profile to `OrganizationControllerSdk.createOrganizationEmployee(...)`,
+  including protected submit and poll requests for encrypted profiles.
+
 ## 2.3.17 - 2026-08-02
 
 - Send the requester Firebase/OpenID `id_token` as its own SMART token field.

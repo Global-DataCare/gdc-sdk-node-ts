@@ -429,6 +429,10 @@ GW CORE current contract:
 
 - `POST /{tenantId}/cds-{jurisdiction}/v1/{sector}/entity/org.schema/Employee/_batch`
   current create path
+- the runtime authors one canonical employee entry with `BundleEditor`; the
+  selected `NodeHttpClient` transport profile controls only its outer wire
+  representation: FHIR `Bundle.entry[]`, DIDComm plain, or DIDComm encrypted
+  form. Applications do not hand-build or encrypt the batch themselves.
 
 ### Employee search
 

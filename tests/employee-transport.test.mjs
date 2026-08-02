@@ -1,0 +1,89 @@
+/**
+ * Teaching goal:
+ * prove one BundleEditor-authored Employee licence is transported through the
+ * caller-selected FHIR, DIDComm plain, or DIDComm encrypted wire profile.
+ */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  NodeHttpClient,
+  OrganizationControllerSdk,
+  TransportProfiles,
+} from '../dist/index.js';
+
+const ctx = { tenantId: 'VATES-G02793479', jurisdiction: 'ES', sector: 'onehealth-research' };
+const employeeClaims = {
+  '@context': 'org.schema',
+  'org.schema.Person.email': 'employee@example.org',
+  'org.schema.Person.hasOccupation.identifier.value': 'ISCO-08|3344',
+  'org.schema.Person.memberOf.taxID': 'VATES-G02793479',
+};
+
+function createFetchRecorder(profile, calls) {
+  return async (url, init) => {
+    calls.push({ url: String(url), init });
+    if (String(url).endsWith('_batch')) {
+      return new Response('{}', { status: 202, headers: { 'content-type': 'application/json' } });
+    }
+    if (profile === TransportProfiles.DidcommEncryptedForm) {
+      return new Response('response=employee-terminal-jwe', {
+        status: 200,
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      });
+    }
+    return Response.json({ data: [{ response: { status: '200' } }] }, { status: 200 });
+  };
+}
+
+for (const profile of Object.values(TransportProfiles)) {
+  test(`OrganizationControllerSdk transports one employee licence with ${profile}`, async () => {
+    const calls = [];
+    const packedMessages = [];
+    const secureTransportAdapter = profile === TransportProfiles.DidcommEncryptedForm
+      ? {
+          async pack(message) {
+            packedMessages.push(message);
+            return `packed-${message.thid}`;
+          },
+          async unpack(jwe) { return { decrypted: jwe }; },
+        }
+      : undefined;
+    const sdk = new OrganizationControllerSdk(new NodeHttpClient({
+      baseUrl: 'https://gw.example',
+      ctx,
+      transportProfile: profile,
+      secureTransportAdapter,
+      fetchImpl: createFetchRecorder(profile, calls),
+    }));
+
+    const result = await sdk.createOrganizationEmployee(ctx, {
+      employeeClaims,
+    }, { intervalMs: 1, timeoutMs: 100 });
+
+    assert.equal(result.poll.status, 200);
+    assert.equal(calls.length, 2);
+    assert.match(calls[0].url, /Employee\/_batch$/);
+    assert.match(calls[1].url, /Employee\/_batch-response$/);
+
+    if (profile === TransportProfiles.FhirJson) {
+      assert.equal(calls[0].init.headers['Content-Type'], TransportProfiles.FhirJson);
+      const body = JSON.parse(calls[0].init.body);
+      assert.equal(body.resourceType, 'Bundle');
+      assert.equal(body.type, 'batch');
+      assert.equal(body.entry.length, 1);
+      assert.equal(body.entry[0].resource.meta.claims['org.schema.Person.email'], 'employee@example.org');
+    } else if (profile === TransportProfiles.DidcommPlainJson) {
+      assert.equal(calls[0].init.headers['Content-Type'], TransportProfiles.DidcommPlainJson);
+      const message = JSON.parse(calls[0].init.body);
+      assert.equal(message.body.data.length, 1);
+      assert.equal(message.body.data[0].resource.meta.claims['org.schema.Person.email'], 'employee@example.org');
+    } else {
+      assert.equal(calls[0].init.headers['Content-Type'], TransportProfiles.DidcommEncryptedForm);
+      assert.match(calls[0].init.body, /^request=packed-employee-/);
+      assert.match(calls[1].init.body, /^request=packed-employee-/);
+      assert.equal(packedMessages[0].body.data.length, 1);
+      assert.equal(packedMessages[0].body.data[0].resource.meta.claims['org.schema.Person.email'], 'employee@example.org');
+      assert.deepEqual(result.poll.body, { decrypted: 'employee-terminal-jwe' });
+    }
+  });
+}
