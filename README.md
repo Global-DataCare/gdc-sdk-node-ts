@@ -406,8 +406,19 @@ data ingestion/search.
 - professional access grant
 - invitation / OTP / relationship PIN runtime wiring
 - permission-request `Communication`
+- composed professional request submission and subject decision correlation
 - communication ingestion and search
 - SMART token retrieval
+
+`ProfessionalSdk.requestProfessionalAccess(...)` is the bootstrap operation
+for the inverse flow: it persists a subject-scoped permission-request
+`Communication` using the configured HTTP bearer and transport profile, without
+requiring SMART. The subject later answers through
+`respondToProfessionalAccessRequest(...)`; that facade uses the normal Consent
+grant/deny operation and retains the original Communication identifier/thread.
+`listProfessionalAccessRequests(...)` provides the subject/requester inbox view,
+and `GatewayActiveConsentProvider` supplies `evaluateRequestedAccess(...)` from
+the GW Consent source of truth rather than a parallel application table.
 
 ## Main Flows
 

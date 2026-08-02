@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Add `ProfessionalSdk.requestProfessionalAccess(...)` to build, authenticate,
+  optionally protect with DIDComm, submit and poll one canonical subject-scoped
+  permission-request Communication without requiring a SMART token.
+- Add correlated permission-request decisions for Personal and Individual
+  Controller facades; the resulting Consent retains the original Communication
+  identifier/thread through `eventBasedOn` and `sourceReference`.
+- Add subject/requester permission-request listing through the existing
+  Communication search runtime and a `GatewayActiveConsentProvider` that reads
+  active Consent rules from GW instead of requiring an application-owned table.
+
 ## 2.3.18 - 2026-08-02
 
 - Author employee creation entries through the shared `BundleEditor` contract.

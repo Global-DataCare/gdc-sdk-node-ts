@@ -3,6 +3,7 @@
 import { HealthcareBasicSections, ResourceTypesFhirR4 } from 'gdc-common-utils-ts/constants';
 import { Format } from 'gdc-common-utils-ts/constants/Schemas';
 import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
+import { CommunicationClaim } from 'gdc-common-utils-ts/models/interoperable-claims/communication-claims';
 import {
   BundleEditor,
   buildCommunicationParticipantSearchBundle,
@@ -26,6 +27,7 @@ import {
   addFhirResourceToCommunication,
   createCommunicationResource,
   buildClinicalSummaryCommunicationJob,
+  buildPermissionRequestCommunication,
   createClinicalSectionUpdateOutboxJob,
   createClinicalSummaryUpdateOutboxJob,
   readClinicalSummaryOperationResult,
@@ -34,6 +36,7 @@ import {
   type ClinicalUpdateCommunicationInput,
   type ClinicalSummaryReadResult,
   type ClinicalSummaryRequestInput,
+  type PermissionRequestCommunicationInput,
 } from 'gdc-sdk-core-ts';
 import type { LicenseOfferSearchState, LicenseOrderSearchState } from 'gdc-common-utils-ts/utils/license-commercial-search';
 import type { LicenseListSearchState } from 'gdc-common-utils-ts/utils/license-list-search';
@@ -271,6 +274,31 @@ export type CommunicationIngestionInput = {
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
 
+/**
+ * Canonical professional-to-subject permission request.
+ *
+ * This operation records a `Communication`; it never creates Consent or
+ * requires a SMART token. HTTP authentication and optional secure DIDComm
+ * transport remain concerns of the configured runtime client.
+ */
+export type ProfessionalAccessRequestInput = Omit<PermissionRequestCommunicationInput, 'missing'> & Readonly<{
+  missing: Readonly<{
+    sections: string[];
+    resourceTypes: string[];
+    pairs?: PermissionRequestCommunicationInput['missing']['pairs'];
+  }>;
+  transportProfile?: TransportProfile;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+}>;
+
+/** Result of persisting one canonical permission-request Communication. */
+export type ProfessionalAccessRequestResult = Readonly<{
+  thid: string;
+  communicationIdentifier: string;
+  communication: CommunicationInput;
+  delivery: SubmitAndPollResult;
+}>;
+
 type ClinicalUpdateRuntimeOptions = Readonly<{
   transportProfile?: TransportProfile;
   clinicalFormat?: string;
@@ -383,6 +411,22 @@ export type CommunicationParticipantRuntimeSearchInput = {
   count?: number;
 };
 
+/** Subject/requester filters for canonical permission-request Communications. */
+export type ProfessionalAccessRequestSearchInput = CommunicationParticipantRuntimeSearchInput;
+
+/** Restricts a Communication participant search to permission requests. */
+export function buildProfessionalAccessRequestSearchInput(
+  input: ProfessionalAccessRequestSearchInput,
+): CommunicationParticipantRuntimeSearchInput {
+  return {
+    ...input,
+    searchParams: {
+      ...input.searchParams,
+      [CommunicationClaim.Category]: 'permission-request',
+    },
+  };
+}
+
 export type ClinicalDateRange = DateRange;
 
 export type ClinicalBundleSearchInput = Omit<BundleSearchQuery, 'section' | 'searchParams'> & {
@@ -450,6 +494,10 @@ export type GrantProfessionalAccessInput = {
   consentIdentifier?: string;
   consentDate?: string;
   decision?: 'permit' | 'deny';
+  /** Permission-request Communication identifier or thread being answered. */
+  eventBasedOn?: string;
+  /** Canonical permission-request Communication reference. */
+  sourceReference?: string;
   attachmentContentType?: string;
   attachmentBase64?: string;
   dataType?: string;
@@ -464,6 +512,31 @@ export type GrantProfessionalAccessResult = {
   consentClaims: Record<string, unknown>;
   claimsCid?: string;
 };
+
+/** Subject decision that remains correlated to the originating request. */
+export type ProfessionalAccessRequestDecisionInput = Omit<
+  GrantProfessionalAccessInput,
+  'eventBasedOn' | 'sourceReference'
+> & Readonly<{
+  requestThid: string;
+  requestCommunicationIdentifier?: string;
+}>;
+
+/** Converts one request decision into the canonical correlated Consent grant. */
+export function buildProfessionalAccessRequestDecisionGrant(
+  input: ProfessionalAccessRequestDecisionInput,
+): GrantProfessionalAccessInput {
+  const requestThid = String(input.requestThid || '').trim();
+  if (!requestThid) throw new Error('Permission request decision requires requestThid.');
+  const communicationIdentifier = String(input.requestCommunicationIdentifier || '').trim();
+  return {
+    ...input,
+    eventBasedOn: communicationIdentifier || requestThid,
+    sourceReference: communicationIdentifier
+      ? `Communication?identifier=${encodeURIComponent(communicationIdentifier)}`
+      : `Communication?thid=${encodeURIComponent(requestThid)}`,
+  };
+}
 
 export type RevokeProfessionalAccessInput = {
   consentClaims: Record<string, unknown>;
@@ -1252,6 +1325,65 @@ export async function ingestCommunicationAndUpdateIndexWithDeps(
   );
 }
 
+/**
+ * Builds and persists one professional access request against the subject's
+ * provider route. The request is deliberately independent from SMART because
+ * no subject consent exists yet.
+ */
+export async function requestProfessionalAccessWithDeps(
+  routeCtx: RouteContext,
+  input: ProfessionalAccessRequestInput,
+  deps: {
+    individualCommunicationBatchPath: (ctx: RouteContext, pathFormatSegment: string) => string;
+    individualCommunicationPollPath: (ctx: RouteContext, pathFormatSegment: string) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<ProfessionalAccessRequestResult> {
+  const subject = String(input.subject || '').trim();
+  const missingSections = input.missing.sections.map((value) => String(value || '').trim()).filter(Boolean);
+  const missingResourceTypes = input.missing.resourceTypes.map((value) => String(value || '').trim()).filter(Boolean);
+  const requesterTargets = [
+    input.requester.did,
+    input.requester.email,
+    input.requester.phone,
+    input.requester.organizationDid,
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+  if (!subject.startsWith('did:')) throw new Error('Professional access request requires a subject DID.');
+  if (requesterTargets.length === 0) throw new Error('Professional access request requires an authenticated requester target.');
+  if (missingSections.length === 0 && missingResourceTypes.length === 0) {
+    throw new Error('Professional access request requires at least one missing permission.');
+  }
+
+  const thid = String(input.thid || '').trim() || `permission-request-${createRuntimeUuid()}`;
+  const communicationIdentifier = String(input.communicationIdentifier || '').trim()
+    || `urn:uuid:${createRuntimeUuid()}`;
+  const communication = buildPermissionRequestCommunication({
+    ...input,
+    subject,
+    thid,
+    communicationIdentifier,
+    missing: {
+      sections: missingSections,
+      resourceTypes: missingResourceTypes,
+      pairs: input.missing.pairs || [
+        ...missingSections.map((section) => ({ section, reason: 'missing-consent' })),
+        ...missingResourceTypes.map((resourceType) => ({ resourceType, reason: 'missing-consent' })),
+      ],
+    },
+  });
+  const delivery = await ingestCommunicationAndUpdateIndexWithDeps(routeCtx, {
+    communicationPayload: communication,
+    pathFormatSegment: 'r4',
+    pollOptions: input.pollOptions,
+  }, deps);
+  return { thid, communicationIdentifier, communication, delivery };
+}
+
 export async function searchCommunicationParticipantsWithDeps(
   routeCtx: RouteContext,
   input: CommunicationParticipantRuntimeSearchInput,
@@ -1630,6 +1762,8 @@ export async function grantProfessionalAccessWithDeps(
       consentIdentifier: input.consentIdentifier,
       consentDate: input.consentDate,
       decision: input.decision,
+      eventBasedOn: input.eventBasedOn,
+      sourceReference: input.sourceReference,
       attachmentContentType: input.attachmentContentType,
       attachmentBase64: input.attachmentBase64,
     },

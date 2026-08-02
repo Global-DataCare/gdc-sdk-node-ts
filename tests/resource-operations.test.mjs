@@ -50,10 +50,13 @@ import {
   disableOrganizationEmployeeWithDeps,
   generateDigitalTwinFromSubjectDataWithDeps,
   grantProfessionalAccessWithDeps,
+  buildProfessionalAccessRequestDecisionGrant,
+  buildProfessionalAccessRequestSearchInput,
   importIpsOrFhirAndUpdateIndexWithDeps,
   ingestCommunicationAndUpdateIndexWithDeps,
   registerBlockchainArtifactAndUpdateIndexWithDeps,
   requestClinicalSummaryWithDeps,
+  requestProfessionalAccessWithDeps,
   listIndividualLicensesWithDeps,
   addFreeIndividualMemberLicensesWithDeps,
   issueIndividualMemberLicenseWithDeps,
@@ -1027,16 +1030,24 @@ test('buildVitalSignBatchCommunicationFromSearchResponse wraps unanchored batch 
 
 test('grantProfessionalAccessWithDeps builds consent payload and returns built metadata', async () => {
   const calls = [];
+  let consentInput;
   const result = await grantProfessionalAccessWithDeps(
     cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
-    cloneExample(EXAMPLE_CONSENT_GRANT_INPUT),
     {
-      buildConsentClaimsWithCid: () => ({
-        actorIdentifier: 'did:web:practitioner.example,ES',
-        subjectIdentifier: 'did:web:subject.example',
-        consentClaims: { a: 1 },
-        claimsCid: 'cid-1',
-      }),
+      ...cloneExample(EXAMPLE_CONSENT_GRANT_INPUT),
+      eventBasedOn: 'urn:uuid:permission-request-1',
+      sourceReference: 'Communication/permission-request-1',
+    },
+    {
+      buildConsentClaimsWithCid: (input) => {
+        consentInput = input;
+        return {
+          actorIdentifier: 'did:web:practitioner.example,ES',
+          subjectIdentifier: 'did:web:subject.example',
+          consentClaims: { a: 1 },
+          claimsCid: 'cid-1',
+        };
+      },
       individualConsentR4BatchPath: () => INDIVIDUAL_CONSENT_R4_BATCH_PATH,
       individualConsentR4PollPath: () => INDIVIDUAL_CONSENT_R4_BATCH_POLL_PATH,
       submitAndPoll: async (...args) => {
@@ -1048,6 +1059,83 @@ test('grantProfessionalAccessWithDeps builds consent payload and returns built m
   assert.equal(calls[0][0], INDIVIDUAL_CONSENT_R4_BATCH_PATH);
   assert.equal(typeof result.thid, 'string');
   assert.equal(result.consent.poll.status, 200);
+  assert.equal(consentInput.eventBasedOn, 'urn:uuid:permission-request-1');
+  assert.equal(consentInput.sourceReference, 'Communication/permission-request-1');
+});
+
+test('requestProfessionalAccessWithDeps persists one canonical permission-request Communication', async () => {
+  const calls = [];
+  const result = await requestProfessionalAccessWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    {
+      subject: 'did:web:subject.example',
+      requester: { actorKind: 'professional', did: 'did:web:clinic.example:member:zHash:ISCO-08|2211' },
+      requesterRole: 'ISCO-08|2211',
+      purpose: 'TREAT',
+      missing: { sections: ['LOINC|48765-2'], resourceTypes: [] },
+      sender: 'did:web:clinic.example:member:zHash:ISCO-08|2211',
+      recipient: 'did:web:subject.example',
+    },
+    {
+      individualCommunicationBatchPath: () => '/Communication/_batch/r4',
+      individualCommunicationPollPath: () => '/Communication/_batch/r4/poll',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 201, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(result.communication.category[0], 'permission-request');
+  assert.equal(result.communication.subject, 'did:web:subject.example');
+  assert.match(result.communicationIdentifier, /^urn:uuid:/);
+  assert.equal(calls[0][2].thid, result.thid);
+});
+
+test('requestProfessionalAccessWithDeps rejects an empty permission request', async () => {
+  await assert.rejects(
+    requestProfessionalAccessWithDeps(
+      cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+      {
+        subject: 'did:web:subject.example',
+        requester: { actorKind: 'professional', did: 'did:web:clinic.example:member:zHash:ISCO-08|2211' },
+        missing: { sections: [], resourceTypes: [] },
+      },
+      {
+        individualCommunicationBatchPath: () => '',
+        individualCommunicationPollPath: () => '',
+        submitAndPoll: async () => { throw new Error('must not submit'); },
+      },
+    ),
+    /at least one missing permission/,
+  );
+});
+
+test('buildProfessionalAccessRequestDecisionGrant links the Consent to the original Communication', () => {
+  const grant = buildProfessionalAccessRequestDecisionGrant({
+    ...cloneExample(EXAMPLE_CONSENT_GRANT_INPUT),
+    requestThid: 'permission-request-thread-1',
+    requestCommunicationIdentifier: 'urn:uuid:permission-request-1',
+  });
+  assert.equal(grant.eventBasedOn, 'urn:uuid:permission-request-1');
+  assert.equal(
+    grant.sourceReference,
+    'Communication?identifier=urn%3Auuid%3Apermission-request-1',
+  );
+});
+
+test('buildProfessionalAccessRequestSearchInput preserves participant filters and fixes the category', () => {
+  assert.deepEqual(buildProfessionalAccessRequestSearchInput({
+    subject: 'did:web:subject.example',
+    senderActorId: 'did:web:clinic.example:member:zHash:ISCO-08|2211',
+    searchParams: { 'Communication.topic': 'clinical-access' },
+  }), {
+    subject: 'did:web:subject.example',
+    senderActorId: 'did:web:clinic.example:member:zHash:ISCO-08|2211',
+    searchParams: {
+      'Communication.topic': 'clinical-access',
+      'Communication.category': 'permission-request',
+    },
+  });
 });
 
 test('revokeProfessionalAccessWithDeps closes consent by setting period end', async () => {
