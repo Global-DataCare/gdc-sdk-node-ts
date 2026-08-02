@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.15 - 2026-08-02
+
+- Read controller activation material from wrapped and multi-entry
+  `Organization/_issue` terminal responses while accepting only the canonical
+  serial-number claim or an explicitly typed `License:Issued` id.
+- Preserve fail-closed diagnostics and reject unrelated job or resource ids.
+
 ## 2.3.14 - 2026-08-01
 
 - Added an explicit server-only `walletSeed` and stable
