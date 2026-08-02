@@ -23,6 +23,26 @@ test('readOrganizationIssueActivationCode reads the governed reissue result', ()
   }), 'lic-controller-code');
 });
 
+test('readOrganizationIssueActivationCode reads a wrapped non-first License response entry', () => {
+  assert.equal(readOrganizationIssueActivationCode({
+    poll: { body: { body: { result: { data: [
+      { type: 'OperationOutcome', id: 'unrelated-job-id' },
+      { type: 'License:Issued', meta: { claims: {
+        'org.schema.IndividualProduct.serialNumber': 'lic-wrapped-controller-code',
+      } } },
+    ] } } } },
+  }), 'lic-wrapped-controller-code');
+});
+
+test('readOrganizationIssueActivationCode accepts only a typed License issued id fallback', () => {
+  assert.equal(readOrganizationIssueActivationCode({
+    poll: { body: { response: { body: { data: [
+      { type: 'OperationOutcome', id: 'unrelated-job-id' },
+      { type: 'License:Issued', id: 'lic-issued-entry-id' },
+    ] } } } },
+  }), 'lic-issued-entry-id');
+});
+
 test('recoverOrganizationControllerWithIssueWithDeps performs Organization/_issue then exchange then dcr', async () => {
   const calls = [];
 

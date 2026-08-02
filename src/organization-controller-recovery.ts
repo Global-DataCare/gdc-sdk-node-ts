@@ -88,25 +88,54 @@ export async function recoverOrganizationControllerWithIssueWithDeps(
   };
 }
 
-/** Reads the opaque activation code from a successful Organization/_issue poll result. */
+/**
+ * Reads the opaque activation code from a successful Organization/_issue poll result.
+ *
+ * Gateway deployments may retain one or more transport/job envelopes around
+ * the terminal batch response. Only a response entry carrying the canonical
+ * serial-number claim, or an explicitly typed `License:Issued` entry carrying
+ * its public `id`, is accepted. Unrelated identifiers are never interpreted as
+ * activation material.
+ */
 export function readOrganizationIssueActivationCode(result: SubmitAndPollResult): string {
   const pollBody = (result?.poll?.body || {}) as Record<string, unknown>;
-  const body = ((pollBody.body as Record<string, unknown> | undefined) || pollBody);
-  const data = Array.isArray(body.data) ? body.data : Array.isArray(pollBody.data) ? pollBody.data : [];
-  const firstEntry = (data[0] as Record<string, unknown> | undefined) || {};
-  const claims = (firstEntry.meta as Record<string, unknown> | undefined)?.claims as Record<string, unknown> | undefined;
-  const activationCode = String(claims?.['org.schema.IndividualProduct.serialNumber'] || '').trim();
-  if (activationCode) {
-    return activationCode;
+  for (const candidate of nestedObjects(pollBody)) {
+    const claims = (candidate.meta as Record<string, unknown> | undefined)?.claims as Record<string, unknown> | undefined;
+    const activationCode = String(claims?.['org.schema.IndividualProduct.serialNumber'] || '').trim();
+    if (activationCode) return activationCode;
+
+    if (candidate.type === 'License:Issued') {
+      const issuedId = String(candidate.id || '').trim();
+      if (issuedId) return issuedId;
+    }
   }
 
-  const diagnostics = (((firstEntry.response as Record<string, unknown> | undefined)?.outcome as Record<string, unknown> | undefined)
-    ?.issue as Array<Record<string, unknown>> | undefined)
-    ?.map((issue) => String(issue?.diagnostics || '').trim())
+  const diagnostics = nestedObjects(pollBody)
+    .map((candidate) => String(candidate.diagnostics || '').trim())
     .filter(Boolean)
     .join(' | ');
   if (diagnostics) {
     throw new Error(`recoverOrganizationControllerWithIssue: Organization/_issue failed: ${diagnostics}`);
   }
   return '';
+}
+
+function nestedObjects(root: unknown): Record<string, unknown>[] {
+  const found: Record<string, unknown>[] = [];
+  const pending: Array<{ value: unknown; depth: number }> = [{ value: root, depth: 0 }];
+  const visited = new Set<object>();
+  while (pending.length > 0) {
+    const current = pending.shift()!;
+    if (!current.value || typeof current.value !== 'object' || current.depth > 8) continue;
+    if (visited.has(current.value)) continue;
+    visited.add(current.value);
+    if (Array.isArray(current.value)) {
+      current.value.forEach((value) => pending.push({ value, depth: current.depth + 1 }));
+      continue;
+    }
+    const record = current.value as Record<string, unknown>;
+    found.push(record);
+    Object.values(record).forEach((value) => pending.push({ value, depth: current.depth + 1 }));
+  }
+  return found;
 }
