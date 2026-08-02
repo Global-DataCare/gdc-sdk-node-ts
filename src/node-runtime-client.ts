@@ -390,7 +390,15 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       wrapBundleAsGatewayTransactionMessage: this.wrapBundleAsGatewayTransactionMessage.bind(this),
       submitPath: this.hostRegistryOrganizationTransactionPath.bind(this),
       pollPath: this.hostRegistryOrganizationTransactionPollPath.bind(this),
-      submitAndPoll: this.submitAndPoll.bind(this),
+      submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
+        ? (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
+            submitPath,
+            pollPath,
+            payload,
+            this.transportProfile,
+            pollOptions,
+          )
+        : this.submitAndPoll.bind(this),
     });
   }
 
@@ -417,7 +425,15 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       wrapBundleAsGatewayTransactionMessage: this.wrapBundleAsGatewayTransactionMessage.bind(this),
       submitPath: this.hostRegistryOrganizationIssuePath.bind(this),
       pollPath: this.hostRegistryOrganizationIssuePollPath.bind(this),
-      submitAndPoll: this.submitAndPoll.bind(this),
+      submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
+        ? (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
+            submitPath,
+            pollPath,
+            payload,
+            this.transportProfile,
+            pollOptions,
+          )
+        : this.submitAndPoll.bind(this),
     });
   }
 
@@ -1252,7 +1268,9 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
           status: response.status,
           body: response.status === 202
             ? response.body
-            : await decodeTransportResponse(response.body, profile, this.secureTransportAdapter),
+            : response.status >= 200 && response.status < 300
+              ? await decodeTransportResponse(response.body, profile, this.secureTransportAdapter)
+              : response.body,
           retryAfterMs: response.retryAfterMs,
         };
       },
@@ -1288,7 +1306,9 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
           status: response.status,
           body: response.status === 202
             ? response.body
-            : await decodeTransportResponse(response.body, profile, this.secureTransportAdapter),
+            : response.status >= 200 && response.status < 300
+              ? await decodeTransportResponse(response.body, profile, this.secureTransportAdapter)
+              : response.body,
           retryAfterMs: response.retryAfterMs,
         };
       },
