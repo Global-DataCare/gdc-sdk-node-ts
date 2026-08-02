@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.3.19 - 2026-08-02
+
 - Add `ProfessionalSdk.requestProfessionalAccess(...)` to build, authenticate,
   optionally protect with DIDComm, submit and poll one canonical subject-scoped
   permission-request Communication without requiring a SMART token.
