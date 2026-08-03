@@ -78,20 +78,20 @@ the root subject-directory record. FHIR `Patient` references may appear inside
 clinical resources, but GW does not use a global Patient search as the subject
 directory.
 
-UHC deliberately defines its card identity as a public subject alias:
+One product may define its card identity as a public subject alias:
 
 ```text
-did:web:<host>:card:uhc:<personal|animal>:<public-subject-number>
+did:web:<product-host>:<product-subject-path>:<public-subject-number>
 ```
 
-That DID is encoded in the QR, stored in
+Such a DID may be encoded in a QR, stored in
 `org.schema.Organization.sameAs`, returned as `authorizedSubjectDid` by an
 accepted member license and currently reused directly as `subjectDid` in
 Consent, Communication, SMART and clinical subject references. It is not a
-`urn:uuid` and must not be downgraded to a mere UI card id. Other products may
-use a different individual DID shape, for example one returned by
+`urn:uuid` and must not be downgraded to a mere UI id. Another product may use
+a different individual DID shape, for example one returned by
 `buildIndividualDidWeb(...)`; the generic SDK consumes the resolved
-`subjectDid` without imposing UHC vocabulary.
+`subjectDid` without imposing product vocabulary.
 
 Do not use `RelatedPerson` as a generic subject directory. It describes a
 subject-owned family/caregiver relationship; its `RelatedPerson.patient`
@@ -99,11 +99,11 @@ references the canonical subject DID, while its own identifier identifies the
 relationship/member. The current GW routes it through
 `individual/org.hl7.fhir.r4/RelatedPerson/_search` and lifecycle operations.
 
-Do not infer semantics from the mere presence of a `:card:` DID segment. UHC's
-published contract makes its card DID the subject alias. A product that models
-a separate physical support DID must define and verify an explicit resolution
-to its subject identity. `urn:uuid:...` values identify records such as
-Communications, VCs or invitations and are not the UHC card/subject DID.
+Do not infer semantics from a DID path segment alone. A product contract may
+make a card DID the public subject alias; another may model a separate physical
+support DID that requires an explicit, verified resolution to its subject
+identity. `urn:uuid:...` values identify records such as Communications, VCs
+or invitations and are not public subject DIDs.
 
 GW currently exposes subject-scoped clinical operations such as
 `Subject/$summary` and `Bundle/_search`, but not one generic
