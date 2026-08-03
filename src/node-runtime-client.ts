@@ -183,9 +183,9 @@ export type HttpRuntimeClientOptions = {
    */
   appInfo?: AppInfo;
   /**
-   * Optional default tenant route context reused by methods such as
-   * `requestSmartToken(...)` when callers do not want to repeat
-   * tenant/jurisdiction/sector on every call.
+   * Optional default route context for the authenticated actor's home tenant.
+   * A professional runtime should set this to the employer organization; a
+   * selected subject's provider context is passed to each subject operation.
    */
   ctx?: RouteContext;
   defaultHeaders?: Record<string, string>;

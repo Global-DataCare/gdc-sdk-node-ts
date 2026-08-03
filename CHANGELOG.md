@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 2.3.21 - 2026-08-03
+
+- Correct the professional Consent/SMART 101 so the long-lived runtime is
+  initialized against the employer organization GW and tenant. Subject cards
+  now supply a per-operation destination context instead of rebinding the
+  professional runtime to each patient provider.
+- Clarify the `HttpRuntimeClient` default context as the authenticated actor's
+  home tenant and cover the employer-versus-selected-subject boundary in the
+  executable permission-request tutorial.
+
 ## 2.3.20 - 2026-08-02
 
 - Expand the professional consent 101 with copy-ready subject-provider

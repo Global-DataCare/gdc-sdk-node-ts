@@ -13,7 +13,7 @@ This tutorial covers both directions:
 2. the subject receives and answers that request;
 3. the professional requests SMART only after the correlated Consent exists.
 
-## 1. Configure subject-provider transport with the professional ID token
+## 1. Configure the professional runtime for the employer organization
 
 ```ts
 import {
@@ -25,16 +25,17 @@ import {
   getMissingPermissions,
 } from 'gdc-sdk-node-ts';
 
-const subjectProviderContext = {
-  tenantId: subjectProviderTenantId,
+const employerContext = {
+  tenantId: employerOrganizationTenantId,
   jurisdiction: 'ES',
   sector: 'health-care',
 };
 
 const professionalRuntime = new HttpRuntimeClient({
-  baseUrl: subjectProviderGwUrl,
+  baseUrl: employerOrganizationGwUrl,
   bearerToken: professionalIdToken,
-  ctx: subjectProviderContext,
+  ctx: employerContext,
+  smartTokenEndpointResolver: resolveSmartEndpointFromSubjectDid,
 });
 const professionalSdk = new ProfessionalSdk(professionalRuntime);
 ```
@@ -45,10 +46,27 @@ and it does not grant clinical access. If the runtime uses encrypted DIDComm,
 configure its wallet-backed `secureTransportAdapter` here; applications do not
 need another Voice/X-Portal proxy or a second portal token.
 
-The route belongs to the provider that owns the subject. A product may resolve
-email to `subjectDid` through its authenticated patient directory, invitation
-or lookup service. The generic SDK deliberately does not expose a global
-email-to-DID resolver.
+The professional runtime belongs to the professional and therefore uses the
+employer organization GW and tenant as its stable defaults. It must not be
+initialized with a patient/subject tenant. The portal selects a subject card
+for each operation and obtains that card's DID plus provider route context:
+
+```ts
+const selectedSubject = await subjectCardDirectory.open(selectedCardId);
+const subjectDid = selectedSubject.did;
+const subjectRouteContext = selectedSubject.providerRouteContext;
+```
+
+The selected context is an operation destination, not the professional's
+identity or runtime home. The employer GW remains the professional's outbound
+gateway and routes the protected request to the recipient/provider identified
+by the selected card. If a deployment cannot perform that cross-provider
+routing yet, that is a GW transport limitation; applications must not work
+around it by rebinding the professional runtime to each subject.
+
+A product may resolve email to `subjectDid` through its authenticated patient
+directory, invitation or lookup service. The generic SDK deliberately does not
+expose a global email-to-DID resolver.
 
 ## 2. Evaluate current Consent and submit only the missing access
 
@@ -61,7 +79,7 @@ const actor = {
 
 const consentProvider = new GatewayActiveConsentProvider(
   professionalRuntime,
-  subjectProviderContext,
+  subjectRouteContext,
 );
 const evaluation = await evaluateRequestedAccess(consentProvider, {
   subject: subjectDid,
@@ -74,7 +92,7 @@ const evaluation = await evaluateRequestedAccess(consentProvider, {
 const missing = getMissingPermissions(evaluation);
 
 const request = await professionalSdk.requestProfessionalAccess(
-  subjectProviderContext,
+  subjectRouteContext,
   {
     subject: subjectDid,
     requester: actor,
@@ -100,17 +118,17 @@ Keep `request.thid` and `request.communicationIdentifier` for correlation.
 const subjectRuntime = new HttpRuntimeClient({
   baseUrl: subjectProviderGwUrl,
   bearerToken: subjectIdToken,
-  ctx: subjectProviderContext,
+  ctx: subjectRouteContext,
 });
 const subjectSdk = new IndividualControllerSdk(subjectRuntime);
 
 const inbox = await subjectSdk.listProfessionalAccessRequests(
-  subjectProviderContext,
+  subjectRouteContext,
   { subject: subjectDid, recipientActorId: subjectDid },
 );
 
 const decision = await subjectSdk.respondToProfessionalAccessRequest(
-  subjectProviderContext,
+  subjectRouteContext,
   {
     requestThid: request.thid,
     requestCommunicationIdentifier: request.communicationIdentifier,
@@ -151,8 +169,6 @@ identifiers. An `id_token` or an unverified DID suffix alone never creates that
 alias.
 
 ## 6. Build one professional actor DID
-
-## 1. Build one professional actor DID
 
 ```ts
 import {
