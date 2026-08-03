@@ -1367,6 +1367,13 @@ outcomes, response statuses and issues. It is not the clinical document reader.
 
 ### 7.14 Compatibility: direct indexed Bundle search
 
+This is deliberately below the canonical application boundary. The direct
+`Bundle/_search` HTTP route remains available for migration, diagnostics and
+specialized index queries; it is not how a portal requests the subject's
+available clinical document. That flow is:
+
+`BFF actor facade -> Communication/_batch -> internal Subject/$summary -> Communication result`.
+
 ```ts
 const bundleSearch = await client.searchClinicalBundle(tenantContext, {
   subject: subjectDid,

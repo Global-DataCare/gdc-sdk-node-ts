@@ -1254,7 +1254,9 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
 
   /**
    * Reads the authoritative clinical document currently available for one
-   * subject through an auditable `Communication` request to `Subject/$summary`.
+   * subject through an auditable `Communication` carrying GW's internal
+   * `Subject/$summary` operation reference. The runtime submits
+   * `Communication/_batch`; callers do not invoke `$summary` directly.
    *
    * Unlike `ingestCommunicationAndUpdateIndex(...)`, this method does not
    * represent a write or projection lifecycle. It returns the GW document and
@@ -1320,7 +1322,10 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     };
   }
 
-  /** Applies the configured wire profile to subject-scoped clinical searches. */
+  /**
+   * Applies the configured wire profile to a direct subject-index search.
+   * This is compatibility/specialized plumbing, not the primary summary read.
+   */
   private async submitClinicalMessageAndPoll(
     submitPath: string,
     pollPath: string,
@@ -1417,7 +1422,9 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
-   * Executes a clinical `Bundle/_search` through the converged runtime.
+   * Executes the compatibility/specialized direct `Bundle/_search` surface.
+   * New summary viewers use `requestClinicalSummary(...)`, whose Communication
+   * transport keeps the internal index operation hidden from application code.
    *
    * @param ctx Route context containing tenant/jurisdiction/sector.
    * @param input Search parameters such as subject, section, date and included resource types.

@@ -1431,7 +1431,9 @@ export async function searchCommunicationParticipantsWithDeps(
  *
  * The dependency name intentionally says `submit`, not `ingest`: GW receives a
  * Communication transport record, but the business operation is a read and
- * must not be exposed to applications as index ingestion.
+ * must not be exposed to applications as index ingestion. `Subject/$summary`
+ * is the internal operation reference inside that Communication, not a route
+ * for application/BFF code to invoke directly.
  */
 export async function requestClinicalSummaryWithDeps(
   routeCtx: RouteContext,

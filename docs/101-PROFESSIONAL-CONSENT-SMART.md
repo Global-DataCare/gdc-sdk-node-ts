@@ -105,10 +105,15 @@ support DID that requires an explicit, verified resolution to its subject
 identity. `urn:uuid:...` values identify records such as Communications, VCs
 or invitations and are not public subject DIDs.
 
-GW currently exposes subject-scoped clinical operations such as
-`Subject/$summary` and `Bundle/_search`, but not one generic
-`SubjectDirectory/_search`. Directory lookup and disclosure policy therefore
-belong to the product/provider integration until that public contract exists.
+GW internally resolves subject-scoped clinical operations such as
+`Subject/$summary`, `Subject/_search` and `Bundle/_search` when they are carried
+by an auditable `Communication`. They are not public routes that professional
+application code should construct directly. The public application contract is
+the actor facade (`requestClinicalSummary(...)` for the available document),
+and the runtime submits `Communication/_batch`. There is still no generic
+`SubjectDirectory/_search`; directory lookup and disclosure policy therefore
+belong to the product/provider integration until that separate public contract
+exists.
 
 The selected context is an operation destination, not the professional's
 identity or runtime home. The employer GW remains the professional's outbound

@@ -1246,7 +1246,12 @@ test('searchClinicalBundleWithDeps builds canonical bundle search query with fil
   assert.match(requestUrl, new RegExp(`author=${encodeURIComponent(input.author)}`));
 });
 
-test('requestClinicalSummaryWithDeps reads Subject/$summary through Communication and returns a section reader', async () => {
+/**
+ * Teaching goal:
+ * Prove that application code submits exactly one semantic Communication and
+ * never calls the internal Subject/$summary route as a second HTTP request.
+ */
+test('requestClinicalSummaryWithDeps keeps Subject/$summary inside Communication and returns a section reader', async () => {
   const calls = [];
   const summaryDocument = {
     resourceType: 'Bundle',
@@ -1268,6 +1273,7 @@ test('requestClinicalSummaryWithDeps reads Subject/$summary through Communicatio
     }],
   };
 
+  // Step 1. The BFF supplies actor/subject intent to the high-level operation.
   const result = await requestClinicalSummaryWithDeps(
     cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
     {
@@ -1276,6 +1282,8 @@ test('requestClinicalSummaryWithDeps reads Subject/$summary through Communicatio
       filterSections: ['LOINC|48765-2'],
     },
     {
+      // Step 2. The runtime dependency receives one Communication outbox job;
+      // it receives no direct summary endpoint or Bundle search path.
       submitSummaryCommunication: async (ctx, input) => {
         calls.push({ ctx, input });
         return {
@@ -1295,6 +1303,8 @@ test('requestClinicalSummaryWithDeps reads Subject/$summary through Communicatio
     },
   );
 
+  // Step 3. The completed Communication result becomes the authoritative
+  // document and both reader views without another GW request.
   assert.equal(calls.length, 1);
   assert.equal(calls[0].input.clinicalFormat, 'api');
   assert.equal(calls[0].input.communicationJob.status, 'ready');

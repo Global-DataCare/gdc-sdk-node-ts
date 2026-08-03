@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.3.24 - 2026-08-03
+
+- Clarify in runtime JSDoc, professional/end-to-end 101 docs and executable
+  tests that actor facades submit `Communication/_batch`; `Subject/$summary`,
+  `Subject/_search` and `Bundle/_search` are internal or compatibility index
+  operations rather than direct application routes.
+
 ## 2.3.23 - 2026-08-03
 
 - Correct the subject-resolution explanation so a product-defined card
