@@ -24,7 +24,7 @@ test('101: professional requests access and the subject answers the same Communi
     jurisdiction: 'ES',
     sector: 'health-care',
   };
-  const subjectDid = 'did:web:patient.example';
+  const subjectDid = 'did:web:subjects.example:individual:multibase:zSubject';
   const professionalDid = 'did:web:clinic.example:member:zEmailHash:ISCO-08|2211';
   const role = 'ISCO-08|2211';
   const actions = ['LOINC|48765-2'];

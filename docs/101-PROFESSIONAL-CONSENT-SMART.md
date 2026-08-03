@@ -48,14 +48,46 @@ need another Voice/X-Portal proxy or a second portal token.
 
 The professional runtime belongs to the professional and therefore uses the
 employer organization GW and tenant as its stable defaults. It must not be
-initialized with a patient/subject tenant. The portal selects a subject card
-for each operation and obtains that card's DID plus provider route context:
+initialized with another subject's tenant. The product selects a subject for
+each operation and asks its application-owned directory/resolver for the
+canonical subject DID plus provider route context:
 
 ```ts
-const selectedSubject = await subjectCardDirectory.open(selectedCardId);
-const subjectDid = selectedSubject.did;
+const selectedSubject = await appSubjectDirectory.resolve({
+  kind: 'did',
+  value: selectedSubjectLocator,
+});
+const subjectDid = selectedSubject.subjectDid;
 const subjectRouteContext = selectedSubject.providerRouteContext;
 ```
+
+`appSubjectDirectory` is pseudocode for a product/integration service, not an
+SDK class or a current generic GW endpoint. It may receive a canonical
+individual DID directly, or resolve another authenticated locator to it.
+
+The canonical authorization identifier is normally the `did:web` individual
+identifier returned by onboarding (`buildIndividualDidWeb(...)`). It is used as
+`subjectDid` in Consent, Communication, SMART and clinical subject references.
+An `org.schema.Person.identifier` may carry that identity in a schema.org
+resource, but `Person` is not a substitute directory endpoint.
+
+Do not use `RelatedPerson` as a generic subject directory. It describes a
+subject-owned family/caregiver relationship; its `RelatedPerson.patient`
+references the canonical subject DID, while its own identifier identifies the
+relationship/member. The current GW routes it through
+`individual/org.hl7.fhir.r4/RelatedPerson/_search` and lifecycle operations.
+
+A physical support/card may itself have a `did:web` such as a DID containing
+`:card:`, but that support DID is not an individual authorization alias. Resolve
+the support document's `subject` to the canonical individual DID first. A
+signed `SubjectIdentityBindingCredential` can bind distinct individual DIDs;
+it deliberately excludes physical support DIDs. `urn:uuid:...` values identify
+records such as VCs or invitations and are not the canonical subject identity.
+
+GW currently exposes subject-scoped clinical operations such as
+`Subject/$summary` and `Bundle/_search`, but not one generic
+`SubjectDirectory/_search`. Directory lookup and disclosure policy therefore
+belong to the product/provider integration until that public contract exists.
 
 The selected context is an operation destination, not the professional's
 identity or runtime home. The employer GW remains the professional's outbound
@@ -64,7 +96,7 @@ by the selected card. If a deployment cannot perform that cross-provider
 routing yet, that is a GW transport limitation; applications must not work
 around it by rebinding the professional runtime to each subject.
 
-A product may resolve email to `subjectDid` through its authenticated patient
+A product may resolve email to `subjectDid` through its authenticated subject
 directory, invitation or lookup service. The generic SDK deliberately does not
 expose a global email-to-DID resolver.
 
