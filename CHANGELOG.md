@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 2.3.23 - 2026-08-03
+
+- Correct the subject-resolution explanation to match the deployed UHC
+  contract: its card `did:web` is the public subject alias stored in
+  `org.schema.Organization.sameAs`, not a URN or a generic physical-support id.
+- Document the current GW individual `Organization/_search` root, distinguish
+  it from `Person`, `Patient` and `RelatedPerson`, and use neutral
+  `subjectsDirectory.resolveByDid(...)` pseudocode.
+
 ## 2.3.22 - 2026-08-03
 
 - Replace the product-specific subject-card placeholder in the professional
