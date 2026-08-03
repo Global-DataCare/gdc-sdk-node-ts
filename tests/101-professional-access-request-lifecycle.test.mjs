@@ -14,7 +14,12 @@ import {
  */
 test('101: professional requests access and the subject answers the same Communication', async () => {
   const calls = [];
-  const ctx = {
+  const employerContext = {
+    tenantId: 'professional-employer',
+    jurisdiction: 'ES',
+    sector: 'health-care',
+  };
+  const selectedSubjectContext = {
     tenantId: 'subject-provider',
     jurisdiction: 'ES',
     sector: 'health-care',
@@ -25,6 +30,7 @@ test('101: professional requests access and the subject answers the same Communi
   const actions = ['LOINC|48765-2'];
 
   const runtimeClient = {
+    defaultRouteContext: employerContext,
     async requestProfessionalAccess(routeContext, input) {
       calls.push({ operation: 'request', routeContext, input });
       return {
@@ -71,10 +77,10 @@ test('101: professional requests access and the subject answers the same Communi
   const professionalSdk = new ProfessionalSdk(runtimeClient);
   const subjectSdk = new IndividualControllerSdk(runtimeClient);
 
-  // Step 1. The professional submits a canonical request to the subject's
-  // provider with an ordinary authenticated runtime. No SMART token is an
-  // input to this operation.
-  const request = await professionalSdk.requestProfessionalAccess(ctx, {
+  // Step 1. The professional runtime remains attached to the employer. The
+  // selected card contributes only the destination context for this request.
+  // No SMART token is an input to this operation.
+  const request = await professionalSdk.requestProfessionalAccess(selectedSubjectContext, {
     subject: subjectDid,
     requester: { actorKind: 'professional', did: professionalDid },
     requesterRole: role,
@@ -89,10 +95,12 @@ test('101: professional requests access and the subject answers the same Communi
   });
   assert.deepEqual(request.communication.category, ['permission-request']);
   assert.equal(request.delivery.poll.status, 201);
+  assert.deepEqual(runtimeClient.defaultRouteContext, employerContext);
+  assert.deepEqual(calls[0].routeContext, selectedSubjectContext);
 
   // Step 2. The subject reads the GW-backed permission-request inbox. Push or
   // email can notify the user, but they are not the canonical record.
-  const inbox = await subjectSdk.listProfessionalAccessRequests(ctx, {
+  const inbox = await subjectSdk.listProfessionalAccessRequests(selectedSubjectContext, {
     subject: subjectDid,
     recipientActorId: subjectDid,
   });
@@ -101,7 +109,7 @@ test('101: professional requests access and the subject answers the same Communi
 
   // Step 3. The subject approves through the normal Consent operation while
   // preserving both identifiers from the originating Communication.
-  await subjectSdk.respondToProfessionalAccessRequest(ctx, {
+  await subjectSdk.respondToProfessionalAccessRequest(selectedSubjectContext, {
     requestThid: request.thid,
     requestCommunicationIdentifier: request.communicationIdentifier,
     subjectDid,
