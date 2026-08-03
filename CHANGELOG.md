@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 2.3.22 - 2026-08-03
+
+- Replace the product-specific subject-card placeholder in the professional
+  Consent/SMART 101 with an explicitly application-owned subject resolver.
+- Document the canonical individual `did:web`, physical card/support DID,
+  schema.org `Person.identifier`, FHIR `RelatedPerson`, URN and current GW
+  subject-route boundaries.
+
 ## 2.3.21 - 2026-08-03
 
 - Correct the professional Consent/SMART 101 so the long-lived runtime is
