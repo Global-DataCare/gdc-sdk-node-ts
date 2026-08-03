@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 2.3.25 - 2026-08-03
+
+- State explicitly that the current professional Consent/SMART lifecycle only
+  targets subjects whose onboarding has already generated a canonical DID.
+- Plan the separate GW v2 delegated-onboarding contract: professional-signed
+  request, attached Consent signed by the individual or legal guardian,
+  canonical DID/index creation and controller binding with auditable
+  correlation and negative-test requirements.
+
 ## 2.3.24 - 2026-08-03
 
 - Clarify in runtime JSDoc, professional/end-to-end 101 docs and executable

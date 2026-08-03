@@ -152,6 +152,45 @@ These do not belong in the baseline registration contract:
 
 Those can extend the registration flow later, but they are not the base flow.
 
+## Planned GW v2: delegated individual onboarding by a professional
+
+The current MVP assumes that individual onboarding has already generated the
+canonical `subjectDid`. A professional permission request consumes that DID;
+it does not create a subject and it is not a global email-to-DID lookup.
+
+GW v2 must define a distinct delegated-onboarding operation for a professional
+who needs to create the individual's index. The planned evidence chain is:
+
+```text
+verified professional
+  -> signed delegated-onboarding request
+      -> attached Consent signed by individual or legal guardian
+          -> individual index + canonical DID
+              -> controller binding (self or another authorized person)
+```
+
+Required GW v2 design work:
+
+1. Define the Communication request type, audience, sender and correlation
+   identifiers without reusing a clinical permission request as registration.
+2. Define the attached Consent/evidence profile, including individual versus
+   legal-guardian authority and attachment integrity.
+3. Authenticate and verify the professional signature and organization role.
+4. Define assurance policy for the Consent signature. A qualified electronic
+   certificate is not universally mandatory, so the accepted signature modes
+   and jurisdiction/profile rules must be explicit rather than inferred.
+5. Create the individual DID during successful onboarding and bind the selected
+   controller, whether self or a different authorized person.
+6. Define duplicate/retry behavior, denial, expiry, revocation, audit history
+   and recovery when index creation only partially completes.
+7. Add negative tests for missing Consent, wrong guardian/subject, altered
+   attachment, invalid professional signature and unauthorized controller.
+8. Add one live GW v2 lifecycle proving submit, decision, DID/index creation,
+   controller binding and exact correlated readback.
+
+This is a documented GW v2 backlog contract, not current SDK capability. No
+current MVP method should claim to implement it.
+
 ## Immediate Implementation Rule
 
 For the next v2 backend work:
