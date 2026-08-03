@@ -123,8 +123,38 @@ routing yet, that is a GW transport limitation; applications must not work
 around it by rebinding the professional runtime to each subject.
 
 A product may resolve email to `subjectDid` through its authenticated subject
-directory, invitation or lookup service. The generic SDK deliberately does not
-expose a global email-to-DID resolver.
+directory, invitation or lookup service only when that subject has already
+completed onboarding. The generic SDK deliberately does not expose a global
+email-to-DID resolver.
+
+### Current MVP boundary and planned GW v2 onboarding
+
+The current professional access-request lifecycle starts with an existing
+subject. Individual onboarding has already created its canonical DID, and the
+professional selects that disclosed DID before requesting Consent. The current
+MVP does not let a professional create an individual's index and controller,
+and it must not invent an email-to-DID value when the individual does not yet
+exist.
+
+GW v2 must add a separate delegated-onboarding contract for the later case in
+which a professional creates the individual index. That operation is not part
+of this 101 lifecycle or the current MVP. Its planned request must:
+
+1. be signed by the authenticated professional;
+2. attach the individual's or legal guardian's signed Consent as evidence;
+3. identify whether the controller is the individual or another authorized
+   person;
+4. create the canonical individual DID and return it with the new index;
+5. preserve the professional request, Consent attachment and resulting DID as
+   one auditable correlation chain.
+
+The professional signature authenticates and binds the delegated onboarding
+request; it does not replace the individual/guardian Consent. The attached
+Consent is not universally required to use a qualified electronic certificate:
+the applicable assurance and legal-signature policy must be explicit in the GW
+v2 profile. Until that profile, validation rules, revocation behavior and live
+tests exist, application code must keep this flow disabled rather than treating
+the current permission-request API as an onboarding API.
 
 ## 2. Evaluate current Consent and submit only the missing access
 
