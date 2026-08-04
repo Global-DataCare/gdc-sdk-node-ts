@@ -37,6 +37,7 @@ import {
 } from 'gdc-common-utils-ts';
 import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
 import { ClaimConsent } from 'gdc-common-utils-ts/models/consent-rule';
+import { buildGrantProfessionalAccessClaimsWithCid } from '../dist/runtime-consent.js';
 
 import {
   EmployeeDraft,
@@ -1037,6 +1038,7 @@ test('grantProfessionalAccessWithDeps builds consent payload and returns built m
       ...cloneExample(EXAMPLE_CONSENT_GRANT_INPUT),
       eventBasedOn: 'urn:uuid:permission-request-1',
       sourceReference: 'Communication/permission-request-1',
+      periodEnd: '2026-08-31T18:30:00Z',
     },
     {
       buildConsentClaimsWithCid: (input) => {
@@ -1061,6 +1063,20 @@ test('grantProfessionalAccessWithDeps builds consent payload and returns built m
   assert.equal(result.consent.poll.status, 200);
   assert.equal(consentInput.eventBasedOn, 'urn:uuid:permission-request-1');
   assert.equal(consentInput.sourceReference, 'Communication/permission-request-1');
+  assert.equal(consentInput.periodEnd, '2026-08-31T18:30:00Z');
+});
+
+test('runtime consent builder signs temporary expiry and request correlation claims together', () => {
+  const built = buildGrantProfessionalAccessClaimsWithCid({
+    ...cloneExample(EXAMPLE_CONSENT_GRANT_INPUT),
+    periodEnd: '2026-08-31T18:30:00Z',
+    eventBasedOn: 'urn:uuid:permission-request-1',
+    sourceReference: 'Communication/permission-request-1',
+  }, () => 'temporary-consent-runtime-1');
+
+  assert.equal(built.consentClaims[ClaimConsent.periodEnd], '2026-08-31T18:30:00Z');
+  assert.equal(built.consentClaims[ClaimConsent.eventBasedOn], 'urn:uuid:permission-request-1');
+  assert.equal(built.consentClaims[ClaimConsent.sourceReference], 'Communication/permission-request-1');
 });
 
 test('requestProfessionalAccessWithDeps persists one canonical permission-request Communication', async () => {
@@ -1115,12 +1131,14 @@ test('buildProfessionalAccessRequestDecisionGrant links the Consent to the origi
     ...cloneExample(EXAMPLE_CONSENT_GRANT_INPUT),
     requestThid: 'permission-request-thread-1',
     requestCommunicationIdentifier: 'urn:uuid:permission-request-1',
+    periodEnd: '2026-08-31T18:30:00Z',
   });
   assert.equal(grant.eventBasedOn, 'urn:uuid:permission-request-1');
   assert.equal(
     grant.sourceReference,
     'Communication?identifier=urn%3Auuid%3Apermission-request-1',
   );
+  assert.equal(grant.periodEnd, '2026-08-31T18:30:00Z');
 });
 
 test('buildProfessionalAccessRequestSearchInput preserves participant filters and fixes the category', () => {

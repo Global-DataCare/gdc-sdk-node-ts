@@ -226,6 +226,7 @@ const decision = await subjectSdk.respondToProfessionalAccessRequest(
     purpose: HealthcareConsentPurposes.Treatment,
     actions: requestedSections,
     decision: 'permit',
+    periodEnd: '2026-08-31T18:30:00Z',
   },
 );
 ```
@@ -238,6 +239,11 @@ Consent grant operation and adds `Consent.event-basedon` plus
 
 Use `decision: 'deny'` with the same request identifiers for an explicit
 denial.
+
+`periodEnd` is optional. When present, it is signed as
+`Consent.period-end`; access is inactive at that instant. GW also limits the
+SMART token `exp` to that deadline, so a token issued shortly before the end
+cannot outlive the temporary grant.
 
 ## 4. ActiveConsentProvider is supplied by the Node SDK
 
@@ -312,6 +318,7 @@ await individualSdk.grantProfessionalAccess(ctx, {
   actorRole: professionalRole,
   purpose: HealthcareConsentPurposes.Treatment,
   actions: consentActions,
+  periodEnd: '2026-08-31T18:30:00Z',
 });
 ```
 
