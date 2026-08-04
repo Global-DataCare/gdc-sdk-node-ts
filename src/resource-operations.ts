@@ -493,6 +493,11 @@ export type GrantProfessionalAccessInput = {
   actions: string[];
   consentIdentifier?: string;
   consentDate?: string;
+  /**
+   * ISO 8601 instant after which this grant must no longer authorize access.
+   * It is persisted and signed as the canonical `Consent.period-end` claim.
+   */
+  periodEnd?: string;
   decision?: 'permit' | 'deny';
   /** Permission-request Communication identifier or thread being answered. */
   eventBasedOn?: string;
@@ -1763,6 +1768,7 @@ export async function grantProfessionalAccessWithDeps(
       actions: input.actions,
       consentIdentifier: input.consentIdentifier,
       consentDate: input.consentDate,
+      periodEnd: input.periodEnd,
       decision: input.decision,
       eventBasedOn: input.eventBasedOn,
       sourceReference: input.sourceReference,

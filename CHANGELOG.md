@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2.3.26 - 2026-08-04
+
+- Add `periodEnd` to `grantProfessionalAccess(...)` and
+  `respondToProfessionalAccessRequest(...)`, persisting the requested
+  temporary-access deadline as the signed `Consent.period-end` claim.
+
 ## 2.3.25 - 2026-08-03
 
 - State explicitly that the current professional Consent/SMART lifecycle only
