@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.3.26 - 2026-08-04
+
 - Add `periodEnd` to `grantProfessionalAccess(...)` and
   `respondToProfessionalAccessRequest(...)`, persisting the requested
   temporary-access deadline as the signed `Consent.period-end` claim.
