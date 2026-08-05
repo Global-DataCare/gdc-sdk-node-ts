@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 2.3.28 - 2026-08-05
+
+- Consume Common Utils 2.3.28 and SDK Core 2.3.18 so Node consumers use only
+  canonical `<ResourceType>.<concrete-param>` FHIR API claim names.
+
 ## 2.3.27 - 2026-08-05
 
 - Consume Common Utils 2.3.27 and SDK Core 2.3.17 so Node applications can
