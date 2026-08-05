@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2.3.27 - 2026-08-05
+
+- Consume Common Utils 2.3.27 and SDK Core 2.3.17 so Node applications can
+  round-trip the complete structured IPS claims and hydrate clinical viewers
+  and editors from canonical `org.hl7.fhir.api` search-parameter claims.
+
 ## 2.3.26 - 2026-08-04
 
 - Add `periodEnd` to `grantProfessionalAccess(...)` and
