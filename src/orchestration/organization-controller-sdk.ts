@@ -63,12 +63,34 @@ export class OrganizationControllerSdk {
    * Starts the host-side existing-tenant legal-organization reissue flow that
    * refreshes verification and reissues one controller activation code.
    */
+  public submitLegalOrganizationCredentialReissuance(
+    hostCtx: HostRouteContext,
+    input: NodeLegalOrganizationVerificationTransactionInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    const method = this.client.submitLegalOrganizationCredentialReissuance
+      || this.client.submitLegalOrganizationIssue;
+    if (!method) {
+      return requireClientMethod(this.client, 'submitLegalOrganizationCredentialReissuance')(
+        hostCtx,
+        input,
+        pollOptions,
+      );
+    }
+    return method(hostCtx, input, pollOptions);
+  }
+
+  /**
+   * @deprecated Use `submitLegalOrganizationCredentialReissuance`.
+   * The old name mirrors the transport route rather than the credential
+   * reissuance business operation.
+   */
   public submitLegalOrganizationIssue(
     hostCtx: HostRouteContext,
     input: NodeLegalOrganizationVerificationTransactionInput,
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
-    return requireClientMethod(this.client, 'submitLegalOrganizationIssue')(hostCtx, input, pollOptions);
+    return this.submitLegalOrganizationCredentialReissuance(hostCtx, input, pollOptions);
   }
 
   /**

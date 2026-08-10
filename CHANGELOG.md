@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add `submitLegalOrganizationCredentialReissuance(...)` as the canonical SDK
+  name for the existing-tenant credential reissuance flow. Keep
+  `submitLegalOrganizationIssue(...)` as a deprecated compatibility alias for
+  the underlying `Organization/_issue` route.
+
 ## 2.3.28 - 2026-08-05
 
 - Consume Common Utils 2.3.28 and SDK Core 2.3.18 so Node consumers use only

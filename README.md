@@ -726,14 +726,16 @@ Use `OrganizationControllerSdk.submitLegalOrganizationVerificationTransaction(..
 
 Existing-tenant recovery/reverification:
 
-- use `OrganizationControllerSdk.submitLegalOrganizationIssue(...)` or
-  `NodeHttpClient.submitLegalOrganizationIssue(...)` to refresh the ICA-backed
+- use `OrganizationControllerSdk.submitLegalOrganizationCredentialReissuance(...)` or
+  `NodeHttpClient.submitLegalOrganizationCredentialReissuance(...)` to refresh the ICA-backed
   verification for an already registered tenant without creating a new Offer
 - GW is expected to return one new controller activation code as
   `org.schema.IndividualProduct.serialNumber`
 - then continue with the existing helper chain:
-  `recoverOrganizationControllerWithIssueWithDeps(...)`
+  `recoverOrganizationControllerWithCredentialReissuanceWithDeps(...)`
   or directly `_exchange -> _dcr`
+- `submitLegalOrganizationIssue(...)` remains only as a deprecated alias named
+  after the underlying `Organization/_issue` route
 - for a reproducible local/staging runtime check, use:
   `npm run test:e2e:live-gw:issue-recovery`
 - for the deterministic controller-lifecycle contract that also proves

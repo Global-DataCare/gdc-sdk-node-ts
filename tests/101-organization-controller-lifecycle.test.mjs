@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import {
   OrganizationControllerSdk,
   HostOnboardingSdk,
-  recoverOrganizationControllerWithIssueWithDeps,
+  recoverOrganizationControllerWithCredentialReissuanceWithDeps,
 } from '../dist/index.js';
 import {
   OrganizationLifecycleEditor,
@@ -132,7 +132,7 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
         },
       };
     },
-    async submitLegalOrganizationIssue(ctx, input) {
+    async submitLegalOrganizationCredentialReissuance(ctx, input) {
       operations.push('organization-issue');
       assert.deepEqual(ctx, hostCtx);
       assert.deepEqual(input, issueInput);
@@ -211,15 +211,16 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
     'Confirming an already-accepted organization order must materialize the additional contracted seats.',
   );
 
-  const recovery = await recoverOrganizationControllerWithIssueWithDeps({
+  const recovery = await recoverOrganizationControllerWithCredentialReissuanceWithDeps({
     hostCtx,
     tenantCtx,
     input: {
-      issueInput,
+      credentialReissuanceInput: issueInput,
       controllerIdToken: EXAMPLE_EMPLOYEE_DEVICE_ACTIVATION_INPUT.idToken,
       dcrPayload: cloneExample(EXAMPLE_EMPLOYEE_DEVICE_ACTIVATION_INPUT.dcrPayload),
     },
-    submitLegalOrganizationIssue: organizationControllerSdk.submitLegalOrganizationIssue.bind(organizationControllerSdk),
+    submitLegalOrganizationCredentialReissuance:
+      organizationControllerSdk.submitLegalOrganizationCredentialReissuance.bind(organizationControllerSdk),
     identityTokenExchangePath: () => '/auth/_exchange',
     identityTokenExchangePollPath: () => '/auth/_exchange-response',
     identityDeviceDcrPath: () => '/auth/_dcr',

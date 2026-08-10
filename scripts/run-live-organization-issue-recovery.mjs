@@ -11,7 +11,7 @@ import {
 import {
   NodeHttpClient,
   OrganizationControllerSdk,
-  recoverOrganizationControllerWithIssueWithDeps,
+  recoverOrganizationControllerWithCredentialReissuanceWithDeps,
 } from '../dist/index.js';
 
 const cwd = process.cwd();
@@ -103,11 +103,11 @@ const dcrPayload = {
   ...(await buildDefaultDcrPayload()),
 };
 
-const result = await recoverOrganizationControllerWithIssueWithDeps({
+const result = await recoverOrganizationControllerWithCredentialReissuanceWithDeps({
   hostCtx,
   tenantCtx,
   input: {
-    issueInput: {
+    credentialReissuanceInput: {
       claims,
       controller: cloneExample(baseBundle.data[0].resource.controller),
       organization: cloneExample(baseBundle.data[0].resource.organization),
@@ -120,10 +120,11 @@ const result = await recoverOrganizationControllerWithIssueWithDeps({
     },
     controllerIdToken,
     dcrPayload,
-    issuePollOptions: { timeoutMs: pollTimeoutMs, intervalMs: pollIntervalMs },
+    credentialReissuancePollOptions: { timeoutMs: pollTimeoutMs, intervalMs: pollIntervalMs },
     activationPollOptions: { timeoutMs: pollTimeoutMs, intervalMs: pollIntervalMs },
   },
-  submitLegalOrganizationIssue: sdk.submitLegalOrganizationIssue.bind(sdk),
+  submitLegalOrganizationCredentialReissuance:
+    sdk.submitLegalOrganizationCredentialReissuance.bind(sdk),
   identityTokenExchangePath: client.identityTokenExchangePath.bind(client),
   identityTokenExchangePollPath: client.identityTokenExchangePollPath.bind(client),
   identityDeviceDcrPath: client.identityDeviceDcrPath.bind(client),
