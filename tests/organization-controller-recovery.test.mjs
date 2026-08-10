@@ -11,20 +11,20 @@ import {
 } from 'gdc-common-utils-ts/examples';
 
 import {
-  readOrganizationIssueActivationCode,
-  recoverOrganizationControllerWithIssueWithDeps,
+  readLegalOrganizationCredentialReissuanceActivationCode,
+  recoverOrganizationControllerWithCredentialReissuanceWithDeps,
 } from '../dist/index.js';
 
-test('readOrganizationIssueActivationCode reads the governed reissue result', () => {
-  assert.equal(readOrganizationIssueActivationCode({
+test('readLegalOrganizationCredentialReissuanceActivationCode reads the governed reissue result', () => {
+  assert.equal(readLegalOrganizationCredentialReissuanceActivationCode({
     poll: { body: { body: { data: [{ meta: { claims: {
       'org.schema.IndividualProduct.serialNumber': 'lic-controller-code',
     } } }] } } },
   }), 'lic-controller-code');
 });
 
-test('readOrganizationIssueActivationCode reads a wrapped non-first License response entry', () => {
-  assert.equal(readOrganizationIssueActivationCode({
+test('readLegalOrganizationCredentialReissuanceActivationCode reads a wrapped non-first License response entry', () => {
+  assert.equal(readLegalOrganizationCredentialReissuanceActivationCode({
     poll: { body: { body: { result: { data: [
       { type: 'OperationOutcome', id: 'unrelated-job-id' },
       { type: 'License:Issued', meta: { claims: {
@@ -34,8 +34,8 @@ test('readOrganizationIssueActivationCode reads a wrapped non-first License resp
   }), 'lic-wrapped-controller-code');
 });
 
-test('readOrganizationIssueActivationCode accepts only a typed License issued id fallback', () => {
-  assert.equal(readOrganizationIssueActivationCode({
+test('readLegalOrganizationCredentialReissuanceActivationCode accepts only a typed License issued id fallback', () => {
+  assert.equal(readLegalOrganizationCredentialReissuanceActivationCode({
     poll: { body: { response: { body: { data: [
       { type: 'OperationOutcome', id: 'unrelated-job-id' },
       { type: 'License:Issued', id: 'lic-issued-entry-id' },
@@ -43,14 +43,14 @@ test('readOrganizationIssueActivationCode accepts only a typed License issued id
   }), 'lic-issued-entry-id');
 });
 
-test('recoverOrganizationControllerWithIssueWithDeps performs Organization/_issue then exchange then dcr', async () => {
+test('recoverOrganizationControllerWithCredentialReissuanceWithDeps performs credential reissuance then exchange then dcr', async () => {
   const calls = [];
 
-  const result = await recoverOrganizationControllerWithIssueWithDeps({
+  const result = await recoverOrganizationControllerWithCredentialReissuanceWithDeps({
     hostCtx: cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT),
     tenantCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
     input: {
-      issueInput: {
+      credentialReissuanceInput: {
         claims: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].meta.claims),
         controller: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.controller),
         organization: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.organization),
@@ -60,11 +60,11 @@ test('recoverOrganizationControllerWithIssueWithDeps performs Organization/_issu
       },
       controllerIdToken: 'controller-id-token-001',
       dcrPayload: cloneExample(EXAMPLE_EMPLOYEE_DEVICE_ACTIVATION_INPUT.dcrPayload),
-      issuePollOptions: { timeoutMs: 30_000, intervalMs: 2_000 },
+      credentialReissuancePollOptions: { timeoutMs: 30_000, intervalMs: 2_000 },
       activationPollOptions: { timeoutMs: 10_000, intervalMs: 500 },
     },
-    submitLegalOrganizationIssue: async (...args) => {
-      calls.push(['submitLegalOrganizationIssue', args]);
+    submitLegalOrganizationCredentialReissuance: async (...args) => {
+      calls.push(['submitLegalOrganizationCredentialReissuance', args]);
       return {
         submit: { status: 202, body: {} },
         poll: {
@@ -96,7 +96,7 @@ test('recoverOrganizationControllerWithIssueWithDeps performs Organization/_issu
   });
 
   assert.equal(calls.length, 3);
-  assert.equal(calls[0][0], 'submitLegalOrganizationIssue');
+  assert.equal(calls[0][0], 'submitLegalOrganizationCredentialReissuance');
   assert.equal(calls[1][1].bearerToken, 'controller-id-token-001');
   assert.equal(calls[1][1].payload.subject_token, 'lic-reactivation-001');
   assert.equal(calls[2][1].bearerToken, 'initial-access-001');
@@ -104,9 +104,9 @@ test('recoverOrganizationControllerWithIssueWithDeps performs Organization/_issu
   assert.equal(result.activation.initialAccessToken, 'initial-access-001');
 });
 
-test('recoverOrganizationControllerWithIssueWithDeps rejects Organization/_issue responses without an activation code', async () => {
+test('recoverOrganizationControllerWithCredentialReissuanceWithDeps rejects responses without an activation code', async () => {
   await assert.rejects(
-    recoverOrganizationControllerWithIssueWithDeps({
+    recoverOrganizationControllerWithCredentialReissuanceWithDeps({
       hostCtx: cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT),
       tenantCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
       input: {
@@ -137,9 +137,9 @@ test('recoverOrganizationControllerWithIssueWithDeps rejects Organization/_issue
   );
 });
 
-test('recoverOrganizationControllerWithIssueWithDeps surfaces Organization/_issue OperationOutcome diagnostics', async () => {
+test('recoverOrganizationControllerWithCredentialReissuanceWithDeps surfaces Organization/_issue diagnostics', async () => {
   await assert.rejects(
-    recoverOrganizationControllerWithIssueWithDeps({
+    recoverOrganizationControllerWithCredentialReissuanceWithDeps({
       hostCtx: cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT),
       tenantCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
       input: {

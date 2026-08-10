@@ -11,24 +11,36 @@ import type { EmployeeDeviceActivationResult } from './device-activation.js';
 import { activateEmployeeDeviceWithActivationCodeWithDeps } from './device-activation.js';
 
 export type OrganizationControllerRecoveryInput = {
-  issueInput: NodeLegalOrganizationVerificationTransactionInput;
+  credentialReissuanceInput?: NodeLegalOrganizationVerificationTransactionInput;
+  /** @deprecated Use `credentialReissuanceInput`. */
+  issueInput?: NodeLegalOrganizationVerificationTransactionInput;
   controllerIdToken: string;
   dcrPayload: Record<string, unknown>;
+  credentialReissuancePollOptions?: PollOptions;
+  /** @deprecated Use `credentialReissuancePollOptions`. */
   issuePollOptions?: PollOptions;
   activationPollOptions?: PollOptions;
 };
 
 export type OrganizationControllerRecoveryResult = {
+  credentialReissuance: SubmitAndPollResult;
+  /** @deprecated Use `credentialReissuance`. */
   issue: SubmitAndPollResult;
   activationCode: string;
   activation: EmployeeDeviceActivationResult;
 };
 
-type RecoverOrganizationControllerWithIssueDeps = {
+type RecoverOrganizationControllerWithCredentialReissuanceDeps = {
   hostCtx: HostRouteContext;
   tenantCtx: RouteContext;
   input: OrganizationControllerRecoveryInput;
-  submitLegalOrganizationIssue: (
+  submitLegalOrganizationCredentialReissuance?: (
+    hostCtx: HostRouteContext,
+    input: NodeLegalOrganizationVerificationTransactionInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  /** @deprecated Use `submitLegalOrganizationCredentialReissuance`. */
+  submitLegalOrganizationIssue?: (
     hostCtx: HostRouteContext,
     input: NodeLegalOrganizationVerificationTransactionInput,
     pollOptions?: PollOptions,
@@ -46,8 +58,8 @@ type RecoverOrganizationControllerWithIssueDeps = {
   ) => Promise<SubmitAndPollResult>;
 };
 
-export async function recoverOrganizationControllerWithIssueWithDeps(
-  deps: RecoverOrganizationControllerWithIssueDeps,
+export async function recoverOrganizationControllerWithCredentialReissuanceWithDeps(
+  deps: RecoverOrganizationControllerWithCredentialReissuanceDeps,
 ): Promise<OrganizationControllerRecoveryResult> {
   /**
    * Existing-tenant controller recovery contract:
@@ -55,15 +67,25 @@ export async function recoverOrganizationControllerWithIssueWithDeps(
    *   material only
    * - this flow must not depend on a new commercial Offer or Order step
    */
-  const issue = await deps.submitLegalOrganizationIssue(
+  const submitCredentialReissuance = deps.submitLegalOrganizationCredentialReissuance
+    || deps.submitLegalOrganizationIssue;
+  if (!submitCredentialReissuance) {
+    throw new Error('recoverOrganizationControllerWithCredentialReissuance: missing credential reissuance client method.');
+  }
+  const credentialReissuanceInput = deps.input.credentialReissuanceInput
+    || deps.input.issueInput;
+  if (!credentialReissuanceInput) {
+    throw new Error('recoverOrganizationControllerWithCredentialReissuance: missing credentialReissuanceInput.');
+  }
+  const credentialReissuance = await submitCredentialReissuance(
     deps.hostCtx,
-    deps.input.issueInput,
-    deps.input.issuePollOptions,
+    credentialReissuanceInput,
+    deps.input.credentialReissuancePollOptions || deps.input.issuePollOptions,
   );
 
-  const activationCode = readOrganizationIssueActivationCode(issue);
+  const activationCode = readLegalOrganizationCredentialReissuanceActivationCode(credentialReissuance);
   if (!activationCode) {
-    throw new Error('recoverOrganizationControllerWithIssue: missing org.schema.IndividualProduct.serialNumber in Organization/_issue response.');
+    throw new Error('recoverOrganizationControllerWithCredentialReissuance: missing org.schema.IndividualProduct.serialNumber in Organization/_issue response.');
   }
 
   const activation = await activateEmployeeDeviceWithActivationCodeWithDeps({
@@ -82,11 +104,16 @@ export async function recoverOrganizationControllerWithIssueWithDeps(
   });
 
   return {
-    issue,
+    credentialReissuance,
+    issue: credentialReissuance,
     activationCode,
     activation,
   };
 }
+
+/** @deprecated Use `recoverOrganizationControllerWithCredentialReissuanceWithDeps`. */
+export const recoverOrganizationControllerWithIssueWithDeps =
+  recoverOrganizationControllerWithCredentialReissuanceWithDeps;
 
 /**
  * Reads the opaque activation code from a successful Organization/_issue poll result.
@@ -97,7 +124,7 @@ export async function recoverOrganizationControllerWithIssueWithDeps(
  * its public `id`, is accepted. Unrelated identifiers are never interpreted as
  * activation material.
  */
-export function readOrganizationIssueActivationCode(result: SubmitAndPollResult): string {
+export function readLegalOrganizationCredentialReissuanceActivationCode(result: SubmitAndPollResult): string {
   const pollBody = (result?.poll?.body || {}) as Record<string, unknown>;
   for (const candidate of nestedObjects(pollBody)) {
     const claims = (candidate.meta as Record<string, unknown> | undefined)?.claims as Record<string, unknown> | undefined;
@@ -119,6 +146,10 @@ export function readOrganizationIssueActivationCode(result: SubmitAndPollResult)
   }
   return '';
 }
+
+/** @deprecated Use `readLegalOrganizationCredentialReissuanceActivationCode`. */
+export const readOrganizationIssueActivationCode =
+  readLegalOrganizationCredentialReissuanceActivationCode;
 
 function nestedObjects(root: unknown): Record<string, unknown>[] {
   const found: Record<string, unknown>[] = [];

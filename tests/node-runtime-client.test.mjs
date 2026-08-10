@@ -386,7 +386,7 @@ test('NodeHttpClient submits the host legal-organization verification transactio
   assert.deepEqual(calls[0][3], { timeoutMs: 20_000, intervalMs: 1_000 });
 });
 
-test('NodeHttpClient submits the host legal-organization reissue flow through Organization/_issue and polls _issue-response', async () => {
+test('NodeHttpClient submits legal-organization credential reissuance through Organization/_issue and polls _issue-response', async () => {
   const client = new NodeHttpClient({
     baseUrl: 'https://gw.example.org',
   });
@@ -399,7 +399,7 @@ test('NodeHttpClient submits the host legal-organization reissue flow through Or
   client.hostRegistryOrganizationIssuePath = () => '/host/issue';
   client.hostRegistryOrganizationIssuePollPath = () => '/host/issue-response';
 
-  await client.submitLegalOrganizationIssue(
+  await client.submitLegalOrganizationCredentialReissuance(
     cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT),
     {
       claims: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].meta.claims),
@@ -423,6 +423,22 @@ test('NodeHttpClient submits the host legal-organization reissue flow through Or
     EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.controller.publicKeyJwk.kid,
   );
   assert.deepEqual(calls[0][3], { timeoutMs: 10_000, intervalMs: 500 });
+});
+
+test('NodeHttpClient keeps submitLegalOrganizationIssue as a deprecated compatibility alias', async () => {
+  const client = new NodeHttpClient({ baseUrl: 'https://gw.example.org' });
+  const calls = [];
+  client.submitLegalOrganizationCredentialReissuance = async (...args) => {
+    calls.push(args);
+    return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+  };
+
+  await client.submitLegalOrganizationIssue(
+    cloneExample(EXAMPLE_HOST_ROUTE_CONTEXT),
+    { claims: {}, controller: {} },
+  );
+
+  assert.equal(calls.length, 1);
 });
 
 test('NodeHttpClient submits the organization DID binding operation through did/document/_binding and polls _binding-response', async () => {

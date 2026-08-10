@@ -262,13 +262,13 @@ export class ServerProfileSessionManager {
    * DIDComm transport before a durable profile exists. The deterministic seed
    * remains server-only and the caller receives only the normal GW response.
    */
-  public async submitLegalOrganizationIssueWithBootstrapWallet(
+  public async submitLegalOrganizationCredentialReissuanceWithBootstrapWallet(
     input: ServerProfileOrganizationIssueInput,
   ): Promise<SubmitAndPollResult> {
     requireBase64UrlSeed32(input.walletSeed);
     const walletKeyDerivationId = normalizedWalletKeyDerivationId(input.walletKeyDerivationId, '');
     if (!walletKeyDerivationId) {
-      throw new Error('submitLegalOrganizationIssueWithBootstrapWallet requires walletKeyDerivationId.');
+      throw new Error('submitLegalOrganizationCredentialReissuanceWithBootstrapWallet requires walletKeyDerivationId.');
     }
     const wallet = await this.createWallet(walletKeyDerivationId, input.walletSeed);
     const context = walletContext(walletKeyDerivationId);
@@ -283,11 +283,18 @@ export class ServerProfileSessionManager {
         unpack: async (jwe) => (await wallet.unpackWithContext!(jwe, { context })).content,
       },
     });
-    return client.submitLegalOrganizationIssue(
+    return client.submitLegalOrganizationCredentialReissuance(
       input.hostContext,
       input.verificationInput,
       input.pollOptions,
     );
+  }
+
+  /** @deprecated Use `submitLegalOrganizationCredentialReissuanceWithBootstrapWallet`. */
+  public async submitLegalOrganizationIssueWithBootstrapWallet(
+    input: ServerProfileOrganizationIssueInput,
+  ): Promise<SubmitAndPollResult> {
+    return this.submitLegalOrganizationCredentialReissuanceWithBootstrapWallet(input);
   }
 
   public listProfiles(ownerId: string): Promise<ServerProfileRecord[]> {

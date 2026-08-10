@@ -146,7 +146,7 @@ import {
 } from './runtime-transport.js';
 import {
   activateOrganizationInGatewayFromIcaProofWithDeps,
-  submitLegalOrganizationIssueWithDeps,
+  submitLegalOrganizationCredentialReissuanceWithDeps,
   submitLegalOrganizationVerificationTransactionWithDeps,
   submitOrganizationDidBindingWithDeps,
 } from './runtime-host-submission.js';
@@ -416,12 +416,12 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * - expect GW CORE to reissue one controller activation code in the response
    * - do not call `confirmLegalOrganizationOrder(...)` after this flow
    */
-  public async submitLegalOrganizationIssue(
+  public async submitLegalOrganizationCredentialReissuance(
     hostCtx: HostRouteContext,
     input: NodeLegalOrganizationVerificationTransactionInput,
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
-    return submitLegalOrganizationIssueWithDeps({
+    return submitLegalOrganizationCredentialReissuanceWithDeps({
       hostCtx,
       verificationInput: input,
       pollOptions,
@@ -439,6 +439,19 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
           )
         : this.submitAndPoll.bind(this),
     });
+  }
+
+  /**
+   * @deprecated Use `submitLegalOrganizationCredentialReissuance`.
+   * This alias remains for compatibility with clients named after the
+   * underlying `Organization/_issue` HTTP action.
+   */
+  public async submitLegalOrganizationIssue(
+    hostCtx: HostRouteContext,
+    input: NodeLegalOrganizationVerificationTransactionInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return this.submitLegalOrganizationCredentialReissuance(hostCtx, input, pollOptions);
   }
 
   /**

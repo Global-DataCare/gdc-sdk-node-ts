@@ -56,7 +56,7 @@ export async function submitLegalOrganizationVerificationTransactionWithDeps(inp
   );
 }
 
-export async function submitLegalOrganizationIssueWithDeps(input: {
+export async function submitLegalOrganizationCredentialReissuanceWithDeps(input: {
   hostCtx: HostRouteContext;
   verificationInput: NodeLegalOrganizationVerificationTransactionInput;
   pollOptions?: PollOptions;
@@ -87,6 +87,14 @@ export async function submitLegalOrganizationIssueWithDeps(input: {
     input.pollOptions,
   );
 }
+
+/**
+ * @deprecated Use `submitLegalOrganizationCredentialReissuanceWithDeps`.
+ * The legacy name mirrors the HTTP `Organization/_issue` route but does not
+ * describe the business operation clearly.
+ */
+export const submitLegalOrganizationIssueWithDeps =
+  submitLegalOrganizationCredentialReissuanceWithDeps;
 
 export async function submitOrganizationDidBindingWithDeps(input: {
   routeCtx: RouteContext;

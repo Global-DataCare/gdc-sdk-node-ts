@@ -96,7 +96,7 @@ facades:
 - `OrganizationControllerSdk.submitLegalOrganizationVerificationTransaction(...)`
 - `HostOnboardingSdk.activateOrganizationInGatewayFromIcaProof(...)`
 - `OrganizationControllerSdk.confirmOrganizationLicenseOrder(...)`
-- `OrganizationControllerSdk.submitLegalOrganizationIssue(...)`
+- `OrganizationControllerSdk.submitLegalOrganizationCredentialReissuance(...)`
 - `OrganizationControllerSdk.disableTenant(...)`
 - `OrganizationControllerSdk.purgeTenant(...)`
 
@@ -104,7 +104,7 @@ If you are building a BFF, these are the methods to copy conceptually.
 
 Technical-slice note:
 
-- `recoverOrganizationControllerWithIssueWithDeps(...)` is still useful inside
+- `recoverOrganizationControllerWithCredentialReissuanceWithDeps(...)` is still useful inside
   low-level runtime tests because it composes `_issue -> _exchange -> _dcr`
   deterministically.
 - Do not teach it as the first public integration surface; app/BFF docs should
@@ -117,7 +117,7 @@ Technical-slice note:
 1. `submitLegalOrganizationVerificationTransaction(...)`
 2. `confirmOrganizationLicenseOrder(...)`
 3. optionally confirm extra post-registration seat orders
-4. `submitLegalOrganizationIssue(...)`
+4. `submitLegalOrganizationCredentialReissuance(...)`
 5. `Token/_exchange`
 6. `Device/_dcr`
 7. `disableTenant(...)`
@@ -129,7 +129,7 @@ Technical-slice note:
 2. `confirmLegalOrganizationOrder(...)` or `confirmOrganizationLicenseOrder(...)`
    depending on the integration surface in use
 3. optionally confirm extra post-registration seat orders
-4. `submitLegalOrganizationIssue(...)`
+4. `submitLegalOrganizationCredentialReissuance(...)`
 5. `Token/_exchange`
 6. `Device/_dcr`
 7. `disableTenant(...)`

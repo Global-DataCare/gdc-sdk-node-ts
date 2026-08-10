@@ -236,7 +236,7 @@ test('server bootstrap submits organization reissue through encrypted DIDComm fo
     },
   });
 
-  const result = await manager.submitLegalOrganizationIssueWithBootstrapWallet({
+  const result = await manager.submitLegalOrganizationCredentialReissuanceWithBootstrapWallet({
     walletSeed: Buffer.alloc(32, 7).toString('base64url'),
     walletKeyDerivationId: 'organization-controller:cto@example.org:v1',
     bearerToken: 'firebase-id-token',

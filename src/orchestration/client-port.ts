@@ -110,6 +110,12 @@ export type RuntimeClient = {
     input: NodeLegalOrganizationVerificationTransactionInput,
     pollOptions?: PollOptions,
   ) => Promise<SubmitAndPollResult>;
+  submitLegalOrganizationCredentialReissuance?: (
+    hostCtx: HostRouteContext,
+    input: NodeLegalOrganizationVerificationTransactionInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  /** @deprecated Use `submitLegalOrganizationCredentialReissuance`. */
   submitLegalOrganizationIssue?: (
     hostCtx: HostRouteContext,
     input: NodeLegalOrganizationVerificationTransactionInput,

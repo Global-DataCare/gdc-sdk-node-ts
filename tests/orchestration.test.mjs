@@ -331,7 +331,7 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   const calls = [];
   const client = {
     submitLegalOrganizationVerificationTransaction: async (...args) => { calls.push(['submitLegalOrganizationVerificationTransaction', args]); return { ok: true }; },
-    submitLegalOrganizationIssue: async (...args) => { calls.push(['submitLegalOrganizationIssue', args]); return { ok: true }; },
+    submitLegalOrganizationCredentialReissuance: async (...args) => { calls.push(['submitLegalOrganizationCredentialReissuance', args]); return { ok: true }; },
     submitOrganizationDidBinding: async (...args) => { calls.push(['submitOrganizationDidBinding', args]); return { ok: true }; },
     createOrganizationEmployee: async (...args) => { calls.push(['createOrganizationEmployee', args]); return { ok: true }; },
     searchOrganizationEmployees: async (...args) => { calls.push(['searchOrganizationEmployees', args]); return { ok: true }; },
@@ -351,7 +351,7 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   }, client);
   const sdk = session.asOrganizationController();
   await sdk.submitLegalOrganizationVerificationTransaction({}, { claims: {}, controller: {} });
-  await sdk.submitLegalOrganizationIssue({}, { claims: {}, controller: {} });
+  await sdk.submitLegalOrganizationCredentialReissuance({}, { claims: {}, controller: {} });
   await sdk.submitOrganizationDidBinding({}, { organization: { url: 'https://provider.example.org' } });
   await sdk.createOrganizationEmployee({}, {});
   await sdk.searchOrganizationEmployees({}, {});
@@ -389,7 +389,7 @@ test('OrganizationControllerSdk delegates the host legal-organization verificati
     capabilities: [],
   }, {
     submitLegalOrganizationVerificationTransaction: async (...args) => { calls.push(['submitLegalOrganizationVerificationTransaction', args]); return { ok: true }; },
-    submitLegalOrganizationIssue: async (...args) => { calls.push(['submitLegalOrganizationIssue', args]); return { ok: true }; },
+    submitLegalOrganizationCredentialReissuance: async (...args) => { calls.push(['submitLegalOrganizationCredentialReissuance', args]); return { ok: true }; },
     submitOrganizationDidBinding: async (...args) => { calls.push(['submitOrganizationDidBinding', args]); return { ok: true }; },
   });
 
@@ -397,7 +397,7 @@ test('OrganizationControllerSdk delegates the host legal-organization verificati
     { jurisdiction: 'ES', hostNetwork: 'test' },
     { claims: {}, controller: {} },
   );
-  await session.asOrganizationController().submitLegalOrganizationIssue(
+  await session.asOrganizationController().submitLegalOrganizationCredentialReissuance(
     { jurisdiction: 'ES', hostNetwork: 'test' },
     { claims: {}, controller: {} },
   );
