@@ -50,9 +50,14 @@ The BFF maps the clinical event to entitled users and their active Web Push,
 APNs, or FCM endpoints. Push payloads should be opaque wake-up signals without
 clinical data; the application reads authorized data after opening.
 
-One professional seat can own multiple devices. A push endpoint can rotate
-without issuing a new seat or changing `software_id`. A shared BFF wallet can
-use one client with several push endpoints; device-held signing keys require a
-DCR registration per installation.
+The target licensing model lets one professional seat own multiple devices. A
+push endpoint can rotate without issuing a new seat or changing `software_id`.
+A shared BFF wallet can use one client with several push endpoints; device-held
+signing keys require a DCR registration per installation.
+
+Current compatibility limitation: the gateway DCR flow still binds one
+`license.deviceId` and replaces the previous device registration. A separate
+multi-device registry and per-seat device allowance are required before a
+second installation can coexist in the runtime.
 
 FHIR Subscription does not replace DCR, user licensing, consent, or the push endpoint registry.
