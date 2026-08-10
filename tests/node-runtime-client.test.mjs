@@ -23,6 +23,10 @@ import {
   createHostedDidWeb,
 } from 'gdc-common-utils-ts';
 import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
+import {
+  FhirR5SubscriptionScopes,
+  buildFhirR5RestHookSubscription,
+} from 'gdc-common-utils-ts/models/fhir-r5-subscription';
 
 import { NodeHttpClient } from '../dist/index.js';
 
@@ -655,4 +659,37 @@ test('NodeHttpClient purges individual-member relationships through explicit Rel
   assert.deepEqual(calls[0][2].body.entry[0], cloneExample(EXAMPLE_RELATED_PERSON_PURGE_BUNDLE_ENTRY));
   assert.equal(calls[0][2].body.entry[0].resource.identifier[0].value, EXAMPLE_RELATED_PERSON_IDENTIFIER);
   assert.equal(calls[0][2].body.entry[0].resource.meta.status, InteroperableLifecycleStatuses.Purged);
+});
+
+test('NodeHttpClient exposes neutral FHIR R5 topic and exact-subject subscription operations', async () => {
+  const ctx = cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT);
+  const client = new NodeHttpClient({ baseUrl: 'https://gw.example.org', ctx });
+  const calls = [];
+  client.submitAndPoll = async (...args) => {
+    calls.push(args);
+    return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+  };
+
+  await client.submitFhirR5SubscriptionTopicBatch(ctx, {
+    resourceType: 'SubscriptionTopic',
+    id: 'new-observations',
+    status: 'active',
+    url: 'https://profiles.example/SubscriptionTopic/new-observations',
+    resourceTrigger: [{ resource: 'Observation' }],
+  });
+  await client.submitFhirR5SubscriptionBatch(ctx, {
+    scope: FhirR5SubscriptionScopes.Individual,
+    subscription: buildFhirR5RestHookSubscription({
+      id: 'patient-observations',
+      scope: FhirR5SubscriptionScopes.Individual,
+      topic: 'https://profiles.example/SubscriptionTopic/new-observations',
+      endpoint: 'https://subscriber.example/fhir/rest-hook',
+      filters: [{ resourceType: 'Observation', filterParameter: 'patient', value: 'Patient/123' }],
+    }),
+  });
+
+  assert.equal(calls[0][0], '/acme-id/cds-ES/v1/health-care/entity/org.hl7.fhir.r5/SubscriptionTopic/_batch');
+  assert.equal(calls[0][1], '/acme-id/cds-ES/v1/health-care/entity/org.hl7.fhir.r5/SubscriptionTopic/_batch-response');
+  assert.equal(calls[1][0], '/acme-id/cds-ES/v1/health-care/individual/org.hl7.fhir.r5/Subscription/_batch');
+  assert.equal(calls[1][1], '/acme-id/cds-ES/v1/health-care/individual/org.hl7.fhir.r5/Subscription/_batch-response');
 });

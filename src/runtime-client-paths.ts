@@ -115,6 +115,14 @@ export class RuntimeClientPaths {
   public individualCommunicationSearchPollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Communication', '_search-response'); }
   public individualDocumentReferenceBatchPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'DocumentReference', '_batch'); }
   public individualDocumentReferencePollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'DocumentReference', '_batch-response'); }
+  /** Builds the tenant-owned FHIR R5 SubscriptionTopic registration path. */
+  public fhirR5SubscriptionTopicBatchPath(ctx: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.hl7.fhir.r5', 'SubscriptionTopic', '_batch'); }
+  /** Builds the poll path paired with SubscriptionTopic registration. */
+  public fhirR5SubscriptionTopicPollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.hl7.fhir.r5', 'SubscriptionTopic', '_batch-response'); }
+  /** Builds one tenant or exact-subject FHIR R5 Subscription registration path. */
+  public fhirR5SubscriptionBatchPath(ctx: RouteContext, section: 'entity' | 'individual'): string { return this.v1Path(ctx, section, 'org.hl7.fhir.r5', 'Subscription', '_batch'); }
+  /** Builds the poll path paired with Subscription registration. */
+  public fhirR5SubscriptionPollPath(ctx: RouteContext, section: 'entity' | 'individual'): string { return this.v1Path(ctx, section, 'org.hl7.fhir.r5', 'Subscription', '_batch-response'); }
   public individualBundleSearchPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Bundle', '_search'); }
   public individualBundleSearchPollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Bundle', '_search-response'); }
   public identityTokenExchangePath(ctx: RouteContext): string { return buildIdentityTokenExchangePath(ctx); }

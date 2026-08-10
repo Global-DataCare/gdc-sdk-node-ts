@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add typed high-level methods for neutral FHIR R5 `SubscriptionTopic` and
+  tenant/exact-subject `Subscription` registration through GW CORE, including
+  canonical path builders and submit/poll orchestration.
+
+
 ## 2.4.0 - 2026-08-09
 
 - Consume Common Utils 2.4.0 for the neutral FHIR R5 Subscription and

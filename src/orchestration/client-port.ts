@@ -31,6 +31,8 @@ import type { HostRouteContext, HostedTenantLifecycleInput, LegalOrganizationOrd
 import type { IndividualOrganizationConfirmOrderInput, RouteContext } from '../individual-onboarding.js';
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
 import type { FamilyOrganizationSearchInput } from '../family-organization-search.js';
+import type { FhirR5Subscription, FhirR5SubscriptionTopic } from 'gdc-common-utils-ts/models/fhir-r5-subscription';
+import type { FhirR5SubscriptionBatchInput } from '../fhir-r5-subscription-runtime.js';
 import type { EnsureFamilyOrganizationRegistrationInput, EnsureFamilyOrganizationRegistrationResult } from '../family-organization-registration.js';
 import type { OrganizationLicenseOrderConfirmInput } from '../organization-license-order.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
@@ -105,6 +107,18 @@ export type NodeOrganizationDidBindingInput = OrganizationDidBindingInput;
  * converge across runtimes.
  */
 export type RuntimeClient = {
+  /** Registers a neutral FHIR R5 topic in GW CORE's tenant-owned catalog. */
+  submitFhirR5SubscriptionTopicBatch?: (
+    ctx: RouteContext,
+    topic: FhirR5SubscriptionTopic,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  /** Registers a tenant-wide or exact-subject FHIR R5 rest-hook Subscription. */
+  submitFhirR5SubscriptionBatch?: (
+    ctx: RouteContext,
+    input: FhirR5SubscriptionBatchInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
   submitLegalOrganizationVerificationTransaction?: (
     hostCtx: HostRouteContext,
     input: NodeLegalOrganizationVerificationTransactionInput,

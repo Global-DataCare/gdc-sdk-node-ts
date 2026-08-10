@@ -38,6 +38,22 @@ GW CORE owns the neutral topic catalog through
 Subscription encrypted, sends the standard handshake, and marks it `active`
 only after that handshake succeeds.
 
+The Node SDK exposes these operations without making a portal assemble GW
+paths or DIDComm envelopes:
+
+```ts
+await client.submitFhirR5SubscriptionTopicBatch(routeContext, topic);
+
+await client.submitFhirR5SubscriptionBatch(routeContext, {
+  subscription,
+  scope: FhirR5SubscriptionScopes.Individual,
+});
+```
+
+The individual scope requires an exact `patient` or `subject` filter. Use the
+tenant scope only when consent and authorization permit events for multiple
+hosted subjects.
+
 ## 3. Receive the FHIR notification
 
 The rest-hook receives a FHIR R5 `Bundle` whose `type` is
@@ -63,6 +79,21 @@ key set without consuming another professional/member seat or revoking the
 first installation.
 
 FHIR Subscription does not replace DCR, user licensing, consent, or the push endpoint registry.
+
+## 5. Run the provider-side interoperability test
+
+GW CORE includes a pinned HAPI FHIR R5 Docker test. From the GW CORE repository:
+
+```bash
+npm run fhir:hapi:up
+npm run test:e2e:hapi-subscription
+npm run fhir:hapi:down
+```
+
+The test registers a topic and exact-patient rest-hook, creates an Observation,
+and verifies a standard `subscription-notification` Bundle at the callback.
+It is an interoperability test of the neutral CORE contract, not a product or
+portal connector.
 
 GW CORE persists every matched notification before attempting delivery. Failed
 HTTPS attempts become `retryable` with bounded scheduled exponential backoff;

@@ -153,6 +153,12 @@ import {
 import { buildGrantProfessionalAccessClaimsWithCid } from './runtime-consent.js';
 import { RuntimeClientPaths } from './runtime-client-paths.js';
 import { runtimeUuid, wrapBundleAsGatewayTransactionMessage } from './runtime-message.js';
+import {
+  submitFhirR5SubscriptionBatchWithDeps,
+  submitFhirR5SubscriptionTopicBatchWithDeps,
+  type FhirR5SubscriptionBatchInput,
+} from './fhir-r5-subscription-runtime.js';
+import type { FhirR5SubscriptionTopic } from 'gdc-common-utils-ts/models/fhir-r5-subscription';
 
 const bootstrapFacade = createBootstrapFacade();
 
@@ -333,6 +339,34 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
     return submitAndPollWithMethods(this, submitPath, pollPath, payload, pollOptions);
+  }
+
+  /** Registers one neutral FHIR R5 topic in the tenant-owned CORE catalog. */
+  public submitFhirR5SubscriptionTopicBatch(
+    ctx: RouteContext,
+    topic: FhirR5SubscriptionTopic,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return submitFhirR5SubscriptionTopicBatchWithDeps(ctx, topic, pollOptions, {
+      createRuntimeUuid: runtimeUuid,
+      submitPath: this.paths.fhirR5SubscriptionTopicBatchPath.bind(this.paths),
+      pollPath: this.paths.fhirR5SubscriptionTopicPollPath.bind(this.paths),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /** Registers one tenant or exact-subject FHIR R5 rest-hook Subscription. */
+  public submitFhirR5SubscriptionBatch(
+    ctx: RouteContext,
+    input: FhirR5SubscriptionBatchInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return submitFhirR5SubscriptionBatchWithDeps(ctx, input, pollOptions, {
+      createRuntimeUuid: runtimeUuid,
+      submitPath: this.paths.fhirR5SubscriptionBatchPath.bind(this.paths),
+      pollPath: this.paths.fhirR5SubscriptionPollPath.bind(this.paths),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
   }
 
   private async submitAndPollWithBearerToken(
