@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Document the neutral FHIR R5 Subscription, DCR application identity, and
+  per-device push fan-out boundaries for integrators.
+
 ## 2.3.29 - 2026-08-09
 
 - Add `submitLegalOrganizationCredentialReissuance(...)` as the canonical SDK
