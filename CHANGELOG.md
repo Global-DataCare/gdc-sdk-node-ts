@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 2.4.0 - 2026-08-09
+
+- Consume Common Utils 2.4.0 for the neutral FHIR R5 Subscription and
+  multi-device seat contracts.
 - Send the stable DCR `client_instance_id` during `Token/_exchange` so one
   licensed seat can safely enroll two portal/device installations for the same
   authenticated user.
