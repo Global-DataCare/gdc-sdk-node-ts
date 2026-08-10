@@ -58,9 +58,20 @@ type ActivateEmployeeDeviceRequestDeps = {
 export async function activateEmployeeDeviceWithActivationCodeWithDeps(
   deps: ActivateEmployeeDeviceDeps,
 ): Promise<EmployeeDeviceActivationResult> {
+  const deviceInfo = deps.input.dcrPayload.ext_device_info as Record<string, unknown> | undefined;
+  const redirectUris = deps.input.dcrPayload.redirect_uris as unknown[] | undefined;
+  const jwks = deps.input.dcrPayload.jwks as { keys?: Array<{ kid?: string }> } | undefined;
+  const clientInstanceId = String(
+    deviceInfo?.device_id
+    || (deps.input.dcrPayload.software_id ? `software:${deps.input.dcrPayload.software_id}` : '')
+    || (redirectUris?.[0] ? `redirect:${redirectUris[0]}` : '')
+    || (jwks?.keys?.[0]?.kid ? `key:${jwks.keys[0].kid}` : ''),
+  ).trim();
+  if (!clientInstanceId) throw new Error('Device activation requires a stable device, software, redirect, or key identifier.');
   const exchangePayload = {
     thid: `exchange-${createRuntimeUuid()}`,
     subject_token: deps.input.activationCode,
+    client_instance_id: clientInstanceId,
   };
 
   const exchange = await deps.submitAndPollWithBearerToken(

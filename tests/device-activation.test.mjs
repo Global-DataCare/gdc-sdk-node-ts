@@ -36,6 +36,7 @@ test('activateEmployeeDeviceWithActivationCodeWithDeps performs exchange then dc
 
   assert.equal(calls.length, 2);
   assert.equal(calls[0].bearerToken, 'employee-id-token-001');
+  assert.equal(calls[0].payload.client_instance_id, 'device-controller-001');
   assert.equal(calls[1].bearerToken, 'initial-access-001');
   assert.equal(calls[1].payload.code, 'ACT-001');
   assert.equal(result.initialAccessToken, 'initial-access-001');
