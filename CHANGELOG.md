@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Send the stable DCR `client_instance_id` during `Token/_exchange` so one
+  licensed seat can safely enroll two portal/device installations for the same
+  authenticated user.
+- Document the GW CORE-owned SubscriptionTopic catalog, handshake activation,
+  encrypted notification outbox and endpoint-host allowlist.
+
 - Document the neutral FHIR R5 Subscription, DCR application identity, and
   per-device push fan-out boundaries for integrators.
 

@@ -32,10 +32,11 @@ The tenant route may cover several hosted subjects, subject to authorization
 and consent. The tenant/BFF owns the Subscription; a provider creates or
 updates the clinical resource that matches its topic and filters.
 
-The gateway profile accepts an HTTPS `rest-hook` and stores the whole
-Subscription encrypted because channel parameters may contain credentials.
-Registration keeps status `requested`; only a runtime that can evaluate the
-topic and durably deliver/retry notifications may change it to `active`.
+GW CORE owns the neutral topic catalog through
+`entity/org.hl7.fhir.r5/SubscriptionTopic/_batch`. The gateway accepts an HTTPS
+`rest-hook`, validates filters against the active topic, stores the whole
+Subscription encrypted, sends the standard handshake, and marks it `active`
+only after that handshake succeeds.
 
 ## 3. Receive the FHIR notification
 
@@ -55,9 +56,16 @@ push endpoint can rotate without issuing a new seat or changing `software_id`.
 A shared BFF wallet can use one client with several push endpoints; device-held
 signing keys require a DCR registration per installation.
 
-Current compatibility limitation: the gateway DCR flow still binds one
-`license.deviceId` and replaces the previous device registration. A separate
-multi-device registry and per-seat device allowance are required before a
-second installation can coexist in the runtime.
+The gateway keeps `deviceId` as the legacy primary binding while storing a
+`deviceBindings[]` registry. The default allowance is two active installations
+per seat. A second portal/device therefore receives its own DCR `client_id` and
+key set without consuming another professional/member seat or revoking the
+first installation.
 
 FHIR Subscription does not replace DCR, user licensing, consent, or the push endpoint registry.
+
+GW CORE persists every matched notification before attempting delivery. Failed
+HTTPS attempts become `retryable` with bounded scheduled exponential backoff;
+later resource events also recover due attempts opportunistically. Production
+must configure `FHIR_SUBSCRIPTION_ENDPOINT_HOSTS`; endpoints outside that
+allowlist are rejected to prevent server-side request forgery.
