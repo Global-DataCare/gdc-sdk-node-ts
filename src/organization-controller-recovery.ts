@@ -63,8 +63,10 @@ export async function recoverOrganizationControllerWithCredentialReissuanceWithD
 ): Promise<OrganizationControllerRecoveryResult> {
   /**
    * Existing-tenant controller recovery contract:
-   * - `Organization/_issue` is expected to reissue controller activation
-   *   material only
+   * - `Organization/_issue` reverifies/reissues organization credentials and
+   *   exposes the existing controller License activation code separately in
+   *   response claims
+   * - `Token/_exchange -> Device/_dcr` performs the device activation/rebind
    * - this flow must not depend on a new commercial Offer or Order step
    */
   const submitCredentialReissuance = deps.submitLegalOrganizationCredentialReissuance
@@ -119,10 +121,12 @@ export const recoverOrganizationControllerWithIssueWithDeps =
  * Reads the opaque activation code from a successful Organization/_issue poll result.
  *
  * Gateway deployments may retain one or more transport/job envelopes around
- * the terminal batch response. Only a response entry carrying the canonical
- * serial-number claim, or an explicitly typed `License:Issued` entry carrying
- * its public `id`, is accepted. Unrelated identifiers are never interpreted as
- * activation material.
+ * the terminal batch response. The canonical `Organization/_issue` shape
+ * carries the serial-number claim in `meta.claims`, alongside (but outside)
+ * the ICA `vc[]` array. An explicitly typed `License:Issued` entry is accepted
+ * only as a legacy `License/_issue` compatibility fallback. Unrelated
+ * identifiers and ICA credentials are never interpreted as activation
+ * material.
  */
 export function readLegalOrganizationCredentialReissuanceActivationCode(result: SubmitAndPollResult): string {
   const pollBody = (result?.poll?.body || {}) as Record<string, unknown>;

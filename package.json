@@ -37,7 +37,7 @@
     "test:e2e:live-gw:clean": "bash ./scripts/run-live-gw-clean.sh"
   },
   "dependencies": {
-    "gdc-common-utils-ts": "^2.4.0",
+    "gdc-common-utils-ts": "^2.5.1",
     "gdc-sdk-core-ts": "~2.3.18"
   },
   "devDependencies": {

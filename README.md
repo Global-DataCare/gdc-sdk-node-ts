@@ -729,8 +729,14 @@ Existing-tenant recovery/reverification:
 - use `OrganizationControllerSdk.submitLegalOrganizationCredentialReissuance(...)` or
   `NodeHttpClient.submitLegalOrganizationCredentialReissuance(...)` to refresh the ICA-backed
   verification for an already registered tenant without creating a new Offer
-- GW is expected to return one new controller activation code as
-  `org.schema.IndividualProduct.serialNumber`
+- inside the terminal decoded GW Bundle, the canonical polled response keeps
+  all deduplicated ICA-issued credentials in `body.data[0].vc[]` and the
+  complete ICA payload in `body.data[0].resource.icaResponse`; SDK callers
+  receive that terminal HTTP payload as `SubmitAndPollResult.poll.body`
+- separately, GW returns the controller License activation code in
+  `body.data[0].meta.claims['org.schema.IndividualProduct.serialNumber']`
+- `Organization/_issue` is not `License/_issue`: the activation code is not a
+  VC and `License:Issued` is not the canonical response entry type for this route
 - then continue with the existing helper chain:
   `recoverOrganizationControllerWithCredentialReissuanceWithDeps(...)`
   or directly `_exchange -> _dcr`

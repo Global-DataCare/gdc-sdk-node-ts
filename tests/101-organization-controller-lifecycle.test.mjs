@@ -58,8 +58,9 @@ import {
  * It is the canonical controller lifecycle contract for Node/BFF integrators:
  * - onboard the organization (new `_transaction` or legacy `_activate`)
  * - optionally materialize additional purchased seats
- * - prove `Organization/_issue` can rebind the current controller device
- * - prove `_issue` reuses the already-assigned controller seat
+ * - prove `Organization/_issue` refreshes the ICA organization credentials and
+ *   exposes activation material for the already-assigned controller seat
+ * - prove `Token/_exchange -> Device/_dcr` rebinds the controller device
  * - prove seats bought after the original registration remain untouched
  * - only then disable and purge the tenant
  *
@@ -70,7 +71,7 @@ import {
  *   beginner identity narrative
  * - do not force older executive-director examples into new 101 flows
  */
-test('101: organization controller lifecycle preserves contracted seats across Organization/_issue before disable and purge', async (t) => {
+test('101: organization credential reissuance preserves controller seats before device DCR and tenant teardown', async (t) => {
   await t.test('new Organization/_transaction lifecycle', async () => {
     await exerciseOrganizationControllerLifecycle({ mode: 'transaction' });
   });
@@ -245,7 +246,7 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
   assert.equal(
     recovery.activationCode,
     controllerSeatSerial,
-    'Organization/_issue must reissue the current controller seat instead of consuming one newly expanded seat.',
+    'Organization/_issue must expose activation material for the current controller seat instead of consuming one newly expanded seat.',
   );
   assert.equal(recovery.activation.exchange.poll.status, 200);
   assert.equal(recovery.activation.dcr.poll.status, 200);
@@ -259,7 +260,7 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
   assert.deepEqual(
     readLicenseListRecords(postIssueLicenses.poll.body),
     expectedAdditionalRecords,
-    'Organization/_issue must preserve the expanded seat inventory exactly while the controller rebinds the current device.',
+    'Organization/_issue must preserve the expanded seat inventory; the later Device/_dcr operation performs the device rebind.',
   );
 
   const disabledTenant = await organizationControllerSdk.disableTenant(hostCtx, tenantLifecycleInput);

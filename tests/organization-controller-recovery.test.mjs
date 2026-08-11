@@ -23,7 +23,7 @@ test('readLegalOrganizationCredentialReissuanceActivationCode reads the governed
   }), 'lic-controller-code');
 });
 
-test('readLegalOrganizationCredentialReissuanceActivationCode reads a wrapped non-first License response entry', () => {
+test('readLegalOrganizationCredentialReissuanceActivationCode accepts a wrapped legacy License response claim', () => {
   assert.equal(readLegalOrganizationCredentialReissuanceActivationCode({
     poll: { body: { body: { result: { data: [
       { type: 'OperationOutcome', id: 'unrelated-job-id' },
@@ -34,7 +34,7 @@ test('readLegalOrganizationCredentialReissuanceActivationCode reads a wrapped no
   }), 'lic-wrapped-controller-code');
 });
 
-test('readLegalOrganizationCredentialReissuanceActivationCode accepts only a typed License issued id fallback', () => {
+test('readLegalOrganizationCredentialReissuanceActivationCode accepts only a typed legacy License issued id fallback', () => {
   assert.equal(readLegalOrganizationCredentialReissuanceActivationCode({
     poll: { body: { response: { body: { data: [
       { type: 'OperationOutcome', id: 'unrelated-job-id' },

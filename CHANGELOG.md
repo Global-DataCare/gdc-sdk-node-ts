@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Consume `gdc-common-utils-ts@^2.5.1` from npm so organization-controller and
+  registration-authorization imports never depend on a sibling workspace link.
+- Correct the organization-controller lifecycle documentation and JSDoc:
+  `Organization/_issue` returns ICA credentials in `vc[]`, preserves the raw
+  ICA response separately, and exposes the License activation code only in
+  `meta.claims`; `License:Issued` remains a legacy reader fallback rather than
+  the canonical organization response.
+- Add Node/BFF signing of an organization registration authorization VC with
+  the already-unlocked profile wallet and detached ML-DSA proof.
 - Add typed high-level methods for neutral FHIR R5 `SubscriptionTopic` and
   tenant/exact-subject `Subscription` registration through GW CORE, including
   canonical path builders and submit/poll orchestration.
