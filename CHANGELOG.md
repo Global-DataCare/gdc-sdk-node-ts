@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.4.1 - 2026-08-11
+
 - Consume `gdc-common-utils-ts@^2.5.1` from npm so organization-controller and
   registration-authorization imports never depend on a sibling workspace link.
 - Correct the organization-controller lifecycle documentation and JSDoc:

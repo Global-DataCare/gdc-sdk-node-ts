@@ -6,14 +6,14 @@ import {
 } from '../dist/index.js';
 
 /**
- * Flow contract: an authenticated UNID employee first unlocks/provisions the
+ * Flow contract: an authenticated host employee first unlocks/provisions the
  * server wallet; only that wallet can add the PQC contractAgreement proof.
  */
 test('adds an ML-DSA-65 proof without exposing profile private material', async () => {
   const wallet = new NodeManagedWallet({
     policy: { defaults: { 'actor-signing': 'ML-DSA-65' } },
   });
-  const context = { profile: { profileId: 'unid-reviewer' } };
+  const context = { profile: { profileId: 'host-reviewer' } };
   const provisioned = await wallet.provisionManagedKeys(context, {
     ownerScope: 'profile',
     purposes: ['actor-signing'],
@@ -25,8 +25,8 @@ test('adds an ML-DSA-65 proof without exposing profile private material', async 
     '@context': ['https://www.w3.org/ns/credentials/v2', 'https://schema.org'],
     id: 'urn:uuid:authorization',
     type: ['VerifiableCredential', 'OrganizationRegistrationAuthorizationCredential'],
-    issuer: 'did:web:uhc-gw.unid.online',
-    credentialSubject: { id: 'did:web:uhc-gw.unid.online:DSRC-001' },
+    issuer: 'did:web:host.example',
+    credentialSubject: { id: 'did:web:host.example:DSRC-001' },
     validFrom: '2026-08-10T00:00:00.000Z',
   };
 
@@ -35,7 +35,7 @@ test('adds an ML-DSA-65 proof without exposing profile private material', async 
     wallet,
     context,
     key: { ownerScope: 'profile', purpose: 'actor-signing', alg: 'ML-DSA-65' },
-    verificationMethod: `did:web:uhc-gw.unid.online:controller#${signingKey.kid}`,
+    verificationMethod: `did:web:host.example:controller#${signingKey.kid}`,
     createdAt: '2026-08-10T01:00:00.000Z',
   });
 
