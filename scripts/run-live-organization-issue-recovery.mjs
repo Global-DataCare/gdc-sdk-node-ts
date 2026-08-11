@@ -24,7 +24,7 @@ const tenantId = String(process.env.TENANT_ID || 'acme-id');
 const tenantJurisdiction = String(process.env.TENANT_JURISDICTION || hostJurisdiction);
 const sector = String(process.env.SECTOR || 'health-care');
 const controllerEmail = String(process.env.CONTROLLER_EMAIL || 'admin1@acme.org');
-const controllerRole = String(process.env.CONTROLLER_ROLE || 'ISCO-08|1120');
+const controllerRole = String(process.env.CONTROLLER_ROLE || 'RESPRSN');
 const pollTimeoutMs = Number(process.env.POLL_TIMEOUT_MS || 20000);
 const pollIntervalMs = Number(process.env.POLL_INTERVAL_MS || 1000);
 
