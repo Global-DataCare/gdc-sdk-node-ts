@@ -336,6 +336,23 @@ identities and deterministic test keys. The fixture set must cover:
    controller's own `OrganizationControllerCredential`.
 
 Each fixture must use placeholders rather than real names or email addresses.
+The different-email fixture must make the evidence unambiguous by carrying at
+least:
+
+- the organization legal identifier and legal name;
+- the document version/date;
+- one legal-representative row with its placeholder email;
+- one technical-controller row with a different placeholder email and the
+  controller role code `RESPRSN`;
+- the organization sector;
+- the selected service capabilities, such as index provider or digital-twin
+  reader/provider, separately from the controller role;
+- a valid test signature over the completed form.
+
+The portal request supplies each actor public JWK. The PDF proves the actor's
+designation; it must not contain private keys. The ICA test must reject a
+request-only second email or JWK when the signed form does not designate that
+actor.
 
 ### License and DCR apply only after authorization
 
@@ -561,6 +578,12 @@ That live runner:
 - confirms the returned legal-organization order,
 - rebuilds one controller proof `vp_token` from the ICA-issued credentials
   using the deterministic test signer,
+- provisions the initial controller's self-invited employee License from
+  `Organization.numberOfEmployees`,
+- calls `Organization/_issue` for that same accredited controller and verifies
+  that its existing actor-bound License can be reissued,
+- consumes the activation code through
+  `Token/_exchange -> Device/_dcr` to bind another controller device,
 - uses that VP as `Authorization: Bearer <vp_token>` for tenant
   `disableTenant(...)` and `purgeTenant(...)`,
 - cleans up the host registry afterwards.
@@ -569,8 +592,16 @@ Use the live runner when you need to validate:
 
 - real GW routing,
 - real ICA `Organization/_transaction`,
+- real current-controller `Organization/_issue -> Token/_exchange -> Device/_dcr`,
 - real controller proof bearer validation on tenant lifecycle,
 - real host and tenant cleanup ordering.
+
+The default PDF proves only the current-controller lifecycle. It does not prove
+addition of a different technical controller. Set
+`LIVE_GW_HOST_VERIFICATION_PDF_PATH` to the synthetic different-email fixture
+described above once it exists; that second-controller run must also use the
+second actor's own ICA-issued `OrganizationControllerCredential` and an
+available employee License.
 
 Shared credential readers now used by the live runner:
 

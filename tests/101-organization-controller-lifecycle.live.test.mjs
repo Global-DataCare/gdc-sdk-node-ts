@@ -18,18 +18,23 @@ import {
   addLegalRepresentativeCredential,
   addOrganizationCredential,
   BundleReader,
+  ClaimsOrganizationSchemaorg,
+  ClaimsServiceSchemaorg,
   createJwtSigner,
   createLegalOrganizationOnboardingEditor,
   createVP,
   OrganizationLifecycleEditor,
   readLegalOrganizationVerificationCredentialPairFromResponseBody,
   readLegalOrganizationVerificationTaxIdFromResponseBody,
+  serializeServiceCapabilityTokens,
+  ServiceCapability,
 } from 'gdc-common-utils-ts';
 
 import {
   HostOnboardingSdk,
   NodeHttpClient,
   OrganizationControllerSdk,
+  readLegalOrganizationCredentialReissuanceActivationCode,
 } from '../dist/index.js';
 import { extractOfferIdFromResponseBody } from '../dist/order-offer-summary.js';
 import { ensureLiveGwTraceFiles } from './helpers/live-gw-runtime-helpers.mjs';
@@ -126,6 +131,14 @@ function signPreparedJwt(prepared, privateJwk, alg) {
   return signature.toString('base64url');
 }
 
+function buildDemoIdToken(payload) {
+  return [
+    Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url'),
+    Buffer.from(JSON.stringify(payload)).toString('base64url'),
+    'demo-signature',
+  ].join('.');
+}
+
 function buildLiveHostVerificationPdfAttachment() {
   const resolvedLocalPath = path.resolve(liveHostVerificationDefaultPdfPath);
   return {
@@ -220,17 +233,30 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
     .setServiceUrl(serviceUrl);
   const draft = onboarding.buildDraft({ allowExplicitAlternateNameForTenantId: true });
   assert.equal(draft.validation.ok, true, 'Controller live onboarding draft must be valid before submission.');
-  const verificationRequest = onboarding.buildVerificationTransactionInput({
-    controller: controllerBinding,
-    organization: {
-      ...(serviceIdentifierDid ? { did: serviceIdentifierDid } : {}),
-      ...(serviceUrl ? { url: serviceUrl } : {}),
+  const verificationRequest = {
+    ...onboarding.buildVerificationTransactionInput({
+      controller: controllerBinding,
+      organization: {
+        ...(serviceIdentifierDid ? { did: serviceIdentifierDid } : {}),
+        ...(serviceUrl ? { url: serviceUrl } : {}),
+      },
+      legalRepresentativePayload: { email: controllerEmail },
+      verification: { resourceType: env('LEGAL_ORG_VERIFICATION_RESOURCE_TYPE', 'contract') },
+      attachments: [buildLiveHostVerificationPdfAttachment()],
+      validationOptions: { allowExplicitAlternateNameForTenantId: true },
+    }),
+    claims: {
+      ...draft.claims,
+      // The initial controller consumes the organization's self-invited
+      // employee seat. Organization/_issue can subsequently reissue that
+      // same actor-bound seat for another device without consuming a new one.
+      [ClaimsOrganizationSchemaorg.numberOfEmployees]: 1,
+      [ClaimsServiceSchemaorg.serviceType]: serializeServiceCapabilityTokens([
+        ServiceCapability.IndexProvider,
+        ServiceCapability.DigitalTwinReader,
+      ]),
     },
-    legalRepresentativePayload: { email: controllerEmail },
-    verification: { resourceType: env('LEGAL_ORG_VERIFICATION_RESOURCE_TYPE', 'contract') },
-    attachments: [buildLiveHostVerificationPdfAttachment()],
-    validationOptions: { allowExplicitAlternateNameForTenantId: true },
-  });
+  };
 
   let runtimeClient;
   let organizationControllerSdk;
@@ -290,6 +316,54 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
       ActorCapabilities.OrganizationDisableTenant,
       ActorCapabilities.OrganizationPurgeTenant,
     ]);
+
+    // Reissue the already accredited controller's seat without attempting a
+    // controller mutation. A second PDF-designated controller is a separate
+    // E2E fixture because ICA must first issue that actor's own controller VC.
+    const credentialReissuance = await profiler.run('reissue-current-controller-credentials', () =>
+      organizationControllerSdk.submitLegalOrganizationCredentialReissuance(
+        hostCtx,
+        {
+          ...verificationRequest,
+          controller: {},
+        },
+        pollOptions,
+      ));
+    debug.record('reissue-current-controller-credentials', { response: credentialReissuance });
+    assert.equal(credentialReissuance.poll.status, 200);
+    const activationCode = readLegalOrganizationCredentialReissuanceActivationCode(credentialReissuance);
+    assert.ok(activationCode, 'Organization/_issue must expose the current controller activation code.');
+
+    const controllerIdToken = buildDemoIdToken({
+      sub: `controller:${controllerEmail}`,
+      tenant_id: suiteTenantRouteId,
+      email: controllerEmail,
+      email_verified: true,
+    });
+    const controllerDeviceActivation = await profiler.run('rebind-current-controller-device', () =>
+      runtimeClient.activateProfileDeviceWithActivationRequest({
+        tenantId: suiteTenantRouteId,
+        jurisdiction: suiteJurisdiction,
+        sector: suiteSector,
+        activationCode,
+        idToken: controllerIdToken,
+        dcrPayload: {
+          application_type: 'native',
+          client_name: 'Local controller lifecycle E2E',
+          redirect_uris: [`gdc-controller-${runSlug}://callback`],
+          jwks: { keys: [controllerSigner.getPublicJwk()] },
+          ext_device_info: {
+            device_id: `controller-device-${runSlug}`,
+            device_name: 'Local controller lifecycle device',
+          },
+        },
+        timeoutSeconds: Math.ceil(pollTimeoutMs / 1000),
+        intervalSeconds: Math.max(1, Math.ceil(pollIntervalMs / 1000)),
+      }));
+    debug.record('rebind-current-controller-device', { response: controllerDeviceActivation });
+    assert.equal(controllerDeviceActivation.exchange.poll.status, 200);
+    assert.equal(controllerDeviceActivation.dcr.poll.status, 200);
+    assert.ok(controllerDeviceActivation.initialAccessToken);
 
     const tenantLifecycleInput = {
       organizationEditor: new OrganizationLifecycleEditor()

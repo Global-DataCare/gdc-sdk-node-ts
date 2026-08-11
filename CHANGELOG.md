@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Extend the local ICA/GW controller lifecycle E2E through the real
+  `Organization/_issue -> Token/_exchange -> Device/_dcr` sequence. The fixture
+  provisions the initial self-invited controller License from
+  `Organization.numberOfEmployees` and reuses that actor-bound seat.
+- Preserve the runtime-client receiver when
+  `OrganizationControllerSdk.submitLegalOrganizationCredentialReissuance(...)`
+  delegates to the canonical method or its deprecated alias.
+- Document the minimum signed-PDF evidence required for the separate
+  different-email legal-representative and technical-controller E2E fixture.
+
 ## 2.4.1 - 2026-08-11
 
 - Consume `gdc-common-utils-ts@^2.5.1` from npm so organization-controller and

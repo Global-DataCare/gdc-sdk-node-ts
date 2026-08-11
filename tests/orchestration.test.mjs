@@ -21,6 +21,7 @@ import {
   IndividualControllerSdk,
   IndividualMemberSdk,
   NodeActorSession,
+  OrganizationControllerSdk,
   PersonalSdk,
   ProfessionalSdk,
   submitAndPollWithMethods,
@@ -365,6 +366,22 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   await sdk.disableEmployee({}, { resourceId: 'urn:uuid:employee-1', employeeClaims: {} });
   await sdk.disableOrganizationEmployee({}, { resourceId: 'urn:uuid:employee-1', employeeClaims: {} });
   assert.equal(calls.length, 14);
+});
+
+test('OrganizationControllerSdk preserves the runtime client receiver for credential reissuance', async () => {
+  const client = {
+    marker: 'bound-runtime-client',
+    async submitLegalOrganizationCredentialReissuance() {
+      assert.equal(this.marker, 'bound-runtime-client');
+      return { ok: true };
+    },
+  };
+  const sdk = new OrganizationControllerSdk(client);
+
+  assert.deepEqual(
+    await sdk.submitLegalOrganizationCredentialReissuance({}, { claims: {}, controller: {} }),
+    { ok: true },
+  );
 });
 
 test('OrganizationControllerSdk delegates organization-side license-order confirmation to the runtime client', async () => {

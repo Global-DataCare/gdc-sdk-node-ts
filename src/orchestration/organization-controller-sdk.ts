@@ -68,16 +68,14 @@ export class OrganizationControllerSdk {
     input: NodeLegalOrganizationVerificationTransactionInput,
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
-    const method = this.client.submitLegalOrganizationCredentialReissuance
-      || this.client.submitLegalOrganizationIssue;
-    if (!method) {
+    if (this.client.submitLegalOrganizationCredentialReissuance) {
       return requireClientMethod(this.client, 'submitLegalOrganizationCredentialReissuance')(
-        hostCtx,
-        input,
-        pollOptions,
+        hostCtx, input, pollOptions,
       );
     }
-    return method(hostCtx, input, pollOptions);
+    return requireClientMethod(this.client, 'submitLegalOrganizationIssue')(
+      hostCtx, input, pollOptions,
+    );
   }
 
   /**
