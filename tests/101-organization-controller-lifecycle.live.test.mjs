@@ -16,6 +16,7 @@ import { ActorCapabilities } from 'gdc-common-utils-ts/constants/actor-session';
 import { EXAMPLE_CONTROLLER_BINDING, EXAMPLE_JURISDICTION, EXAMPLE_LIVE_GW_BASE_URL_LOCAL, EXAMPLE_SECTOR, EXAMPLE_TENANT_IDENTIFIER, cloneExample } from 'gdc-common-utils-ts/examples';
 import {
   addLegalRepresentativeCredential,
+  addServiceControllerCredential,
   addOrganizationCredential,
   BundleReader,
   ClaimsOrganizationSchemaorg,
@@ -26,6 +27,7 @@ import {
   OrganizationLifecycleEditor,
   readLegalOrganizationVerificationCredentialPairFromResponseBody,
   readLegalOrganizationVerificationTaxIdFromResponseBody,
+  readServiceControllerCredentialFromResponseBody,
   serializeServiceCapabilityTokens,
   ServiceCapability,
 } from 'gdc-common-utils-ts';
@@ -154,9 +156,13 @@ async function buildSignedControllerVpToken({
   signer,
   organizationCredential,
   legalRepresentativeCredential,
+  organizationControllerCredential,
   tenantId,
   audience,
 }) {
+  // Canonical controller proof is a three-VC presentation. The legal
+  // representative VC proves legal capacity; the separate controller VC
+  // proves RESPRSN authority and binds the actor signing key.
   const vpPayload = createVP({
     iss: signer.getKid(),
     sub: tenantId,
@@ -167,6 +173,7 @@ async function buildSignedControllerVpToken({
   });
   addOrganizationCredential(vpPayload, organizationCredential);
   addLegalRepresentativeCredential(vpPayload, legalRepresentativeCredential);
+  addServiceControllerCredential(vpPayload, organizationControllerCredential);
   const prepared = signer.prepareJwt({
     payload: vpPayload,
     header: {
@@ -279,6 +286,11 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
 
     const verificationPair = readLegalOrganizationVerificationCredentialPairFromResponseBody(verification.poll.body || {});
     const { organizationCredential, legalRepresentativeCredential } = verificationPair;
+    const organizationControllerCredential = readServiceControllerCredentialFromResponseBody(verification.poll.body || {});
+    assert.ok(
+      organizationControllerCredential,
+      'ICA verification must return the controller-authority VC used in the signed controller VP.',
+    );
     const resolvedTaxId = readLegalOrganizationVerificationTaxIdFromResponseBody(verification.poll.body || {});
     const offerId = extractOfferIdFromResponseBody(verification.poll.body);
     assert.ok(offerId, 'Host verification transaction must expose one offer identifier before order confirmation.');
@@ -287,6 +299,7 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
       signer: controllerSigner,
       organizationCredential,
       legalRepresentativeCredential,
+      organizationControllerCredential,
       tenantId: resolvedTaxId,
       audience: controllerVpAudience,
     });

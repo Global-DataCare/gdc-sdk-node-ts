@@ -430,7 +430,7 @@ function buildLiveLegalOrganizationVerificationTransactionInput({
   const exampleEntry = EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0];
   return {
     claims: {
-      ...cloneExample(exampleEntry.meta.claims),
+      ...cloneExample(exampleEntry.resource.meta.claims),
       'org.schema.Organization.alternateName': tenantRouteId,
       'org.schema.Organization.legalName': env('ORG_LEGAL_NAME', 'TEST LEGAL ORGANIZATION SL'),
       'org.schema.Organization.identifier.additionalType': env('ORG_IDENTIFIER_TYPE', 'taxID'),

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 2.4.2 - 2026-08-13
+
+- Define the canonical ICA controller proof as `ServiceControllerCredential`:
+  `credentialSubject.owner.additionalType = RESPRSN` carries tenant authority,
+  while `owner.hasOccupation.occupationalCategory` carries the ISCO code.
+- Align lifecycle examples and tests on `data[].resource.meta.claims`;
+  entry-level `meta.claims` is only a deprecated read fallback.
+- Add a Swagger-to-SDK controller flow map, explicit canonical/legacy
+  credential decision table and JSDoc; document canonical organization
+  response claims at `data[].resource.meta.claims`.
+- Require the live controller VP fixture to carry the ICA-issued
+  `ServiceControllerCredential` alongside the organization and legal
+  representative credentials, and document separate `RESPRSN` authority plus
+  ISCO occupation defaults (`1120` for the representative and `1330` for the
+  technical controller when the signed PDF provides no explicit occupation).
 - Extend the local ICA/GW controller lifecycle E2E through the real
   `Organization/_issue -> Token/_exchange -> Device/_dcr` sequence. The fixture
   provisions the initial self-invited controller License from

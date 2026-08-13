@@ -17,10 +17,18 @@ import {
 
 test('readLegalOrganizationCredentialReissuanceActivationCode reads the governed reissue result', () => {
   assert.equal(readLegalOrganizationCredentialReissuanceActivationCode({
-    poll: { body: { body: { data: [{ meta: { claims: {
+    poll: { body: { body: { data: [{ resource: { meta: { claims: {
       'org.schema.IndividualProduct.serialNumber': 'lic-controller-code',
-    } } }] } } },
+    } } } }] } } },
   }), 'lic-controller-code');
+});
+
+test('readLegalOrganizationCredentialReissuanceActivationCode still reads deprecated entry.meta claims', () => {
+  assert.equal(readLegalOrganizationCredentialReissuanceActivationCode({
+    poll: { body: { data: [{ meta: { claims: {
+      'org.schema.IndividualProduct.serialNumber': 'legacy-entry-meta-code',
+    } } }] } },
+  }), 'legacy-entry-meta-code');
 });
 
 test('readLegalOrganizationCredentialReissuanceActivationCode accepts a wrapped legacy License response claim', () => {
@@ -51,7 +59,7 @@ test('recoverOrganizationControllerWithCredentialReissuanceWithDeps performs cre
     tenantCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
     input: {
       credentialReissuanceInput: {
-        claims: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].meta.claims),
+        claims: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.meta.claims),
         controller: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.controller),
         organization: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.organization),
         legalRepresentativePayload: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.legalRepresentativePayload),
@@ -72,9 +80,11 @@ test('recoverOrganizationControllerWithCredentialReissuanceWithDeps performs cre
           attempts: 1,
           body: {
             data: [{
-              meta: {
-                claims: {
-                  'org.schema.IndividualProduct.serialNumber': 'lic-reactivation-001',
+              resource: {
+                meta: {
+                  claims: {
+                    'org.schema.IndividualProduct.serialNumber': 'lic-reactivation-001',
+                  },
                 },
               },
             }],
@@ -111,7 +121,7 @@ test('recoverOrganizationControllerWithCredentialReissuanceWithDeps rejects resp
       tenantCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
       input: {
         issueInput: {
-          claims: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].meta.claims),
+          claims: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.meta.claims),
           controller: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.controller),
         },
         controllerIdToken: 'controller-id-token-001',
@@ -144,7 +154,7 @@ test('recoverOrganizationControllerWithCredentialReissuanceWithDeps surfaces Org
       tenantCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
       input: {
         issueInput: {
-          claims: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].meta.claims),
+          claims: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.meta.claims),
           controller: cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.controller),
         },
         controllerIdToken: 'controller-id-token-001',

@@ -309,7 +309,7 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
 function buildIssueInput() {
   const bundle = cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE);
   return {
-    claims: bundle.data[0].meta.claims,
+    claims: bundle.data[0].resource.meta.claims,
     controller: bundle.data[0].resource.controller,
     organization: bundle.data[0].resource.organization,
     legalRepresentativePayload: bundle.data[0].resource.legalRepresentativePayload,

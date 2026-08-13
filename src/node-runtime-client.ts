@@ -411,7 +411,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    *
    * Commercial contract:
    * - the final poll response is expected to mint
-   *   `meta.claims['org.schema.Offer.identifier']`
+   *   `resource.meta.claims['org.schema.Offer.identifier']`
    * - callers should then pass that exact value to
    *   `confirmLegalOrganizationOrder(...)`
    */
@@ -529,9 +529,16 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * - this mirrored metadata is transport fallback only; the canonical
    *   activation contract remains `body.vp_token` plus `body.controller.*`
    *
+   * Credential compatibility:
+   * - canonical VP: organization + legal-representative + organization-controller VCs
+   * - legacy two-VC VP: accepted only when the old representative VC itself
+   *   carries both `RESPRSN` and matching `hasCredential` key material
+   * - a representative VC containing only `ISCO-08|1120` is not controller
+   *   evidence and will be rejected
+   *
    * Commercial contract:
    * - legacy `_activate` is still expected to mint
-   *   `meta.claims['org.schema.Offer.identifier']`
+   *   `resource.meta.claims['org.schema.Offer.identifier']`
    * - callers should then pass that exact value to
    *   `confirmLegalOrganizationOrder(...)`
    */

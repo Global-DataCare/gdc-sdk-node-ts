@@ -9,6 +9,69 @@
 This is the canonical and reproducible guide for the **organization
 controller** lifecycle in `gdc-sdk-node-ts`.
 
+## Read this first: which credential authorizes what
+
+The normal result contains three VCs. They are not three versions of the same
+thing:
+
+```text
+signed organization PDF + controller public JWK
+                    │
+                    ▼
+                  ICA
+                    │
+        ┌───────────┼────────────────────┐
+        ▼           ▼                    ▼
+Organization   LegalRepresentative   ServiceController
+Credential     Credential            Credential
+organization   legal capacity +      tenant authority RESPRSN
+identity       ISCO occupation       + controller ISCO + JWK binding
+```
+
+For the current PDF without explicit occupation fields:
+
+| VC | Meaning | `hasOccupation` | Authorizes tenant control? |
+| --- | --- | --- | --- |
+| `OrganizationCredential` | Identifies the organization | Not applicable | No |
+| `LegalRepresentativeCredential` | Identifies its legal representative | `ISCO-08|1120` by default | No, not by itself |
+| `ServiceControllerCredential` | Identifies an authorized tenant-service controller | `owner.additionalType = RESPRSN` plus `owner.hasOccupation.occupationalCategory = ISCO-08|1330` by default | Yes, when its JWK binding also matches |
+
+`RESPRSN` and ISCO are therefore not alternatives and are not one CSV value.
+`RESPRSN` is the authority checked by GW. ISCO is the actor's professional
+occupation and may be used by a portal's own authorization policy.
+
+### Exact legacy rule for a two-VC VP
+
+GW does not automatically promote every legal representative to controller:
+
+| VP contents | Result |
+| --- | --- |
+| Three VCs, with `owner.additionalType = RESPRSN` and matching `owner.hasCredential.material` in `ServiceControllerCredential` | Accepted canonical controller proof |
+| Only organization + old representative VC, where that representative VC itself contains `RESPRSN` and matching `hasCredential.material` | Accepted compatibility fallback |
+| Only organization + modern representative VC containing `ISCO-08|1120` | Rejected: no signed controller authority |
+| Controller role sent only as unsigned request claim | Rejected as controller evidence |
+
+The two-VC fallback exists only for credentials issued under the old combined
+model. It does not convert `1120` into `RESPRSN`, and it is not used when
+adding another controller to an existing tenant; that operation requires the
+added actor's own `ServiceControllerCredential`.
+
+### Where to execute the flows in Swagger
+
+- Canonical first registration: GW Swagger `Organization/_transaction`, then
+  poll `Organization/_transaction-response`, then confirm its Offer through
+  `Order/_batch`.
+- Existing organization or controller reissuance: GW Swagger
+  `Organization/_issue`, then poll `Organization/_issue-response`.
+- Legacy proof-first registration only: obtain ICA credentials through ICA
+  Swagger `_verify` / `_verify-response`, build and sign the VP, then submit it
+  to GW Swagger `Organization/_activate`.
+
+In the canonical and reissue responses, inspect `body.data[0].vc[]`: it should
+contain the organization, representative and controller VCs. The activation
+code, if issued, is separately in
+`body.data[0].resource.meta.claims`; it is not a VC.
+
 Use this guide when you need to prove one narrow contract end to end:
 
 1. onboard a legal organization,
@@ -51,7 +114,7 @@ And in both variants it then proves:
 
 3. `Organization/_issue` revalidates the organization/controller evidence,
    returns every ICA credential in `vc[]`, and exposes the controller License
-   activation code separately in `meta.claims`,
+   activation code separately in `resource.meta.claims`,
 4. `Token/_exchange` exchanges that activation code for an initial access
    token,
 5. `Device/_dcr` registers the controller device keys,
@@ -75,7 +138,7 @@ The current GW contract works as follows:
    in `body.data[0].resource.icaResponse`.
 3. Independently from those VCs, GW exposes the opaque controller License
    activation code in
-   `body.data[0].meta.claims['org.schema.IndividualProduct.serialNumber']`.
+   `body.data[0].resource.meta.claims['org.schema.IndividualProduct.serialNumber']`.
 4. The BFF sends that value to `Token/_exchange` and receives an initial access
    token.
 5. The BFF uses the initial access token and the same activation code in
@@ -88,10 +151,27 @@ credential-reissuance result with three distinct projections:
 ```text
 body.data[0]
 ├── vc[]                         all deduplicated ICA-issued VCs
-├── resource.icaResponse         complete raw ICA verification response
-└── meta.claims
-    └── IndividualProduct.serialNumber   License activation code
+├── resource
+│   ├── meta.claims
+│   │   └── IndividualProduct.serialNumber   License activation code
+│   └── icaResponse              transitional raw ICA envelope
+└── response                     per-entry processing status
 ```
+
+`resource.icaResponse` is not a fourth business result. It is the transitional
+raw upstream envelope returned by ICA and retained by GW for audit/debug and
+backward compatibility. Because ICA entries may themselves contain both
+`resource` and per-entry `response`, applications should not traverse that raw
+tree. Use the normalized sibling `vc[]` for credentials,
+`resource.meta.claims` for flat claims, and the outer entry `response` only for
+processing status. The raw envelope can be deprecated later without changing
+those normalized surfaces.
+
+The same resource-scoped rule applies to requests: flattened GW application
+claims are sent in `body.data[].resource.meta.claims`, never in entry-level
+`meta.claims`. ICA-issued W3C VC claims stay in each VC's
+`credentialSubject`; they are not converted into GW flat claims. Readers may
+accept entry-level `meta.claims` only for deprecated payloads.
 
 Do not describe `vc[]` as a License response and do not describe the activation
 code as a VC. A typed `License:Issued` entry belongs to the separate
@@ -176,8 +256,8 @@ Technical-slice note:
 3. optionally confirm extra post-registration seat orders
 4. `submitLegalOrganizationCredentialReissuance(...)` submits and polls
    `Organization/_issue`, then reads `vc[]`, `resource.icaResponse` and
-   `meta.claims` as separate response fields
-5. take `meta.claims['org.schema.IndividualProduct.serialNumber']` as the opaque
+   `resource.meta.claims` as separate response fields
+5. take `resource.meta.claims['org.schema.IndividualProduct.serialNumber']` as the opaque
    activation code and call `Token/_exchange`
 6. call `Device/_dcr` with the initial access token, activation code and public
    device keys
@@ -209,7 +289,7 @@ operations. They must not be inferred only from the submitted email or JWK.
 
 | Operation | Required evidence and authorization | License rule |
 | --- | --- | --- |
-| Rotate the legal representative's actor key | The same PDF may be reused when it still identifies the same email. The request is signed with the currently authorized key and supplies the replacement public JWK. | Reuse the License already assigned to that email and `RESPRSN`. |
+| Rotate a legal representative's portal-wallet key | Reissue the representative evidence through the portal/ICA flow. This is not a tenant-controller rotation unless that same actor also owns a `ServiceControllerCredential`. | No controller License rule applies unless the actor is independently a controller. |
 | Rotate the technical controller's actor key | The same PDF may be reused when it identifies that same controller email. The request is signed with a currently authorized key. | Reuse that controller's existing License. |
 | Replace the legal representative with another person | A new PDF identifies the replacement. The change explicitly names the controller being replaced and the replacement controller. | Transfer the replaced controller's License explicitly; a different email does not match it automatically today. |
 | Replace the technical controller with another person | A new PDF identifies the replacement, or a valid organization-controller delegation authorizes it. | Transfer the replaced controller's License explicitly. |
@@ -222,22 +302,26 @@ The current request has one singular `resource.controller`, so each targeted
 actor change is a separate `_issue` operation unless a future contract adds an
 explicit array of controller changes.
 
-### ICA credential: `OrganizationControllerCredential`
+### ICA credential: `ServiceControllerCredential`
 
-ICA issues an `OrganizationControllerCredential` in addition to the
+ICA issues a `ServiceControllerCredential` in addition to the
 organization and legal-representative credentials. This separates two claims:
 
 - `LegalRepresentativeCredential`: the person is a legal representative of
   the organization;
-- `OrganizationControllerCredential`: the person controls the organization's
+- `ServiceControllerCredential`: the person controls the organization's
   tenant service.
 
 In the simplest registration bundle this is the third credential. Each
 verified controller receives an independently status-addressable
-`OrganizationControllerCredential`; ICA does not combine several email hashes
+`ServiceControllerCredential`; ICA does not combine several email hashes
 or JWK bindings in one credential. Because the current request carries one
 singular `resource.controller`, one verification response emits at most one
 new controller credential.
+
+Readers still accept the former type name `OrganizationControllerCredential`
+and its `hasOccupation.identifier` coding as read-only migration input. ICA
+must not emit that legacy shape for new credentials.
 
 The tenant is modeled as a service, so this credential follows the same basic
 shape as `HostingServiceCredential`, but its subject is the tenant service and
@@ -248,7 +332,7 @@ its `owner` is the authorized controller:
   "type": [
     "VerifiableCredential",
     "ServiceCredential",
-    "OrganizationControllerCredential"
+    "ServiceControllerCredential"
   ],
   "credentialSubject": {
     "id": "<tenantServiceDid>",
@@ -262,9 +346,11 @@ its `owner` is the authorized controller:
     },
     "owner": {
       "@type": "Person",
+      "additionalType": "RESPRSN",
       "sameAs": "urn:multibase:<Base58(hashedEmail)>",
       "hasOccupation": {
-        "identifier": "RESPRSN"
+        "@type": "Occupation",
+        "occupationalCategory": "ISCO-08|1330"
       },
       "hasCredential": {
         "material": "urn:ietf:params:oauth:jwk-thumbprint:sha-256:<thumbprint>"
@@ -278,17 +364,33 @@ its `owner` is the authorized controller:
 }
 ```
 
+No custom role property is introduced. Schema.org `additionalType` carries the
+bare HL7-derived `RESPRSN` authority on the controller owner, while
+`Occupation.occupationalCategory` carries the independent ISCO token. Neither
+object signs a display `name` or `roleName`.
+
 ICA signs this VC. A controller never signs or modifies an ICA-issued VC. To
 act as controller, that person signs a VP with the private actor key bound by
 `owner.hasCredential.material`; the VP contains the organization VC and that
-person's own `OrganizationControllerCredential`.
+person's own `ServiceControllerCredential`.
+
+`RESPRSN` and `ISCO-08|1330` are deliberately independent. The first grants
+controller authority over the tenant; the second describes the controller's
+professional occupation. When the signed PDF does not expose explicit
+occupation fields, ICA defaults the legal representative to `ISCO-08|1120`
+and the technical controller to `ISCO-08|1330`. An explicit signed form field
+may replace either default with another validated four-digit ISCO-08 code.
+The optional PDF AcroForm names are
+`person.hasOccupation.occupationalCategory` and
+`organization.contactPoint.hasOccupation.occupationalCategory`; neither is
+required for the current defaulted test case.
 
 If the legal representative and controller use the same email, ICA still
 issues two credentials with different semantics. Their person identity may
 share the same `sameAs` and actor-key binding:
 
 - one `LegalRepresentativeCredential` for legal representation;
-- one `OrganizationControllerCredential` for control of the tenant service.
+- one `ServiceControllerCredential` for control of the tenant service.
 
 If the emails differ, the legal representative VC remains bound only to the
 legal representative, while the controller credential is bound to the
@@ -298,10 +400,10 @@ not present the legal representative's VC as its own.
 For a controller explicitly named in the signed PDF, that PDF is the issuance
 evidence. For a controller appointed later without appearing in the PDF, the
 existing controller's signed authorization becomes delegation evidence for
-the new `OrganizationControllerCredential`; it must not cause ICA to fabricate
+the new `ServiceControllerCredential`; it must not cause ICA to fabricate
 a new `LegalRepresentativeCredential`.
 
-ICA now emits `OrganizationControllerCredential` when `_verify` has both a
+ICA now emits `ServiceControllerCredential` when `_verify` has both a
 controller identity in the signed `organization.contactPoint.email` field and
 a public actor JWK. When the representative and controller are the same actor,
 the signed representative identity may supply that identity instead. A
@@ -322,7 +424,7 @@ identities and deterministic test keys. The fixture set must cover:
    email, producing two credentials with distinct semantics;
 2. one PDF in which they use different emails, producing one
    `LegalRepresentativeCredential` and one independently bound
-   `OrganizationControllerCredential`;
+   `ServiceControllerCredential`;
 3. reuse of that PDF to rotate only the legal representative actor key;
 4. reuse of that PDF to rotate only the technical controller actor key;
 5. a newer PDF replacing the legal representative and explicitly transferring
@@ -333,7 +435,7 @@ identities and deterministic test keys. The fixture set must cover:
 8. rejection of an addition with no reusable or available License, with no
    organization DID or controller-record mutation;
 9. a VP signed by each controller and accepted only when it contains that
-   controller's own `OrganizationControllerCredential`.
+   controller's own `ServiceControllerCredential`.
 
 Each fixture must use placeholders rather than real names or email addresses.
 The different-email fixture must make the evidence unambiguous by carrying at
@@ -342,8 +444,9 @@ least:
 - the organization legal identifier and legal name;
 - the document version/date;
 - one legal-representative row with its placeholder email;
-- one technical-controller row with a different placeholder email and the
-  controller role code `RESPRSN`;
+- one technical-controller row with a different placeholder email; ICA assigns
+  controller authority `RESPRSN` and default occupation `ISCO-08|1330` when
+  explicit signed occupation fields are absent;
 - the organization sector;
 - the selected service capabilities, such as index provider or digital-twin
   reader/provider, separately from the controller role;
@@ -377,21 +480,41 @@ controller's License. Under the current GW implementation:
 DCR only registers device keys and consumes a License. It does not issue a
 legal-representative/controller VC and cannot repair missing legal evidence.
 
-Current test coverage is incomplete. ICA unit tests now prove separate
+### License ordering and payment are separate from controller authority
+
+`RESPRSN` authorizes tenant administration, including requesting additional
+professional License seats. It does not state who may operate a portal's
+corporate payment wallet. A portal may use the signed ISCO occupation in its
+own policy (for example, separating an ICT manager's license request from a
+finance manager's payment approval), but GW must not infer those portal
+permissions from `RESPRSN` or hard-code an ISCO-to-payment mapping.
+
+For a priced offer, GW accepts payment confirmation only when the Stripe
+Checkout Session or Invoice matches the exact tenant, offer, quantity, total
+amount and currency expected by the order. In Test Network, a zero-priced
+offer does not call Stripe; that validates the License/order lifecycle but is
+not a Stripe payment test.
+
+Current second-controller test coverage is incomplete. ICA unit tests now prove separate
 representative/controller VCs for both same-email and different-email forms,
 plus omission of an unbound controller VC when the public JWK is absent.
 Common-utils and ICA client SDK tests prove extraction without representative
-fallback. Separate GW tests prove reuse of the same controller License without
-available seats and persistence of an additional controller binding. There is
-not yet one integrated test proving all three of these second-controller cases:
+fallback. GW tests prove strict `RESPRSN`, actor-alias and JWK-thumbprint
+validation before additive controller persistence. The local ICA + GW + Node
+SDK lifecycle E2E proves that initial verification returns the third
+`ServiceControllerCredential` and that the controller signs a VP carrying
+all three credentials. Separate GW tests also prove reuse of the same
+controller License without available seats. There is not yet one integrated
+test proving all three of these different-email second-controller cases:
 
 - a different controller consumes exactly one available employee License;
 - no available License causes failure without changing the organization DID;
 - the returned activation code completes DCR for the second controller.
 
-Coverage is also missing for issuance and strict validation of a second
-controller's own `OrganizationControllerCredential` and for a VP signed by
-that second controller.
+The signed different-email PDF fixture is still required to prove issuance of
+the second controller's own `ServiceControllerCredential` and a VP signed
+by that second controller. The current E2E must not manufacture this evidence
+from an unsigned request field.
 
 Do not call `Organization/_transaction` again. That endpoint is for initial
 organization registration. The following shows the current `_issue` wire
@@ -404,7 +527,6 @@ import {
   normalizeSameAsHash,
 } from 'gdc-common-utils-ts'
 
-const controllerRole = 'RESPRSN'
 // urn:multibase:<Base58(SHA3-256(normalizedEmail))>
 const secondControllerEmailHashUrn = normalizeSameAsHash(
   authenticatedSecondControllerEmail,
@@ -412,11 +534,8 @@ const secondControllerEmailHashUrn = normalizeSameAsHash(
 const secondControllerDid = buildProfessionalDidWeb({
   organizationDidWeb,
   email: authenticatedSecondControllerEmail,
-  role: controllerRole,
+  role: 'RESPRSN',
 })
-
-organizationClaims['org.schema.Person.hasOccupation.identifier.value'] =
-  controllerRole
 const controllerLicenseIssue =
   await organizationControllerSdk.submitLegalOrganizationCredentialReissuance(
     {
@@ -443,20 +562,20 @@ reader so DIDComm/job response wrappers do not become application assumptions:
 
 ```ts
 import {
-  readOrganizationControllerCredentialsFromResponseBody,
+  readServiceControllerCredentialsFromResponseBody,
 } from 'gdc-common-utils-ts'
 
 const controllerCredentials =
-  readOrganizationControllerCredentialsFromResponseBody(
+  readServiceControllerCredentialsFromResponseBody(
     controllerLicenseIssue.poll.body,
   )
 ```
 
-Before consuming the activation code from `meta.claims`, the BFF must require
-one of those `OrganizationControllerCredential` values to be bound to
+Before consuming the activation code from `resource.meta.claims`, the BFF must require
+one of those `ServiceControllerCredential` values to be bound to
 `secondController` as described above. It must not let `secondController`
 present `firstController`'s `LegalRepresentativeCredential` or
-`OrganizationControllerCredential`.
+`ServiceControllerCredential`.
 
 Here, `controller.sameAs` is the URN-wrapped Base58 email hash. It is not
 another DID and is not derived from the organization or portal domain:
@@ -473,10 +592,12 @@ participates only because it is part of the email itself; no organization DID,
 tenant identifier or portal domain is added. The clear email and the role are
 not present in the resulting URN.
 
-The controller role is stored separately as the bare HL7 v3 code `RESPRSN` in
-`org.schema.Person.hasOccupation.identifier.value` and as the role component
-of the employee DID. Do not use ISCO-08 `1120`, `professional`, or a
-reverse-DNS coding-system prefix for this controller role.
+The signed controller authority is stored as the bare HL7-derived code
+`RESPRSN` in `credentialSubject.owner.additionalType`; the same code is also
+used as the role component of the employee DID. It is not sent as an unsigned
+flat request claim. The independently indexed professional occupation may be
+`ISCO-08|1330` or another signed PDF value. Do not substitute an ISCO code,
+`professional`, or a reverse-DNS coding-system prefix for `RESPRSN`.
 
 Use the same authenticated email in every portal to obtain the same URN. The
 organization-specific employee `did:web` is built separately from the
@@ -523,7 +644,7 @@ replace the actor key submitted above.
 
 The signed PDF remains the evidence forwarded for ICA verification. An
 explicit controller designation in the authenticated PDF form may support
-issuance of `OrganizationControllerCredential`; an untyped technical-contact
+issuance of `ServiceControllerCredential`; an untyped technical-contact
 field by itself must not be treated as a controller grant.
 
 `legalRepresentativePayload` is deprecated. Do not send it in the canonical
@@ -534,7 +655,7 @@ Reusing the same PDF does not make this a second organization registration. It
 may support key rotation for any controller explicitly designated in that PDF.
 The verified signature of `firstController` authorizes the change request; if
 the PDF does not name `secondController`, that signed request is delegation
-evidence for a new `OrganizationControllerCredential`, not evidence for a new
+evidence for a new `ServiceControllerCredential`, not evidence for a new
 `LegalRepresentativeCredential`. If the deployment rejects the evidence or
 enforces newer-contract freshness for `_issue`, the BFF must surface that
 rejection rather than silently retrying `_transaction`.
@@ -553,7 +674,7 @@ submitted.
 4. `submitLegalOrganizationCredentialReissuance(...)` and inspect the returned
    ICA credentials in `vc[]`
 5. read the activation code separately from
-   `meta.claims['org.schema.IndividualProduct.serialNumber']` and use it in
+   `resource.meta.claims['org.schema.IndividualProduct.serialNumber']` and use it in
    `Token/_exchange`
 6. use the resulting initial access token, activation code and device public
    keys in `Device/_dcr`
@@ -600,7 +721,7 @@ The default PDF proves only the current-controller lifecycle. It does not prove
 addition of a different technical controller. Set
 `LIVE_GW_HOST_VERIFICATION_PDF_PATH` to the synthetic different-email fixture
 described above once it exists; that second-controller run must also use the
-second actor's own ICA-issued `OrganizationControllerCredential` and an
+second actor's own ICA-issued `ServiceControllerCredential` and an
 available employee License.
 
 Shared credential readers now used by the live runner:

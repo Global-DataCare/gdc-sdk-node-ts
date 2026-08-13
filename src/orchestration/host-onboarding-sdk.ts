@@ -31,9 +31,15 @@ export class HostOnboardingSdk implements HostingControllerFacade {
    *
    * Commercial contract:
    * - this legacy `_activate` facade must return one canonical Offer in
-   *   `meta.claims['org.schema.Offer.identifier']`
+   *   `resource.meta.claims['org.schema.Offer.identifier']`
    * - callers are expected to pass that Offer to
    *   `confirmLegalOrganizationOrder(...)`
+   *
+   * The canonical `vpToken` contains OrganizationCredential,
+   * LegalRepresentativeCredential and ServiceControllerCredential. A
+   * legacy two-credential token is accepted only when its old representative
+   * credential combines `RESPRSN` authority with matching `hasCredential`
+   * binding material. `ISCO-08|1120` alone never grants tenant control.
    */
   public activateOrganizationInGatewayFromIcaProof(
     hostCtx: HostRouteContext,

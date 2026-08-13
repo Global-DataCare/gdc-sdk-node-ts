@@ -122,8 +122,9 @@ export const recoverOrganizationControllerWithIssueWithDeps =
  *
  * Gateway deployments may retain one or more transport/job envelopes around
  * the terminal batch response. The canonical `Organization/_issue` shape
- * carries the serial-number claim in `meta.claims`, alongside (but outside)
- * the ICA `vc[]` array. An explicitly typed `License:Issued` entry is accepted
+ * carries the serial-number claim in `data[].resource.meta.claims`, while the
+ * ICA credential projection remains in sibling `data[].vc[]`. An explicitly
+ * typed `License:Issued` entry is accepted
  * only as a legacy `License/_issue` compatibility fallback. Unrelated
  * identifiers and ICA credentials are never interpreted as activation
  * material.
