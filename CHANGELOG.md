@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Add organization-controller operations for issuing an existing employee
+  seat's bounded multi-device activation credential and revoking one selected
+  device without releasing the seat.
+- Add high-level employee provisioning, lifecycle listing and invited-employee
+  enrollment orchestration. Explicit client installation ids now distinguish
+  two DCR devices without changing the employee seat identity.
+
 ## 2.4.2 - 2026-08-13
 
 - Define the canonical ICA controller proof as `ServiceControllerCredential`:

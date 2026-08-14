@@ -61,6 +61,7 @@ import {
   listIndividualLicensesWithDeps,
   addFreeIndividualMemberLicensesWithDeps,
   issueIndividualMemberLicenseWithDeps,
+  issueOrganizationEmployeeLicenseWithDeps,
   transitionIndividualMemberLicenseWithDeps,
   listOrganizationLicenseOffersWithDeps,
   listOrganizationLicenseOrdersWithDeps,
@@ -86,6 +87,7 @@ import {
   buildClinicalSummaryUpdateIngestion,
   GwCoreLifecycleRequestMethod,
   GwCoreLifecycleRequestType,
+  revokeEmployeeDeviceWithDeps,
 } from '../dist/index.js';
 
 const TEST_ROUTE_CTX = cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT);
@@ -102,6 +104,8 @@ const EMPLOYEE_PURGE_PATH = gwV1Path('entity', 'org.schema', 'Employee', '_purge
 const EMPLOYEE_PURGE_POLL_PATH = gwV1Path('entity', 'org.schema', 'Employee', '_purge-response');
 const ORG_LICENSE_SEARCH_PATH = gwV1Path('entity', 'org.schema', 'License', '_search');
 const ORG_LICENSE_SEARCH_POLL_PATH = gwV1Path('entity', 'org.schema', 'License', '_search-response');
+const ORG_EMPLOYEE_LICENSE_ISSUE_PATH = `/host/cds-${TEST_ROUTE_CTX.jurisdiction}/v1/${TEST_ROUTE_CTX.sector}/${TEST_ROUTE_CTX.tenantId}/identity/auth/_issue`;
+const ORG_EMPLOYEE_LICENSE_ISSUE_POLL_PATH = `${ORG_EMPLOYEE_LICENSE_ISSUE_PATH}-response`;
 const ORG_OFFER_SEARCH_PATH = gwV1Path('entity', 'org.schema', 'Offer', '_search');
 const ORG_OFFER_SEARCH_POLL_PATH = gwV1Path('entity', 'org.schema', 'Offer', '_search-response');
 const ORG_ORDER_SEARCH_PATH = gwV1Path('entity', 'org.schema', 'Order', '_search');
@@ -554,6 +558,46 @@ test('individual member license helpers keep add, FHIR-role issue and acceptance
   assert.equal(calls[2][0], INDIVIDUAL_LICENSE_ACCEPT_PATH);
   assert.equal(calls[2][2].body.data[0].meta.verifiedActorIdentifier, '+34600111222');
   assert.equal(calls[2][2].body.data[0].meta.ownerOrganizationId, undefined);
+});
+
+test('employee license issue binds one existing employee seat and does not invent a device id', async () => {
+  const calls = [];
+  await issueOrganizationEmployeeLicenseWithDeps(TEST_ROUTE_CTX, {
+    email: 'Doctor.One@Example.org',
+    role: 'ISCO-08|2211',
+    subjectDid: 'did:web:provider.example:employee:doctor-one',
+  }, {
+    identityLicenseIssuePath: () => ORG_EMPLOYEE_LICENSE_ISSUE_PATH,
+    identityLicenseIssuePollPath: () => ORG_EMPLOYEE_LICENSE_ISSUE_POLL_PATH,
+    submitAndPoll: async (...args) => {
+      calls.push(args);
+      return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+    },
+  });
+
+  assert.equal(calls[0][0], ORG_EMPLOYEE_LICENSE_ISSUE_PATH);
+  assert.equal(calls[0][1], ORG_EMPLOYEE_LICENSE_ISSUE_POLL_PATH);
+  const entry = calls[0][2].body.data[0];
+  assert.equal(entry.meta.claims['org.schema.Person.email'], 'doctor.one@example.org');
+  assert.equal(entry.meta.claims['org.schema.Person.hasOccupation.identifier.value'], 'ISCO-08|2211');
+  assert.equal(entry.meta.subjectDid, 'did:web:provider.example:employee:doctor-one');
+  assert.equal(entry.meta.clientInstanceId, undefined);
+});
+
+test('employee device revocation targets one client while keeping the seat separate', async () => {
+  const calls = [];
+  await revokeEmployeeDeviceWithDeps({
+    routeCtx: TEST_ROUTE_CTX,
+    input: { licenseId: 'license-1', clientId: 'client-2' },
+    identityDeviceRevokePath: () => '/identity/auth/_revoke',
+    identityDeviceRevokePollPath: () => '/identity/auth/_revoke-response',
+    submitAndPoll: async (...args) => {
+      calls.push(args);
+      return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+    },
+  });
+  assert.deepEqual(calls[0].slice(0, 2), ['/identity/auth/_revoke', '/identity/auth/_revoke-response']);
+  assert.deepEqual(calls[0][2].body, { license_id: 'license-1', client_id: 'client-2' });
 });
 
 test('individual member issue helper rejects an ISCO professional before calling GW', async () => {

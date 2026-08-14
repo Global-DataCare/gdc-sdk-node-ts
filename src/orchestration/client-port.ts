@@ -26,7 +26,12 @@ export type {
   SubmitPayload,
   SubmitResponse,
 } from 'gdc-sdk-core-ts';
-import type { EmployeeDeviceActivationResult, EmployeeDeviceActivationRequestInput } from '../device-activation.js';
+import type { EmployeeDeviceActivationResult, EmployeeDeviceActivationRequestInput, EmployeeDeviceRevocationInput } from '../device-activation.js';
+import type {
+  OrganizationEmployeeProvisioningInput,
+  OrganizationEmployeeProvisioningResult,
+} from '../organization-employee-lifecycle.js';
+import type { OrganizationEmployeeLifecycleRecord } from 'gdc-common-utils-ts/models/organization-employee-lifecycle';
 import type { HostRouteContext, HostedTenantLifecycleInput, LegalOrganizationOrderInput } from '../host-onboarding.js';
 import type { IndividualOrganizationConfirmOrderInput, RouteContext } from '../individual-onboarding.js';
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
@@ -55,6 +60,7 @@ import type {
   IndividualMemberLicenseTransitionInput,
   IpsOrFhirImportInput,
   OrganizationEmployeeCreationInput,
+  OrganizationEmployeeLicenseInvitationInput,
   OrganizationEmployeeLifecycleInput,
   OrganizationEmployeeSearchInput,
   ProfessionalAccessRequestInput,
@@ -179,10 +185,21 @@ export type RuntimeClient = {
     input: OrganizationEmployeeCreationInput,
     pollOptions?: PollOptions,
   ) => Promise<SubmitAndPollResult>;
+  provisionOrganizationEmployee?: (
+    ctx: RouteContext,
+    input: OrganizationEmployeeProvisioningInput,
+  ) => Promise<OrganizationEmployeeProvisioningResult>;
+  issueOrganizationEmployeeLicense?: (
+    ctx: RouteContext,
+    input: OrganizationEmployeeLicenseInvitationInput,
+  ) => Promise<SubmitAndPollResult>;
   searchOrganizationEmployees?: (
     ctx: RouteContext,
     input: OrganizationEmployeeSearchInput,
   ) => Promise<SubmitAndPollResult>;
+  listOrganizationEmployeeLifecycle?: (
+    ctx: RouteContext,
+  ) => Promise<OrganizationEmployeeLifecycleRecord[]>;
   searchOrganizationLicenses?: (
     ctx: RouteContext,
     input: LicenseListRuntimeSearchInput,
@@ -235,6 +252,10 @@ export type RuntimeClient = {
   activateEmployeeDeviceWithActivationRequest?: (
     input: EmployeeDeviceActivationRequestInput,
   ) => Promise<EmployeeDeviceActivationResult>;
+  revokeEmployeeDevice?: (
+    ctx: RouteContext,
+    input: EmployeeDeviceRevocationInput,
+  ) => Promise<SubmitAndPollResult>;
   requestSmartToken?: (
     input: SmartTokenRequestInput,
   ) => Promise<SmartTokenExchangeResult>;

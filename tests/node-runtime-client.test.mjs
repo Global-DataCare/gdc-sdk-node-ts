@@ -520,6 +520,39 @@ test('NodeHttpClient searches organization-owned commercial orders through Order
   assert.equal(calls[0][2].body.data[0].type, 'Order-search-request-v1.0');
 });
 
+test('NodeHttpClient issues an employee activation credential through canonical identity/auth paths', async () => {
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+    ctx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+  });
+  const calls = [];
+  client.submitAndPoll = async (...args) => {
+    calls.push(args);
+    return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+  };
+
+  await client.issueOrganizationEmployeeLicense(cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT), {
+    email: 'doctor@example.org',
+    role: 'ISCO-08|2211',
+    subjectDid: 'did:web:provider.example:employee:doctor',
+  });
+
+  assert.equal(calls[0][0], '/host/cds-ES/v1/health-care/acme-id/identity/auth/_issue');
+  assert.equal(calls[0][1], '/host/cds-ES/v1/health-care/acme-id/identity/auth/_issue-response');
+});
+
+test('NodeHttpClient revokes one employee device through canonical identity/auth paths', async () => {
+  const client = new NodeHttpClient({ baseUrl: 'https://gw.example.org', ctx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT) });
+  const calls = [];
+  client.submitAndPoll = async (...args) => {
+    calls.push(args);
+    return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+  };
+  await client.revokeEmployeeDevice(cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT), { licenseId: 'license-1', clientId: 'client-2' });
+  assert.equal(calls[0][0], '/host/cds-ES/v1/health-care/acme-id/identity/auth/_revoke');
+  assert.equal(calls[0][1], '/host/cds-ES/v1/health-care/acme-id/identity/auth/_revoke-response');
+});
+
 test('NodeHttpClient confirms organization-side extra license activation through host Order/_batch', async () => {
   const client = new NodeHttpClient({
     baseUrl: 'https://gw.example.org',

@@ -49,8 +49,10 @@ import { requestSmartTokenWithDeps, type SmartTokenRequestInput } from './smart-
 import {
   activateEmployeeDeviceWithActivationCodeWithDeps,
   activateEmployeeDeviceWithActivationRequestWithDeps,
+  revokeEmployeeDeviceWithDeps,
   type EmployeeDeviceActivationRequestInput,
   type EmployeeDeviceActivationResult,
+  type EmployeeDeviceRevocationInput,
 } from './device-activation.js';
 import {
   extractOfferIdFromResponseBody,
@@ -60,6 +62,7 @@ import { confirmOrganizationLicenseOrderWithDeps, type OrganizationLicenseOrderC
 import { startIndividualOrganizationWithDeps, type IndividualOrganizationBootstrapInput, type IndividualOrganizationStartResult } from './individual-start.js';
 import {
   createOrganizationEmployeeWithDeps,
+  issueOrganizationEmployeeLicenseWithDeps,
   disableIndividualMemberWithDeps,
   disableIndividualOrganizationWithDeps,
   disableOrganizationEmployeeWithDeps,
@@ -116,6 +119,7 @@ import {
   type LicenseOfferRuntimeSearchInput,
   type LicenseOrderRuntimeSearchInput,
   type OrganizationEmployeeCreationInput,
+  type OrganizationEmployeeLicenseInvitationInput,
   type OrganizationEmployeeLifecycleInput,
   type OrganizationEmployeeSearchInput,
   type ProfessionalAccessRequestInput,
@@ -126,6 +130,13 @@ import {
 } from './resource-operations.js';
 import type { LegalOrganizationOrderInput } from './host-onboarding.js';
 import type { SmartTokenExchangeResult } from './smart-token.js';
+import {
+  listOrganizationEmployeeLifecycleWithDeps,
+  provisionOrganizationEmployeeWithDeps,
+  type OrganizationEmployeeProvisioningInput,
+  type OrganizationEmployeeProvisioningResult,
+} from './organization-employee-lifecycle.js';
+import type { OrganizationEmployeeLifecycleRecord } from 'gdc-common-utils-ts/models/organization-employee-lifecycle';
 import type {
   NodeRuntimeClient,
   PollOptions,
@@ -681,6 +692,55 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     });
   }
 
+  /** Creates an employee and reserves its activation credential as one SDK workflow. */
+  public async provisionOrganizationEmployee(
+    ctx: RouteContext,
+    input: OrganizationEmployeeProvisioningInput,
+  ): Promise<OrganizationEmployeeProvisioningResult> {
+    return provisionOrganizationEmployeeWithDeps(ctx, input, {
+      createEmployee: (routeContext, creation) => this.createOrganizationEmployee(routeContext, creation),
+      issueLicense: (routeContext, invitation) => this.issueOrganizationEmployeeLicense(routeContext, invitation),
+    });
+  }
+
+  /** Revokes one selected employee installation without releasing its seat. */
+  public async revokeEmployeeDevice(
+    ctx: RouteContext,
+    input: EmployeeDeviceRevocationInput,
+  ): Promise<SubmitAndPollResult> {
+    return revokeEmployeeDeviceWithDeps({
+      routeCtx: ctx,
+      input,
+      identityDeviceRevokePath: this.paths.identityDeviceRevokePath.bind(this.paths),
+      identityDeviceRevokePollPath: this.paths.identityDeviceRevokePollPath.bind(this.paths),
+      submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
+        ? (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
+            submitPath, pollPath, payload, this.transportProfile, pollOptions,
+          )
+        : this.submitAndPoll.bind(this),
+    });
+  }
+
+  /** Reserves an employee seat and issues its bounded multi-device activation credential. */
+  public async issueOrganizationEmployeeLicense(
+    ctx: RouteContext,
+    input: OrganizationEmployeeLicenseInvitationInput,
+  ): Promise<SubmitAndPollResult> {
+    return issueOrganizationEmployeeLicenseWithDeps(ctx, input, {
+      identityLicenseIssuePath: this.paths.identityLicenseIssuePath.bind(this.paths),
+      identityLicenseIssuePollPath: this.paths.identityLicenseIssuePollPath.bind(this.paths),
+      submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
+        ? (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
+            submitPath,
+            pollPath,
+            payload,
+            this.transportProfile,
+            pollOptions,
+          )
+        : this.submitAndPoll.bind(this),
+    });
+  }
+
   /**
    * Disables an employee using the current GW CORE contract.
    *
@@ -750,6 +810,16 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       employeeSearchPath: this.paths.employeeSearchPath.bind(this.paths),
       employeeSearchPollPath: this.paths.employeeSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /** Lists employees with their license and installation state. */
+  public async listOrganizationEmployeeLifecycle(
+    ctx: RouteContext,
+  ): Promise<OrganizationEmployeeLifecycleRecord[]> {
+    return listOrganizationEmployeeLifecycleWithDeps(ctx, {
+      searchEmployees: (routeContext, input) => this.searchOrganizationEmployees(routeContext, input),
+      listLicenses: (routeContext, input) => this.listOrganizationLicenses(routeContext, input),
     });
   }
 
