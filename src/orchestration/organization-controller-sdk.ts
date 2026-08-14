@@ -14,7 +14,7 @@ import {
 import { assertFacadeCapability } from './capability-guard.js';
 import type { RouteContext } from '../individual-onboarding.js';
 import type { HostRouteContext, HostedTenantLifecycleInput } from '../host-onboarding.js';
-import type { EmployeeDeviceActivationResult, EmployeeDeviceActivationRequestInput } from '../device-activation.js';
+import type { EmployeeDeviceActivationResult, EmployeeDeviceActivationRequestInput, EmployeeDeviceRevocationInput } from '../device-activation.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type { OrganizationLicenseOrderConfirmInput } from '../organization-license-order.js';
 import type { NodeCapability } from '../session.js';
@@ -23,9 +23,15 @@ import type {
   LicenseOfferRuntimeSearchInput,
   LicenseOrderRuntimeSearchInput,
   OrganizationEmployeeCreationInput,
+  OrganizationEmployeeLicenseInvitationInput,
   OrganizationEmployeeLifecycleInput,
   OrganizationEmployeeSearchInput,
 } from '../resource-operations.js';
+import type {
+  OrganizationEmployeeProvisioningInput,
+  OrganizationEmployeeProvisioningResult,
+} from '../organization-employee-lifecycle.js';
+import type { OrganizationEmployeeLifecycleRecord } from 'gdc-common-utils-ts/models/organization-employee-lifecycle';
 
 /**
  * Organization-controller oriented facade over a `NodeRuntimeClient`.
@@ -121,6 +127,23 @@ export class OrganizationControllerSdk {
     return requireClientMethod(this.client, 'createOrganizationEmployee')(ctx, input, pollOptions);
   }
 
+  /** Creates the employee and issues its reusable multi-installation credential. */
+  public provisionOrganizationEmployee(
+    ctx: RouteContext,
+    input: OrganizationEmployeeProvisioningInput,
+  ): Promise<OrganizationEmployeeProvisioningResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationCreateEmployee, ActorKinds.OrganizationController, 'provisionOrganizationEmployee');
+    return requireClientMethod(this.client, 'provisionOrganizationEmployee')(ctx, input);
+  }
+
+  /** Reserves the employee seat and returns its bounded multi-device activation credential. */
+  public issueOrganizationEmployeeLicense(
+    ctx: RouteContext,
+    input: OrganizationEmployeeLicenseInvitationInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'issueOrganizationEmployeeLicense')(ctx, input);
+  }
+
   /**
    * Disables an employee using the current GW CORE lifecycle contract.
    */
@@ -153,6 +176,13 @@ export class OrganizationControllerSdk {
     input: OrganizationEmployeeSearchInput,
   ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'searchOrganizationEmployees')(ctx, input);
+  }
+
+  /** Lists employees with typed license and device lifecycle state. */
+  public listOrganizationEmployeeLifecycle(
+    ctx: RouteContext,
+  ): Promise<OrganizationEmployeeLifecycleRecord[]> {
+    return requireClientMethod(this.client, 'listOrganizationEmployeeLifecycle')(ctx);
   }
 
   /**
@@ -294,6 +324,14 @@ export class OrganizationControllerSdk {
    */
   public activateEmployeeDeviceWithActivationRequest(input: EmployeeDeviceActivationRequestInput): Promise<EmployeeDeviceActivationResult> {
     return requireClientMethod(this.client, 'activateEmployeeDeviceWithActivationRequest')(input);
+  }
+
+  /** Revokes one selected installation while preserving the employee and seat. */
+  public revokeEmployeeDevice(
+    ctx: RouteContext,
+    input: EmployeeDeviceRevocationInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'revokeEmployeeDevice')(ctx, input);
   }
 
   /**

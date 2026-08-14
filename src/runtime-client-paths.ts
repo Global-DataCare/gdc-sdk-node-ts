@@ -6,6 +6,10 @@ import {
   buildHostRegistryPath,
   buildIdentityDeviceDcrPath,
   buildIdentityDeviceDcrPollPath,
+  buildIdentityDeviceRevokePath,
+  buildIdentityDeviceRevokePollPath,
+  buildIdentityLicenseIssuePath,
+  buildIdentityLicenseIssuePollPath,
   buildIdentityOpenIdSmartTokenPath,
   buildIdentityOpenIdSmartTokenPollPath,
   buildIdentityTokenExchangePath,
@@ -129,6 +133,10 @@ export class RuntimeClientPaths {
   public identityTokenExchangePollPath(ctx: RouteContext): string { return buildIdentityTokenExchangePollPath(ctx); }
   public identityDeviceDcrPath(ctx: RouteContext): string { return buildIdentityDeviceDcrPath(ctx); }
   public identityDeviceDcrPollPath(ctx: RouteContext): string { return buildIdentityDeviceDcrPollPath(ctx); }
+  public identityDeviceRevokePath(ctx: RouteContext): string { return buildIdentityDeviceRevokePath(ctx); }
+  public identityDeviceRevokePollPath(ctx: RouteContext): string { return buildIdentityDeviceRevokePollPath(ctx); }
+  public identityLicenseIssuePath(ctx: RouteContext): string { return buildIdentityLicenseIssuePath(ctx); }
+  public identityLicenseIssuePollPath(ctx: RouteContext): string { return buildIdentityLicenseIssuePollPath(ctx); }
   public identityOpenIdSmartTokenPath(ctx: RouteContext): string { return buildIdentityOpenIdSmartTokenPath(ctx); }
   public identityOpenIdSmartTokenPollPath(ctx: RouteContext): string { return buildIdentityOpenIdSmartTokenPollPath(ctx); }
 }

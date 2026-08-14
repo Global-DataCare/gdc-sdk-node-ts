@@ -1,6 +1,13 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
 import { resolvePollOptionsFromSeconds } from './poll-options.js';
+import {
+  IdentityAuthRequestFields,
+  IdentityAuthResponseFields,
+  IdentityDcrMetadataFields,
+  IdentityDeviceInfoFields,
+} from 'gdc-common-utils-ts/constants/identity-auth';
+import { buildEmployeeDeviceRevocationBody } from 'gdc-common-utils-ts/utils/organization-employee-lifecycle';
 import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
 import type { RouteContext } from './individual-onboarding.js';
 
@@ -27,6 +34,39 @@ export type EmployeeDeviceActivationResult = {
   exchange: SubmitAndPollResult;
   dcr: SubmitAndPollResult;
 };
+
+export type EmployeeDeviceRevocationInput = {
+  licenseId: string;
+  clientId: string;
+  requestThid?: string;
+  pollOptions?: PollOptions;
+};
+
+export async function revokeEmployeeDeviceWithDeps(deps: {
+  routeCtx: RouteContext;
+  input: EmployeeDeviceRevocationInput;
+  identityDeviceRevokePath: (ctx: RouteContext) => string;
+  identityDeviceRevokePollPath: (ctx: RouteContext) => string;
+  submitAndPoll: (
+    submitPath: string,
+    pollPath: string,
+    payload: { thid?: string } & Record<string, unknown>,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+}): Promise<SubmitAndPollResult> {
+  const licenseId = String(deps.input.licenseId || '').trim();
+  const clientId = String(deps.input.clientId || '').trim();
+  if (!licenseId || !clientId) throw new Error('revokeEmployeeDevice: licenseId and clientId are required.');
+  return deps.submitAndPoll(
+    deps.identityDeviceRevokePath(deps.routeCtx),
+    deps.identityDeviceRevokePollPath(deps.routeCtx),
+    {
+      thid: deps.input.requestThid || `device-revoke-${createRuntimeUuid()}`,
+      body: buildEmployeeDeviceRevocationBody({ licenseId, clientId }),
+    },
+    deps.input.pollOptions,
+  );
+}
 
 type ActivateEmployeeDeviceDeps = {
   routeCtx: RouteContext;
@@ -58,20 +98,20 @@ type ActivateEmployeeDeviceRequestDeps = {
 export async function activateEmployeeDeviceWithActivationCodeWithDeps(
   deps: ActivateEmployeeDeviceDeps,
 ): Promise<EmployeeDeviceActivationResult> {
-  const deviceInfo = deps.input.dcrPayload.ext_device_info as Record<string, unknown> | undefined;
-  const redirectUris = deps.input.dcrPayload.redirect_uris as unknown[] | undefined;
-  const jwks = deps.input.dcrPayload.jwks as { keys?: Array<{ kid?: string }> } | undefined;
+  const deviceInfo = deps.input.dcrPayload[IdentityDcrMetadataFields.ExtendedDeviceInfo] as Record<string, unknown> | undefined;
+  const redirectUris = deps.input.dcrPayload[IdentityDcrMetadataFields.RedirectUris] as unknown[] | undefined;
+  const jwks = deps.input.dcrPayload[IdentityDcrMetadataFields.Jwks] as { keys?: Array<{ kid?: string }> } | undefined;
   const clientInstanceId = String(
-    deviceInfo?.device_id
-    || (deps.input.dcrPayload.software_id ? `software:${deps.input.dcrPayload.software_id}` : '')
+    deviceInfo?.[IdentityDeviceInfoFields.DeviceId]
+    || (deps.input.dcrPayload[IdentityDcrMetadataFields.SoftwareId] ? `software:${deps.input.dcrPayload[IdentityDcrMetadataFields.SoftwareId]}` : '')
     || (redirectUris?.[0] ? `redirect:${redirectUris[0]}` : '')
     || (jwks?.keys?.[0]?.kid ? `key:${jwks.keys[0].kid}` : ''),
   ).trim();
   if (!clientInstanceId) throw new Error('Device activation requires a stable device, software, redirect, or key identifier.');
   const exchangePayload = {
     thid: `exchange-${createRuntimeUuid()}`,
-    subject_token: deps.input.activationCode,
-    client_instance_id: clientInstanceId,
+    [IdentityAuthRequestFields.SubjectToken]: deps.input.activationCode,
+    [IdentityAuthRequestFields.ClientInstanceId]: clientInstanceId,
   };
 
   const exchange = await deps.submitAndPollWithBearerToken(
@@ -85,7 +125,9 @@ export async function activateEmployeeDeviceWithActivationCodeWithDeps(
   const pollBody = (exchange.poll.body as Record<string, unknown>) || {};
   const exchangeBody = ((pollBody.body as Record<string, unknown> | undefined) || pollBody);
   const initialAccessToken = String(
-    exchangeBody.initial_access_token || exchangeBody.access_token || '',
+    exchangeBody[IdentityAuthResponseFields.InitialAccessToken]
+      || exchangeBody[IdentityAuthResponseFields.AccessToken]
+      || '',
   ).trim();
   if (!initialAccessToken) {
     throw new Error('activateEmployeeDeviceWithActivationCode: missing initial_access_token in exchange response.');
@@ -93,7 +135,7 @@ export async function activateEmployeeDeviceWithActivationCodeWithDeps(
 
   const dcrPayload = {
     thid: `dcr-${createRuntimeUuid()}`,
-    code: deps.input.activationCode,
+    [IdentityAuthRequestFields.Code]: deps.input.activationCode,
     ...deps.input.dcrPayload,
   };
 

@@ -2,6 +2,7 @@
 
 import { randomBytes } from 'node:crypto';
 import type { JWK } from 'gdc-common-utils-ts/models/jwk';
+import { IdentityDcrMetadataFields, IdentityDeviceInfoFields } from 'gdc-common-utils-ts/constants/identity-auth';
 import type { ActorKind } from 'gdc-common-utils-ts/models/actor-session';
 import type { LegalOrganizationVerificationTransactionInput } from 'gdc-common-utils-ts/utils/legal-organization-verification-transaction';
 import {
@@ -44,6 +45,8 @@ export type ServerProfileRecord = Readonly<{
   routeContext: RouteContext;
   allowedSubjectDids: string[];
   clientId: string;
+  /** Stable non-secret id of the browser/app installation registered by DCR. */
+  clientInstanceId?: string;
   deviceDid: string;
   publicJwks: Record<string, unknown>[];
   /** Public recipient key for local confidential storage; not a DCR communication key. */
@@ -92,6 +95,8 @@ export type ServerProfileEnrollmentInput = Readonly<{
   pin: string;
   idToken: string;
   activationCode: string;
+  /** Explicit per-installation id. Older callers fall back to the first DCR key id. */
+  clientInstanceId?: string;
   vpToken: string;
   /** Registered web redirect URIs included in the OpenID DCR metadata. */
   dcrRedirectUris?: string[];
@@ -186,6 +191,10 @@ export class ServerProfileSessionManager {
     const wallet = await this.createWallet(walletKeyDerivationId, seed);
     const context = walletContext(walletKeyDerivationId);
     const publicKeys = await wallet.getPublicJwks(context, {});
+    const clientInstanceId = String(input.clientInstanceId
+      || publicKeys.find((entry) => entry.purpose !== 'document-at-rest')?.kid
+      || '').trim();
+    if (!clientInstanceId) throw new Error('Server profile enrollment requires clientInstanceId or a DCR public key id.');
     const storagePublicJwk = publicKeys.find((entry) => entry.purpose === 'document-at-rest')?.publicJwk;
     if (!storagePublicJwk) throw new Error('Server profile enrollment requires a document-at-rest ML-KEM key.');
     const client = this.createClient(input.routeContext, input.idToken);
@@ -194,6 +203,9 @@ export class ServerProfileSessionManager {
       activationCode: input.activationCode,
       idToken: input.idToken,
       dcrPayload: {
+        [IdentityDcrMetadataFields.ExtendedDeviceInfo]: {
+          [IdentityDeviceInfoFields.DeviceId]: clientInstanceId,
+        },
         application_type: 'web',
         ...(input.dcrRedirectUris?.length ? { redirect_uris: unique(input.dcrRedirectUris) } : {}),
         ...(input.dcrClientName ? { client_name: input.dcrClientName } : {}),
@@ -219,6 +231,7 @@ export class ServerProfileSessionManager {
       routeContext: input.routeContext,
       allowedSubjectDids: unique(input.allowedSubjectDids),
       clientId,
+      clientInstanceId,
       deviceDid,
       publicJwks: publicKeys.filter((entry) => entry.purpose !== 'document-at-rest').map((entry) => entry.publicJwk as Record<string, unknown>),
       storagePublicJwk: storagePublicJwk as Record<string, unknown>,

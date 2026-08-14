@@ -22,7 +22,7 @@ import {
   EmployeeBundleOperations,
   EmployeeResourceTypes,
 } from 'gdc-common-utils-ts/utils/employee';
-import type { DeviceAppType } from 'gdc-common-utils-ts/constants/device';
+import { DeviceAppTypes, DeviceUserClasses, type DeviceAppType } from 'gdc-common-utils-ts/constants/device';
 import {
   addFhirResourceToCommunication,
   createCommunicationResource,
@@ -90,6 +90,16 @@ export type OrganizationEmployeeCreationInput = {
    */
   employeeClaims: Record<string, unknown>;
   dataType?: string;
+};
+
+/** Input for reserving an existing employee seat and issuing its activation credential. */
+export type OrganizationEmployeeLicenseInvitationInput = {
+  email: string;
+  role: string;
+  subjectDid: string;
+  type?: DeviceAppType;
+  requestThid?: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
 
 /**
@@ -589,6 +599,55 @@ export async function createOrganizationEmployeeWithDeps(
     deps.employeePollPath(routeCtx),
     payload,
     options,
+  );
+}
+
+/**
+ * Issues the activation credential for an employee already created under the
+ * tenant. The credential belongs to that employee seat and can authorize its
+ * configured number of concurrent installations (two by default in GW CORE).
+ */
+export async function issueOrganizationEmployeeLicenseWithDeps(
+  routeCtx: RouteContext,
+  input: OrganizationEmployeeLicenseInvitationInput,
+  deps: {
+    identityLicenseIssuePath: (ctx: RouteContext) => string;
+    identityLicenseIssuePollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  const email = String(input.email || '').trim().toLowerCase();
+  const role = String(input.role || '').trim();
+  const subjectDid = String(input.subjectDid || '').trim();
+  if (!email) throw new Error('issueOrganizationEmployeeLicense: email is required.');
+  if (!role) throw new Error('issueOrganizationEmployeeLicense: role is required.');
+  if (!subjectDid) throw new Error('issueOrganizationEmployeeLicense: subjectDid is required.');
+
+  const entry = buildLicenseIssueEntry({
+    email,
+    role,
+    userClass: DeviceUserClasses.Employee,
+    type: input.type || DeviceAppTypes.Web,
+  });
+  (entry.meta as typeof entry.meta & { subjectDid: string }).subjectDid = subjectDid;
+
+  return deps.submitAndPoll(
+    deps.identityLicenseIssuePath(routeCtx),
+    deps.identityLicenseIssuePollPath(routeCtx),
+    {
+      thid: input.requestThid || `employee-license-issue-${createRuntimeUuid()}`,
+      body: {
+        resourceType: EmployeeResourceTypes.bundle,
+        type: EmployeeResourceTypes.batch,
+        data: [entry],
+      },
+    },
+    input.pollOptions,
   );
 }
 
