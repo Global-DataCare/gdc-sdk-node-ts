@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.4.3 - 2026-08-13
+
 - Add organization-controller operations for issuing an existing employee
   seat's bounded multi-device activation credential and revoking one selected
   device without releasing the seat.
