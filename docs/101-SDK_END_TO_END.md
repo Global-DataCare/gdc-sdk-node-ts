@@ -214,9 +214,8 @@ Research-access naming note:
 
 - in high-level developer documentation, call the twin-search consumer surface
   `DigitalTwinSdk`
-- current executable node façade is still `ProfessionalSdk`
-- keep that distinction explicit so the 101 stays intuitive without claiming a
-  class name that is not yet published
+- the executable Node façade is public and can be obtained from an authorized
+  employee or professional session with `session.asDigitalTwin()`
 
 ## 5. Backend communication bootstrap
 

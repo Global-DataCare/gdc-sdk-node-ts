@@ -304,7 +304,8 @@ export class IndividualControllerSdk {
   }
 
   /**
-   * Generates a digital twin projection from subject data.
+   * Explicitly packages subject data for a study/transfer flow.
+   * Normal clinical ingestion is projected into the tenant research index by GW.
    */
   public generateDigitalTwinFromSubjectData(ctx: RouteContext, input: DigitalTwinGenerationInput): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualGenerateDigitalTwin, ActorKinds.IndividualController, 'generateDigitalTwinFromSubjectData');

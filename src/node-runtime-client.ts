@@ -170,6 +170,12 @@ import {
   type FhirR5SubscriptionBatchInput,
 } from './fhir-r5-subscription-runtime.js';
 import type { FhirR5SubscriptionTopic } from 'gdc-common-utils-ts/models/fhir-r5-subscription';
+import {
+  materializeDigitalTwinWithDeps,
+  searchDigitalTwinsWithDeps,
+  type DigitalTwinMaterializationInput,
+  type DigitalTwinSearchInput,
+} from './digital-twin.js';
 
 const bootstrapFacade = createBootstrapFacade();
 
@@ -1456,13 +1462,17 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     payload: SubmitPayload,
     profile: TransportProfile,
     pollOptions?: PollOptions,
+    accessToken?: string,
   ): Promise<SubmitAndPollResult> {
+    const transportConfig = accessToken
+      ? { ...this.transportConfig, bearerToken: accessToken }
+      : this.transportConfig;
     const renderedSubmit = await renderGatewayMessageRequest(payload, profile, this.secureTransportAdapter);
-    const submit = await postRenderedWithRuntimeConfig(this.transportConfig, submitPath, renderedSubmit);
+    const submit = await postRenderedWithRuntimeConfig(transportConfig, submitPath, renderedSubmit);
     const poll = await pollUntilCompleteWithMethod(
       async (path, request) => {
         const renderedPoll = await renderTransportPollRequest(request.thid, profile, this.secureTransportAdapter);
-        const response = await postRenderedWithRuntimeConfig(this.transportConfig, path, renderedPoll);
+        const response = await postRenderedWithRuntimeConfig(transportConfig, path, renderedPoll);
         return {
           status: response.status,
           body: response.status === 202
@@ -1566,6 +1576,48 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
         payload,
         input.transportProfile || this.transportProfile,
         pollOptions,
+      ),
+    });
+  }
+
+  /** Searches tenant digital twins using coded, pseudonymous research claims. */
+  public async searchDigitalTwins(
+    ctx: RouteContext,
+    input: DigitalTwinSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return searchDigitalTwinsWithDeps(ctx, input, {
+      digitalTwinSearchPath: this.paths.digitalTwinSearchPath.bind(this.paths),
+      digitalTwinSearchPollPath: this.paths.digitalTwinSearchPollPath.bind(this.paths),
+      digitalTwinCommunicationBatchPath: this.paths.digitalTwinCommunicationBatchPath.bind(this.paths),
+      digitalTwinCommunicationPollPath: this.paths.digitalTwinCommunicationPollPath.bind(this.paths),
+      submitAndPoll: (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
+        submitPath,
+        pollPath,
+        payload,
+        this.transportProfile,
+        pollOptions,
+        input.accessToken,
+      ),
+    });
+  }
+
+  /** Materializes one selected pseudonymous research subject as a summary Bundle. */
+  public async materializeDigitalTwin(
+    ctx: RouteContext,
+    input: DigitalTwinMaterializationInput,
+  ): Promise<SubmitAndPollResult> {
+    return materializeDigitalTwinWithDeps(ctx, input, {
+      digitalTwinSearchPath: this.paths.digitalTwinSearchPath.bind(this.paths),
+      digitalTwinSearchPollPath: this.paths.digitalTwinSearchPollPath.bind(this.paths),
+      digitalTwinCommunicationBatchPath: this.paths.digitalTwinCommunicationBatchPath.bind(this.paths),
+      digitalTwinCommunicationPollPath: this.paths.digitalTwinCommunicationPollPath.bind(this.paths),
+      submitAndPoll: (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
+        submitPath,
+        pollPath,
+        payload,
+        this.transportProfile,
+        pollOptions,
+        input.accessToken,
       ),
     });
   }

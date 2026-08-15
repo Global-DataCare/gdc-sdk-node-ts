@@ -129,6 +129,10 @@ export class RuntimeClientPaths {
   public fhirR5SubscriptionPollPath(ctx: RouteContext, section: 'entity' | 'individual'): string { return this.v1Path(ctx, section, 'org.hl7.fhir.r5', 'Subscription', '_batch-response'); }
   public individualBundleSearchPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Bundle', '_search'); }
   public individualBundleSearchPollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Bundle', '_search-response'); }
+  public digitalTwinSearchPath(ctx: RouteContext, format: string, resourceType: string): string { return this.v1Path(ctx, 'digitaltwin', format, resourceType, '_search'); }
+  public digitalTwinSearchPollPath(ctx: RouteContext, format: string, resourceType: string): string { return this.v1Path(ctx, 'digitaltwin', format, resourceType, '_batch-response'); }
+  public digitalTwinCommunicationBatchPath(ctx: RouteContext, format: string): string { return this.v1Path(ctx, 'digitaltwin', format, 'Communication', '_batch'); }
+  public digitalTwinCommunicationPollPath(ctx: RouteContext, format: string): string { return this.v1Path(ctx, 'digitaltwin', format, 'Communication', '_batch-response'); }
   public identityTokenExchangePath(ctx: RouteContext): string { return buildIdentityTokenExchangePath(ctx); }
   public identityTokenExchangePollPath(ctx: RouteContext): string { return buildIdentityTokenExchangePollPath(ctx); }
   public identityDeviceDcrPath(ctx: RouteContext): string { return buildIdentityDeviceDcrPath(ctx); }

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 2.4.4 - 2026-08-15
+
+- Publish `DigitalTwinSdk` with SMART token acquisition, coded digital-twin
+  search, and `ResearchSubject/$summary` materialization over the GW public
+  asynchronous routes.
+- Expose the research facade from organization-employee and professional actor
+  sessions, carrying the fetched SMART bearer into subsequent reads.
+- Clarify that `generateDigitalTwinFromSubjectData(...)` is an explicit
+  study/transfer operation; routine clinical ingestion is projected by GW.
+
 ## 2.4.3 - 2026-08-13
 
 - Add organization-controller operations for issuing an existing employee
