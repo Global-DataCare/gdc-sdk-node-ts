@@ -33,6 +33,7 @@ test('101: employee searches, tags, reopens, and materializes a digital twin wor
           body: {
             data: [{
               resource: {
+                total: 1,
                 data: [{
                   id: isWorksetSearch ? 'urn:uuid:researcher-selection-1' : 'urn:uuid:canonical-twin-composition-1',
                   'Composition.subject': TWIN_SUBJECT_ID,
@@ -75,7 +76,7 @@ test('101: employee searches, tags, reopens, and materializes a digital twin wor
       'MedicationStatement.code': MEDICATION_CODE,
     },
   });
-  const selectedTwinSubjectId = discovery.poll.body.data[0].resource.data[0]['Composition.subject'];
+  const selectedTwinSubjectId = discovery.matches[0]['Composition.subject'];
 
   // Saving a selection creates a researcher-owned Composition branch. It does
   // not modify the canonical twin and stores no clinical data or display text.
@@ -92,7 +93,8 @@ test('101: employee searches, tags, reopens, and materializes a digital twin wor
       'Composition.meta-tag': `${WORKSET_TAG.system}|${WORKSET_TAG.code}`,
     },
   });
-  const reopenedSelection = workset.poll.body.data[0].resource.data[0];
+  const reopenedSelection = workset.matches[0];
+  assert.equal(workset.total, 1);
   assert.equal(reopenedSelection['Composition.subject'], TWIN_SUBJECT_ID);
   assert.deepEqual(reopenedSelection.meta.tag, [WORKSET_TAG]);
 

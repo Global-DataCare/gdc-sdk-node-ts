@@ -16,14 +16,24 @@ test('DigitalTwinSdk is public and delegates token, search, tagged selection, an
   const calls = [];
   const client = {
     requestSmartToken: async (...args) => { calls.push(['token', args]); return { accessToken: 'smart' }; },
-    searchDigitalTwins: async (...args) => { calls.push(['search', args]); return { ok: true }; },
+    searchDigitalTwins: async (...args) => {
+      calls.push(['search', args]);
+      return {
+        submit: { status: 202, body: {} },
+        poll: {
+          status: 200,
+          attempts: 1,
+          body: { data: [{ resource: { total: 1, data: [{ 'Composition.subject': 'urn:uuid:twin-1' }] } }] },
+        },
+      };
+    },
     saveDigitalTwinSelection: async (...args) => { calls.push(['save-selection', args]); return { ok: true }; },
     materializeDigitalTwin: async (...args) => { calls.push(['materialize', args]); return { ok: true }; },
   };
   const sdk = new DigitalTwinSdk(client);
 
   await sdk.requestSmartToken({ actorDid: 'did:web:api.acme.org:employee:one:ISCO-08|2211', scopes: [] });
-  await sdk.search(ctx, { filters: { section: 'LOINC|10160-0' } });
+  const search = await sdk.search(ctx, { filters: { section: 'LOINC|10160-0' } });
   await sdk.saveSelection(ctx, {
     twinSubjectId: 'urn:uuid:twin-1',
     section: 'LOINC|10160-0',
@@ -32,6 +42,9 @@ test('DigitalTwinSdk is public and delegates token, search, tagged selection, an
   await sdk.materialize(ctx, { twinSubjectId: 'urn:uuid:twin-1' });
 
   assert.deepEqual(calls.map(([name]) => name), ['token', 'search', 'save-selection', 'materialize']);
+  assert.equal(search.total, 1);
+  assert.equal(search.matches[0]['Composition.subject'], 'urn:uuid:twin-1');
+  assert.equal(search.operation.poll.status, 200);
   assert.equal(calls[1][1][1].accessToken, 'smart');
   assert.equal(calls[2][1][1].accessToken, 'smart');
   assert.equal(calls[2][1][1].authorDid, 'did:web:api.acme.org:employee:one:ISCO-08|2211');

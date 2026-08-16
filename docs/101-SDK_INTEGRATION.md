@@ -305,7 +305,8 @@ Current implementation:
 - `DigitalTwinSdk.requestSmartToken(...)` retains the returned SMART bearer
   for its subsequent search and materialization calls
 - `DigitalTwinSdk.search(...)` calls the public asynchronous
-  `digitaltwin/.../_search` route
+  `digitaltwin/.../_search` route and unwraps the GW envelope into `matches[]`;
+  the raw submit/poll result remains available as `operation`
 - `DigitalTwinSdk.saveSelection(...)` writes a separate, ledger-safe tagged
   `Composition` branch; it does not modify the canonical twin
 - `DigitalTwinSdk.materialize(...)` calls the public Communication transport

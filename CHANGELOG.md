@@ -12,6 +12,8 @@
 - Add researcher-owned digital-twin working selections through
   `DigitalTwinSdk.saveSelection(...)`, with ledger-safe organization-defined
   tags and exact `Composition.meta-tag=system|code` workset recovery.
+- Return normalized `total` and `matches[]` from `DigitalTwinSdk.search(...)`;
+  retain the nested GW submit/poll envelope only as `operation` for diagnostics.
 - Add one executable DigitalTwinSdk 101 covering SMART access, coded search,
   tagged selection persistence, reopen-by-tag, and materialization.
 - Clarify that `generateDigitalTwinFromSubjectData(...)` is an explicit

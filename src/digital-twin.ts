@@ -17,6 +17,21 @@ export type DigitalTwinSearchInput = {
   pollOptions?: PollOptions;
 };
 
+/** One pseudonymous Composition returned by a digital-twin search. */
+export type DigitalTwinSearchMatch = Record<string, unknown> & {
+  id?: string;
+  'Composition.subject': string;
+  'Composition.section'?: string;
+  meta?: { tag?: DigitalTwinResearchTag[] };
+};
+
+/** High-level search result; GW transport envelopes remain available for diagnostics. */
+export type DigitalTwinSearchResult = {
+  total: number;
+  matches: DigitalTwinSearchMatch[];
+  operation: SubmitAndPollResult;
+};
+
 export type DigitalTwinMaterializationInput = {
   /** SMART bearer used for this research operation. */
   accessToken?: string;
@@ -94,6 +109,30 @@ function normalizeResearchTags(tags: readonly DigitalTwinResearchTag[]): Array<R
     throw new Error('Research tag ids must be unique within one selection.');
   }
   return normalized;
+}
+
+/** Opens the GW async response and exposes the matched Compositions directly. */
+export function readDigitalTwinSearchResult(operation: SubmitAndPollResult): DigitalTwinSearchResult {
+  const body = operation?.poll?.body as Record<string, unknown> | undefined;
+  const responseEntries = Array.isArray(body?.data)
+    ? body.data
+    : Array.isArray(body?.entry)
+      ? body.entry
+      : [];
+  const responseEntry = responseEntries.find((entry) => {
+    const resource = (entry as { resource?: unknown } | undefined)?.resource;
+    return Boolean(resource && typeof resource === 'object' && Array.isArray((resource as { data?: unknown }).data));
+  }) as { resource?: { total?: unknown; data?: unknown[] } } | undefined;
+  if (!responseEntry?.resource || !Array.isArray(responseEntry.resource.data)) {
+    throw new Error('Digital twin search did not return a Composition result set.');
+  }
+  const matches = responseEntry.resource.data as DigitalTwinSearchMatch[];
+  const parsedTotal = Number(responseEntry.resource.total);
+  return {
+    total: Number.isFinite(parsedTotal) ? parsedTotal : matches.length,
+    matches,
+    operation,
+  };
 }
 
 /** Persists one tagged researcher working copy through `digitaltwin/Composition/_batch`. */

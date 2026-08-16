@@ -91,7 +91,7 @@ const result = await digitalTwin.search(ctx, {
 });
 
 const twinSubjectId =
-  result.poll.body.data[0].resource.data[0]['Composition.subject'];
+  result.matches[0]['Composition.subject'];
 ```
 
 The identifier returned in `Composition.subject` is the research-safe,
@@ -149,8 +149,7 @@ const workset = await digitalTwin.search(ctx, {
   },
 });
 
-const savedSelections =
-  workset.poll.body.data[0].resource.data;
+const savedSelections = workset.matches;
 ```
 
 `Composition.meta-tag` is an exact `system|code` match. The returned branch

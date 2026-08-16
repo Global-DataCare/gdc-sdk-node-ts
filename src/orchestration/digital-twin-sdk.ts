@@ -6,7 +6,9 @@ import type {
   DigitalTwinMaterializationInput,
   DigitalTwinSelectionInput,
   DigitalTwinSearchInput,
+  DigitalTwinSearchResult,
 } from '../digital-twin.js';
+import { readDigitalTwinSearchResult } from '../digital-twin.js';
 import { requireClientMethod, type NodeRuntimeClient, type SubmitAndPollResult } from './client-port.js';
 
 /** Public research facade for licensed digital-twin access. */
@@ -34,12 +36,13 @@ export class DigitalTwinSdk {
     return result;
   }
 
-  /** Searches pseudonymous research records through `digitaltwin/.../_search`. */
-  public search(ctx: RouteContext, input: DigitalTwinSearchInput): Promise<SubmitAndPollResult> {
-    return requireClientMethod(this.client, 'searchDigitalTwins')(ctx, {
+  /** Searches pseudonymous records and exposes matched Compositions directly. */
+  public async search(ctx: RouteContext, input: DigitalTwinSearchInput): Promise<DigitalTwinSearchResult> {
+    const operation = await requireClientMethod(this.client, 'searchDigitalTwins')(ctx, {
       ...input,
       accessToken: input.accessToken || this.smartAccessToken,
     });
+    return readDigitalTwinSearchResult(operation);
   }
 
   /**
