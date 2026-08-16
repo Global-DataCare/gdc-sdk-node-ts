@@ -28,11 +28,46 @@ export type DigitalTwinMaterializationInput = {
   pollOptions?: PollOptions;
 };
 
+/** Ledger-safe organization-defined marker attached to a research working copy. */
+export type DigitalTwinResearchTag = {
+  /** Stable position/name for the tag in the Composition metadata. */
+  id?: string;
+  /** Organization-owned coding system, for example `urn:acme:research:workset`. */
+  system: string;
+  /** Machine-readable custom value, for example `study-2026-04` or `reviewed`. */
+  code: string;
+  version?: string;
+  userSelected?: boolean;
+};
+
+/**
+ * Saves a researcher-owned Composition branch for one selected twin.
+ *
+ * This does not mutate the canonical twin or copy clinical data. The branch
+ * stores the pseudonymous subject, section, author and ledger-safe tags used
+ * to recover the researcher's working set later.
+ */
+export type DigitalTwinSelectionInput = {
+  accessToken?: string;
+  twinSubjectId: string;
+  section: string;
+  tags: readonly DigitalTwinResearchTag[];
+  authorDid?: string;
+  compositionId?: string;
+  documentType?: string;
+  date?: string;
+  thid?: string;
+  format?: DigitalTwinFhirFormat;
+  pollOptions?: PollOptions;
+};
+
 export type DigitalTwinRuntimeDeps = {
   digitalTwinSearchPath: (ctx: RouteContext, format: DigitalTwinFhirFormat, resourceType: string) => string;
   digitalTwinSearchPollPath: (ctx: RouteContext, format: DigitalTwinFhirFormat, resourceType: string) => string;
   digitalTwinCommunicationBatchPath: (ctx: RouteContext, format: DigitalTwinFhirFormat) => string;
   digitalTwinCommunicationPollPath: (ctx: RouteContext, format: DigitalTwinFhirFormat) => string;
+  digitalTwinCompositionBatchPath: (ctx: RouteContext, format: DigitalTwinFhirFormat) => string;
+  digitalTwinCompositionPollPath: (ctx: RouteContext, format: DigitalTwinFhirFormat) => string;
   submitAndPoll: (
     submitPath: string,
     pollPath: string,
@@ -40,6 +75,77 @@ export type DigitalTwinRuntimeDeps = {
     pollOptions?: PollOptions,
   ) => Promise<SubmitAndPollResult>;
 };
+
+function normalizeResearchTags(tags: readonly DigitalTwinResearchTag[]): Array<Required<Pick<DigitalTwinResearchTag, 'id' | 'system' | 'code'>> & Pick<DigitalTwinResearchTag, 'version' | 'userSelected'>> {
+  if (!Array.isArray(tags) || tags.length === 0) throw new Error('At least one research tag is required.');
+  const normalized = tags.map((tag, index) => {
+    const system = String(tag?.system || '').trim();
+    const code = String(tag?.code || '').trim();
+    if (!system || !code) throw new Error('Each research tag requires system and code.');
+    return {
+      id: String(tag.id || `Composition.meta.tag[${index}]`).trim(),
+      system,
+      code,
+      ...(tag.version ? { version: String(tag.version) } : {}),
+      ...(typeof tag.userSelected === 'boolean' ? { userSelected: tag.userSelected } : {}),
+    };
+  });
+  if (new Set(normalized.map((tag) => tag.id)).size !== normalized.length) {
+    throw new Error('Research tag ids must be unique within one selection.');
+  }
+  return normalized;
+}
+
+/** Persists one tagged researcher working copy through `digitaltwin/Composition/_batch`. */
+export async function saveDigitalTwinSelectionWithDeps(
+  ctx: RouteContext,
+  input: DigitalTwinSelectionInput,
+  deps: DigitalTwinRuntimeDeps,
+): Promise<SubmitAndPollResult> {
+  const twinSubjectId = String(input.twinSubjectId || '').trim();
+  const section = String(input.section || '').trim();
+  const authorDid = String(input.authorDid || '').trim();
+  if (!twinSubjectId) throw new Error('twinSubjectId is required.');
+  if (!section) throw new Error('Digital twin selection section is required.');
+  if (!authorDid) throw new Error('Digital twin selection authorDid is required.');
+
+  const format = input.format || 'org.hl7.fhir.r4';
+  const thid = String(input.thid || randomUUID());
+  const compositionId = String(input.compositionId || `urn:uuid:${randomUUID()}`);
+  const tags = normalizeResearchTags(input.tags);
+  const claims = {
+    '@context': format,
+    '@type': 'Composition:ResearcherWorkingSelection',
+    'Composition.identifier': compositionId,
+    'Composition.subject': twinSubjectId,
+    'Composition.section': section,
+    'Composition.type': input.documentType || 'LOINC|60591-5',
+    'Composition.author': authorDid,
+    'Composition.date': input.date || new Date().toISOString(),
+  };
+  const resource = {
+    resourceType: 'Composition',
+    id: compositionId,
+    meta: { claims, tag: tags },
+  };
+  const entry = {
+    type: 'Composition',
+    resource,
+    request: { method: 'POST', url: `digitaltwin/${format}/Composition` },
+  };
+
+  return deps.submitAndPoll(
+    deps.digitalTwinCompositionBatchPath(ctx, format),
+    deps.digitalTwinCompositionPollPath(ctx, format),
+    {
+      thid,
+      body: format === 'org.hl7.fhir.api'
+        ? { resourceType: 'Bundle', type: 'batch', data: [entry] }
+        : { resourceType: 'Bundle', type: 'batch', entry: [entry] },
+    },
+    input.pollOptions,
+  );
+}
 
 /** Searches the tenant digital-twin index through its public asynchronous route. */
 export async function searchDigitalTwinsWithDeps(
@@ -59,6 +165,7 @@ export async function searchDigitalTwinsWithDeps(
     ? {
         data: [{
           type: `${resourceType}-search-request-v1.0`,
+          resource: { resourceType: 'Parameters', parameter: parameters },
           meta: {
             claims: Object.fromEntries([
               ['@context', format],

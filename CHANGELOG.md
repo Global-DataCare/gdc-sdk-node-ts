@@ -9,6 +9,11 @@
   asynchronous routes.
 - Expose the research facade from organization-employee and professional actor
   sessions, carrying the fetched SMART bearer into subsequent reads.
+- Add researcher-owned digital-twin working selections through
+  `DigitalTwinSdk.saveSelection(...)`, with ledger-safe organization-defined
+  tags and exact `Composition.meta-tag=system|code` workset recovery.
+- Add one executable DigitalTwinSdk 101 covering SMART access, coded search,
+  tagged selection persistence, reopen-by-tag, and materialization.
 - Clarify that `generateDigitalTwinFromSubjectData(...)` is an explicit
   study/transfer operation; routine clinical ingestion is projected by GW.
 

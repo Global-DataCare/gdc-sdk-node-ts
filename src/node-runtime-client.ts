@@ -172,9 +172,11 @@ import {
 import type { FhirR5SubscriptionTopic } from 'gdc-common-utils-ts/models/fhir-r5-subscription';
 import {
   materializeDigitalTwinWithDeps,
+  saveDigitalTwinSelectionWithDeps,
   searchDigitalTwinsWithDeps,
   type DigitalTwinMaterializationInput,
   type DigitalTwinSearchInput,
+  type DigitalTwinSelectionInput,
 } from './digital-twin.js';
 
 const bootstrapFacade = createBootstrapFacade();
@@ -1588,6 +1590,31 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return searchDigitalTwinsWithDeps(ctx, input, {
       digitalTwinSearchPath: this.paths.digitalTwinSearchPath.bind(this.paths),
       digitalTwinSearchPollPath: this.paths.digitalTwinSearchPollPath.bind(this.paths),
+      digitalTwinCompositionBatchPath: this.paths.digitalTwinCompositionBatchPath.bind(this.paths),
+      digitalTwinCompositionPollPath: this.paths.digitalTwinCompositionPollPath.bind(this.paths),
+      digitalTwinCommunicationBatchPath: this.paths.digitalTwinCommunicationBatchPath.bind(this.paths),
+      digitalTwinCommunicationPollPath: this.paths.digitalTwinCommunicationPollPath.bind(this.paths),
+      submitAndPoll: (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
+        submitPath,
+        pollPath,
+        payload,
+        this.transportProfile,
+        pollOptions,
+        input.accessToken,
+      ),
+    });
+  }
+
+  /** Saves one tagged researcher working copy without mutating the canonical twin. */
+  public async saveDigitalTwinSelection(
+    ctx: RouteContext,
+    input: DigitalTwinSelectionInput,
+  ): Promise<SubmitAndPollResult> {
+    return saveDigitalTwinSelectionWithDeps(ctx, input, {
+      digitalTwinSearchPath: this.paths.digitalTwinSearchPath.bind(this.paths),
+      digitalTwinSearchPollPath: this.paths.digitalTwinSearchPollPath.bind(this.paths),
+      digitalTwinCompositionBatchPath: this.paths.digitalTwinCompositionBatchPath.bind(this.paths),
+      digitalTwinCompositionPollPath: this.paths.digitalTwinCompositionPollPath.bind(this.paths),
       digitalTwinCommunicationBatchPath: this.paths.digitalTwinCommunicationBatchPath.bind(this.paths),
       digitalTwinCommunicationPollPath: this.paths.digitalTwinCommunicationPollPath.bind(this.paths),
       submitAndPoll: (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
@@ -1609,6 +1636,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return materializeDigitalTwinWithDeps(ctx, input, {
       digitalTwinSearchPath: this.paths.digitalTwinSearchPath.bind(this.paths),
       digitalTwinSearchPollPath: this.paths.digitalTwinSearchPollPath.bind(this.paths),
+      digitalTwinCompositionBatchPath: this.paths.digitalTwinCompositionBatchPath.bind(this.paths),
+      digitalTwinCompositionPollPath: this.paths.digitalTwinCompositionPollPath.bind(this.paths),
       digitalTwinCommunicationBatchPath: this.paths.digitalTwinCommunicationBatchPath.bind(this.paths),
       digitalTwinCommunicationPollPath: this.paths.digitalTwinCommunicationPollPath.bind(this.paths),
       submitAndPoll: (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(

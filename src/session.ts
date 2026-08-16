@@ -104,7 +104,7 @@ export class ActorSession {
     if (this.actorKind !== ActorKinds.OrganizationEmployee && this.actorKind !== ActorKinds.Professional) {
       throw new Error(`ActorSession is '${this.actorKind}' and cannot use digital-twin research operations.`);
     }
-    return new DigitalTwinSdk(this.requireClient());
+    return new DigitalTwinSdk(this.requireClient(), this.actorDid);
   }
 
   private requireClient(): RuntimeClient {

@@ -296,7 +296,9 @@ Use this mental split for new developers:
   - builds or forwards the VP carrying the contract VC
   - requests the SMART token from the provider tenant
   - searches `digitaltwin/.../Composition/_search`
-  - opens one IPS or downloads selected IPS results
+  - saves one researcher-owned, custom-tagged working selection
+  - reopens a workset by exact `Composition.meta-tag=system|code`
+  - materializes the selected pseudonymous twin
 
 Current implementation:
 
@@ -304,8 +306,15 @@ Current implementation:
   for its subsequent search and materialization calls
 - `DigitalTwinSdk.search(...)` calls the public asynchronous
   `digitaltwin/.../_search` route
+- `DigitalTwinSdk.saveSelection(...)` writes a separate, ledger-safe tagged
+  `Composition` branch; it does not modify the canonical twin
 - `DigitalTwinSdk.materialize(...)` calls the public Communication transport
   for `ResearchSubject/$summary`
+
+The complete flow, including custom tag ownership and examples, is
+[101-DIGITAL_TWIN_SDK.md](./101-DIGITAL_TWIN_SDK.md). Do not document tagging
+as a separate feature: it is the persistence step between discovery and later
+materialization.
 
 Canonical didactic example:
 
