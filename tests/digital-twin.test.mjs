@@ -6,11 +6,33 @@ import {
   DigitalTwinSdk,
   NodeActorSession,
   materializeDigitalTwinWithDeps,
+  buildDigitalTwinSelectionIdentifier,
+  resolveOperationalActorDid,
   saveDigitalTwinSelectionWithDeps,
   searchDigitalTwinsWithDeps,
 } from '../dist/index.js';
+import { buildOrganizationDidWeb, buildProfessionalDidWeb } from 'gdc-common-utils-ts/utils/did';
+import {
+  EXAMPLE_HOST_PUBLIC_HOSTNAME,
+  EXAMPLE_ROUTE_VERSION,
+  EXAMPLE_TENANT_ROUTE_CONTEXT,
+  ExampleEmployeeEmails,
+  ExampleEmployeeRoles,
+} from 'gdc-common-utils-ts/examples';
 
-const ctx = Object.freeze({ tenantId: 'acme', jurisdiction: 'ES', sector: 'health-care' });
+const ctx = EXAMPLE_TENANT_ROUTE_CONTEXT;
+const organizationDid = buildOrganizationDidWeb({
+  hostDidWeb: `did:web:${EXAMPLE_HOST_PUBLIC_HOSTNAME}`,
+  tenantId: ctx.tenantId,
+  jurisdiction: ctx.jurisdiction,
+  version: EXAMPLE_ROUTE_VERSION,
+  sector: ctx.sector,
+});
+const actorDid = buildProfessionalDidWeb({
+  organizationDidWeb: organizationDid,
+  email: ExampleEmployeeEmails.SharedProfessional,
+  role: ExampleEmployeeRoles.Doctor,
+});
 
 test('DigitalTwinSdk is public and delegates token, search, tagged selection, and materialization', async () => {
   const calls = [];
@@ -32,7 +54,7 @@ test('DigitalTwinSdk is public and delegates token, search, tagged selection, an
   };
   const sdk = new DigitalTwinSdk(client);
 
-  await sdk.requestSmartToken({ actorDid: 'did:web:api.acme.org:employee:one:ISCO-08|2211', scopes: [] });
+  await sdk.requestSmartToken({ actorDid, scopes: [] });
   const search = await sdk.search(ctx, { filters: { section: 'LOINC|10160-0' } });
   await sdk.saveSelection(ctx, {
     twinSubjectId: 'urn:uuid:twin-1',
@@ -47,7 +69,7 @@ test('DigitalTwinSdk is public and delegates token, search, tagged selection, an
   assert.equal(search.operation.poll.status, 200);
   assert.equal(calls[1][1][1].accessToken, 'smart');
   assert.equal(calls[2][1][1].accessToken, 'smart');
-  assert.equal(calls[2][1][1].authorDid, 'did:web:api.acme.org:employee:one:ISCO-08|2211');
+  assert.equal(calls[2][1][1].authorDid, actorDid);
   assert.equal(calls[3][1][1].accessToken, 'smart');
 });
 
@@ -62,8 +84,11 @@ test('organization employees and professionals can materialize DigitalTwinSdk fr
 });
 
 test('DigitalTwinSdk binds SMART and working-selection authorship to the actor session', async () => {
-  const actorDid = 'did:web:api.acme.org:employee:one:ISCO-08|2211';
-  const anotherDid = 'did:web:api.acme.org:employee:two:ISCO-08|2211';
+  const anotherDid = buildProfessionalDidWeb({
+    organizationDidWeb: organizationDid,
+    email: 'second.' + ExampleEmployeeEmails.SharedProfessional,
+    role: ExampleEmployeeRoles.Doctor,
+  });
   const sdk = new DigitalTwinSdk({
     requestSmartToken: async () => ({ accessToken: 'smart' }),
     saveDigitalTwinSelection: async () => ({ ok: true }),
@@ -81,6 +106,50 @@ test('DigitalTwinSdk binds SMART and working-selection authorship to the actor s
       tags: [{ system: 'urn:acme:research:workset', code: 'study-1' }],
     }),
     /authorDid must match the actor session/,
+  );
+});
+
+test('DigitalTwinSdk scopes exact-tag searches to the operational employee DID', async () => {
+  let received;
+  const sdk = new DigitalTwinSdk({
+    searchDigitalTwins: async (_ctx, input) => {
+      received = input;
+      return { poll: { body: { data: [{ resource: { total: 0, data: [] } }] } } };
+    },
+  }, actorDid);
+
+  await sdk.searchSelections(ctx, {
+    section: 'LOINC|10160-0',
+    tag: { system: 'urn:acme:research:workset', code: 'study-1' },
+  });
+
+  assert.equal(received.filters['Composition.author'], actorDid);
+  assert.equal(received.filters['Composition.meta-tag'], 'urn:acme:research:workset|study-1');
+});
+
+test('DigitalTwinSdk rejects a conflicting author even when supplied as a filter list', async () => {
+  const sdk = new DigitalTwinSdk({ searchDigitalTwins: async () => ({}) }, actorDid);
+  await assert.rejects(
+    () => sdk.search(ctx, {
+      filters: {
+        section: 'LOINC|10160-0',
+        'Composition.meta-tag': 'urn:acme:research:workset|study-1',
+        'Composition.author': [actorDid, `${actorDid}:another`],
+      },
+    }),
+    /author filter must match the actor session/,
+  );
+});
+
+test('public portal aliases resolve to a hosted operational actor DID before session creation', async () => {
+  const publicPortalDid = 'did:web:portal.example.org:employees:doctor';
+  assert.equal(await resolveOperationalActorDid(publicPortalDid, async () => ({
+    id: actorDid,
+    alsoKnownAs: [publicPortalDid],
+  })), actorDid);
+  await assert.rejects(
+    () => resolveOperationalActorDid(publicPortalDid, async () => ({ id: actorDid, alsoKnownAs: [] })),
+    /does not bind the requested public actor alias/,
   );
 });
 
@@ -176,7 +245,7 @@ test('digital-twin selection saves a ledger-safe tagged researcher branch throug
     compositionId: 'urn:uuid:selection-1',
     twinSubjectId: 'urn:uuid:twin-1',
     section: 'LOINC|10160-0',
-    authorDid: 'did:web:api.acme.org:employee:one:ISCO-08|2211',
+    authorDid: actorDid,
     date: '2026-08-16T09:00:00.000Z',
     tags: [
       { system: 'urn:acme:research:workset', code: 'study-2026-04', userSelected: true },
@@ -199,7 +268,7 @@ test('digital-twin selection saves a ledger-safe tagged researcher branch throug
   assert.equal(call.pollPath, '/digitaltwin/org.hl7.fhir.r4/Composition/_batch-response');
   const composition = call.payload.body.entry[0].resource;
   assert.equal(composition.meta.claims['Composition.subject'], 'urn:uuid:twin-1');
-  assert.equal(composition.meta.claims['Composition.author'], 'did:web:api.acme.org:employee:one:ISCO-08|2211');
+  assert.equal(composition.meta.claims['Composition.author'], actorDid);
   assert.deepEqual(composition.meta.tag, [
     {
       id: 'Composition.meta.tag[0]',
@@ -214,4 +283,29 @@ test('digital-twin selection saves a ledger-safe tagged researcher branch throug
     },
   ]);
   assert.equal(JSON.stringify(composition).includes('display'), false);
+});
+
+test('digital-twin branch ids are stable per twin and employee while versions remain distinct', () => {
+  const first = buildDigitalTwinSelectionIdentifier({
+    twinSubjectId: 'urn:uuid:twin-1',
+    authorDid: actorDid,
+    versionId: 'version-1',
+  });
+  const second = buildDigitalTwinSelectionIdentifier({
+    twinSubjectId: 'urn:uuid:twin-1',
+    authorDid: actorDid,
+    versionId: 'version-2',
+  });
+  assert.equal(first.branchId, second.branchId);
+  assert.notEqual(first.compositionId, second.compositionId);
+  assert.equal(first.compositionId.includes(actorDid), false);
+  assert.equal(first.compositionId.includes('urn:uuid:twin-1'), false);
+  assert.throws(
+    () => buildDigitalTwinSelectionIdentifier({
+      twinSubjectId: 'urn:uuid:twin-1',
+      authorDid: actorDid,
+      branchId: 'urn:unsafe:plain-employee-identity',
+    }),
+    /ledger-safe private branch format/,
+  );
 });

@@ -1,6 +1,6 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import type { RouteContext } from './individual-onboarding.js';
 import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
@@ -67,7 +67,16 @@ export type DigitalTwinSelectionInput = {
   twinSubjectId: string;
   section: string;
   tags: readonly DigitalTwinResearchTag[];
+  /**
+   * Operational hosted employee DID. High-level callers should omit this:
+   * `DigitalTwinSdk` binds it to the authenticated actor session.
+   */
   authorDid?: string;
+  /** Stable private branch identifier. Generated from twin + employee when omitted. */
+  branchId?: string;
+  /** Version identifier appended to the branch. A UUID is generated when omitted. */
+  versionId?: string;
+  /** @deprecated Use `branchId` and `versionId`; retained for low-level compatibility. */
   compositionId?: string;
   documentType?: string;
   date?: string;
@@ -75,6 +84,42 @@ export type DigitalTwinSelectionInput = {
   format?: DigitalTwinFhirFormat;
   pollOptions?: PollOptions;
 };
+
+function digitalTwinSelectionComponent(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('base64url');
+}
+
+/**
+ * Builds a ledger-safe employee-private branch and version identifier.
+ *
+ * The hashes prevent a subject identifier or employee DID from being copied
+ * into the Composition id. The author claim remains the access-control owner.
+ */
+export function buildDigitalTwinSelectionIdentifier(input: Readonly<{
+  twinSubjectId: string;
+  authorDid: string;
+  branchId?: string;
+  versionId?: string;
+}>): Readonly<{ branchId: string; versionId: string; compositionId: string }> {
+  const twinSubjectId = String(input.twinSubjectId || '').trim();
+  const authorDid = String(input.authorDid || '').trim();
+  if (!twinSubjectId) throw new Error('twinSubjectId is required.');
+  if (!authorDid) throw new Error('Digital twin selection authorDid is required.');
+  const generatedBranchId = `urn:gdc:digital-twin-selection:${digitalTwinSelectionComponent(twinSubjectId)}:employee:${digitalTwinSelectionComponent(authorDid)}`;
+  const branchId = String(input.branchId || '').trim() || generatedBranchId;
+  if (!/^urn:gdc:digital-twin-selection:[A-Za-z0-9_-]+:employee:[A-Za-z0-9_-]+$/.test(branchId)) {
+    throw new Error('Digital twin branchId must use the ledger-safe private branch format.');
+  }
+  const versionId = String(input.versionId || '').trim() || randomUUID();
+  if (!/^[A-Za-z0-9._~-]+$/.test(versionId)) {
+    throw new Error('Digital twin versionId contains unsupported characters.');
+  }
+  return Object.freeze({
+    branchId,
+    versionId,
+    compositionId: `${branchId}:version:${versionId}`,
+  });
+}
 
 export type DigitalTwinRuntimeDeps = {
   digitalTwinSearchPath: (ctx: RouteContext, format: DigitalTwinFhirFormat, resourceType: string) => string;
@@ -150,12 +195,26 @@ export async function saveDigitalTwinSelectionWithDeps(
 
   const format = input.format || 'org.hl7.fhir.r4';
   const thid = String(input.thid || randomUUID());
-  const compositionId = String(input.compositionId || `urn:uuid:${randomUUID()}`);
+  const selectionIdentifier = input.compositionId
+    ? {
+        branchId: String(input.branchId || input.compositionId).trim(),
+        versionId: String(input.versionId || '').trim() || 'legacy',
+        compositionId: String(input.compositionId).trim(),
+      }
+    : buildDigitalTwinSelectionIdentifier({
+        twinSubjectId,
+        authorDid,
+        branchId: input.branchId,
+        versionId: input.versionId,
+      });
+  const compositionId = selectionIdentifier.compositionId;
   const tags = normalizeResearchTags(input.tags);
   const claims = {
     '@context': format,
     '@type': 'Composition:ResearcherWorkingSelection',
     'Composition.identifier': compositionId,
+    'Composition.branch': selectionIdentifier.branchId,
+    'Composition.branch-version': selectionIdentifier.versionId,
     'Composition.subject': twinSubjectId,
     'Composition.section': section,
     'Composition.type': input.documentType || 'LOINC|60591-5',

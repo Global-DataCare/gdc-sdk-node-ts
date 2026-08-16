@@ -2,13 +2,28 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { ActorKinds, NodeActorSession } from '../dist/index.js';
+import { buildOrganizationDidWeb, buildProfessionalDidWeb } from 'gdc-common-utils-ts/utils/did';
+import {
+  EXAMPLE_HOST_PUBLIC_HOSTNAME,
+  EXAMPLE_ROUTE_VERSION,
+  EXAMPLE_TENANT_ROUTE_CONTEXT,
+  ExampleEmployeeEmails,
+  ExampleEmployeeRoles,
+} from 'gdc-common-utils-ts/examples';
 
-const ROUTE_CONTEXT = Object.freeze({
-  tenantId: 'acme-id',
-  jurisdiction: 'ES',
-  sector: 'health-care',
+const ROUTE_CONTEXT = EXAMPLE_TENANT_ROUTE_CONTEXT;
+const HOSTED_ORGANIZATION_DID = buildOrganizationDidWeb({
+  hostDidWeb: `did:web:${EXAMPLE_HOST_PUBLIC_HOSTNAME}`,
+  tenantId: ROUTE_CONTEXT.tenantId,
+  jurisdiction: ROUTE_CONTEXT.jurisdiction,
+  version: EXAMPLE_ROUTE_VERSION,
+  sector: ROUTE_CONTEXT.sector,
 });
-const EMPLOYEE_DID = 'did:web:api.acme.org:employee:researcher-1:ISCO-08|2211';
+const EMPLOYEE_DID = buildProfessionalDidWeb({
+  organizationDidWeb: HOSTED_ORGANIZATION_DID,
+  email: ExampleEmployeeEmails.SharedProfessional,
+  role: ExampleEmployeeRoles.Doctor,
+});
 const TWIN_SUBJECT_ID = 'urn:uuid:00000000-0000-4000-8000-000000000101';
 const MEDICATION_SECTION = 'LOINC|10160-0';
 const MEDICATION_CODE = 'http://snomed.info/sct|108575001';
@@ -87,11 +102,9 @@ test('101: employee searches, tags, reopens, and materializes a digital twin wor
   });
 
   // A later session reopens the same workset by exact custom tag.
-  const workset = await digitalTwin.search(ROUTE_CONTEXT, {
-    filters: {
-      section: MEDICATION_SECTION,
-      'Composition.meta-tag': `${WORKSET_TAG.system}|${WORKSET_TAG.code}`,
-    },
+  const workset = await digitalTwin.searchSelections(ROUTE_CONTEXT, {
+    section: MEDICATION_SECTION,
+    tag: WORKSET_TAG,
   });
   const reopenedSelection = workset.matches[0];
   assert.equal(workset.total, 1);
@@ -116,4 +129,5 @@ test('101: employee searches, tags, reopens, and materializes a digital twin wor
   assert.equal(savedInput.authorDid, EMPLOYEE_DID);
   assert.equal(savedInput.accessToken, 'smart-research-token');
   assert.equal(savedInput.twinSubjectId, TWIN_SUBJECT_ID);
+  assert.equal(calls[3][1].filters['Composition.author'], EMPLOYEE_DID);
 });

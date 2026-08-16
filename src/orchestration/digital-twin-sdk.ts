@@ -38,8 +38,29 @@ export class DigitalTwinSdk {
 
   /** Searches pseudonymous records and exposes matched Compositions directly. */
   public async search(ctx: RouteContext, input: DigitalTwinSearchInput): Promise<DigitalTwinSearchResult> {
+    const filters = { ...(input.filters || {}) };
+    const isPrivateSelectionSearch = Object.keys(filters).some((name) => {
+      const normalized = String(name || '').trim().toLowerCase();
+      return normalized === 'composition.meta-tag' || normalized === 'composition.meta.tag';
+    });
+    if (isPrivateSelectionSearch) {
+      if (!this.researcherDid) {
+        throw new Error('Digital twin working-selection search requires an operational actor DID.');
+      }
+      const requestedAuthor = filters['Composition.author'];
+      const requestedAuthors = Array.isArray(requestedAuthor)
+        ? requestedAuthor.map(String)
+        : requestedAuthor === undefined
+          ? []
+          : [String(requestedAuthor)];
+      if (requestedAuthors.some((author) => author !== this.researcherDid)) {
+        throw new Error('Digital twin selection author filter must match the actor session.');
+      }
+      filters['Composition.author'] = this.researcherDid;
+    }
     const operation = await requireClientMethod(this.client, 'searchDigitalTwins')(ctx, {
       ...input,
+      filters,
       accessToken: input.accessToken || this.smartAccessToken,
     });
     return readDigitalTwinSearchResult(operation);
@@ -58,6 +79,29 @@ export class DigitalTwinSdk {
       ...input,
       authorDid: this.researcherDid || requestedAuthorDid,
       accessToken: input.accessToken || this.smartAccessToken,
+    });
+  }
+
+  /** Reopens only this employee's saved branches for one exact custom tag. */
+  public searchSelections(
+    ctx: RouteContext,
+    input: Omit<DigitalTwinSearchInput, 'filters'> & {
+      section: string;
+      tag: Readonly<{ system: string; code: string }>;
+    },
+  ): Promise<DigitalTwinSearchResult> {
+    const section = String(input.section || '').trim();
+    const system = String(input.tag?.system || '').trim();
+    const code = String(input.tag?.code || '').trim();
+    if (!section) throw new Error('Digital twin selection section is required.');
+    if (!system || !code) throw new Error('Digital twin selection tag requires system and code.');
+    const { section: _section, tag: _tag, ...searchInput } = input;
+    return this.search(ctx, {
+      ...searchInput,
+      filters: {
+        section,
+        'Composition.meta-tag': `${system}|${code}`,
+      },
     });
   }
 

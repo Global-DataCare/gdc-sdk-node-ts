@@ -27,6 +27,7 @@ export * from './order-offer-summary.js';
 export * from './organization-license-order.js';
 export * from './resource-operations.js';
 export * from './digital-twin.js';
+export * from './operational-actor-did.js';
 export * from './profile-workspace.js';
 export * from './UserProfileIndexStore.js';
 export * from './wallet-backed-job-manager.js';

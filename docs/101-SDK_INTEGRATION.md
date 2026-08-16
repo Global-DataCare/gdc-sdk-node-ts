@@ -297,7 +297,9 @@ Use this mental split for new developers:
   - requests the SMART token from the provider tenant
   - searches `digitaltwin/.../Composition/_search`
   - saves one researcher-owned, custom-tagged working selection
-  - reopens a workset by exact `Composition.meta-tag=system|code`
+  - reopens only the current employee's workset through
+    `searchSelections(...)`, using exact `Composition.meta-tag=system|code`
+    plus the actor-bound `Composition.author`
   - materializes the selected pseudonymous twin
 
 Current implementation:

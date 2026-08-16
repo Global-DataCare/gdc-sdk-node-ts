@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.4.5 - 2026-08-16
+
+- Bind digital-twin workset searches and writes to the verified hosted
+  employee DID, add employee-private branch/version identifiers, provide an
+  explicit public-alias-to-operational-DID boundary, and reuse shared DID test
+  fixtures in the executable 101.
+
 ## 2.4.4 - 2026-08-15
 
 - Publish `DigitalTwinSdk` with SMART token acquisition, coded digital-twin

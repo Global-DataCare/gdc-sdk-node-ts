@@ -21,7 +21,9 @@ canonical twin Composition
              v
 researcher working-selection Composition
   Composition.subject = the same pseudonymous twin subject
-  Composition.author  = verified employee DID
+  Composition.author  = verified hosted employee DID (private owner)
+  Composition.branch  = stable hash(twin + employee)
+  Composition.branch-version = one generated version
   Composition.meta.tag = organization-defined system/code markers
 ```
 
@@ -39,23 +41,47 @@ workset, status, cohort, score, or another organization-defined classification.
 - Research-group membership and finer policies can be added later without
   changing the search/tag/reopen API shown here.
 
-The portal/BFF must authenticate the employee and create the actor session.
-The SDK then retains the returned SMART bearer for `search`, `saveSelection`,
-and `materialize`.
+The portal/BFF must authenticate the employee, translate any public card or
+portal alias to the canonical hosted employee DID, and create the actor session
+with that operational DID. `sameAs` is continuity/discovery data; it is not an
+authorization claim. The SDK then retains the returned SMART bearer for
+`search`, `saveSelection`, and `materialize`.
 
 ## 3. Create the research facade and request SMART access
 
 ```ts
-import { ActorKinds, NodeActorSession } from 'gdc-sdk-node-ts';
+import {
+  ActorKinds,
+  NodeActorSession,
+  resolveOperationalActorDid,
+} from 'gdc-sdk-node-ts';
+import {
+  buildOrganizationDidWeb,
+  buildProfessionalDidWeb,
+} from 'gdc-common-utils-ts/utils/did';
+import {
+  EXAMPLE_HOST_PUBLIC_HOSTNAME,
+  EXAMPLE_ROUTE_VERSION,
+  EXAMPLE_TENANT_ROUTE_CONTEXT,
+  ExampleEmployeeEmails,
+  ExampleEmployeeRoles,
+} from 'gdc-common-utils-ts/examples';
 
-const ctx = {
-  tenantId: 'acme-id',
-  jurisdiction: 'ES',
-  sector: 'health-care',
-};
+const ctx = EXAMPLE_TENANT_ROUTE_CONTEXT;
 
-const employeeDid =
-  'did:web:api.acme.org:employee:researcher-1:ISCO-08|2211';
+const hostedOrganizationDid = buildOrganizationDidWeb({
+  hostDidWeb: `did:web:${EXAMPLE_HOST_PUBLIC_HOSTNAME}`,
+  tenantId: ctx.tenantId,
+  jurisdiction: ctx.jurisdiction,
+  version: EXAMPLE_ROUTE_VERSION,
+  sector: ctx.sector,
+});
+const fixtureEmployeeDid = buildProfessionalDidWeb({
+  organizationDidWeb: hostedOrganizationDid,
+  email: ExampleEmployeeEmails.SharedProfessional,
+  role: ExampleEmployeeRoles.Doctor,
+});
+const employeeDid = fixtureEmployeeDid;
 
 const digitalTwin = new NodeActorSession({
   actorKind: ActorKinds.OrganizationEmployee,
@@ -71,6 +97,17 @@ await digitalTwin.requestSmartToken({
   scopes: ['organization/ResearchSubject.rs?subject=*'],
   smartTokenKind: 'openid-smart',
 });
+```
+
+In production, replace the fixture assignment with the portal BFF's issued-card
+binding lookup. The callback returns the hosted primary DID and proves the
+public card identifier is one of its aliases:
+
+```ts
+const employeeDid = await resolveOperationalActorDid(
+  publicEmployeeCardDid,
+  (did) => employeeCardRegistry.resolveDidDocument(did),
+);
 ```
 
 For a foreign consumer organization, `vpToken` also carries the applicable
@@ -123,8 +160,12 @@ await digitalTwin.saveSelection(ctx, {
 
 `saveSelection` posts a new working-selection `Composition` through
 `digitaltwin/org.hl7.fhir.r4/Composition/_batch` and polls its
-`_batch-response`. Unless `compositionId` is supplied, each save creates a new
-URN. The employee DID cached by the facade becomes `Composition.author`.
+`_batch-response`. The employee DID cached by the facade becomes
+`Composition.author`. By default the SDK derives one stable, opaque branch ID
+from the twin subject plus employee DID and appends a new version UUID on every
+save. Neither identifier appears in clear inside the branch ID. Low-level
+callers can provide `branchId` and `versionId`; `compositionId` remains only as
+a deprecated compatibility override.
 
 Tags are deliberately ledger-safe metadata. The SDK accepts only:
 
@@ -141,20 +182,21 @@ These tags describe the researcher's work, not the patient's clinical state.
 ## 6. Reopen the saved workset
 
 ```ts
-const workset = await digitalTwin.search(ctx, {
-  filters: {
-    section: medicationSection,
-    'Composition.meta-tag':
-      `${worksetTag.system}|${worksetTag.code}`,
-  },
+const workset = await digitalTwin.searchSelections(ctx, {
+  section: medicationSection,
+  tag: worksetTag,
 });
 
 const savedSelections = workset.matches;
 ```
 
-`Composition.meta-tag` is an exact `system|code` match. The returned branch
-still carries the same pseudonymous `Composition.subject`, so the portal can
-list saved selections without materializing all clinical data.
+`searchSelections` converts the tag to the exact
+`Composition.meta-tag=system|code` query and binds `Composition.author` to the
+current actor session. GW repeats that ownership check from the verified SMART
+`sub`, so another employee cannot retrieve the branch by guessing the same
+tag. The returned branch still carries the same pseudonymous
+`Composition.subject`, so the portal can list saved selections without
+materializing all clinical data.
 
 Different tag systems may coexist, for example:
 
