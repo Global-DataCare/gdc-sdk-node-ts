@@ -56,7 +56,7 @@ import {
   DigitalTwinSearchParameter,
   NodeActorSession,
   resolveOperationalActorDid,
-  type DigitalTwinResearchTag,
+  type DigitalTwinWorksetTagInput,
   type RouteContext,
 } from 'gdc-sdk-node-ts';
 import {
@@ -160,10 +160,9 @@ text are removed from the research projection.
 ## 5. Save the selected twin with custom tags
 
 ```ts
-const worksetTag: DigitalTwinResearchTag = {
+const worksetTag: DigitalTwinWorksetTagInput = {
   system: stableActorIdentifierFromDidWeb(employeeDid),
   code: 'medication-review-april-2026',
-  userSelected: true,
 };
 
 await digitalTwin.saveSelection(ctx, {
@@ -187,7 +186,12 @@ Tags are deliberately ledger-safe metadata. The SDK accepts only:
 - `system`
 - `code`
 - `version` (optional)
-- `userSelected` (optional)
+
+Application code does not send `userSelected`. `saveSelection(...)` is the
+professional's explicit save action, so the SDK always persists
+`userSelected: true`. Tags inferred automatically from clinical twin data must
+use a separate system-owned projection path, which persists
+`userSelected: false`; they are not accepted by this workset API.
 
 For a workset tag, the two relevant values have distinct jobs:
 

@@ -45,8 +45,8 @@ const MEDICATION_CODE = EXAMPLE_MEDICATION_STATEMENT_CODE;
 const WORKSET_TAG = Object.freeze({
   system: stableActorIdentifierFromDidWeb(EMPLOYEE_DID),
   code: 'medication-review-april-2026',
-  userSelected: true,
 });
+const STORED_WORKSET_TAG = Object.freeze({ ...WORKSET_TAG, userSelected: true });
 
 test('101: employee searches, tags, reopens, and materializes a digital twin working selection', async () => {
   const calls = [];
@@ -68,7 +68,7 @@ test('101: employee searches, tags, reopens, and materializes a digital twin wor
                   id: isWorksetSearch ? 'urn:uuid:researcher-selection-1' : 'urn:uuid:canonical-twin-composition-1',
                   [CompositionClaim.Subject]: TWIN_SUBJECT_ID,
                   [CompositionClaim.Section]: MEDICATION_SECTION,
-                  ...(isWorksetSearch ? { meta: { tag: [WORKSET_TAG] } } : {}),
+                  ...(isWorksetSearch ? { meta: { tag: [STORED_WORKSET_TAG] } } : {}),
                 }],
               },
             }],
@@ -125,7 +125,7 @@ test('101: employee searches, tags, reopens, and materializes a digital twin wor
   const reopenedSelection = workset.matches[0];
   assert.equal(workset.total, 1);
   assert.equal(reopenedSelection[CompositionClaim.Subject], TWIN_SUBJECT_ID);
-  assert.deepEqual(reopenedSelection.meta.tag, [WORKSET_TAG]);
+  assert.deepEqual(reopenedSelection.meta.tag, [STORED_WORKSET_TAG]);
 
   // Only now is the selected pseudonymous subject materialized as an IPS-like
   // research Bundle through Communication -> ResearchSubject/$summary.

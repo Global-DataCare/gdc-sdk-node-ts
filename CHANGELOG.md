@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Make `userSelected` system-managed for personal digital-twin worksets.
+  Professional callers provide only the tag namespace and code;
+  `saveSelection(...)` always persists `userSelected: true`. Future
+  clinically-derived tags must use a separate system-owned path with
+  `userSelected: false`.
+
 ## 2.4.8 - 2026-08-16
 
 - Use the employee's existing stable `urn:multibase:z...` actor identifier as
