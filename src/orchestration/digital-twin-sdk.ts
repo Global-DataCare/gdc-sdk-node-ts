@@ -1,6 +1,7 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
 import { HealthcareConsentPurposes, ServiceCapability } from 'gdc-common-utils-ts/constants';
+import { CompositionClaim } from 'gdc-common-utils-ts/models';
 
 import type { RouteContext } from '../individual-onboarding.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
@@ -10,7 +11,7 @@ import type {
   DigitalTwinSearchInput,
   DigitalTwinSearchResult,
 } from '../digital-twin.js';
-import { readDigitalTwinSearchResult } from '../digital-twin.js';
+import { DigitalTwinSearchParameter, readDigitalTwinSearchResult } from '../digital-twin.js';
 import { requireClientMethod, type NodeRuntimeClient, type SubmitAndPollResult } from './client-port.js';
 
 /** Public research facade for licensed digital-twin access. */
@@ -51,7 +52,7 @@ export class DigitalTwinSdk {
       if (!this.researcherDid) {
         throw new Error('Digital twin working-selection search requires an operational actor DID.');
       }
-      const requestedAuthor = filters['Composition.author'];
+      const requestedAuthor = filters[CompositionClaim.Author];
       const requestedAuthors = Array.isArray(requestedAuthor)
         ? requestedAuthor.map(String)
         : requestedAuthor === undefined
@@ -60,7 +61,7 @@ export class DigitalTwinSdk {
       if (requestedAuthors.some((author) => author !== this.researcherDid)) {
         throw new Error('Digital twin selection author filter must match the actor session.');
       }
-      filters['Composition.author'] = this.researcherDid;
+      filters[CompositionClaim.Author] = this.researcherDid;
     }
     const operation = await requireClientMethod(this.client, 'searchDigitalTwins')(ctx, {
       ...input,
@@ -103,8 +104,8 @@ export class DigitalTwinSdk {
     return this.search(ctx, {
       ...searchInput,
       filters: {
-        section,
-        'Composition.meta-tag': `${system}|${code}`,
+        [DigitalTwinSearchParameter.Section]: section,
+        [DigitalTwinSearchParameter.MetaTag]: `${system}|${code}`,
       },
     });
   }

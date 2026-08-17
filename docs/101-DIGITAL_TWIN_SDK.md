@@ -53,32 +53,45 @@ authorization claim. The SDK then retains the returned SMART bearer for
 ```ts
 import {
   ActorKinds,
+  buildDigitalTwinWorksetTagSystem,
+  DigitalTwinSearchParameter,
   NodeActorSession,
   resolveOperationalActorDid,
+  type DigitalTwinResearchTag,
+  type RouteContext,
 } from 'gdc-sdk-node-ts';
 import {
   buildOrganizationDidWeb,
   buildProfessionalDidWeb,
 } from 'gdc-common-utils-ts/utils/did';
 import {
-  EXAMPLE_HOST_PUBLIC_HOSTNAME,
-  EXAMPLE_ROUTE_VERSION,
-  EXAMPLE_TENANT_ROUTE_CONTEXT,
+  EXAMPLE_MEDICATION_STATEMENT_CODE,
   ExampleEmployeeEmails,
   ExampleEmployeeRoles,
 } from 'gdc-common-utils-ts/examples';
 import {
+  DataspaceSectors,
+  HealthcareCoreSections,
   HealthcareConsentPurposes,
   ServiceCapability,
 } from 'gdc-common-utils-ts/constants';
+import {
+  CompositionClaim,
+  MedicationStatementClaim,
+} from 'gdc-common-utils-ts/models';
 
-const ctx = EXAMPLE_TENANT_ROUTE_CONTEXT;
+// These three values are the route segments configured for this tenant.
+const ctx: RouteContext = {
+  tenantId: 'acme-id',
+  jurisdiction: 'ES',
+  sector: DataspaceSectors.HealthCare,
+};
 
 const hostedOrganizationDid = buildOrganizationDidWeb({
-  hostDidWeb: `did:web:${EXAMPLE_HOST_PUBLIC_HOSTNAME}`,
+  hostDidWeb: 'did:web:api.acme.org',
   tenantId: ctx.tenantId,
   jurisdiction: ctx.jurisdiction,
-  version: EXAMPLE_ROUTE_VERSION,
+  version: 'v1',
   sector: ctx.sector,
 });
 const fixtureEmployeeDid = buildProfessionalDidWeb({
@@ -122,18 +135,19 @@ unsigned claim for that evidence.
 ## 4. Search with coded research claims
 
 ```ts
-const medicationSection = 'LOINC|10160-0';
-const medicationCode = 'http://snomed.info/sct|108575001';
+const medicationSection =
+  HealthcareCoreSections.HistoryOfMedicationUse.attributeValue;
+const medicationCode = EXAMPLE_MEDICATION_STATEMENT_CODE;
 
 const result = await digitalTwin.search(ctx, {
   filters: {
-    section: medicationSection,
-    'MedicationStatement.code': medicationCode,
+    [DigitalTwinSearchParameter.Section]: medicationSection,
+    [MedicationStatementClaim.Code]: medicationCode,
   },
 });
 
 const twinSubjectId =
-  result.matches[0]['Composition.subject'];
+  result.matches[0][CompositionClaim.Subject];
 ```
 
 The identifier returned in `Composition.subject` is the research-safe,
@@ -144,22 +158,16 @@ text are removed from the research projection.
 ## 5. Save the selected twin with custom tags
 
 ```ts
-const worksetTag = {
-  system: 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset',
-  code: 'study-2026-04',
+const worksetTag: DigitalTwinResearchTag = {
+  system: buildDigitalTwinWorksetTagSystem(hostedOrganizationDid),
+  code: 'medication-review-april-2026',
   userSelected: true,
 };
 
 await digitalTwin.saveSelection(ctx, {
   twinSubjectId,
   section: medicationSection,
-  tags: [
-    worksetTag,
-    {
-      system: 'urn:acme:research:status',
-      code: 'to-review',
-    },
-  ],
+  tags: [worksetTag],
 });
 ```
 
@@ -179,13 +187,25 @@ Tags are deliberately ledger-safe metadata. The SDK accepts only:
 - `version` (optional)
 - `userSelected` (optional)
 
-Use an organization-owned, stable coding system. Do not place names, notes,
-display text, individual identifiers, or clinical observations in a tag.
-These tags describe the researcher's work, not the patient's clinical state.
-The `system` identifies the organization's tag vocabulary; it is not an
-employee namespace and therefore contains no email or email hash. Private
-ownership comes exclusively from the verified `Composition.author` that GW
-binds to the SMART `sub`.
+For a workset tag, the two relevant values have distinct jobs:
+
+- `system` is the stable organization-owned vocabulary URI. Do not invent it
+  per employee or per workset. `buildDigitalTwinWorksetTagSystem(...)` derives
+  it from the hosted organization DID.
+- `code` is the descriptive, machine-safe workset name chosen by the
+  professional, such as `medication-review-april-2026` or
+  `trial-42-candidates`. It groups all their saved selections for that work.
+
+The exact stored tag is therefore
+`did:web:api.acme.org:.../fhir/CodeSystem/digital-twin-workset|medication-review-april-2026`.
+The organization namespace does not make the workset shared: private ownership
+comes exclusively from the verified `Composition.author` that GW binds to the
+SMART `sub`. Two employees may use the same code and still retrieve only their
+own selections.
+
+Do not put an email, email hash, subject identifier, clinical observation,
+display text, or free-text note in either value. Those data do not belong in a
+ledger-safe tag.
 
 ## 6. Reopen the saved workset
 
@@ -206,11 +226,10 @@ tag. The returned selection still carries the same pseudonymous
 `Composition.subject`, so the portal can list saved selections without
 materializing all clinical data.
 
-Different tag systems may coexist, for example:
-
-- `https://research.acme.org/fhir/CodeSystem/digital-twin-workset | study-2026-04`
-- `https://research.acme.org/fhir/CodeSystem/digital-twin-status | reviewed`
-- `https://research.acme.org/fhir/CodeSystem/digital-twin-cohort | medication-a`
+This 101 deliberately uses one workset tag only. Status, cohort, scoring, and
+other classifications require separately defined organization vocabularies;
+they are not implicit parts of the workset contract and should not be invented
+inside application code.
 
 ## 7. Materialize only the selected twin
 
@@ -218,7 +237,7 @@ Different tag systems may coexist, for example:
 const selected = savedSelections[0];
 
 const summary = await digitalTwin.materialize(ctx, {
-  twinSubjectId: selected['Composition.subject'],
+  twinSubjectId: selected[CompositionClaim.Subject],
   sections: [medicationSection],
 });
 ```

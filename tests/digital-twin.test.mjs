@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 
 import {
   ActorKinds,
+  buildDigitalTwinWorksetTagSystem,
   DigitalTwinSdk,
+  DigitalTwinSearchParameter,
   NodeActorSession,
   materializeDigitalTwinWithDeps,
   buildDigitalTwinSelectionIdentifier,
@@ -11,7 +13,12 @@ import {
   saveDigitalTwinSelectionWithDeps,
   searchDigitalTwinsWithDeps,
 } from '../dist/index.js';
-import { HealthcareConsentPurposes, ServiceCapability } from 'gdc-common-utils-ts/constants';
+import {
+  HealthcareConsentPurposes,
+  HealthcareCoreSections,
+  ServiceCapability,
+} from 'gdc-common-utils-ts/constants';
+import { CompositionClaim, MedicationStatementClaim } from 'gdc-common-utils-ts/models';
 import { buildOrganizationDidWeb, buildProfessionalDidWeb } from 'gdc-common-utils-ts/utils/did';
 import {
   EXAMPLE_HOST_PUBLIC_HOSTNAME,
@@ -34,6 +41,11 @@ const actorDid = buildProfessionalDidWeb({
   email: ExampleEmployeeEmails.SharedProfessional,
   role: ExampleEmployeeRoles.Doctor,
 });
+const medicationSection = HealthcareCoreSections.HistoryOfMedicationUse.attributeValue;
+const worksetTag = Object.freeze({
+  system: buildDigitalTwinWorksetTagSystem(organizationDid),
+  code: 'medication-review',
+});
 
 test('DigitalTwinSdk is public and delegates token, search, tagged selection, and materialization', async () => {
   const calls = [];
@@ -46,7 +58,7 @@ test('DigitalTwinSdk is public and delegates token, search, tagged selection, an
         poll: {
           status: 200,
           attempts: 1,
-          body: { data: [{ resource: { total: 1, data: [{ 'Composition.subject': 'urn:uuid:twin-1' }] } }] },
+          body: { data: [{ resource: { total: 1, data: [{ [CompositionClaim.Subject]: 'urn:uuid:twin-1' }] } }] },
         },
       };
     },
@@ -56,17 +68,17 @@ test('DigitalTwinSdk is public and delegates token, search, tagged selection, an
   const sdk = new DigitalTwinSdk(client);
 
   await sdk.requestSmartToken({ actorDid, scopes: [] });
-  const search = await sdk.search(ctx, { filters: { section: 'LOINC|10160-0' } });
+  const search = await sdk.search(ctx, { filters: { [DigitalTwinSearchParameter.Section]: medicationSection } });
   await sdk.saveSelection(ctx, {
     twinSubjectId: 'urn:uuid:twin-1',
-    section: 'LOINC|10160-0',
-    tags: [{ system: 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset', code: 'study-1' }],
+    section: medicationSection,
+    tags: [worksetTag],
   });
   await sdk.materialize(ctx, { twinSubjectId: 'urn:uuid:twin-1' });
 
   assert.deepEqual(calls.map(([name]) => name), ['token', 'search', 'save-selection', 'materialize']);
   assert.equal(search.total, 1);
-  assert.equal(search.matches[0]['Composition.subject'], 'urn:uuid:twin-1');
+  assert.equal(search.matches[0][CompositionClaim.Subject], 'urn:uuid:twin-1');
   assert.equal(search.operation.poll.status, 200);
   assert.equal(calls[0][1][0].purpose, HealthcareConsentPurposes.Research);
   assert.deepEqual(calls[0][1][0].scopes, [ServiceCapability.DigitalTwinReader]);
@@ -105,8 +117,8 @@ test('DigitalTwinSdk binds SMART and working-selection authorship to the actor s
     () => sdk.saveSelection(ctx, {
       authorDid: anotherDid,
       twinSubjectId: 'urn:uuid:twin-1',
-      section: 'LOINC|10160-0',
-      tags: [{ system: 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset', code: 'study-1' }],
+      section: medicationSection,
+      tags: [worksetTag],
     }),
     /authorDid must match the actor session/,
   );
@@ -122,12 +134,12 @@ test('DigitalTwinSdk scopes exact-tag searches to the operational employee DID',
   }, actorDid);
 
   await sdk.searchSelections(ctx, {
-    section: 'LOINC|10160-0',
-    tag: { system: 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset', code: 'study-1' },
+    section: medicationSection,
+    tag: worksetTag,
   });
 
-  assert.equal(received.filters['Composition.author'], actorDid);
-  assert.equal(received.filters['Composition.meta-tag'], 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset|study-1');
+  assert.equal(received.filters[CompositionClaim.Author], actorDid);
+  assert.equal(received.filters[DigitalTwinSearchParameter.MetaTag], `${worksetTag.system}|${worksetTag.code}`);
 });
 
 test('DigitalTwinSdk rejects a conflicting author even when supplied as a filter list', async () => {
@@ -135,9 +147,9 @@ test('DigitalTwinSdk rejects a conflicting author even when supplied as a filter
   await assert.rejects(
     () => sdk.search(ctx, {
       filters: {
-        section: 'LOINC|10160-0',
-        'Composition.meta-tag': 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset|study-1',
-        'Composition.author': [actorDid, `${actorDid}:another`],
+        [DigitalTwinSearchParameter.Section]: medicationSection,
+        [DigitalTwinSearchParameter.MetaTag]: `${worksetTag.system}|${worksetTag.code}`,
+        [CompositionClaim.Author]: [actorDid, `${actorDid}:another`],
       },
     }),
     /author filter must match the actor session/,
@@ -161,7 +173,10 @@ test('digital-twin search uses the direct GW digitaltwin search and batch-respon
   await searchDigitalTwinsWithDeps(ctx, {
     thid: 'search-1',
     resourceType: 'Composition',
-    filters: { section: 'LOINC|10160-0', 'MedicationStatement.code': 'RXNORM|161' },
+    filters: {
+      [DigitalTwinSearchParameter.Section]: medicationSection,
+      [MedicationStatementClaim.Code]: 'RXNORM|161',
+    },
   }, {
     digitalTwinSearchPath: (_ctx, format, resourceType) => `/digitaltwin/${format}/${resourceType}/_search`,
     digitalTwinSearchPollPath: (_ctx, format, resourceType) => `/digitaltwin/${format}/${resourceType}/_batch-response`,
@@ -176,8 +191,8 @@ test('digital-twin search uses the direct GW digitaltwin search and batch-respon
   assert.equal(call.submitPath, '/digitaltwin/org.hl7.fhir.r4/Composition/_search');
   assert.equal(call.pollPath, '/digitaltwin/org.hl7.fhir.r4/Composition/_batch-response');
   assert.deepEqual(call.payload.body.parameter, [
-    { name: 'section', valueString: 'LOINC|10160-0' },
-    { name: 'MedicationStatement.code', valueString: 'RXNORM|161' },
+    { name: DigitalTwinSearchParameter.Section, valueString: medicationSection },
+    { name: MedicationStatementClaim.Code, valueString: 'RXNORM|161' },
   ]);
 });
 
@@ -187,8 +202,8 @@ test('digital-twin API search wraps Parameters so GW reads coded and custom-tag 
     thid: 'search-api-1',
     format: 'org.hl7.fhir.api',
     filters: {
-      section: 'LOINC|10160-0',
-      'Composition.meta-tag': 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset|study-1',
+      [DigitalTwinSearchParameter.Section]: medicationSection,
+      [DigitalTwinSearchParameter.MetaTag]: `${worksetTag.system}|${worksetTag.code}`,
     },
   }, {
     digitalTwinSearchPath: (_ctx, format, resourceType) => `/digitaltwin/${format}/${resourceType}/_search`,
@@ -206,8 +221,8 @@ test('digital-twin API search wraps Parameters so GW reads coded and custom-tag 
   assert.deepEqual(call.payload.body.data[0].resource, {
     resourceType: 'Parameters',
     parameter: [
-      { name: 'section', valueString: 'LOINC|10160-0' },
-      { name: 'Composition.meta-tag', valueString: 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset|study-1' },
+      { name: DigitalTwinSearchParameter.Section, valueString: medicationSection },
+      { name: DigitalTwinSearchParameter.MetaTag, valueString: `${worksetTag.system}|${worksetTag.code}` },
     ],
   });
 });
@@ -217,7 +232,7 @@ test('digital-twin materialization calls Communication and embeds the twin subje
   await materializeDigitalTwinWithDeps(ctx, {
     thid: 'materialize-1',
     twinSubjectId: 'urn:uuid:twin-1',
-    sections: ['LOINC|10160-0'],
+    sections: [medicationSection],
     sent: '2026-08-15T18:00:00.000Z',
   }, {
     digitalTwinSearchPath: () => '',
@@ -237,7 +252,7 @@ test('digital-twin materialization calls Communication and embeds the twin subje
   const parameters = JSON.parse(Buffer.from(communication.payload[0].contentAttachment.data, 'base64').toString('utf8'));
   assert.deepEqual(parameters.parameter, [
     { name: 'subject', valueString: 'urn:uuid:twin-1' },
-    { name: 'section', valueString: 'LOINC|10160-0' },
+    { name: DigitalTwinSearchParameter.Section, valueString: medicationSection },
   ]);
 });
 
@@ -247,13 +262,10 @@ test('digital-twin selection saves a tagged researcher working Composition', asy
     thid: 'selection-1',
     selectionId: 'selection-1',
     twinSubjectId: 'urn:uuid:twin-1',
-    section: 'LOINC|10160-0',
+    section: medicationSection,
     authorDid: actorDid,
     date: '2026-08-16T09:00:00.000Z',
-    tags: [
-      { system: 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset', code: 'study-2026-04', userSelected: true },
-      { id: 'Composition.meta.tag[1]', system: 'urn:acme:research:status', code: 'reviewed' },
-    ],
+    tags: [{ ...worksetTag, userSelected: true }],
   }, {
     digitalTwinSearchPath: () => '',
     digitalTwinSearchPollPath: () => '',
@@ -270,22 +282,17 @@ test('digital-twin selection saves a tagged researcher working Composition', asy
   assert.equal(call.submitPath, '/digitaltwin/org.hl7.fhir.r4/Composition/_batch');
   assert.equal(call.pollPath, '/digitaltwin/org.hl7.fhir.r4/Composition/_batch-response');
   const composition = call.payload.body.entry[0].resource;
-  assert.equal(composition.meta.claims['Composition.subject'], 'urn:uuid:twin-1');
-  assert.equal(composition.meta.claims['Composition.author'], actorDid);
-  assert.equal(composition.meta.claims['Composition.identifier'], 'selection-1');
+  assert.equal(composition.meta.claims[CompositionClaim.Subject], 'urn:uuid:twin-1');
+  assert.equal(composition.meta.claims[CompositionClaim.Author], actorDid);
+  assert.equal(composition.meta.claims[CompositionClaim.Identifier], 'selection-1');
   assert.equal('Composition.branch' in composition.meta.claims, false);
   assert.equal('Composition.branch-version' in composition.meta.claims, false);
   assert.deepEqual(composition.meta.tag, [
     {
       id: 'Composition.meta.tag[0]',
-      system: 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset',
-      code: 'study-2026-04',
+      system: worksetTag.system,
+      code: worksetTag.code,
       userSelected: true,
-    },
-    {
-      id: 'Composition.meta.tag[1]',
-      system: 'urn:acme:research:status',
-      code: 'reviewed',
     },
   ]);
   assert.equal(JSON.stringify(composition).includes('display'), false);

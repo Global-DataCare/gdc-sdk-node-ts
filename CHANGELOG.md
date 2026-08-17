@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Make the DigitalTwinSdk 101 explicit and copyable: show the complete tenant
+  route context and use shared section, medication, Composition-claim, and
+  digital-twin search-parameter constants instead of opaque fixtures or raw
+  claim strings.
+- Define the workset tag contract in code: its `system` is derived from the
+  hosted organization DID, its descriptive `code` is chosen by the employee,
+  and private ownership remains bound to the authenticated
+  `Composition.author`.
+- Remove invented ACME research/status namespaces from the 101 and executable
+  digital-twin tests.
+
 ## 2.4.6 - 2026-08-16
 
 - Remove the invented `Composition.branch` and `Composition.branch-version`
