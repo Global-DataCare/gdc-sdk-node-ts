@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.4.8 - 2026-08-16
+
 - Use the employee's existing stable `urn:multibase:z...` actor identifier as
   the namespace for their personal digital-twin workset tags. The workset code
   remains user-defined; role and organization are not embedded in the tag.
