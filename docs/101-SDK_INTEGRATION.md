@@ -297,7 +297,7 @@ Use this mental split for new developers:
   - requests the SMART token from the provider tenant
   - searches `digitaltwin/.../Composition/_search`
   - saves one researcher-owned, custom-tagged working selection
-  - reopens only the current employee's workset through
+  - reopens only the current employee's tagged saved selections through
     `searchSelections(...)`, using exact `Composition.meta-tag=system|code`
     plus the actor-bound `Composition.author`
   - materializes the selected pseudonymous twin
@@ -310,7 +310,7 @@ Current implementation:
   `digitaltwin/.../_search` route and unwraps the GW envelope into `matches[]`;
   the raw submit/poll result remains available as `operation`
 - `DigitalTwinSdk.saveSelection(...)` writes a separate, ledger-safe tagged
-  `Composition` branch; it does not modify the canonical twin
+  working-selection `Composition`; it does not modify the canonical twin
 - `DigitalTwinSdk.materialize(...)` calls the public Communication transport
   for `ResearchSubject/$summary`
 

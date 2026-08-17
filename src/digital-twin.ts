@@ -1,6 +1,6 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import type { RouteContext } from './individual-onboarding.js';
 import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
@@ -47,7 +47,7 @@ export type DigitalTwinMaterializationInput = {
 export type DigitalTwinResearchTag = {
   /** Stable position/name for the tag in the Composition metadata. */
   id?: string;
-  /** Organization-owned coding system, for example `urn:acme:research:workset`. */
+  /** Organization-owned tag vocabulary, never an employee/email namespace. */
   system: string;
   /** Machine-readable custom value, for example `study-2026-04` or `reviewed`. */
   code: string;
@@ -56,9 +56,9 @@ export type DigitalTwinResearchTag = {
 };
 
 /**
- * Saves a researcher-owned Composition branch for one selected twin.
+ * Saves a researcher-owned Composition working selection for one twin.
  *
- * This does not mutate the canonical twin or copy clinical data. The branch
+ * This does not mutate the canonical twin or copy clinical data. The record
  * stores the pseudonymous subject, section, author and ledger-safe tags used
  * to recover the researcher's working set later.
  */
@@ -72,11 +72,9 @@ export type DigitalTwinSelectionInput = {
    * `DigitalTwinSdk` binds it to the authenticated actor session.
    */
   authorDid?: string;
-  /** Stable private branch identifier. Generated from twin + employee when omitted. */
-  branchId?: string;
-  /** Version identifier appended to the branch. A UUID is generated when omitted. */
-  versionId?: string;
-  /** @deprecated Use `branchId` and `versionId`; retained for low-level compatibility. */
+  /** Optional FHIR logical id for this saved selection. A UUID is generated when omitted. */
+  selectionId?: string;
+  /** @deprecated Use `selectionId`; retained for low-level compatibility. */
   compositionId?: string;
   documentType?: string;
   date?: string;
@@ -85,39 +83,23 @@ export type DigitalTwinSelectionInput = {
   pollOptions?: PollOptions;
 };
 
-function digitalTwinSelectionComponent(value: string): string {
-  return createHash('sha256').update(value, 'utf8').digest('base64url');
-}
-
 /**
- * Builds a ledger-safe employee-private branch and version identifier.
+ * Builds one opaque FHIR logical id for a saved working selection.
  *
- * The hashes prevent a subject identifier or employee DID from being copied
- * into the Composition id. The author claim remains the access-control owner.
+ * Ownership remains in the standard `Composition.author` claim. Reopening a
+ * a saved collection uses `meta.tag` plus that author; no non-FHIR branch
+ * claims or employee hashes in tag systems exist.
  */
 export function buildDigitalTwinSelectionIdentifier(input: Readonly<{
-  twinSubjectId: string;
-  authorDid: string;
-  branchId?: string;
-  versionId?: string;
-}>): Readonly<{ branchId: string; versionId: string; compositionId: string }> {
-  const twinSubjectId = String(input.twinSubjectId || '').trim();
-  const authorDid = String(input.authorDid || '').trim();
-  if (!twinSubjectId) throw new Error('twinSubjectId is required.');
-  if (!authorDid) throw new Error('Digital twin selection authorDid is required.');
-  const generatedBranchId = `urn:gdc:digital-twin-selection:${digitalTwinSelectionComponent(twinSubjectId)}:employee:${digitalTwinSelectionComponent(authorDid)}`;
-  const branchId = String(input.branchId || '').trim() || generatedBranchId;
-  if (!/^urn:gdc:digital-twin-selection:[A-Za-z0-9_-]+:employee:[A-Za-z0-9_-]+$/.test(branchId)) {
-    throw new Error('Digital twin branchId must use the ledger-safe private branch format.');
-  }
-  const versionId = String(input.versionId || '').trim() || randomUUID();
-  if (!/^[A-Za-z0-9._~-]+$/.test(versionId)) {
-    throw new Error('Digital twin versionId contains unsupported characters.');
+  selectionId?: string;
+}>): Readonly<{ selectionId: string; compositionId: string }> {
+  const selectionId = String(input.selectionId || '').trim() || randomUUID();
+  if (!/^[A-Za-z0-9.-]{1,64}$/.test(selectionId)) {
+    throw new Error('Digital twin selectionId must be a valid FHIR logical id.');
   }
   return Object.freeze({
-    branchId,
-    versionId,
-    compositionId: `${branchId}:version:${versionId}`,
+    selectionId,
+    compositionId: selectionId,
   });
 }
 
@@ -195,26 +177,15 @@ export async function saveDigitalTwinSelectionWithDeps(
 
   const format = input.format || 'org.hl7.fhir.r4';
   const thid = String(input.thid || randomUUID());
-  const selectionIdentifier = input.compositionId
-    ? {
-        branchId: String(input.branchId || input.compositionId).trim(),
-        versionId: String(input.versionId || '').trim() || 'legacy',
-        compositionId: String(input.compositionId).trim(),
-      }
-    : buildDigitalTwinSelectionIdentifier({
-        twinSubjectId,
-        authorDid,
-        branchId: input.branchId,
-        versionId: input.versionId,
-      });
+  const selectionIdentifier = buildDigitalTwinSelectionIdentifier({
+    selectionId: input.selectionId || input.compositionId,
+  });
   const compositionId = selectionIdentifier.compositionId;
   const tags = normalizeResearchTags(input.tags);
   const claims = {
     '@context': format,
     '@type': 'Composition:ResearcherWorkingSelection',
     'Composition.identifier': compositionId,
-    'Composition.branch': selectionIdentifier.branchId,
-    'Composition.branch-version': selectionIdentifier.versionId,
     'Composition.subject': twinSubjectId,
     'Composition.section': section,
     'Composition.type': input.documentType || 'LOINC|60591-5',

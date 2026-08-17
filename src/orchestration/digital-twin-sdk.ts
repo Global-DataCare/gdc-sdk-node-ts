@@ -1,5 +1,7 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
+import { HealthcareConsentPurposes, ServiceCapability } from 'gdc-common-utils-ts/constants';
+
 import type { RouteContext } from '../individual-onboarding.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type {
@@ -30,6 +32,8 @@ export class DigitalTwinSdk {
     const result = await requireClientMethod(this.client, 'requestSmartToken')({
       ...input,
       actorDid,
+      purpose: input.purpose || HealthcareConsentPurposes.Research,
+      scopes: input.scopes?.length ? input.scopes : [ServiceCapability.DigitalTwinReader],
     });
     if (result.accessToken) this.smartAccessToken = result.accessToken;
     if (actorDid) this.researcherDid = actorDid;
@@ -67,7 +71,7 @@ export class DigitalTwinSdk {
   }
 
   /**
-   * Saves a tagged researcher-owned selection/branch for one matching twin.
+   * Saves a tagged researcher-owned working selection for one matching twin.
    * The canonical clinical twin is never modified.
    */
   public saveSelection(ctx: RouteContext, input: DigitalTwinSelectionInput): Promise<SubmitAndPollResult> {
@@ -82,7 +86,7 @@ export class DigitalTwinSdk {
     });
   }
 
-  /** Reopens only this employee's saved branches for one exact custom tag. */
+  /** Reopens only this employee's saved selections for one exact custom tag. */
   public searchSelections(
     ctx: RouteContext,
     input: Omit<DigitalTwinSearchInput, 'filters'> & {

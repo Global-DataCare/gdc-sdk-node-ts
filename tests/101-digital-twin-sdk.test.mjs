@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { ActorKinds, NodeActorSession } from '../dist/index.js';
+import { HealthcareConsentPurposes, ServiceCapability } from 'gdc-common-utils-ts/constants';
 import { buildOrganizationDidWeb, buildProfessionalDidWeb } from 'gdc-common-utils-ts/utils/did';
 import {
   EXAMPLE_HOST_PUBLIC_HOSTNAME,
@@ -28,7 +29,7 @@ const TWIN_SUBJECT_ID = 'urn:uuid:00000000-0000-4000-8000-000000000101';
 const MEDICATION_SECTION = 'LOINC|10160-0';
 const MEDICATION_CODE = 'http://snomed.info/sct|108575001';
 const WORKSET_TAG = Object.freeze({
-  system: 'urn:acme:research:workset',
+  system: 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset',
   code: 'study-2026-04',
   userSelected: true,
 });
@@ -81,7 +82,8 @@ test('101: employee searches, tags, reopens, and materializes a digital twin wor
   // organization additionally forwards its matching contract/consent VP.
   await digitalTwin.requestSmartToken({
     actorDid: EMPLOYEE_DID,
-    scopes: ['organization/ResearchSubject.rs?subject=*'],
+    purpose: HealthcareConsentPurposes.Research,
+    scopes: [ServiceCapability.DigitalTwinReader],
   });
 
   // Discovery uses coded research claims. Free text and display are absent.
@@ -93,7 +95,7 @@ test('101: employee searches, tags, reopens, and materializes a digital twin wor
   });
   const selectedTwinSubjectId = discovery.matches[0]['Composition.subject'];
 
-  // Saving a selection creates a researcher-owned Composition branch. It does
+  // Saving creates a researcher-owned Composition working selection. It does
   // not modify the canonical twin and stores no clinical data or display text.
   await digitalTwin.saveSelection(ROUTE_CONTEXT, {
     twinSubjectId: selectedTwinSubjectId,

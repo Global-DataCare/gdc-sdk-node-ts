@@ -20,16 +20,17 @@ canonical twin Composition
              | DigitalTwinSdk.saveSelection(...)
              v
 researcher working-selection Composition
+  Composition.identifier = opaque FHIR logical id
   Composition.subject = the same pseudonymous twin subject
   Composition.author  = verified hosted employee DID (private owner)
-  Composition.branch  = stable hash(twin + employee)
-  Composition.branch-version = one generated version
   Composition.meta.tag = organization-defined system/code markers
 ```
 
 The working selection does not modify the canonical twin and does not copy its
-clinical content. It is a small researcher-owned branch used to recover a
+clinical content. It is a small researcher-owned record used to recover a
 workset, status, cohort, score, or another organization-defined classification.
+“Workset” is only the application's name for all saved selections carrying the
+same tag; it is not a FHIR resource or a new persisted claim.
 
 ## 2. Current authorization boundary
 
@@ -66,6 +67,10 @@ import {
   ExampleEmployeeEmails,
   ExampleEmployeeRoles,
 } from 'gdc-common-utils-ts/examples';
+import {
+  HealthcareConsentPurposes,
+  ServiceCapability,
+} from 'gdc-common-utils-ts/constants';
 
 const ctx = EXAMPLE_TENANT_ROUTE_CONTEXT;
 
@@ -93,8 +98,8 @@ await digitalTwin.requestSmartToken({
   vpToken: verifiedEmployeeVp,
   actorDid: employeeDid,
   clientId,
-  purpose: 'RESEARCH',
-  scopes: ['organization/ResearchSubject.rs?subject=*'],
+  purpose: HealthcareConsentPurposes.Research,
+  scopes: [ServiceCapability.DigitalTwinReader],
   smartTokenKind: 'openid-smart',
 });
 ```
@@ -140,7 +145,7 @@ text are removed from the research projection.
 
 ```ts
 const worksetTag = {
-  system: 'urn:acme:research:workset',
+  system: 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset',
   code: 'study-2026-04',
   userSelected: true,
 };
@@ -161,11 +166,10 @@ await digitalTwin.saveSelection(ctx, {
 `saveSelection` posts a new working-selection `Composition` through
 `digitaltwin/org.hl7.fhir.r4/Composition/_batch` and polls its
 `_batch-response`. The employee DID cached by the facade becomes
-`Composition.author`. By default the SDK derives one stable, opaque branch ID
-from the twin subject plus employee DID and appends a new version UUID on every
-save. Neither identifier appears in clear inside the branch ID. Low-level
-callers can provide `branchId` and `versionId`; `compositionId` remains only as
-a deprecated compatibility override.
+`Composition.author`. It generates one opaque FHIR logical id for the saved
+Composition unless a low-level caller supplies `selectionId`. There are no
+`Composition.branch` or `Composition.branch-version` claims: worksets are
+recovered using standard author/subject/identifier claims plus `meta.tag`.
 
 Tags are deliberately ledger-safe metadata. The SDK accepts only:
 
@@ -178,6 +182,10 @@ Tags are deliberately ledger-safe metadata. The SDK accepts only:
 Use an organization-owned, stable coding system. Do not place names, notes,
 display text, individual identifiers, or clinical observations in a tag.
 These tags describe the researcher's work, not the patient's clinical state.
+The `system` identifies the organization's tag vocabulary; it is not an
+employee namespace and therefore contains no email or email hash. Private
+ownership comes exclusively from the verified `Composition.author` that GW
+binds to the SMART `sub`.
 
 ## 6. Reopen the saved workset
 
@@ -193,16 +201,16 @@ const savedSelections = workset.matches;
 `searchSelections` converts the tag to the exact
 `Composition.meta-tag=system|code` query and binds `Composition.author` to the
 current actor session. GW repeats that ownership check from the verified SMART
-`sub`, so another employee cannot retrieve the branch by guessing the same
-tag. The returned branch still carries the same pseudonymous
+`sub`, so another employee cannot retrieve the selection by guessing the same
+tag. The returned selection still carries the same pseudonymous
 `Composition.subject`, so the portal can list saved selections without
 materializing all clinical data.
 
 Different tag systems may coexist, for example:
 
-- `urn:acme:research:workset | study-2026-04`
-- `urn:acme:research:status | reviewed`
-- `urn:acme:research:cohort | medication-a`
+- `https://research.acme.org/fhir/CodeSystem/digital-twin-workset | study-2026-04`
+- `https://research.acme.org/fhir/CodeSystem/digital-twin-status | reviewed`
+- `https://research.acme.org/fhir/CodeSystem/digital-twin-cohort | medication-a`
 
 ## 7. Materialize only the selected twin
 

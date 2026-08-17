@@ -11,6 +11,7 @@ import {
   saveDigitalTwinSelectionWithDeps,
   searchDigitalTwinsWithDeps,
 } from '../dist/index.js';
+import { HealthcareConsentPurposes, ServiceCapability } from 'gdc-common-utils-ts/constants';
 import { buildOrganizationDidWeb, buildProfessionalDidWeb } from 'gdc-common-utils-ts/utils/did';
 import {
   EXAMPLE_HOST_PUBLIC_HOSTNAME,
@@ -59,7 +60,7 @@ test('DigitalTwinSdk is public and delegates token, search, tagged selection, an
   await sdk.saveSelection(ctx, {
     twinSubjectId: 'urn:uuid:twin-1',
     section: 'LOINC|10160-0',
-    tags: [{ system: 'urn:acme:research:workset', code: 'study-1' }],
+    tags: [{ system: 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset', code: 'study-1' }],
   });
   await sdk.materialize(ctx, { twinSubjectId: 'urn:uuid:twin-1' });
 
@@ -67,6 +68,8 @@ test('DigitalTwinSdk is public and delegates token, search, tagged selection, an
   assert.equal(search.total, 1);
   assert.equal(search.matches[0]['Composition.subject'], 'urn:uuid:twin-1');
   assert.equal(search.operation.poll.status, 200);
+  assert.equal(calls[0][1][0].purpose, HealthcareConsentPurposes.Research);
+  assert.deepEqual(calls[0][1][0].scopes, [ServiceCapability.DigitalTwinReader]);
   assert.equal(calls[1][1][1].accessToken, 'smart');
   assert.equal(calls[2][1][1].accessToken, 'smart');
   assert.equal(calls[2][1][1].authorDid, actorDid);
@@ -103,7 +106,7 @@ test('DigitalTwinSdk binds SMART and working-selection authorship to the actor s
       authorDid: anotherDid,
       twinSubjectId: 'urn:uuid:twin-1',
       section: 'LOINC|10160-0',
-      tags: [{ system: 'urn:acme:research:workset', code: 'study-1' }],
+      tags: [{ system: 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset', code: 'study-1' }],
     }),
     /authorDid must match the actor session/,
   );
@@ -120,11 +123,11 @@ test('DigitalTwinSdk scopes exact-tag searches to the operational employee DID',
 
   await sdk.searchSelections(ctx, {
     section: 'LOINC|10160-0',
-    tag: { system: 'urn:acme:research:workset', code: 'study-1' },
+    tag: { system: 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset', code: 'study-1' },
   });
 
   assert.equal(received.filters['Composition.author'], actorDid);
-  assert.equal(received.filters['Composition.meta-tag'], 'urn:acme:research:workset|study-1');
+  assert.equal(received.filters['Composition.meta-tag'], 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset|study-1');
 });
 
 test('DigitalTwinSdk rejects a conflicting author even when supplied as a filter list', async () => {
@@ -133,7 +136,7 @@ test('DigitalTwinSdk rejects a conflicting author even when supplied as a filter
     () => sdk.search(ctx, {
       filters: {
         section: 'LOINC|10160-0',
-        'Composition.meta-tag': 'urn:acme:research:workset|study-1',
+        'Composition.meta-tag': 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset|study-1',
         'Composition.author': [actorDid, `${actorDid}:another`],
       },
     }),
@@ -185,7 +188,7 @@ test('digital-twin API search wraps Parameters so GW reads coded and custom-tag 
     format: 'org.hl7.fhir.api',
     filters: {
       section: 'LOINC|10160-0',
-      'Composition.meta-tag': 'urn:acme:research:workset|study-1',
+      'Composition.meta-tag': 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset|study-1',
     },
   }, {
     digitalTwinSearchPath: (_ctx, format, resourceType) => `/digitaltwin/${format}/${resourceType}/_search`,
@@ -204,7 +207,7 @@ test('digital-twin API search wraps Parameters so GW reads coded and custom-tag 
     resourceType: 'Parameters',
     parameter: [
       { name: 'section', valueString: 'LOINC|10160-0' },
-      { name: 'Composition.meta-tag', valueString: 'urn:acme:research:workset|study-1' },
+      { name: 'Composition.meta-tag', valueString: 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset|study-1' },
     ],
   });
 });
@@ -238,17 +241,17 @@ test('digital-twin materialization calls Communication and embeds the twin subje
   ]);
 });
 
-test('digital-twin selection saves a ledger-safe tagged researcher branch through Composition', async () => {
+test('digital-twin selection saves a tagged researcher working Composition', async () => {
   const call = {};
   await saveDigitalTwinSelectionWithDeps(ctx, {
     thid: 'selection-1',
-    compositionId: 'urn:uuid:selection-1',
+    selectionId: 'selection-1',
     twinSubjectId: 'urn:uuid:twin-1',
     section: 'LOINC|10160-0',
     authorDid: actorDid,
     date: '2026-08-16T09:00:00.000Z',
     tags: [
-      { system: 'urn:acme:research:workset', code: 'study-2026-04', userSelected: true },
+      { system: 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset', code: 'study-2026-04', userSelected: true },
       { id: 'Composition.meta.tag[1]', system: 'urn:acme:research:status', code: 'reviewed' },
     ],
   }, {
@@ -269,10 +272,13 @@ test('digital-twin selection saves a ledger-safe tagged researcher branch throug
   const composition = call.payload.body.entry[0].resource;
   assert.equal(composition.meta.claims['Composition.subject'], 'urn:uuid:twin-1');
   assert.equal(composition.meta.claims['Composition.author'], actorDid);
+  assert.equal(composition.meta.claims['Composition.identifier'], 'selection-1');
+  assert.equal('Composition.branch' in composition.meta.claims, false);
+  assert.equal('Composition.branch-version' in composition.meta.claims, false);
   assert.deepEqual(composition.meta.tag, [
     {
       id: 'Composition.meta.tag[0]',
-      system: 'urn:acme:research:workset',
+      system: 'https://research.acme.org/fhir/CodeSystem/digital-twin-workset',
       code: 'study-2026-04',
       userSelected: true,
     },
@@ -285,27 +291,16 @@ test('digital-twin selection saves a ledger-safe tagged researcher branch throug
   assert.equal(JSON.stringify(composition).includes('display'), false);
 });
 
-test('digital-twin branch ids are stable per twin and employee while versions remain distinct', () => {
-  const first = buildDigitalTwinSelectionIdentifier({
-    twinSubjectId: 'urn:uuid:twin-1',
-    authorDid: actorDid,
-    versionId: 'version-1',
-  });
-  const second = buildDigitalTwinSelectionIdentifier({
-    twinSubjectId: 'urn:uuid:twin-1',
-    authorDid: actorDid,
-    versionId: 'version-2',
-  });
-  assert.equal(first.branchId, second.branchId);
+test('digital-twin selections use only opaque FHIR logical ids', () => {
+  const first = buildDigitalTwinSelectionIdentifier({ selectionId: 'selection-1' });
+  const second = buildDigitalTwinSelectionIdentifier({ selectionId: 'selection-2' });
+  assert.equal(first.selectionId, 'selection-1');
+  assert.equal(first.compositionId, 'selection-1');
   assert.notEqual(first.compositionId, second.compositionId);
-  assert.equal(first.compositionId.includes(actorDid), false);
-  assert.equal(first.compositionId.includes('urn:uuid:twin-1'), false);
   assert.throws(
     () => buildDigitalTwinSelectionIdentifier({
-      twinSubjectId: 'urn:uuid:twin-1',
-      authorDid: actorDid,
-      branchId: 'urn:unsafe:plain-employee-identity',
+      selectionId: 'urn:unsafe:non-fhir-id',
     }),
-    /ledger-safe private branch format/,
+    /valid FHIR logical id/,
   );
 });

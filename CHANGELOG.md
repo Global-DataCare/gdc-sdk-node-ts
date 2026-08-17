@@ -2,10 +2,15 @@
 
 ## Unreleased
 
+- Remove the invented `Composition.branch` and `Composition.branch-version`
+  claims from digital-twin working selections. Saved worksets now use the
+  standard `Composition.identifier`, `subject`, and `author` claims plus
+  ledger-safe `meta.tag` coding metadata.
+
 ## 2.4.5 - 2026-08-16
 
 - Bind digital-twin workset searches and writes to the verified hosted
-  employee DID, add employee-private branch/version identifiers, provide an
+  employee DID, add opaque selection identifiers, provide an
   explicit public-alias-to-operational-DID boundary, and reuse shared DID test
   fixtures in the executable 101.
 
@@ -227,6 +232,11 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+
+- Align `DigitalTwinSdk` with the existing authorization contract: default to
+  the canonical `organization/ResearchSubject.rs` capability and HL7 v3
+  `HRESCH` purpose, with employee ownership carried by `Composition.author`
+  rather than email-derived tag namespaces.
 
 ## [2.3.13] - 2026-07-31
 
