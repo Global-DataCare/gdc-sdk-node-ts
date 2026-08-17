@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2.4.5 - 2026-08-16
+
+- Consume Common Utils 2.5.7 and use
+  `organizationTestNetworkCredential` as the sole Test Network admission VC
+  transport field. No authorization-named compatibility alias is exposed.
+
 ## 2.4.4 - 2026-08-16
 
 - Sign the Test Network-only `OrganizationTestNetworkCredential` and the
