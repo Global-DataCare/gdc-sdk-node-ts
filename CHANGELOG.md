@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.4.7 - 2026-08-16
+
 - Make the DigitalTwinSdk 101 explicit and copyable: show the complete tenant
   route context and use shared section, medication, Composition-claim, and
   digital-twin search-parameter constants instead of opaque fixtures or raw
