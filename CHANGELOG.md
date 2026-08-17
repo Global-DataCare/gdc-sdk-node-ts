@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.4.4 - 2026-08-16
+
 - Sign the Test Network-only `OrganizationTestNetworkCredential` and the
   reviewer-issued `OrganizationCredential`, `LegalRepresentativeCredential`
   and `ServiceControllerCredential` set with detached ML-DSA-65 proofs. Remove
