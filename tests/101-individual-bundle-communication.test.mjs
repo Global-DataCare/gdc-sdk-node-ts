@@ -17,7 +17,7 @@ import {
   BundleEditor,
   BundleOperations,
   BundleTypes,
-} from '../../gdc-common-utils-ts/dist/index.js';
+} from 'gdc-common-utils-ts';
 import {
   EXAMPLE_RELATED_PERSON_ACTIVE_NAME,
   EXAMPLE_RELATED_PERSON_IDENTIFIER,
@@ -25,12 +25,12 @@ import {
   EXAMPLE_SUBJECT_DID,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
   EXAMPLE_TENANT_SERVICE_DID,
-} from '../../gdc-common-utils-ts/dist/examples/shared.js';
+} from 'gdc-common-utils-ts/examples/shared';
 import {
   attachBundleToCommMsgExtendedDraft,
   createCommMsgExtendedDraft,
   createCommunicationOutboxJobFromCommMsgExtendedDraft,
-} from '../../gdc-sdk-core-ts/dist/index.js';
+} from 'gdc-sdk-core-ts';
 
 import { IndividualControllerSdk } from '../dist/index.js';
 

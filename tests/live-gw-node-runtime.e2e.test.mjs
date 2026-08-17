@@ -100,7 +100,7 @@ import {
   extractFlatClaimValue,
   getBundleDocumentResourceIds,
   getBundleDocumentResources,
-} from '../../gdc-common-utils-ts/dist/utils/bundle-document-builder.js';
+} from 'gdc-common-utils-ts/utils/bundle-document-builder';
 
 import {
   ActorCapabilities,
