@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Use the employee's existing stable `urn:multibase:z...` actor identifier as
+  the namespace for their personal digital-twin workset tags. The workset code
+  remains user-defined; role and organization are not embedded in the tag.
+- Remove the organization-DID-path tag-system helper introduced in 2.4.7.
+  Digital-twin selections keep opaque FHIR identifiers and do not reintroduce
+  the non-FHIR `urn:gdc:digital-twin-selection` branch model.
+
 ## 2.4.7 - 2026-08-16
 
 - Make the DigitalTwinSdk 101 explicit and copyable: show the complete tenant

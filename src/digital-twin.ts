@@ -53,24 +53,12 @@ export type DigitalTwinMaterializationInput = {
   pollOptions?: PollOptions;
 };
 
-/** Ledger-safe organization-defined marker attached to a research working copy. */
+/** Ledger-safe employee-defined marker attached to a research working copy. */
 export type DigitalTwinResearchTag = Required<Pick<MetaTagCoding, 'system' | 'code'>> &
   Pick<MetaTagCoding, 'version' | 'userSelected'> & {
   /** Stable position/name for the tag in the Composition metadata. */
   id?: string;
 };
-
-/**
- * Returns the stable FHIR Coding namespace for workset names owned by one
- * organization. Employee ownership is kept separately in Composition.author.
- */
-export function buildDigitalTwinWorksetTagSystem(organizationDid: string): string {
-  const normalizedOrganizationDid = String(organizationDid || '').trim().replace(/\/$/, '');
-  if (!normalizedOrganizationDid.startsWith('did:')) {
-    throw new Error('Digital twin workset tag system requires the hosted organization DID.');
-  }
-  return `${normalizedOrganizationDid}/fhir/CodeSystem/digital-twin-workset`;
-}
 
 /**
  * Saves a researcher-owned Composition working selection for one twin.

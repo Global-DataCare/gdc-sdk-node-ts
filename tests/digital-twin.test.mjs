@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 
 import {
   ActorKinds,
-  buildDigitalTwinWorksetTagSystem,
   DigitalTwinSdk,
   DigitalTwinSearchParameter,
   NodeActorSession,
@@ -20,6 +19,7 @@ import {
 } from 'gdc-common-utils-ts/constants';
 import { CompositionClaim, MedicationStatementClaim } from 'gdc-common-utils-ts/models';
 import { buildOrganizationDidWeb, buildProfessionalDidWeb } from 'gdc-common-utils-ts/utils/did';
+import { stableActorIdentifierFromDidWeb } from 'gdc-common-utils-ts/utils/actor-identifier';
 import {
   EXAMPLE_HOST_PUBLIC_HOSTNAME,
   EXAMPLE_ROUTE_VERSION,
@@ -43,7 +43,7 @@ const actorDid = buildProfessionalDidWeb({
 });
 const medicationSection = HealthcareCoreSections.HistoryOfMedicationUse.attributeValue;
 const worksetTag = Object.freeze({
-  system: buildDigitalTwinWorksetTagSystem(organizationDid),
+  system: stableActorIdentifierFromDidWeb(actorDid),
   code: 'medication-review',
 });
 

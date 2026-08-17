@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 
 import {
   ActorKinds,
-  buildDigitalTwinWorksetTagSystem,
   DigitalTwinSearchParameter,
   NodeActorSession,
 } from '../dist/index.js';
@@ -15,6 +14,7 @@ import {
 } from 'gdc-common-utils-ts/constants';
 import { CompositionClaim, MedicationStatementClaim } from 'gdc-common-utils-ts/models';
 import { buildOrganizationDidWeb, buildProfessionalDidWeb } from 'gdc-common-utils-ts/utils/did';
+import { stableActorIdentifierFromDidWeb } from 'gdc-common-utils-ts/utils/actor-identifier';
 import {
   EXAMPLE_HOST_PUBLIC_HOSTNAME,
   EXAMPLE_MEDICATION_STATEMENT_CODE,
@@ -43,7 +43,7 @@ const TWIN_SUBJECT_ID = 'urn:uuid:00000000-0000-4000-8000-000000000101';
 const MEDICATION_SECTION = HealthcareCoreSections.HistoryOfMedicationUse.attributeValue;
 const MEDICATION_CODE = EXAMPLE_MEDICATION_STATEMENT_CODE;
 const WORKSET_TAG = Object.freeze({
-  system: buildDigitalTwinWorksetTagSystem(HOSTED_ORGANIZATION_DID),
+  system: stableActorIdentifierFromDidWeb(EMPLOYEE_DID),
   code: 'medication-review-april-2026',
   userSelected: true,
 });
