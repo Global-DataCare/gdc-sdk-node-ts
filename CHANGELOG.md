@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.4.9 - 2026-08-17
+
 - Make `userSelected` system-managed for personal digital-twin worksets.
   Professional callers provide only the tag namespace and code;
   `saveSelection(...)` always persists `userSelected: true`. Future
