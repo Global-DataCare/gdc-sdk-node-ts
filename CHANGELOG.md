@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.4.6 - 2026-08-16
+
 - Remove the invented `Composition.branch` and `Composition.branch-version`
   claims from digital-twin working selections. Saved worksets now use the
   standard `Composition.identifier`, `subject`, and `author` claims plus
