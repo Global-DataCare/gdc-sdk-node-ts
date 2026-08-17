@@ -7,6 +7,9 @@
 - Consume Common Utils 2.5.7 and use
   `organizationTestNetworkCredential` as the sole Test Network admission VC
   transport field. No authorization-named compatibility alias is exposed.
+- Document the BFF reissue projection explicitly: persist organization,
+  representative and service-controller VCs independently while GW owns only
+  its tenant/controller projection.
 
 ## 2.4.4 - 2026-08-16
 
