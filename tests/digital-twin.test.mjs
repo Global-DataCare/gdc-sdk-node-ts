@@ -265,7 +265,9 @@ test('digital-twin selection saves a tagged researcher working Composition', asy
     section: medicationSection,
     authorDid: actorDid,
     date: '2026-08-16T09:00:00.000Z',
-    tags: [{ ...worksetTag, userSelected: true }],
+    // Even an untyped caller cannot downgrade an explicitly saved workset tag
+    // to a system-derived tag; the runtime owns userSelected.
+    tags: [{ ...worksetTag, userSelected: false }],
   }, {
     digitalTwinSearchPath: () => '',
     digitalTwinSearchPollPath: () => '',

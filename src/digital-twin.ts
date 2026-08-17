@@ -54,11 +54,17 @@ export type DigitalTwinMaterializationInput = {
 };
 
 /** Ledger-safe employee-defined marker attached to a research working copy. */
-export type DigitalTwinResearchTag = Required<Pick<MetaTagCoding, 'system' | 'code'>> &
-  Pick<MetaTagCoding, 'version' | 'userSelected'> & {
+export type DigitalTwinResearchTag = Required<Pick<MetaTagCoding, 'system' | 'code' | 'userSelected'>> &
+  Pick<MetaTagCoding, 'version'> & {
   /** Stable position/name for the tag in the Composition metadata. */
   id?: string;
 };
+
+/**
+ * Tag chosen by a professional when saving a personal workset.
+ * `userSelected` is intentionally absent: the SDK persists it as `true`.
+ */
+export type DigitalTwinWorksetTagInput = Omit<DigitalTwinResearchTag, 'userSelected'>;
 
 /**
  * Saves a researcher-owned Composition working selection for one twin.
@@ -71,7 +77,7 @@ export type DigitalTwinSelectionInput = {
   accessToken?: string;
   twinSubjectId: string;
   section: string;
-  tags: readonly DigitalTwinResearchTag[];
+  tags: readonly DigitalTwinWorksetTagInput[];
   /**
    * Operational hosted employee DID. High-level callers should omit this:
    * `DigitalTwinSdk` binds it to the authenticated actor session.
@@ -123,7 +129,7 @@ export type DigitalTwinRuntimeDeps = {
   ) => Promise<SubmitAndPollResult>;
 };
 
-function normalizeResearchTags(tags: readonly DigitalTwinResearchTag[]): Array<Required<Pick<DigitalTwinResearchTag, 'id' | 'system' | 'code'>> & Pick<DigitalTwinResearchTag, 'version' | 'userSelected'>> {
+function normalizeResearchTags(tags: readonly DigitalTwinWorksetTagInput[]): Array<Required<Pick<DigitalTwinResearchTag, 'id' | 'system' | 'code' | 'userSelected'>> & Pick<DigitalTwinResearchTag, 'version'>> {
   if (!Array.isArray(tags) || tags.length === 0) throw new Error('At least one research tag is required.');
   const normalized = tags.map((tag, index) => {
     const system = String(tag?.system || '').trim();
@@ -133,8 +139,8 @@ function normalizeResearchTags(tags: readonly DigitalTwinResearchTag[]): Array<R
       id: String(tag.id || `Composition.meta.tag[${index}]`).trim(),
       system,
       code,
+      userSelected: true,
       ...(tag.version ? { version: String(tag.version) } : {}),
-      ...(typeof tag.userSelected === 'boolean' ? { userSelected: tag.userSelected } : {}),
     };
   });
   if (new Set(normalized.map((tag) => tag.id)).size !== normalized.length) {
