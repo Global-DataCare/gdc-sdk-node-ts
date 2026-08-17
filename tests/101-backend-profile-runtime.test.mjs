@@ -84,7 +84,7 @@ import {
   BundleEditableResourceTypes,
   BundleEditor,
   BundleOperations,
-} from '../../gdc-common-utils-ts/dist/index.js';
+} from 'gdc-common-utils-ts';
 import {
   BackendSubjectIndexReadModes,
   IndividualControllerBackendRuntime,

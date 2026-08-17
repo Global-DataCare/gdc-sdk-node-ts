@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Sign the Test Network-only `OrganizationTestNetworkCredential` and the
+  reviewer-issued `OrganizationCredential`, `LegalRepresentativeCredential`
+  and `ServiceControllerCredential` set with detached ML-DSA-65 proofs. Remove
+  the ambiguous registration-authorization signing API.
+- Remove test imports from sibling Common Utils and SDK Core `dist` paths; all
+  SDK tests now consume the published package exports used by applications.
+
 ## 2.4.3 - 2026-08-13
 
 - Add organization-controller operations for issuing an existing employee

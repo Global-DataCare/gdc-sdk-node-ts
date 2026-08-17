@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   NodeManagedWallet,
-  signOrganizationRegistrationAuthorizationCredential,
+  signOrganizationTestNetworkCredential,
+  signTestNetworkOrganizationCredential,
 } from '../dist/index.js';
 
 /**
@@ -24,13 +25,13 @@ test('adds an ML-DSA-65 proof without exposing profile private material', async 
   const credential = {
     '@context': ['https://www.w3.org/ns/credentials/v2', 'https://schema.org'],
     id: 'urn:uuid:authorization',
-    type: ['VerifiableCredential', 'OrganizationRegistrationAuthorizationCredential'],
+    type: ['VerifiableCredential', 'OrganizationTestNetworkCredential'],
     issuer: 'did:web:host.example',
     credentialSubject: { id: 'did:web:host.example:DSRC-001' },
     validFrom: '2026-08-10T00:00:00.000Z',
   };
 
-  const signed = await signOrganizationRegistrationAuthorizationCredential({
+  const signed = await signOrganizationTestNetworkCredential({
     credential,
     wallet,
     context,
@@ -43,4 +44,21 @@ test('adds an ML-DSA-65 proof without exposing profile private material', async 
   assert.equal(signed.proof[0].proofPurpose, 'contractAgreement');
   assert.match(signed.proof[0].jws, /^[^.]+\.\.[A-Za-z0-9_-]+$/);
   assert.equal(JSON.stringify(signed).includes('test-only-reviewer-seed'), false);
+
+  const domainCredential = {
+    ...credential,
+    id: 'urn:uuid:organization',
+    type: ['VerifiableCredential', 'OrganizationCredential', 'TestNetworkCredential'],
+    credentialSubject: { id: 'did:web:host.example:DSRC-001', targetNetwork: 'test-network' },
+  };
+  const signedDomain = await signTestNetworkOrganizationCredential({
+    credential: domainCredential,
+    wallet,
+    context,
+    key: { ownerScope: 'profile', purpose: 'actor-signing', alg: 'ML-DSA-65' },
+    verificationMethod: `did:web:host.example:controller#${signingKey.kid}`,
+    createdAt: '2026-08-10T01:00:00.000Z',
+  });
+  assert.equal(signedDomain.proof[0].proofPurpose, 'assertionMethod');
+  assert.match(signedDomain.proof[0].jws, /^[^.]+\.\.[A-Za-z0-9_-]+$/);
 });
