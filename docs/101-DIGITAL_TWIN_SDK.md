@@ -23,12 +23,12 @@ researcher working-selection Composition
   Composition.identifier = opaque FHIR logical id
   Composition.subject = the same pseudonymous twin subject
   Composition.author  = verified hosted employee DID (private owner)
-  Composition.meta.tag = organization-defined system/code markers
+  Composition.meta.tag = employee-defined personal system/code markers
 ```
 
 The working selection does not modify the canonical twin and does not copy its
 clinical content. It is a small researcher-owned record used to recover a
-workset, status, cohort, score, or another organization-defined classification.
+workset or another employee-defined classification.
 “Workset” is only the application's name for all saved selections carrying the
 same tag; it is not a FHIR resource or a new persisted claim.
 
@@ -53,7 +53,6 @@ authorization claim. The SDK then retains the returned SMART bearer for
 ```ts
 import {
   ActorKinds,
-  buildDigitalTwinWorksetTagSystem,
   DigitalTwinSearchParameter,
   NodeActorSession,
   resolveOperationalActorDid,
@@ -64,6 +63,9 @@ import {
   buildOrganizationDidWeb,
   buildProfessionalDidWeb,
 } from 'gdc-common-utils-ts/utils/did';
+import {
+  stableActorIdentifierFromDidWeb,
+} from 'gdc-common-utils-ts/utils/actor-identifier';
 import {
   EXAMPLE_MEDICATION_STATEMENT_CODE,
   ExampleEmployeeEmails,
@@ -159,7 +161,7 @@ text are removed from the research projection.
 
 ```ts
 const worksetTag: DigitalTwinResearchTag = {
-  system: buildDigitalTwinWorksetTagSystem(hostedOrganizationDid),
+  system: stableActorIdentifierFromDidWeb(employeeDid),
   code: 'medication-review-april-2026',
   userSelected: true,
 };
@@ -189,19 +191,20 @@ Tags are deliberately ledger-safe metadata. The SDK accepts only:
 
 For a workset tag, the two relevant values have distinct jobs:
 
-- `system` is the stable organization-owned vocabulary URI. Do not invent it
-  per employee or per workset. `buildDigitalTwinWorksetTagSystem(...)` derives
-  it from the hosted organization DID.
+- `system` is the employee's existing stable actor URN. The helper extracts
+  `urn:multibase:z<hash-of-normalized-email>` from the hosted employee DID, so
+  neither the clear email, role, organization nor a DID URL path is stored in
+  the tag. The same `system` is reused for every personal workset.
 - `code` is the descriptive, machine-safe workset name chosen by the
   professional, such as `medication-review-april-2026` or
   `trial-42-candidates`. It groups all their saved selections for that work.
 
 The exact stored tag is therefore
-`did:web:api.acme.org:.../fhir/CodeSystem/digital-twin-workset|medication-review-april-2026`.
-The organization namespace does not make the workset shared: private ownership
-comes exclusively from the verified `Composition.author` that GW binds to the
-SMART `sub`. Two employees may use the same code and still retrieve only their
-own selections.
+`urn:multibase:z<employee-email-hash>|medication-review-april-2026`.
+Private authorization still comes from the verified `Composition.author` that
+GW binds to the SMART `sub`; the stable actor URN is only the employee's tag
+namespace. A role change does not rename their worksets because the role is not
+part of that URN.
 
 Do not put an email, email hash, subject identifier, clinical observation,
 display text, or free-text note in either value. Those data do not belong in a
@@ -226,10 +229,9 @@ tag. The returned selection still carries the same pseudonymous
 `Composition.subject`, so the portal can list saved selections without
 materializing all clinical data.
 
-This 101 deliberately uses one workset tag only. Status, cohort, scoring, and
-other classifications require separately defined organization vocabularies;
-they are not implicit parts of the workset contract and should not be invented
-inside application code.
+This 101 deliberately uses one workset tag only. The employee can create more
+codes in the same personal namespace; application code does not invent extra
+status or organization vocabularies.
 
 ## 7. Materialize only the selected twin
 
