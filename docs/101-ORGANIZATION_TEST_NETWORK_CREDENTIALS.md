@@ -52,7 +52,7 @@ const result = await organizationController.submitLegalOrganizationVerificationT
     organization: { did: requestedOrganizationDid },
     legalRepresentativePayload: { email: legalRepresentativeEmail },
     verification: { resourceType: 'contract' },
-    authorizationCredential: admissionCredential,
+    organizationTestNetworkCredential: admissionCredential,
     testNetworkCredentials: credentials,
   },
 )
