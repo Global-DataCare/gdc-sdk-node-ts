@@ -19,7 +19,7 @@ export * from './family-organization-registration.js';
 export * from './individual-onboarding.js';
 export * from './device-activation.js';
 export * from './organization-controller-recovery.js';
-export * from './organization-registration-authorization.js';
+export * from './organization-test-network-credential.js';
 export * from './organization-employee-lifecycle.js';
 export * from './smart-token.js';
 export * from './fhir-r5-subscription-runtime.js';

@@ -145,6 +145,20 @@ The current GW contract works as follows:
    `Device/_dcr`; DCR is the operation that registers the device signing and
    encryption keys.
 
+The response does not update a portal database. A consuming BFF must upsert
+the three `vc[]` values independently:
+
+| Credential | BFF projection | GW projection |
+| --- | --- | --- |
+| `OrganizationCredential` | Organization record keyed by the signed organization identifier/taxID | Returned in `vc[]`; it does not replace tenant-controller state |
+| `LegalRepresentativeCredential` | Organization-to-representative relationship | Returned in `vc[]`; `ISCO-08|1120` alone never grants tenant control |
+| `ServiceControllerCredential` | Organization-to-controller relationship and controller JWK thumbprint | Validated and persisted as a controller employee; its DID is appended to the tenant DID controller array |
+
+This split is mandatory even if an older portal historically used the legal
+representative as its controller. Re-registering the original PDF corrects
+that portal only after its BFF consumes all three typed credentials; GW cannot
+mutate an external portal database.
+
 The canonical `_issue-response` entry is therefore an organization
 credential-reissuance result with three distinct projections:
 

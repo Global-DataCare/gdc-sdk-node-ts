@@ -6,16 +6,10 @@
   claims from digital-twin working selections. Saved worksets now use the
   standard `Composition.identifier`, `subject`, and `author` claims plus
   ledger-safe `meta.tag` coding metadata.
-
-## 2.4.5 - 2026-08-16
-
 - Bind digital-twin workset searches and writes to the verified hosted
   employee DID, add opaque selection identifiers, provide an
   explicit public-alias-to-operational-DID boundary, and reuse shared DID test
   fixtures in the executable 101.
-
-## 2.4.4 - 2026-08-15
-
 - Publish `DigitalTwinSdk` with SMART token acquisition, coded digital-twin
   search, and `ResearchSubject/$summary` materialization over the GW public
   asynchronous routes.
@@ -30,6 +24,24 @@
   tagged selection persistence, reopen-by-tag, and materialization.
 - Clarify that `generateDigitalTwinFromSubjectData(...)` is an explicit
   study/transfer operation; routine clinical ingestion is projected by GW.
+
+## 2.4.5 - 2026-08-16
+
+- Consume Common Utils 2.5.7 and use
+  `organizationTestNetworkCredential` as the sole Test Network admission VC
+  transport field. No authorization-named compatibility alias is exposed.
+- Document the BFF reissue projection explicitly: persist organization,
+  representative and service-controller VCs independently while GW owns only
+  its tenant/controller projection.
+
+## 2.4.4 - 2026-08-16
+
+- Sign the Test Network-only `OrganizationTestNetworkCredential` and the
+  reviewer-issued `OrganizationCredential`, `LegalRepresentativeCredential`
+  and `ServiceControllerCredential` set with detached ML-DSA-65 proofs. Remove
+  the ambiguous registration-authorization signing API.
+- Remove test imports from sibling Common Utils and SDK Core `dist` paths; all
+  SDK tests now consume the published package exports used by applications.
 
 ## 2.4.3 - 2026-08-13
 
