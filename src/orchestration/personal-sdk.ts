@@ -112,7 +112,7 @@ export class PersonalSdk {
     return requireClientMethod(this.client, 'searchCommunicationParticipants')(ctx, input);
   }
 
-  /** Triggers digital twin generation from subject data. */
+  /** Explicitly packages subject data for a study/transfer; normal ingestion is projected by GW. */
   public generateDigitalTwinFromSubjectData(ctx: RouteContext, input: DigitalTwinGenerationInput): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'generateDigitalTwinFromSubjectData')(ctx, input);
   }

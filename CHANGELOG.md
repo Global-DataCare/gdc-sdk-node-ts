@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Remove the invented `Composition.branch` and `Composition.branch-version`
+  claims from digital-twin working selections. Saved worksets now use the
+  standard `Composition.identifier`, `subject`, and `author` claims plus
+  ledger-safe `meta.tag` coding metadata.
+- Bind digital-twin workset searches and writes to the verified hosted
+  employee DID, add opaque selection identifiers, provide an
+  explicit public-alias-to-operational-DID boundary, and reuse shared DID test
+  fixtures in the executable 101.
+- Publish `DigitalTwinSdk` with SMART token acquisition, coded digital-twin
+  search, and `ResearchSubject/$summary` materialization over the GW public
+  asynchronous routes.
+- Expose the research facade from organization-employee and professional actor
+  sessions, carrying the fetched SMART bearer into subsequent reads.
+- Add researcher-owned digital-twin working selections through
+  `DigitalTwinSdk.saveSelection(...)`, with ledger-safe organization-defined
+  tags and exact `Composition.meta-tag=system|code` workset recovery.
+- Return normalized `total` and `matches[]` from `DigitalTwinSdk.search(...)`;
+  retain the nested GW submit/poll envelope only as `operation` for diagnostics.
+- Add one executable DigitalTwinSdk 101 covering SMART access, coded search,
+  tagged selection persistence, reopen-by-tag, and materialization.
+- Clarify that `generateDigitalTwinFromSubjectData(...)` is an explicit
+  study/transfer operation; routine clinical ingestion is projected by GW.
+
 ## 2.4.5 - 2026-08-16
 
 - Consume Common Utils 2.5.7 and use
@@ -221,6 +244,11 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+
+- Align `DigitalTwinSdk` with the existing authorization contract: default to
+  the canonical `organization/ResearchSubject.rs` capability and HL7 v3
+  `HRESCH` purpose, with employee ownership carried by `Composition.author`
+  rather than email-derived tag namespaces.
 
 ## [2.3.13] - 2026-07-31
 

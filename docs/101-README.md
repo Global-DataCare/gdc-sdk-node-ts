@@ -11,8 +11,9 @@
 1. [gdc-sdk-core-ts/docs/101-USER_STORY_CANON.md](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/101-USER_STORY_CANON.md)
 2. [101-SDK_INTEGRATION.md](./101-SDK_INTEGRATION.md)
 3. [101-SDK_END_TO_END.md](./101-SDK_END_TO_END.md)
-4. [101-ORGANIZATION_CONTROLLER_LIFECYCLE.md](./101-ORGANIZATION_CONTROLLER_LIFECYCLE.md)
-5. [101-FHIR-R5-SUBSCRIPTIONS-AND-DEVICE-PUSH.md](./101-FHIR-R5-SUBSCRIPTIONS-AND-DEVICE-PUSH.md)
+4. [101-DIGITAL_TWIN_SDK.md](./101-DIGITAL_TWIN_SDK.md)
+5. [101-ORGANIZATION_CONTROLLER_LIFECYCLE.md](./101-ORGANIZATION_CONTROLLER_LIFECYCLE.md)
+6. [101-FHIR-R5-SUBSCRIPTIONS-AND-DEVICE-PUSH.md](./101-FHIR-R5-SUBSCRIPTIONS-AND-DEVICE-PUSH.md)
 
 ## User Story Start
 
@@ -48,6 +49,10 @@ Current executable entrypoints:
 - professional access request, subject inbox, correlated Consent and SMART:
   [docs/101-PROFESSIONAL-CONSENT-SMART.md](./101-PROFESSIONAL-CONSENT-SMART.md) and
   [tests/101-professional-access-request-lifecycle.test.mjs](../tests/101-professional-access-request-lifecycle.test.mjs)
+- digital-twin coded search, tagged working selection, reopen by tag, and
+  materialization:
+  [docs/101-DIGITAL_TWIN_SDK.md](./101-DIGITAL_TWIN_SDK.md) and
+  [tests/101-digital-twin-sdk.test.mjs](../tests/101-digital-twin-sdk.test.mjs)
 - wallet-backed backend/session jobs:
   [tests/101-wallet-backed-job-manager.test.mjs](../tests/101-wallet-backed-job-manager.test.mjs)
 
@@ -107,6 +112,7 @@ Naming rule:
 - [tests/101-organization-controller-lifecycle.test.mjs](../tests/101-organization-controller-lifecycle.test.mjs)
 - [tests/101-individual-controller-backend-runtime.test.mjs](../tests/101-individual-controller-backend-runtime.test.mjs)
 - [tests/101-backend-profile-runtime.test.mjs](../tests/101-backend-profile-runtime.test.mjs)
+- [tests/101-digital-twin-sdk.test.mjs](../tests/101-digital-twin-sdk.test.mjs)
 - [tests/101-live-full-cycle-bff-runtime.e2e.test.mjs](../tests/101-live-full-cycle-bff-runtime.e2e.test.mjs)
 
 ## Boundary

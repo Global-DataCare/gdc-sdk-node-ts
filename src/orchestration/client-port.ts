@@ -41,6 +41,7 @@ import type { FhirR5SubscriptionBatchInput } from '../fhir-r5-subscription-runti
 import type { EnsureFamilyOrganizationRegistrationInput, EnsureFamilyOrganizationRegistrationResult } from '../family-organization-registration.js';
 import type { OrganizationLicenseOrderConfirmInput } from '../organization-license-order.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
+import type { DigitalTwinMaterializationInput, DigitalTwinSearchInput, DigitalTwinSelectionInput } from '../digital-twin.js';
 import type {
   CommunicationIngestionInput,
   BlockchainArtifactRegistrationInput,
@@ -394,6 +395,18 @@ export type RuntimeClient = {
   searchClinicalBundle?: (
     ctx: RouteContext,
     input: ClinicalBundleSearchInput,
+  ) => Promise<SubmitAndPollResult>;
+  searchDigitalTwins?: (
+    ctx: RouteContext,
+    input: DigitalTwinSearchInput,
+  ) => Promise<SubmitAndPollResult>;
+  saveDigitalTwinSelection?: (
+    ctx: RouteContext,
+    input: DigitalTwinSelectionInput,
+  ) => Promise<SubmitAndPollResult>;
+  materializeDigitalTwin?: (
+    ctx: RouteContext,
+    input: DigitalTwinMaterializationInput,
   ) => Promise<SubmitAndPollResult>;
   getLatestIps?: (
     ctx: RouteContext,

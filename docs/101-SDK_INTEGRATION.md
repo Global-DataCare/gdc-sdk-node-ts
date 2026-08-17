@@ -256,9 +256,9 @@ Research-access note:
 
 - when the business flow is “request SMART token, search digital twins, open
   IPS”, teach that journey as `DigitalTwinSdk`
-- today, in `gdc-sdk-node-ts`, the executable actor façade that already owns
-  those methods is still `ProfessionalSdk`
-- use `ProfessionalSdk` in code until a dedicated public alias is published
+- `DigitalTwinSdk` is the public executable façade for those operations
+- organization-employee and professional actor sessions expose it through
+  `session.asDigitalTwin()`
 
 ### Organization controller
 
@@ -296,15 +296,28 @@ Use this mental split for new developers:
   - builds or forwards the VP carrying the contract VC
   - requests the SMART token from the provider tenant
   - searches `digitaltwin/.../Composition/_search`
-  - opens one IPS or downloads selected IPS results
+  - saves one researcher-owned, custom-tagged working selection
+  - reopens only the current employee's tagged saved selections through
+    `searchSelections(...)`, using exact `Composition.meta-tag=system|code`
+    plus the actor-bound `Composition.author`
+  - materializes the selected pseudonymous twin
 
-Current implementation honesty:
+Current implementation:
 
-- the current GW runtime behavior is already proven end to end
-- the current node façade that executes the search/read half is
-  `ProfessionalSdk`
-- the 101 should still present the business capability as `DigitalTwinSdk`
-  because that is what developers and product teams understand
+- `DigitalTwinSdk.requestSmartToken(...)` retains the returned SMART bearer
+  for its subsequent search and materialization calls
+- `DigitalTwinSdk.search(...)` calls the public asynchronous
+  `digitaltwin/.../_search` route and unwraps the GW envelope into `matches[]`;
+  the raw submit/poll result remains available as `operation`
+- `DigitalTwinSdk.saveSelection(...)` writes a separate, ledger-safe tagged
+  working-selection `Composition`; it does not modify the canonical twin
+- `DigitalTwinSdk.materialize(...)` calls the public Communication transport
+  for `ResearchSubject/$summary`
+
+The complete flow, including custom tag ownership and examples, is
+[101-DIGITAL_TWIN_SDK.md](./101-DIGITAL_TWIN_SDK.md). Do not document tagging
+as a separate feature: it is the persistence step between discovery and later
+materialization.
 
 Canonical didactic example:
 
@@ -313,16 +326,17 @@ Canonical didactic example:
 - provider subjects:
   - `Doraemon` with one IPS imported
   - `Novita` with medication-only demo bundles
-- search terms:
-  - `ibuprofen`
-  - `paracetamol`
+- coded search examples:
+  - RxNorm or SNOMED medication code
+  - LOINC section or observation code
 
 Expected behavior:
 
 - requesting a SMART token without the contract VC proof is rejected
 - requesting it with the matching contract VC proof succeeds
-- searching `ibuprofen` returns exactly one digital twin
-- searching `paracetamol` returns exactly one digital twin
+- searching by the matching coded medication returns exactly one digital twin
+- free-text and display searches are intentionally unavailable because GW
+  removes those claims from the research projection
 - both matches correspond to `Novita`
 
 What the backend/BFF owns:

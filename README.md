@@ -640,6 +640,11 @@ modules below.
 - [`src/resource-operations.ts`](src/resource-operations.ts)
   - types: `OrganizationEmployeeCreationInput`, `IpsOrFhirImportInput`, `RelatedPersonUpsertInput`, `CommunicationIngestionInput`, `ClinicalDateRange`, `ClinicalBundleSearchInput`, `ConsentActorTargetInput`, `GrantProfessionalAccessInput`, `GrantProfessionalAccessResult`, `DigitalTwinGenerationInput`
   - functions: `createOrganizationEmployeeWithDeps(...)`, `importIpsOrFhirAndUpdateIndexWithDeps(...)`, `upsertRelatedPersonAndPollWithDeps(...)`, `ingestCommunicationAndUpdateIndexWithDeps(...)`, `searchClinicalBundleWithDeps(...)`, `searchLatestIpsWithDeps(...)`, `grantProfessionalAccessWithDeps(...)`, `generateDigitalTwinFromSubjectDataWithDeps(...)`
+- [`src/digital-twin.ts`](src/digital-twin.ts)
+  - types: `DigitalTwinSearchInput`, `DigitalTwinSelectionInput`, `DigitalTwinResearchTag`, `DigitalTwinMaterializationInput`
+  - functions: `searchDigitalTwinsWithDeps(...)`, `saveDigitalTwinSelectionWithDeps(...)`, `materializeDigitalTwinWithDeps(...)`
+- [`src/orchestration/digital-twin-sdk.ts`](src/orchestration/digital-twin-sdk.ts)
+  - class: `DigitalTwinSdk` (`requestSmartToken`, `search`, `saveSelection`, `materialize`)
 - [`src/session.ts`](src/session.ts)
   - types: `NodeCapability`, `NodeActorSessionContext`, `ActorSessionContext`
   - classes: `ActorSession`, `NodeActorSession`

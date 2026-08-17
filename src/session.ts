@@ -9,6 +9,7 @@ import { PersonalSdk } from './orchestration/personal-sdk.js';
 import { OrganizationControllerSdk } from './orchestration/organization-controller-sdk.js';
 import { OrganizationEmployeeSdk } from './orchestration/organization-employee-sdk.js';
 import { ProfessionalSdk } from './orchestration/professional-sdk.js';
+import { DigitalTwinSdk } from './orchestration/digital-twin-sdk.js';
 import type { RuntimeClient } from './orchestration/client-port.js';
 
 export type NodeCapability = Capability;
@@ -98,6 +99,14 @@ export class ActorSession {
     return new ProfessionalSdk(this.requireClient());
   }
 
+  /** Materializes the digital-twin facade for an organization employee or professional actor. */
+  public asDigitalTwin(): DigitalTwinSdk {
+    if (this.actorKind !== ActorKinds.OrganizationEmployee && this.actorKind !== ActorKinds.Professional) {
+      throw new Error(`ActorSession is '${this.actorKind}' and cannot use digital-twin research operations.`);
+    }
+    return new DigitalTwinSdk(this.requireClient(), this.actorDid);
+  }
+
   private requireClient(): RuntimeClient {
     if (!this.client) {
       throw new Error('ActorSession requires a runtime client to materialize actor facades.');
@@ -129,4 +138,5 @@ export class NodeActorSession {
   public asPersonal(): PersonalSdk { return this.inner.asPersonal(); }
   public asIndividualMember(): IndividualMemberSdk { return this.inner.asIndividualMember(); }
   public asProfessional(): ProfessionalSdk { return this.inner.asProfessional(); }
+  public asDigitalTwin(): DigitalTwinSdk { return this.inner.asDigitalTwin(); }
 }
