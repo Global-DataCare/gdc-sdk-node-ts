@@ -2,10 +2,20 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { HealthcareDocumentTypes } from 'gdc-common-utils-ts/constants';
+import { CompositionClaim } from 'gdc-common-utils-ts/models';
+import type { MetaTagCoding } from 'gdc-common-utils-ts/models/confidential-storage';
+
 import type { RouteContext } from './individual-onboarding.js';
 import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
 
 export type DigitalTwinFhirFormat = 'org.hl7.fhir.r4' | 'org.hl7.fhir.api';
+
+/** Search parameters added by the digital-twin Composition profile. */
+export const DigitalTwinSearchParameter = Object.freeze({
+  Section: 'section',
+  MetaTag: 'Composition.meta-tag',
+});
 
 export type DigitalTwinSearchInput = {
   /** SMART bearer used for this research operation. */
@@ -20,8 +30,8 @@ export type DigitalTwinSearchInput = {
 /** One pseudonymous Composition returned by a digital-twin search. */
 export type DigitalTwinSearchMatch = Record<string, unknown> & {
   id?: string;
-  'Composition.subject': string;
-  'Composition.section'?: string;
+  [CompositionClaim.Subject]: string;
+  [CompositionClaim.Section]?: string;
   meta?: { tag?: DigitalTwinResearchTag[] };
 };
 
@@ -44,16 +54,23 @@ export type DigitalTwinMaterializationInput = {
 };
 
 /** Ledger-safe organization-defined marker attached to a research working copy. */
-export type DigitalTwinResearchTag = {
+export type DigitalTwinResearchTag = Required<Pick<MetaTagCoding, 'system' | 'code'>> &
+  Pick<MetaTagCoding, 'version' | 'userSelected'> & {
   /** Stable position/name for the tag in the Composition metadata. */
   id?: string;
-  /** Organization-owned tag vocabulary, never an employee/email namespace. */
-  system: string;
-  /** Machine-readable custom value, for example `study-2026-04` or `reviewed`. */
-  code: string;
-  version?: string;
-  userSelected?: boolean;
 };
+
+/**
+ * Returns the stable FHIR Coding namespace for workset names owned by one
+ * organization. Employee ownership is kept separately in Composition.author.
+ */
+export function buildDigitalTwinWorksetTagSystem(organizationDid: string): string {
+  const normalizedOrganizationDid = String(organizationDid || '').trim().replace(/\/$/, '');
+  if (!normalizedOrganizationDid.startsWith('did:')) {
+    throw new Error('Digital twin workset tag system requires the hosted organization DID.');
+  }
+  return `${normalizedOrganizationDid}/fhir/CodeSystem/digital-twin-workset`;
+}
 
 /**
  * Saves a researcher-owned Composition working selection for one twin.
@@ -185,12 +202,12 @@ export async function saveDigitalTwinSelectionWithDeps(
   const claims = {
     '@context': format,
     '@type': 'Composition:ResearcherWorkingSelection',
-    'Composition.identifier': compositionId,
-    'Composition.subject': twinSubjectId,
-    'Composition.section': section,
-    'Composition.type': input.documentType || 'LOINC|60591-5',
-    'Composition.author': authorDid,
-    'Composition.date': input.date || new Date().toISOString(),
+    [CompositionClaim.Identifier]: compositionId,
+    [CompositionClaim.Subject]: twinSubjectId,
+    [CompositionClaim.Section]: section,
+    [CompositionClaim.Type]: input.documentType || HealthcareDocumentTypes.IPS.attributeValue,
+    [CompositionClaim.Author]: authorDid,
+    [CompositionClaim.Date]: input.date || new Date().toISOString(),
   };
   const resource = {
     resourceType: 'Composition',
