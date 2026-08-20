@@ -52,12 +52,109 @@ export async function provisionOrganizationEmployeeWithDeps(
   deps: OrganizationEmployeeProvisioningDeps,
 ): Promise<OrganizationEmployeeProvisioningResult> {
   const employee = await deps.createEmployee(routeContext, input.creation);
+  assertSuccessfulEmployeeOperation('employee creation', employee);
   const license = await deps.issueLicense(routeContext, input.invitation);
+  assertSuccessfulEmployeeOperation('licence issue', license);
   const activationCode = readEmployeeActivationCode(license.poll.body);
   if (!activationCode) {
     throw new Error('provisionOrganizationEmployee: GW response did not contain an employee activation credential.');
   }
   return { employee, license, activationCode };
+}
+
+type EmployeeOperationFailure = Readonly<{
+  status?: number;
+  diagnostics?: string;
+}>;
+
+/**
+ * Rejects failed outer HTTP responses and failed entries hidden inside a
+ * successful async poll envelope before a caller starts the next mutation.
+ */
+export function assertSuccessfulEmployeeOperation(
+  operation: string,
+  result: SubmitAndPollResult,
+): void {
+  const failure = responseFailure(result.submit.status, result.submit.body)
+    || responseFailure(result.poll.status, result.poll.body)
+    || nestedEmployeeOperationFailure(result.poll.body);
+  if (!failure) return;
+  const status = failure.status ? ` (HTTP ${failure.status})` : '';
+  const diagnostics = failure.diagnostics ? `: ${failure.diagnostics}` : '';
+  throw new Error(`provisionOrganizationEmployee: ${operation} failed${status}${diagnostics}.`);
+}
+
+function responseFailure(status: number, body: unknown): EmployeeOperationFailure | undefined {
+  return status >= 200 && status < 300
+    ? undefined
+    : { status, diagnostics: firstOperationOutcomeDiagnostics(body) };
+}
+
+function nestedEmployeeOperationFailure(value: unknown): EmployeeOperationFailure | undefined {
+  for (const candidate of nestedRecords(value)) {
+    const response = record(candidate.response);
+    const status = parseHttpStatus(response?.status);
+    const outcome = record(response?.outcome);
+    if (status !== undefined && (status < 200 || status >= 300)) {
+      return { status, diagnostics: firstOperationOutcomeDiagnostics(outcome || candidate) };
+    }
+    if (candidate.resourceType === 'OperationOutcome') {
+      const issue = firstFailedIssue(candidate.issue);
+      if (issue) return { status, diagnostics: issue };
+    }
+  }
+  return undefined;
+}
+
+function firstOperationOutcomeDiagnostics(value: unknown): string | undefined {
+  for (const candidate of nestedRecords(value)) {
+    if (candidate.resourceType !== 'OperationOutcome') continue;
+    const diagnostics = firstFailedIssue(candidate.issue);
+    if (diagnostics) return diagnostics;
+  }
+  return undefined;
+}
+
+function firstFailedIssue(value: unknown): string | undefined {
+  if (!Array.isArray(value)) return undefined;
+  for (const issue of value) {
+    const candidate = record(issue);
+    const severity = String(candidate?.severity || '').trim().toLowerCase();
+    if (severity !== 'error' && severity !== 'fatal') continue;
+    const diagnostics = String(candidate?.diagnostics || '').trim();
+    if (diagnostics) return diagnostics;
+  }
+  return undefined;
+}
+
+function parseHttpStatus(value: unknown): number | undefined {
+  const match = String(value || '').match(/^\s*(\d{3})/);
+  return match ? Number(match[1]) : undefined;
+}
+
+function nestedRecords(root: unknown): Record<string, unknown>[] {
+  const records: Record<string, unknown>[] = [];
+  const pending: unknown[] = [root];
+  const visited = new Set<object>();
+  while (pending.length > 0) {
+    const value = pending.shift();
+    if (!value || typeof value !== 'object' || visited.has(value)) continue;
+    visited.add(value);
+    if (Array.isArray(value)) {
+      pending.push(...value);
+      continue;
+    }
+    const candidate = value as Record<string, unknown>;
+    records.push(candidate);
+    pending.push(...Object.values(candidate));
+  }
+  return records;
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
 }
 
 /** Shared dependencies for combining employee and license directory searches. */
