@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Stop organization employee provisioning as soon as employee creation or
+  licence issuance returns a failed outer HTTP response, bundle-entry status,
+  or error/fatal `OperationOutcome`. Surface its diagnostics instead of
+  continuing to the next mutation and reporting a misleading missing
+  activation credential.
+
 ## 2.4.9 - 2026-08-17
 
 - Make `userSelected` system-managed for personal digital-twin worksets.

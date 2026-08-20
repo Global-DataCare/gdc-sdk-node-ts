@@ -47,6 +47,76 @@ test('provisionOrganizationEmployeeWithDeps owns create plus license issue orche
   assert.equal(result.activationCode, EXAMPLE_EMPLOYEE_ACTIVATION_CODE);
 });
 
+test('provisionOrganizationEmployeeWithDeps stops before license issue when employee creation fails', async () => {
+  let licenseIssueCalls = 0;
+  await assert.rejects(
+    provisionOrganizationEmployeeWithDeps(
+      EXAMPLE_TENANT_ROUTE_CONTEXT,
+      {
+        creation: { employeeClaims: buildExampleEmployeeClaims(EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE) },
+        invitation: {
+          ...EXAMPLE_LICENSE_ISSUE_INPUT,
+          subjectDid: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier,
+        },
+      },
+      {
+        createEmployee: async () => ({
+          submit: { status: 401, body: {
+            resourceType: 'OperationOutcome',
+            issue: [{ severity: 'error', code: 'security', diagnostics: 'Controller proof is invalid.' }],
+          } },
+          poll: { status: 400, body: {
+            resourceType: 'OperationOutcome',
+            issue: [{ severity: 'error', code: 'security', diagnostics: 'Secure request could not be decoded.' }],
+          } },
+        }),
+        issueLicense: async () => {
+          licenseIssueCalls += 1;
+          return buildExampleSubmitAndPollResult(EXAMPLE_LICENSE_ISSUE_RESPONSE_BODY);
+        },
+      },
+    ),
+    /employee creation failed \(HTTP 401\): Controller proof is invalid\./,
+  );
+  assert.equal(licenseIssueCalls, 0);
+});
+
+test('provisionOrganizationEmployeeWithDeps surfaces nested license OperationOutcome diagnostics', async () => {
+  await assert.rejects(
+    provisionOrganizationEmployeeWithDeps(
+      EXAMPLE_TENANT_ROUTE_CONTEXT,
+      {
+        creation: { employeeClaims: buildExampleEmployeeClaims(EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE) },
+        invitation: {
+          ...EXAMPLE_LICENSE_ISSUE_INPUT,
+          subjectDid: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier,
+        },
+      },
+      {
+        createEmployee: async () => buildExampleSubmitAndPollResult(EXAMPLE_EMPLOYEE_SEARCH_RESPONSE_BODY),
+        issueLicense: async () => ({
+          submit: { status: 202, body: {} },
+          poll: { status: 200, body: {
+            resourceType: 'Bundle',
+            type: 'batch-response',
+            data: [{
+              type: 'License:Issued',
+              response: {
+                status: '409',
+                outcome: {
+                  resourceType: 'OperationOutcome',
+                  issue: [{ severity: 'error', code: 'conflict', diagnostics: 'No employee licence is available.' }],
+                },
+              },
+            }],
+          } },
+        }),
+      },
+    ),
+    /licence issue failed \(HTTP 409\): No employee licence is available\./,
+  );
+});
+
 test('listOrganizationEmployeeLifecycleWithDeps returns the shared typed projection', async () => {
   const result = await listOrganizationEmployeeLifecycleWithDeps(EXAMPLE_TENANT_ROUTE_CONTEXT, {
     searchEmployees: async () => buildExampleSubmitAndPollResult(EXAMPLE_EMPLOYEE_SEARCH_RESPONSE_BODY),
