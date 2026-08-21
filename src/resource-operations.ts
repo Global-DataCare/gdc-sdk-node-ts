@@ -188,6 +188,13 @@ export type IndividualMemberLicenseAddInput = {
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
 
+/** Adds zero-cost employee seats on an explicitly configured test network. */
+export type OrganizationEmployeeLicenseAddInput = {
+  quantity: number;
+  requestThid?: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+};
+
 /** Input shared by invitation acceptance, deactivation and release. */
 export type IndividualMemberLicenseTransitionInput = {
   /** Required for controller deactivation/release; acceptance resolves by code. */
@@ -1010,6 +1017,40 @@ type IndividualLicenseMutationDeps = {
     pollOptions?: { timeoutMs?: number; intervalMs?: number },
   ) => Promise<SubmitAndPollResult>;
 };
+
+type OrganizationLicenseMutationDeps = {
+  organizationLicenseActionPath: (ctx: RouteContext, action: string) => string;
+  organizationLicenseActionPollPath: (ctx: RouteContext, action: string) => string;
+  submitAndPoll: IndividualLicenseMutationDeps['submitAndPoll'];
+};
+
+/**
+ * Requests additional zero-cost employee seats from a GW test-network.
+ * Production callers must use the provider-payment and confirmed Order flow;
+ * the gateway enforces that environment boundary independently of this SDK.
+ */
+export async function addFreeOrganizationEmployeeLicensesWithDeps(
+  routeCtx: RouteContext,
+  input: OrganizationEmployeeLicenseAddInput,
+  deps: OrganizationLicenseMutationDeps,
+): Promise<SubmitAndPollResult> {
+  const entry = buildLicensePurchaseEntry({
+    quantity: input.quantity,
+    userClass: 'employee',
+    type: 'web',
+    price: 0,
+    priceCurrency: 'EUR',
+  });
+  return deps.submitAndPoll(
+    deps.organizationLicenseActionPath(routeCtx, '_add'),
+    deps.organizationLicenseActionPollPath(routeCtx, '_add'),
+    {
+      thid: input.requestThid || `organization-license-add-${createRuntimeUuid()}`,
+      body: { resourceType: 'Bundle', type: 'batch', data: [entry] },
+    },
+    input.pollOptions,
+  );
+}
 
 /**
  * Reserves one available household/member seat for a selected contact.

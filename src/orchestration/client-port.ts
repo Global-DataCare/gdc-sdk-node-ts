@@ -61,6 +61,7 @@ import type {
   IndividualMemberLicenseTransitionInput,
   IpsOrFhirImportInput,
   OrganizationEmployeeCreationInput,
+  OrganizationEmployeeLicenseAddInput,
   OrganizationEmployeeLicenseInvitationInput,
   OrganizationEmployeeLifecycleInput,
   OrganizationEmployeeSearchInput,
@@ -208,6 +209,10 @@ export type RuntimeClient = {
   listOrganizationLicenses?: (
     ctx: RouteContext,
     input?: LicenseListRuntimeSearchInput,
+  ) => Promise<SubmitAndPollResult>;
+  addFreeOrganizationEmployeeLicenses?: (
+    ctx: RouteContext,
+    input: OrganizationEmployeeLicenseAddInput,
   ) => Promise<SubmitAndPollResult>;
   searchOrganizationLicenseOffers?: (
     ctx: RouteContext,

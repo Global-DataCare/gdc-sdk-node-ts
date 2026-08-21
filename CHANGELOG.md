@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.4.10 - 2026-08-20
+
+- Add the organization-controller `addFreeEmployeeLicenses(...)` facade for
+  an explicit zero-price professional `License/_add` operation. GW remains the
+  authority that restricts this simulation to Test Network and materializes
+  only unassigned seats.
+
 - Stop organization employee provisioning as soon as employee creation or
   licence issuance returns a failed outer HTTP response, bundle-entry status,
   or error/fatal `OperationOutcome`. Surface its diagnostics instead of
