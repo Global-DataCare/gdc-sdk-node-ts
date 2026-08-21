@@ -435,9 +435,11 @@ export class NodeManagedWallet implements IWallet {
       header: {
         typ: 'JWS',
       },
-      claims: {
-        payload: content,
-      },
+      // GW KMS decodes the JWS claims as the DIDComm message itself. Wrapping
+      // the message in `{ payload: ... }` hides `iss`, `thid` and `body` one
+      // level too deep and makes every encrypted resource action fail before
+      // routing or signature verification.
+      claims: content,
       key: signingKey,
     });
     return this.buildCompactJwe!(options.context, {
@@ -483,8 +485,16 @@ export class NodeManagedWallet implements IWallet {
           throw new Error('NodeManagedWallet.unpackWithContext expected a compact JWS payload.');
         }
         const payload = Content.base64UrlSafeToJSON(parts[1]);
+        const decodedPayload = payload as Record<string, any>;
+        const legacyWrappedContent = Object.keys(decodedPayload).length === 1
+          && decodedPayload.payload
+          && typeof decodedPayload.payload === 'object'
+          ? decodedPayload.payload
+          : decodedPayload;
         return {
-          content: (payload as Record<string, any>).payload,
+          // Read the canonical direct-message JWS and retain compatibility
+          // with SDK <=2.4.11 envelopes already queued by an outbox.
+          content: legacyWrappedContent,
           meta: {
             jwe: { protected: decodedProtectedHeader },
             jws: {

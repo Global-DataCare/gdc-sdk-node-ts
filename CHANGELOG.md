@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 2.4.12 - 2026-08-20
+
+- Sign the DIDComm message itself before compact-JWE encryption. SDK 2.4.11
+  incorrectly nested secure resource actions under a JWS `payload` claim, so
+  GW could not find the top-level issuer, thread or body and rejected the
+  request before routing. Keep unpacking compatible with already-queued legacy
+  wrapped messages.
+
 ## 2.4.11 - 2026-08-20
 
 - Fix the secure organization-controller `License/_add` request by including
