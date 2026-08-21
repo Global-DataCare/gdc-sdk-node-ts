@@ -574,6 +574,10 @@ test('professional test-network license add keeps zero price explicit', async ()
   });
 
   assert.equal(calls[0][0], ORG_LICENSE_ADD_PATH);
+  assert.match(calls[0][2].jti, /^jti-/);
+  assert.equal(calls[0][2].iss, TEST_ROUTE_CTX.tenantId);
+  assert.equal(calls[0][2].aud, TEST_ROUTE_CTX.tenantId);
+  assert.equal(calls[0][2].type, 'application/didcomm-plain+json');
   assert.equal(calls[0][2].body.data[0].meta.claims['org.schema.Offer.eligibleQuantity.value'], 2);
   assert.equal(calls[0][2].body.data[0].meta.claims['org.schema.Offer.price'], 0);
   assert.equal(calls[0][2].body.data[0].meta.claims['org.schema.IndividualProduct.category'], 'professional');
