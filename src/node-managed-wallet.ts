@@ -381,6 +381,9 @@ export class NodeManagedWallet implements IWallet {
     };
     const protectedHeader = {
       enc: 'A256GCM',
+      // GW binds the encrypted channel to the sender's managed communication
+      // key before it decrypts or evaluates the nested DIDComm message.
+      skid: entry.descriptor.kid,
       ...(request.contentType ? { cty: request.contentType } : {}),
     };
     const plaintext = typeof request.plaintext === 'string'
