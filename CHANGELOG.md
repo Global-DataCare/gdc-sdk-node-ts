@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.4.13 - 2026-08-20
+
+- Include the managed sender communication-key id as `skid` in every compact
+  JWE protected header. GW validates this channel binding before decrypting the
+  nested DIDComm/JWS request; without it protected licence and lifecycle
+  operations are rejected with HTTP 401.
+
 ## 2.4.12 - 2026-08-20
 
 - Sign the DIDComm message itself before compact-JWE encryption. SDK 2.4.11

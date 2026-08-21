@@ -120,6 +120,37 @@ test('NodeManagedWallet packs the DIDComm message itself as the signed JWS claim
   assert.equal(signedClaims.payload, undefined);
 });
 
+test('NodeManagedWallet identifies its sender encryption key in the compact JWE protected header', async () => {
+  const sender = new NodeManagedWallet({ cryptoHelper: new NodeCryptoHelper() });
+  const recipient = new NodeManagedWallet({ cryptoHelper: new NodeCryptoHelper() });
+  const senderContext = { runtime: { runtimeId: 'portal-runtime:jwe-sender', runtimeType: 'web-bff' } };
+  const recipientContext = { runtime: { runtimeId: 'gateway-runtime:jwe-recipient', runtimeType: 'backend-service' } };
+
+  await sender.provisionManagedKeys(senderContext, {
+    ownerScope: 'runtime', purposes: ['comm-signing', 'comm-encryption'],
+    seedMaterial: 'jwe-sender-seed', mode: 'deterministic',
+  });
+  await recipient.provisionManagedKeys(recipientContext, {
+    ownerScope: 'runtime', purposes: ['comm-encryption'],
+    seedMaterial: 'jwe-recipient-seed', mode: 'deterministic',
+  });
+  const [senderEncryption] = await sender.getPublicJwks(senderContext, {
+    ownerScope: 'runtime', purpose: 'comm-encryption',
+  });
+  const [recipientEncryption] = await recipient.getPublicJwks(recipientContext, {
+    ownerScope: 'runtime', purpose: 'comm-encryption',
+  });
+
+  const compactJwe = await sender.packForRecipientWithContext({
+    iss: 'tenant-example', aud: 'tenant-example', jti: 'jti-example', thid: 'thid-example',
+    type: 'application/didcomm-plain+json', body: { data: [{ type: 'LicenseAddRequest' }] },
+  }, recipientEncryption.publicJwk, { context: senderContext });
+  const protectedHeader = JSON.parse(Buffer.from(compactJwe.split('.')[0], 'base64url').toString('utf8'));
+
+  assert.equal(protectedHeader.skid, senderEncryption.kid);
+  assert.equal(protectedHeader.cty, 'JWS');
+});
+
 test('NodeManagedWallet protects and restores confidential documents with runtime storage keys', async () => {
   const wallet = new NodeManagedWallet({
     cryptoHelper: new NodeCryptoHelper(),
