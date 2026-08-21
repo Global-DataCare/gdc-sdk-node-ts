@@ -77,6 +77,10 @@ export class RuntimeClientPaths {
   public employeeSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Employee', '_search-response'); }
   public organizationLicenseSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'License', '_search'); }
   public organizationLicenseSearchPollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'License', '_search-response'); }
+  /** Builds one legal-organization license mutation path. */
+  public organizationLicenseActionPath(ctx: RouteContext | undefined, action: string): string { return this.v1Path(ctx, 'entity', 'org.schema', 'License', action); }
+  /** Builds the poll path paired with a legal-organization license mutation. */
+  public organizationLicenseActionPollPath(ctx: RouteContext | undefined, action: string): string { return this.v1Path(ctx, 'entity', 'org.schema', 'License', `${action}-response`); }
   public organizationDidBindingPath(ctx?: RouteContext): string { return buildOrganizationDidBindingPath(this.requireRouteContext(ctx)); }
   public organizationDidBindingPollPath(ctx?: RouteContext): string { return buildOrganizationDidBindingPollPath(this.requireRouteContext(ctx)); }
   public organizationLicenseOfferSearchPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'entity', 'org.schema', 'Offer', '_search'); }

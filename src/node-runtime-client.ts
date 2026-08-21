@@ -119,6 +119,7 @@ import {
   type LicenseOfferRuntimeSearchInput,
   type LicenseOrderRuntimeSearchInput,
   type OrganizationEmployeeCreationInput,
+  type OrganizationEmployeeLicenseAddInput,
   type OrganizationEmployeeLicenseInvitationInput,
   type OrganizationEmployeeLifecycleInput,
   type OrganizationEmployeeSearchInput,
@@ -127,6 +128,7 @@ import {
   type RevokeProfessionalAccessInput,
   type RevokeProfessionalAccessResult,
   type RelatedPersonUpsertInput,
+  addFreeOrganizationEmployeeLicensesWithDeps,
 } from './resource-operations.js';
 import type { LegalOrganizationOrderInput } from './host-onboarding.js';
 import type { SmartTokenExchangeResult } from './smart-token.js';
@@ -858,6 +860,26 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       organizationLicenseSearchPath: this.paths.organizationLicenseSearchPath.bind(this.paths),
       organizationLicenseSearchPollPath: this.paths.organizationLicenseSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /** Adds zero-cost employee seats when the target GW is a test-network. */
+  public async addFreeOrganizationEmployeeLicenses(
+    ctx: RouteContext,
+    input: OrganizationEmployeeLicenseAddInput,
+  ): Promise<SubmitAndPollResult> {
+    return addFreeOrganizationEmployeeLicensesWithDeps(ctx, input, {
+      organizationLicenseActionPath: this.paths.organizationLicenseActionPath.bind(this.paths),
+      organizationLicenseActionPollPath: this.paths.organizationLicenseActionPollPath.bind(this.paths),
+      submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
+        ? (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
+            submitPath,
+            pollPath,
+            payload,
+            this.transportProfile,
+            pollOptions,
+          )
+        : this.submitAndPoll.bind(this),
     });
   }
 
