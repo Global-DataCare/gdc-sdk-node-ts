@@ -87,3 +87,37 @@ for (const profile of Object.values(TransportProfiles)) {
     }
   });
 }
+
+test('OrganizationControllerSdk signs the complete Test Network licence-add envelope before encryption', async () => {
+  const calls = [];
+  const packedMessages = [];
+  const sdk = new OrganizationControllerSdk(new NodeHttpClient({
+    baseUrl: 'https://gw.example',
+    ctx,
+    transportProfile: TransportProfiles.DidcommEncryptedForm,
+    secureTransportAdapter: {
+      async pack(message) {
+        packedMessages.push(message);
+        return `packed-${message.thid}`;
+      },
+      async unpack(jwe) { return { decrypted: jwe }; },
+    },
+    fetchImpl: createFetchRecorder(TransportProfiles.DidcommEncryptedForm, calls),
+  }));
+
+  const result = await sdk.addFreeEmployeeLicenses(ctx, {
+    quantity: 2,
+    pollOptions: { intervalMs: 1, timeoutMs: 100 },
+  });
+
+  assert.equal(result.poll.status, 200);
+  assert.match(calls[0].url, /License\/_add$/);
+  assert.match(calls[1].url, /License\/_add-response$/);
+  assert.equal(calls[0].init.headers['Content-Type'], TransportProfiles.DidcommEncryptedForm);
+  assert.equal(packedMessages[0].iss, ctx.tenantId);
+  assert.equal(packedMessages[0].aud, ctx.tenantId);
+  assert.match(packedMessages[0].jti, /^jti-/);
+  assert.equal(packedMessages[0].type, TransportProfiles.DidcommPlainJson);
+  assert.equal(packedMessages[0].body.data[0].meta.claims['org.schema.Offer.eligibleQuantity.value'], 2);
+  assert.equal(packedMessages[0].body.data[0].meta.claims['org.schema.Offer.price'], 0);
+});
