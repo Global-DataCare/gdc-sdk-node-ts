@@ -92,6 +92,34 @@ test('NodeManagedWallet signs compact JWS payloads with managed runtime keys', a
   assert.match(compact, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
 });
 
+test('NodeManagedWallet packs the DIDComm message itself as the signed JWS claims', async () => {
+  const wallet = new NodeManagedWallet({ cryptoHelper: new NodeCryptoHelper() });
+  const context = {
+    runtime: { runtimeId: 'portal-runtime:secure-message', runtimeType: 'web-bff' },
+  };
+  await wallet.provisionManagedKeys(context, {
+    ownerScope: 'runtime',
+    purposes: ['comm-signing'],
+    seedMaterial: 'secure-message-seed',
+    mode: 'deterministic',
+  });
+  wallet.buildCompactJwe = async (_context, request) => String(request.plaintext);
+
+  const message = {
+    iss: 'tenant-example',
+    aud: 'tenant-example',
+    jti: 'jti-example',
+    thid: 'thid-example',
+    type: 'application/didcomm-plain+json',
+    body: { data: [{ type: 'LicenseAddRequest' }] },
+  };
+  const compactJws = await wallet.packForRecipientWithContext(message, { kty: 'OKP', kid: 'recipient' }, { context });
+  const signedClaims = JSON.parse(Buffer.from(compactJws.split('.')[1], 'base64url').toString('utf8'));
+
+  assert.deepEqual(signedClaims, message);
+  assert.equal(signedClaims.payload, undefined);
+});
+
 test('NodeManagedWallet protects and restores confidential documents with runtime storage keys', async () => {
   const wallet = new NodeManagedWallet({
     cryptoHelper: new NodeCryptoHelper(),
