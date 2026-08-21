@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.4.11 - 2026-08-20
+
+- Fix the secure organization-controller `License/_add` request by including
+  the canonical DIDComm issuer, audience, message identifier, and media type.
+  Encrypted Test Network requests are now signed with the same outer envelope
+  contract as the existing employee lifecycle operations.
+
 ## 2.4.10 - 2026-08-20
 
 - Add the organization-controller `addFreeEmployeeLicenses(...)` facade for
