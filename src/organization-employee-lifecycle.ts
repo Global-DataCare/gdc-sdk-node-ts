@@ -23,10 +23,10 @@ import type {
 } from './resource-operations.js';
 
 /**
- * Input for atomic interactive provisioning. Supplying `licenseOrder` marks
- * creation as seat-required and authorizes the SDK to close a GW-issued Offer
- * before retrying creation and issuing the activation credential. Omitting it
- * preserves the separate unlicensed batch-import contract.
+ * Input for atomic interactive provisioning. Every current employee create is
+ * seat-required. Supplying `licenseOrder` authorizes the SDK to close a
+ * GW-issued Offer before retrying creation and issuing the activation
+ * credential. A future batch import requires a separate explicit operation.
  */
 export type OrganizationEmployeeProvisioningInput = Readonly<{
   creation: OrganizationEmployeeCreationInput;
@@ -68,15 +68,7 @@ export async function provisionOrganizationEmployeeWithDeps(
   input: OrganizationEmployeeProvisioningInput,
   deps: OrganizationEmployeeProvisioningDeps,
 ): Promise<OrganizationEmployeeProvisioningResult> {
-  const creation = input.licenseOrder
-    ? {
-        ...input.creation,
-        employeeClaims: {
-          ...input.creation.employeeClaims,
-          'gdc.employee.licenseRequired': true,
-        },
-      }
-    : input.creation;
+  const creation = input.creation;
   let employee = await deps.createEmployee(routeContext, creation);
   assertSuccessfulEmployeeOperation('employee creation', employee);
   let licenseOrder: SubmitAndPollResult | undefined;

@@ -264,12 +264,11 @@ Technical-slice note:
 ## Minimal sequence for a BFF
 
 For interactive employee creation, pass the `licenseOrder` continuation to
-`provisionOrganizationEmployee(...)`. The SDK signs
-`gdc.employee.licenseRequired=true`; if GW returns
+`provisionOrganizationEmployee(...)`. `Employee/_batch` create is itself the
+licensed operation; the SDK does not inject private control claims. If GW returns
 `Employee-license-offer-v1.0`, it confirms that Offer through `Order/_batch`,
 retries employee creation and only then invokes `License/_issue`. A future
-governed bulk importer may use direct employee creation without this strict
-continuation and contract seats later.
+governed bulk importer must use a distinct, explicit operation contract.
 
 ### A. Canonical onboarding path
 
