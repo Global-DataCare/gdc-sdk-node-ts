@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+
+/**
+ * Flow contract: interactive provisioning is never left half-created. A
+ * no-seat response must complete Offer/Order, retry Employee creation and only
+ * then issue the activation credential; batch callers may omit continuation.
+ */
 import {
   EXAMPLE_ACCOUNT_OWNER_ID,
   EXAMPLE_ACTIVATION_GRANT_CREATED_AT,
@@ -45,6 +51,87 @@ test('provisionOrganizationEmployeeWithDeps owns create plus license issue orche
     },
   );
   assert.equal(result.activationCode, EXAMPLE_EMPLOYEE_ACTIVATION_CODE);
+});
+
+test('provisionOrganizationEmployeeWithDeps closes an employee Offer through Order before retrying creation', async () => {
+  const offerId = 'urn:cds:ES:v1:health-care:product:org.schema:Offer:employee-seat-1';
+  let createCalls = 0;
+  const orderCalls = [];
+  const result = await provisionOrganizationEmployeeWithDeps(
+    EXAMPLE_TENANT_ROUTE_CONTEXT,
+    {
+      creation: { employeeClaims: buildExampleEmployeeClaims(EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE) },
+      invitation: {
+        ...EXAMPLE_LICENSE_ISSUE_INPUT,
+        subjectDid: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier,
+      },
+      licenseOrder: {
+        hostNetwork: 'test',
+        additionalClaims: {
+          'Order.paymentMethod': 'Stripe',
+          'Order.partOfInvoice': 'in_test_employee_seat_1',
+        },
+      },
+    },
+    {
+      createEmployee: async (_ctx, creation) => {
+        createCalls += 1;
+        assert.equal(creation.employeeClaims['gdc.employee.licenseRequired'], true);
+        if (createCalls === 1) {
+          return buildExampleSubmitAndPollResult({
+            resourceType: 'Bundle',
+            type: 'batch-response',
+            data: [{
+              type: 'Employee-license-offer-v1.0',
+              meta: { claims: { 'org.schema.Offer.identifier': offerId } },
+              response: { status: '200' },
+            }],
+          });
+        }
+        return buildExampleSubmitAndPollResult(EXAMPLE_EMPLOYEE_SEARCH_RESPONSE_BODY);
+      },
+      confirmLicenseOrder: async (ctx, input) => {
+        orderCalls.push([ctx, input]);
+        return buildExampleSubmitAndPollResult({ resourceType: 'Bundle', type: 'batch-response', data: [] });
+      },
+      issueLicense: async () => buildExampleSubmitAndPollResult(EXAMPLE_LICENSE_ISSUE_RESPONSE_BODY),
+    },
+  );
+
+  assert.equal(createCalls, 2);
+  assert.equal(orderCalls.length, 1);
+  assert.equal(orderCalls[0][1].offerId, offerId);
+  assert.equal(orderCalls[0][1].additionalClaims['Order.partOfInvoice'], 'in_test_employee_seat_1');
+  assert.equal(result.activationCode, EXAMPLE_EMPLOYEE_ACTIVATION_CODE);
+  assert.ok(result.licenseOrder);
+});
+
+test('provisionOrganizationEmployeeWithDeps refuses to leave an employee Offer unresolved', async () => {
+  await assert.rejects(
+    provisionOrganizationEmployeeWithDeps(
+      EXAMPLE_TENANT_ROUTE_CONTEXT,
+      {
+        creation: { employeeClaims: buildExampleEmployeeClaims(EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE) },
+        invitation: {
+          ...EXAMPLE_LICENSE_ISSUE_INPUT,
+          subjectDid: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier,
+        },
+      },
+      {
+        createEmployee: async () => buildExampleSubmitAndPollResult({
+          resourceType: 'Bundle',
+          type: 'batch-response',
+          data: [{
+            type: 'Employee-license-offer-v1.0',
+            meta: { claims: { 'org.schema.Offer.identifier': 'urn:offer:unresolved' } },
+            response: { status: '200' },
+          }],
+        }),
+        issueLicense: async () => buildExampleSubmitAndPollResult(EXAMPLE_LICENSE_ISSUE_RESPONSE_BODY),
+      },
+    ),
+    /requires Offer\/Order confirmation before licence issue/,
+  );
 });
 
 test('provisionOrganizationEmployeeWithDeps stops before license issue when employee creation fails', async () => {
