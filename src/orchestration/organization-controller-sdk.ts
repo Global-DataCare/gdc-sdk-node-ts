@@ -206,7 +206,7 @@ export class OrganizationControllerSdk {
     return requireClientMethod(this.client, 'listOrganizationLicenses')(ctx, input);
   }
 
-  /** Adds zero-cost employee seats on an explicitly configured test network. */
+  /** @deprecated Professional seats use Employee Offer and confirmed Order. */
   public addFreeEmployeeLicenses(
     ctx: RouteContext,
     input: OrganizationEmployeeLicenseAddInput,

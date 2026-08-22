@@ -88,7 +88,7 @@ for (const profile of Object.values(TransportProfiles)) {
   });
 }
 
-test('OrganizationControllerSdk signs the complete Test Network licence-add envelope before encryption', async () => {
+test('OrganizationControllerSdk rejects professional License/_add before secure transport', async () => {
   const calls = [];
   const packedMessages = [];
   const sdk = new OrganizationControllerSdk(new NodeHttpClient({
@@ -105,19 +105,10 @@ test('OrganizationControllerSdk signs the complete Test Network licence-add enve
     fetchImpl: createFetchRecorder(TransportProfiles.DidcommEncryptedForm, calls),
   }));
 
-  const result = await sdk.addFreeEmployeeLicenses(ctx, {
+  await assert.rejects(sdk.addFreeEmployeeLicenses(ctx, {
     quantity: 2,
     pollOptions: { intervalMs: 1, timeoutMs: 100 },
-  });
-
-  assert.equal(result.poll.status, 200);
-  assert.match(calls[0].url, /License\/_add$/);
-  assert.match(calls[1].url, /License\/_add-response$/);
-  assert.equal(calls[0].init.headers['Content-Type'], TransportProfiles.DidcommEncryptedForm);
-  assert.equal(packedMessages[0].iss, ctx.tenantId);
-  assert.equal(packedMessages[0].aud, ctx.tenantId);
-  assert.match(packedMessages[0].jti, /^jti-/);
-  assert.equal(packedMessages[0].type, TransportProfiles.DidcommPlainJson);
-  assert.equal(packedMessages[0].body.data[0].meta.claims['org.schema.Offer.eligibleQuantity.value'], 2);
-  assert.equal(packedMessages[0].body.data[0].meta.claims['org.schema.Offer.price'], 0);
+  }), /Offer and Order payment verification/);
+  assert.equal(calls.length, 0);
+  assert.equal(packedMessages.length, 0);
 });

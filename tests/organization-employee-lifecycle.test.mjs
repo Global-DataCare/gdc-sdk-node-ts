@@ -33,7 +33,22 @@ import {
   enrollInvitedOrganizationEmployeeWithDeps,
   listOrganizationEmployeeLifecycleWithDeps,
   provisionOrganizationEmployeeWithDeps,
+  readEmployeeLicenseOfferId,
 } from '../dist/index.js';
+
+test('readEmployeeLicenseOfferId exposes the asynchronous payment continuation without issuing a seat', () => {
+  const offerId = 'urn:cds:ES:v1:health-care:product:org.schema:Offer:employee-seat-async';
+  const response = buildExampleSubmitAndPollResult({
+    resourceType: 'Bundle',
+    type: 'batch-response',
+    data: [{
+      type: 'Employee-license-offer-v1.0',
+      meta: { claims: { 'org.schema.Offer.identifier': offerId } },
+      response: { status: '200' },
+    }],
+  });
+  assert.equal(readEmployeeLicenseOfferId(response.poll.body), offerId);
+});
 
 test('provisionOrganizationEmployeeWithDeps owns create plus license issue orchestration', async () => {
   const result = await provisionOrganizationEmployeeWithDeps(

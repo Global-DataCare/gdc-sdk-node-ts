@@ -105,7 +105,6 @@ const EMPLOYEE_PURGE_PATH = gwV1Path('entity', 'org.schema', 'Employee', '_purge
 const EMPLOYEE_PURGE_POLL_PATH = gwV1Path('entity', 'org.schema', 'Employee', '_purge-response');
 const ORG_LICENSE_SEARCH_PATH = gwV1Path('entity', 'org.schema', 'License', '_search');
 const ORG_LICENSE_SEARCH_POLL_PATH = gwV1Path('entity', 'org.schema', 'License', '_search-response');
-const ORG_LICENSE_ADD_PATH = gwV1Path('entity', 'org.schema', 'License', '_add');
 const ORG_EMPLOYEE_LICENSE_ISSUE_PATH = `/host/cds-${TEST_ROUTE_CTX.jurisdiction}/v1/${TEST_ROUTE_CTX.sector}/${TEST_ROUTE_CTX.tenantId}/identity/auth/_issue`;
 const ORG_EMPLOYEE_LICENSE_ISSUE_POLL_PATH = `${ORG_EMPLOYEE_LICENSE_ISSUE_PATH}-response`;
 const ORG_OFFER_SEARCH_PATH = gwV1Path('entity', 'org.schema', 'Offer', '_search');
@@ -562,26 +561,17 @@ test('individual member license helpers keep add, FHIR-role issue and acceptance
   assert.equal(calls[2][2].body.data[0].meta.ownerOrganizationId, undefined);
 });
 
-test('professional test-network license add keeps zero price explicit', async () => {
+test('professional License/_add is rejected before transport in every network mode', async () => {
   const calls = [];
-  await addFreeOrganizationEmployeeLicensesWithDeps(TEST_ROUTE_CTX, { quantity: 2 }, {
+  await assert.rejects(addFreeOrganizationEmployeeLicensesWithDeps(TEST_ROUTE_CTX, { quantity: 2 }, {
     organizationLicenseActionPath: (_ctx, action) => gwV1Path('entity', 'org.schema', 'License', action),
     organizationLicenseActionPollPath: (_ctx, action) => gwV1Path('entity', 'org.schema', 'License', `${action}-response`),
     submitAndPoll: async (...args) => {
       calls.push(args);
       return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
     },
-  });
-
-  assert.equal(calls[0][0], ORG_LICENSE_ADD_PATH);
-  assert.match(calls[0][2].jti, /^jti-/);
-  assert.equal(calls[0][2].iss, TEST_ROUTE_CTX.tenantId);
-  assert.equal(calls[0][2].aud, TEST_ROUTE_CTX.tenantId);
-  assert.equal(calls[0][2].type, 'application/didcomm-plain+json');
-  assert.equal(calls[0][2].body.data[0].meta.claims['org.schema.Offer.eligibleQuantity.value'], 2);
-  assert.equal(calls[0][2].body.data[0].meta.claims['org.schema.Offer.price'], 0);
-  assert.equal(calls[0][2].body.data[0].meta.claims['org.schema.IndividualProduct.category'], 'professional');
-  assert.equal(calls[0][2].body.data[0].meta.ownerOrganizationId, undefined);
+  }), /Offer and Order payment verification/);
+  assert.equal(calls.length, 0);
 });
 
 test('employee license issue binds one existing employee seat and does not invent a device id', async () => {

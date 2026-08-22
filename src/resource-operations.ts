@@ -1024,38 +1024,13 @@ type OrganizationLicenseMutationDeps = {
   submitAndPoll: IndividualLicenseMutationDeps['submitAndPoll'];
 };
 
-/**
- * Requests additional zero-cost employee seats from a GW test-network.
- * Production callers must use the provider-payment and confirmed Order flow;
- * the gateway enforces that environment boundary independently of this SDK.
- * The request keeps the canonical outer DIDComm identity fields because secure
- * transports sign this envelope before encrypting it for the gateway.
- */
+/** @deprecated Professional seats always use Employee Offer and confirmed Order. */
 export async function addFreeOrganizationEmployeeLicensesWithDeps(
-  routeCtx: RouteContext,
-  input: OrganizationEmployeeLicenseAddInput,
-  deps: OrganizationLicenseMutationDeps,
+  _routeCtx: RouteContext,
+  _input: OrganizationEmployeeLicenseAddInput,
+  _deps: OrganizationLicenseMutationDeps,
 ): Promise<SubmitAndPollResult> {
-  const entry = buildLicensePurchaseEntry({
-    quantity: input.quantity,
-    userClass: 'employee',
-    type: 'web',
-    price: 0,
-    priceCurrency: 'EUR',
-  });
-  return deps.submitAndPoll(
-    deps.organizationLicenseActionPath(routeCtx, '_add'),
-    deps.organizationLicenseActionPollPath(routeCtx, '_add'),
-    {
-      jti: `jti-${createRuntimeUuid()}`,
-      iss: routeCtx.tenantId,
-      aud: routeCtx.tenantId,
-      type: 'application/didcomm-plain+json',
-      thid: input.requestThid || `organization-license-add-${createRuntimeUuid()}`,
-      body: { resourceType: 'Bundle', type: 'batch', data: [entry] },
-    },
-    input.pollOptions,
-  );
+  throw new Error('Professional seats require Employee Offer and Order payment verification; License/_add is not supported.');
 }
 
 /**
