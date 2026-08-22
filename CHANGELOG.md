@@ -2,16 +2,22 @@
 
 ## Unreleased
 
+## 2.4.15 - 2026-08-22
+
 - Build `dist` during Git-based installation so portals can pin an immutable
   SDK commit while npm publication credentials are temporarily unavailable.
+- Remove the non-standard employee license-control claim. Every current
+  employee create uses GW's seat contract; `licenseOrder` only supplies the
+  continuation needed to confirm a returned Offer. A future batch import must
+  be a separate explicit operation.
 
 ## 2.4.14 - 2026-08-22
 
-- Make interactive employee provisioning license-safe. When a caller supplies
-  the license-order continuation, the SDK signs the strict employee claim,
-  detects a GW employee-seat Offer, confirms it through host `Order/_batch`,
+- Make interactive employee provisioning license-safe. The SDK detects a GW
+  employee-seat Offer, confirms it through host `Order/_batch` when the caller
+  supplies the license-order continuation,
   retries creation and only then performs `License/_issue`. Direct employee
-  creation remains available for separately governed future batch imports.
+  creation is not reused as an unlicensed batch-import shortcut.
 
 ## 2.4.13 - 2026-08-20
 

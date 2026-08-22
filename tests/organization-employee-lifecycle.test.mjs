@@ -76,7 +76,7 @@ test('provisionOrganizationEmployeeWithDeps closes an employee Offer through Ord
     {
       createEmployee: async (_ctx, creation) => {
         createCalls += 1;
-        assert.equal(creation.employeeClaims['gdc.employee.licenseRequired'], true);
+        assert.equal(Object.keys(creation.employeeClaims).some(key => key.startsWith('gdc.')), false);
         if (createCalls === 1) {
           return buildExampleSubmitAndPollResult({
             resourceType: 'Bundle',
