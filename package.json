@@ -12,6 +12,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
     "type-check": "tsc -p tsconfig.json --noEmit",
     "check:product-neutrality": "node scripts/check-product-neutrality.mjs",
     "prepublishOnly": "npm run check:product-neutrality && npm run type-check && npm test",

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Build `dist` during Git-based installation so portals can pin an immutable
+  SDK commit while npm publication credentials are temporarily unavailable.
+
 ## 2.4.14 - 2026-08-22
 
 - Make interactive employee provisioning license-safe. When a caller supplies
