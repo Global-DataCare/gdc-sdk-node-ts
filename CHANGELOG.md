@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Expose the pending employee-seat Offer reader for portal-managed asynchronous
+  payments. A BFF can now stop after Employee creation returns an Offer, run a
+  hosted payment flow, and resume with Order before retrying creation and
+  `License/_issue`; it never needs `License/_add`.
+- Fail the deprecated professional `addFreeEmployeeLicenses` surface before
+  transport. Individual-member licence operations remain separate; employee
+  seats always use Offer and confirmed Order in every network mode.
+- Consume the shared regional organization-role licence model from
+  `gdc-common-utils-ts@2.5.12`; Fabric persistence and DCR admission remain GW
+  responsibilities on the organization's jurisdictional identity channel.
+
 ## 2.4.15 - 2026-08-22
 
 - Build `dist` during Git-based installation so portals can pin an immutable

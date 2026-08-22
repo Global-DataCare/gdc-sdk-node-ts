@@ -97,7 +97,14 @@ export async function provisionOrganizationEmployeeWithDeps(
   return { employee, license, licenseOrder, activationCode };
 }
 
-function readEmployeeLicenseOfferId(value: unknown): string | undefined {
+/**
+ * Reads the pending seat Offer from an employee-create response.
+ *
+ * Portal BFFs use this boundary when payment is asynchronous: persist the
+ * server-owned creation intent, redirect to hosted Checkout, then submit the
+ * paid reference in Order before retrying employee creation and License/_issue.
+ */
+export function readEmployeeLicenseOfferId(value: unknown): string | undefined {
   for (const candidate of nestedRecords(value)) {
     if (candidate.type !== 'Employee-license-offer-v1.0') continue;
     const meta = record(candidate.meta);

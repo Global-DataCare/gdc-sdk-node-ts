@@ -864,7 +864,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     });
   }
 
-  /** Adds zero-cost employee seats when the target GW is a test-network. */
+  /** @deprecated Professional seats use Employee Offer and confirmed Order. */
   public async addFreeOrganizationEmployeeLicenses(
     ctx: RouteContext,
     input: OrganizationEmployeeLicenseAddInput,
