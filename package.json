@@ -1,6 +1,6 @@
 {
   "name": "gdc-sdk-node-ts",
-  "version": "2.4.16",
+  "version": "2.4.17",
   "description": "Next-generation Node runtime package for the GDC SDK family",
   "license": "Apache-2.0",
   "author": "Antifraud Services Inc.",
@@ -38,7 +38,7 @@
     "test:e2e:live-gw:clean": "bash ./scripts/run-live-gw-clean.sh"
   },
   "dependencies": {
-    "gdc-common-utils-ts": "2.5.12",
+    "gdc-common-utils-ts": "2.5.13",
     "gdc-sdk-core-ts": "~2.3.18"
   },
   "devDependencies": {

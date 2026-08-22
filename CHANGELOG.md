@@ -340,6 +340,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Consume the corrected common role-license identity contract, where
+  `organizationOfficialId` is the raw legal identifier and never `urn:org:*`.
+
 - Align `DigitalTwinSdk` with the existing authorization contract: default to
   the canonical `organization/ResearchSubject.rs` capability and HL7 v3
   `HRESCH` purpose, with employee ownership carried by `Composition.author`
