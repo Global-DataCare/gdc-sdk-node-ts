@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 2.4.14 - 2026-08-22
+
+- Make interactive employee provisioning license-safe. When a caller supplies
+  the license-order continuation, the SDK signs the strict employee claim,
+  detects a GW employee-seat Offer, confirms it through host `Order/_batch`,
+  retries creation and only then performs `License/_issue`. Direct employee
+  creation remains available for separately governed future batch imports.
+
 ## 2.4.13 - 2026-08-20
 
 - Include the managed sender communication-key id as `skid` in every compact

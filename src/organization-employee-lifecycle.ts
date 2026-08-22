@@ -10,8 +10,10 @@ import {
   type OrganizationEmployeeLifecycleRecord,
 } from 'gdc-common-utils-ts';
 import { buildStableActorIdentifier } from 'gdc-common-utils-ts/utils/actor-identifier';
+import { ClaimsOfferSchemaorg } from 'gdc-common-utils-ts/constants/schemaorg';
 import type { RouteContext } from './individual-onboarding.js';
 import type { SubmitAndPollResult } from './orchestration/client-port.js';
+import type { OrganizationLicenseOrderConfirmInput } from './organization-license-order.js';
 import type { ServerProfileEnrollmentInput, ServerProfileRecord } from './server-profile-session.js';
 import type {
   LicenseListRuntimeSearchInput,
@@ -20,16 +22,23 @@ import type {
   OrganizationEmployeeSearchInput,
 } from './resource-operations.js';
 
-/** Input for the atomic controller-facing create plus seat issuance workflow. */
+/**
+ * Input for atomic interactive provisioning. Supplying `licenseOrder` marks
+ * creation as seat-required and authorizes the SDK to close a GW-issued Offer
+ * before retrying creation and issuing the activation credential. Omitting it
+ * preserves the separate unlicensed batch-import contract.
+ */
 export type OrganizationEmployeeProvisioningInput = Readonly<{
   creation: OrganizationEmployeeCreationInput;
   invitation: OrganizationEmployeeLicenseInvitationInput;
+  licenseOrder?: Omit<OrganizationLicenseOrderConfirmInput, 'offerId'>;
 }>;
 
 /** Results required by a portal to persist routing and display the credential once. */
 export type OrganizationEmployeeProvisioningResult = Readonly<{
   employee: SubmitAndPollResult;
   license: SubmitAndPollResult;
+  licenseOrder?: SubmitAndPollResult;
   activationCode: string;
 }>;
 
@@ -43,23 +52,68 @@ export type OrganizationEmployeeProvisioningDeps = Readonly<{
     routeContext: RouteContext,
     input: OrganizationEmployeeLicenseInvitationInput,
   ): Promise<SubmitAndPollResult>;
+  confirmLicenseOrder?(
+    routeContext: RouteContext,
+    input: OrganizationLicenseOrderConfirmInput,
+  ): Promise<SubmitAndPollResult>;
 }>;
 
-/** Creates the employee, reserves its seat and returns the exact GW credential. */
+/**
+ * Creates the employee, closing Offer/Order first when the strict request has
+ * no available seat, then reserves that seat through `License/_issue` and
+ * returns the exact GW activation credential.
+ */
 export async function provisionOrganizationEmployeeWithDeps(
   routeContext: RouteContext,
   input: OrganizationEmployeeProvisioningInput,
   deps: OrganizationEmployeeProvisioningDeps,
 ): Promise<OrganizationEmployeeProvisioningResult> {
-  const employee = await deps.createEmployee(routeContext, input.creation);
+  const creation = input.licenseOrder
+    ? {
+        ...input.creation,
+        employeeClaims: {
+          ...input.creation.employeeClaims,
+          'gdc.employee.licenseRequired': true,
+        },
+      }
+    : input.creation;
+  let employee = await deps.createEmployee(routeContext, creation);
   assertSuccessfulEmployeeOperation('employee creation', employee);
+  let licenseOrder: SubmitAndPollResult | undefined;
+  const offerId = readEmployeeLicenseOfferId(employee.poll.body);
+  if (offerId) {
+    if (!input.licenseOrder || !deps.confirmLicenseOrder) {
+      throw new Error('provisionOrganizationEmployee: employee creation requires Offer/Order confirmation before licence issue.');
+    }
+    licenseOrder = await deps.confirmLicenseOrder(routeContext, {
+      ...input.licenseOrder,
+      offerId,
+    });
+    assertSuccessfulEmployeeOperation('licence order confirmation', licenseOrder);
+    employee = await deps.createEmployee(routeContext, creation);
+    assertSuccessfulEmployeeOperation('employee creation retry', employee);
+    if (readEmployeeLicenseOfferId(employee.poll.body)) {
+      throw new Error('provisionOrganizationEmployee: employee creation still requires a licence after Order confirmation.');
+    }
+  }
   const license = await deps.issueLicense(routeContext, input.invitation);
   assertSuccessfulEmployeeOperation('licence issue', license);
   const activationCode = readEmployeeActivationCode(license.poll.body);
   if (!activationCode) {
     throw new Error('provisionOrganizationEmployee: GW response did not contain an employee activation credential.');
   }
-  return { employee, license, activationCode };
+  return { employee, license, licenseOrder, activationCode };
+}
+
+function readEmployeeLicenseOfferId(value: unknown): string | undefined {
+  for (const candidate of nestedRecords(value)) {
+    if (candidate.type !== 'Employee-license-offer-v1.0') continue;
+    const meta = record(candidate.meta);
+    const claims = record(meta?.claims);
+    const offerId = String(claims?.[ClaimsOfferSchemaorg.identifier] || '').trim();
+    if (offerId) return offerId;
+  }
+  return undefined;
 }
 
 type EmployeeOperationFailure = Readonly<{

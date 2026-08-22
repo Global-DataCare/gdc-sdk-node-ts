@@ -709,6 +709,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   ): Promise<OrganizationEmployeeProvisioningResult> {
     return provisionOrganizationEmployeeWithDeps(ctx, input, {
       createEmployee: (routeContext, creation) => this.createOrganizationEmployee(routeContext, creation),
+      confirmLicenseOrder: (routeContext, licenseOrder) => this.confirmOrganizationLicenseOrder(routeContext, licenseOrder),
       issueLicense: (routeContext, invitation) => this.issueOrganizationEmployeeLicense(routeContext, invitation),
     });
   }
