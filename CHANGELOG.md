@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Bind encrypted server-profile messages to the DCR-issued `client_id` as well
+  as the actor DID. GW can now verify an individual controller's registered
+  device keys without treating that controller as an organization employee.
+
 ## 2.4.20 - 2026-08-23
 
 - Bind every encrypted server-profile gateway message, including asynchronous

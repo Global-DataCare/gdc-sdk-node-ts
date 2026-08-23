@@ -138,7 +138,11 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
     { key: { ownerScope: 'runtime', purpose: 'comm-encryption' } },
   )).toString();
   const pollClaims = JSON.parse(Buffer.from(compactPollJws.split('.')[1], 'base64url').toString());
-  assert.deepEqual(pollClaims, { thid: 'message-1', iss: base.actorDid });
+  assert.deepEqual(pollClaims, {
+    thid: 'message-1',
+    iss: base.actorDid,
+    client_id: unlocked.profile.clientId,
+  });
   assert.deepEqual(recipientDids, [base.providerDid]);
   const protectedDocument = await unlocked.confidentialStorageAdapter.protect({ id: 'health-1', content: { note: 'private' } });
   assert.equal(typeof protectedDocument.jwe, 'string');
