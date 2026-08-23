@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Bind every encrypted server-profile gateway message, including asynchronous
+  poll requests, to the profile's stored actor DID through the signed `iss`
+  claim. Business callers cannot omit or replace this authenticated issuer.
+
 ## 2.4.19 - 2026-08-23
 
 - Derive the server profile SMART proof class from the stored actor kind.

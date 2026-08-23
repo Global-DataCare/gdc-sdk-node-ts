@@ -19,7 +19,9 @@ import {
  *    the persisted profile never becomes KMS-only decryptable.
  * 4. Actor mode and allowed subjects come from the stored profile, never from
  *    a clinical request made by a portal or telephone channel.
- * 5. The same protected seed deterministically restores a distinct ML-KEM
+ * 5. Every encrypted action, including a poll containing only `thid`, is
+ *    signed with the actor DID stored in the profile as its `iss` claim.
+ * 6. The same protected seed deterministically restores a distinct ML-KEM
  *    document-at-rest key, while each document receives a fresh AES CEK.
  */
 function memoryDeps() {
@@ -129,7 +131,14 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   assert.equal(smartRequest.body.vp_token, 'signed-vp-token');
   assert.equal(smartRequest.body.acr_values, 'urn:antifraud:acr:openid4vp:individual');
   assert.ok(deps.sessions.get(unlocked.sessionId).sealedUnlockedWalletSeed);
-  await unlocked.secureTransportAdapter.pack({ id: 'message-1', body: { ok: true } });
+  const packedPoll = await unlocked.secureTransportAdapter.pack({ thid: 'message-1' });
+  const compactPollJws = Buffer.from(await recipientWallet.decryptCompactJwe(
+    packedPoll,
+    recipientContext,
+    { key: { ownerScope: 'runtime', purpose: 'comm-encryption' } },
+  )).toString();
+  const pollClaims = JSON.parse(Buffer.from(compactPollJws.split('.')[1], 'base64url').toString());
+  assert.deepEqual(pollClaims, { thid: 'message-1', iss: base.actorDid });
   assert.deepEqual(recipientDids, [base.providerDid]);
   const protectedDocument = await unlocked.confidentialStorageAdapter.protect({ id: 'health-1', content: { note: 'private' } });
   assert.equal(typeof protectedDocument.jwe, 'string');
