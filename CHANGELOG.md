@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.4.20 - 2026-08-23
 
 - Bind every encrypted server-profile gateway message, including asynchronous
   poll requests, to the profile's stored actor DID through the signed `iss`
