@@ -283,7 +283,14 @@ export class NodeManagedWallet implements IWallet {
 
     const privateJwk = entry.privateMaterial as ClassicPublicJwk & { d: string };
     const keyObject = createPrivateKey({ key: privateJwk as any, format: 'jwk' });
-    const signature = cryptoSign(this.resolveNodeDigestForAlgorithm(alg), Buffer.from(payloadBytes), keyObject);
+    // JWS uses the fixed-width IEEE P1363 ECDSA representation (R || S).
+    // Node defaults to ASN.1 DER, which produces a syntactically valid compact
+    // token that every JOSE verifier correctly rejects.
+    const signature = cryptoSign(
+      this.resolveNodeDigestForAlgorithm(alg),
+      Buffer.from(payloadBytes),
+      { key: keyObject, dsaEncoding: 'ieee-p1363' },
+    );
     return Buffer.from(signature).toString('base64url');
   }
 
@@ -302,7 +309,12 @@ export class NodeManagedWallet implements IWallet {
     }
 
     const publicKey = createPublicKey({ key: jwk as any, format: 'jwk' });
-    return cryptoVerify(this.resolveNodeDigestForAlgorithm(algorithm), Buffer.from(payloadBytes), publicKey, Buffer.from(signature, 'base64url'));
+    return cryptoVerify(
+      this.resolveNodeDigestForAlgorithm(algorithm),
+      Buffer.from(payloadBytes),
+      { key: publicKey, dsaEncoding: 'ieee-p1363' },
+      Buffer.from(signature, 'base64url'),
+    );
   }
 
   /**

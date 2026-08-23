@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createPublicKey, verify as cryptoVerify } from 'node:crypto';
 
 import { NodeCryptoHelper, NodeManagedWallet } from '../dist/index.js';
 
@@ -90,6 +91,19 @@ test('NodeManagedWallet signs compact JWS payloads with managed runtime keys', a
   });
 
   assert.match(compact, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+  const [encodedHeader, encodedPayload, encodedSignature] = compact.split('.');
+  const header = JSON.parse(Buffer.from(encodedHeader, 'base64url').toString('utf8'));
+  const [descriptor] = await wallet.getPublicJwks(context, {
+    ownerScope: 'runtime',
+    purpose: 'openid-id-token-signing',
+    keyId: header.kid,
+  });
+  assert.equal(cryptoVerify(
+    'sha384',
+    Buffer.from(`${encodedHeader}.${encodedPayload}`, 'ascii'),
+    { key: createPublicKey({ key: descriptor.publicJwk, format: 'jwk' }), dsaEncoding: 'ieee-p1363' },
+    Buffer.from(encodedSignature, 'base64url'),
+  ), true);
 });
 
 test('NodeManagedWallet packs the DIDComm message itself as the signed JWS claims', async () => {
