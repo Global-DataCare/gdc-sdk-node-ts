@@ -397,7 +397,11 @@ export class ServerProfileSessionManager {
       scopes: session.scopes,
       accessToken: await this.options.sealer.unseal(session.sealedAccessToken, `${sessionId}:access-token`),
       secureTransportAdapter: {
-        pack: (message) => wallet.packForRecipientWithContext!(message, profile.providerDid, { context }),
+        pack: (message) => wallet.packForRecipientWithContext!(
+          bindTransportIssuer(message, profile.actorDid),
+          profile.providerDid,
+          { context },
+        ),
         unpack: async (jwe) => (await wallet.unpackWithContext!(jwe, { context })).content,
       },
       confidentialStorageAdapter: {
@@ -478,6 +482,15 @@ export class ServerProfileSessionManager {
   }
 
   private now(): Date { return this.options.now?.() || new Date(); }
+}
+
+/**
+ * Binds every direct resource action and async poll to the actor stored in the
+ * server profile. The caller may author the business body and thread id, but
+ * cannot replace the issuer used by GW for JWS/DID controller verification.
+ */
+function bindTransportIssuer(message: Record<string, unknown>, actorDid: string): Record<string, unknown> {
+  return { ...message, iss: actorDid };
 }
 
 /** Keeps the OpenID proof class aligned with the durable actor profile. */
