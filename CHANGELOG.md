@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.4.18 - 2026-08-23
+
+- Consume `gdc-common-utils-ts@2.5.15` so portal clients share the exact-sector,
+  device-agnostic organization role-licence contract. A role licence has no
+  empty-sector wildcard and omits `maxDevices` when device limits remain GW or
+  portal policy.
+- Preserve the employee identity boundary used by GW DCR: the same stable
+  contact in another licensed role is another employee wallet identity. A
+  signing `keyId` must never be interpreted as authorizing two employee roles.
+
 ## 2.4.17 - 2026-08-23
 
 - Encode classical ECDSA wallet signatures as the fixed-width IEEE P1363
