@@ -127,6 +127,7 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   const claims = JSON.parse(Buffer.from(smartRequest.body.client_assertion.split('.')[1], 'base64url').toString());
   assert.equal(claims.iss, 'device-client-1');
   assert.equal(smartRequest.body.vp_token, 'signed-vp-token');
+  assert.equal(smartRequest.body.acr_values, 'urn:antifraud:acr:openid4vp:individual');
   assert.ok(deps.sessions.get(unlocked.sessionId).sealedUnlockedWalletSeed);
   await unlocked.secureTransportAdapter.pack({ id: 'message-1', body: { ok: true } });
   assert.deepEqual(recipientDids, [base.providerDid]);
