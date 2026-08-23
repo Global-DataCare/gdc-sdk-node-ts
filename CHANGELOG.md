@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.4.19 - 2026-08-23
 
 - Derive the server profile SMART proof class from the stored actor kind.
   Individual controllers and members now request the individual OpenID4VP ACR;
