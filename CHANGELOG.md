@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Derive the server profile SMART proof class from the stored actor kind.
+  Individual controllers and members now request the individual OpenID4VP ACR;
+  professional and organization profiles retain the employee ACR.
+
 ## 2.4.18 - 2026-08-23
 
 - Consume `gdc-common-utils-ts@2.5.15` so portal clients share the exact-sector,

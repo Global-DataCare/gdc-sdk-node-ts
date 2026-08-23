@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 import type { JWK } from 'gdc-common-utils-ts/models/jwk';
 import { IdentityDcrMetadataFields, IdentityDeviceInfoFields } from 'gdc-common-utils-ts/constants/identity-auth';
 import type { ActorKind } from 'gdc-common-utils-ts/models/actor-session';
+import { ActorKinds } from 'gdc-common-utils-ts/constants/actor-session';
 import type { LegalOrganizationVerificationTransactionInput } from 'gdc-common-utils-ts/utils/legal-organization-verification-transaction';
 import {
   TransportProfiles,
@@ -356,6 +357,7 @@ export class ServerProfileSessionManager {
       clientAssertion: assertion,
       clientAssertionType: 'private_key_jwt',
       smartTokenKind: 'openid-smart',
+      acrValues: profileSmartAcrValues(profile.actorKind),
       scopes: unique(input.scopes),
       tokenCacheKey: `profile:${profile.profileId}:${input.subjectDid}:${unique(input.scopes).join(',')}`,
     });
@@ -476,6 +478,14 @@ export class ServerProfileSessionManager {
   }
 
   private now(): Date { return this.options.now?.() || new Date(); }
+}
+
+/** Keeps the OpenID proof class aligned with the durable actor profile. */
+function profileSmartAcrValues(actorKind: ActorKind): string {
+  return actorKind === ActorKinds.IndividualController
+    || actorKind === ActorKinds.IndividualMember
+    ? 'urn:antifraud:acr:openid4vp:individual'
+    : 'urn:antifraud:acr:openid4vp:employee';
 }
 
 async function buildWalletClientAssertion(
