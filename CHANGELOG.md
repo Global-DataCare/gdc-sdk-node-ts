@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Encode classical ECDSA wallet signatures as the fixed-width IEEE P1363
+  representation required by JOSE. Compact JWS client assertions previously
+  contained Node's default ASN.1 DER signature and failed standards-based
+  verification after an otherwise successful DCR registration.
 - Expose the pending employee-seat Offer reader for portal-managed asynchronous
   payments. A BFF can now stop after Employee creation returns an Offer, run a
   hosted payment flow, and resume with Order before retrying creation and
