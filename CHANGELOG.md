@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.4.21 - 2026-08-23
 
 - Bind encrypted server-profile messages to the DCR-issued `client_id` as well
   as the actor DID. GW can now verify an individual controller's registered
