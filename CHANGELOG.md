@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.4.17 - 2026-08-23
 
 - Encode classical ECDSA wallet signatures as the fixed-width IEEE P1363
   representation required by JOSE. Compact JWS client assertions previously
