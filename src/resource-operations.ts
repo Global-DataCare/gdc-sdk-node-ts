@@ -188,12 +188,15 @@ export type IndividualMemberLicenseAddInput = {
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
 
-/** Adds zero-cost employee seats on an explicitly configured test network. */
-export type OrganizationEmployeeLicenseAddInput = {
+/** Requests a host-authored Offer for additional professional employee seats. */
+export type OrganizationEmployeeLicenseOfferInput = {
   quantity: number;
   requestThid?: string;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
+
+/** @deprecated Use `OrganizationEmployeeLicenseOfferInput`. */
+export type OrganizationEmployeeLicenseAddInput = OrganizationEmployeeLicenseOfferInput;
 
 /** Input shared by invitation acceptance, deactivation and release. */
 export type IndividualMemberLicenseTransitionInput = {
@@ -1024,13 +1027,38 @@ type OrganizationLicenseMutationDeps = {
   submitAndPoll: IndividualLicenseMutationDeps['submitAndPoll'];
 };
 
-/** @deprecated Professional seats always use Employee Offer and confirmed Order. */
-export async function addFreeOrganizationEmployeeLicensesWithDeps(
-  _routeCtx: RouteContext,
-  _input: OrganizationEmployeeLicenseAddInput,
-  _deps: OrganizationLicenseMutationDeps,
+/**
+ * Requests a professional-seat Offer without creating or assigning seats.
+ * The returned Offer must be accepted through the existing paid Order flow.
+ */
+export async function requestOrganizationEmployeeLicenseOfferWithDeps(
+  routeCtx: RouteContext,
+  input: OrganizationEmployeeLicenseOfferInput,
+  deps: OrganizationLicenseMutationDeps,
 ): Promise<SubmitAndPollResult> {
-  throw new Error('Professional seats require Employee Offer and Order payment verification; License/_add is not supported.');
+  const entry = buildLicensePurchaseEntry({
+    quantity: input.quantity,
+    userClass: 'employee',
+    type: 'web',
+  });
+  return deps.submitAndPoll(
+    deps.organizationLicenseActionPath(routeCtx, '_add'),
+    deps.organizationLicenseActionPollPath(routeCtx, '_add'),
+    {
+      thid: input.requestThid || `organization-license-offer-${createRuntimeUuid()}`,
+      body: { resourceType: 'Bundle', type: 'batch', data: [entry] },
+    },
+    input.pollOptions,
+  );
+}
+
+/** @deprecated Use `requestOrganizationEmployeeLicenseOfferWithDeps`. */
+export async function addFreeOrganizationEmployeeLicensesWithDeps(
+  routeCtx: RouteContext,
+  input: OrganizationEmployeeLicenseAddInput,
+  deps: OrganizationLicenseMutationDeps,
+): Promise<SubmitAndPollResult> {
+  return requestOrganizationEmployeeLicenseOfferWithDeps(routeCtx, input, deps);
 }
 
 /**

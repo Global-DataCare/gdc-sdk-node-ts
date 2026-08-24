@@ -60,7 +60,7 @@ import {
   requestProfessionalAccessWithDeps,
   listIndividualLicensesWithDeps,
   addFreeIndividualMemberLicensesWithDeps,
-  addFreeOrganizationEmployeeLicensesWithDeps,
+  requestOrganizationEmployeeLicenseOfferWithDeps,
   issueIndividualMemberLicenseWithDeps,
   issueOrganizationEmployeeLicenseWithDeps,
   transitionIndividualMemberLicenseWithDeps,
@@ -561,17 +561,24 @@ test('individual member license helpers keep add, FHIR-role issue and acceptance
   assert.equal(calls[2][2].body.data[0].meta.ownerOrganizationId, undefined);
 });
 
-test('professional License/_add is rejected before transport in every network mode', async () => {
+test('professional seat acquisition requests an Offer without inventing price or seat ids', async () => {
   const calls = [];
-  await assert.rejects(addFreeOrganizationEmployeeLicensesWithDeps(TEST_ROUTE_CTX, { quantity: 2 }, {
+  await requestOrganizationEmployeeLicenseOfferWithDeps(TEST_ROUTE_CTX, { quantity: 2 }, {
     organizationLicenseActionPath: (_ctx, action) => gwV1Path('entity', 'org.schema', 'License', action),
     organizationLicenseActionPollPath: (_ctx, action) => gwV1Path('entity', 'org.schema', 'License', `${action}-response`),
     submitAndPoll: async (...args) => {
       calls.push(args);
       return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
     },
-  }), /Offer and Order payment verification/);
-  assert.equal(calls.length, 0);
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], gwV1Path('entity', 'org.schema', 'License', '_add'));
+  assert.equal(calls[0][1], gwV1Path('entity', 'org.schema', 'License', '_add-response'));
+  const claims = calls[0][2].body.data[0].meta.claims;
+  assert.equal(claims['org.schema.Offer.eligibleQuantity.value'], 2);
+  assert.equal(claims['org.schema.IndividualProduct.category'], 'professional');
+  assert.equal(claims['org.schema.Offer.price'], undefined);
+  assert.equal(claims['org.schema.Offer.serialNumber'], undefined);
 });
 
 test('employee license issue binds one existing employee seat and does not invent a device id', async () => {

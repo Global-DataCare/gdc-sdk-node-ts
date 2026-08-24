@@ -120,6 +120,7 @@ import {
   type LicenseOrderRuntimeSearchInput,
   type OrganizationEmployeeCreationInput,
   type OrganizationEmployeeLicenseAddInput,
+  type OrganizationEmployeeLicenseOfferInput,
   type OrganizationEmployeeLicenseInvitationInput,
   type OrganizationEmployeeLifecycleInput,
   type OrganizationEmployeeSearchInput,
@@ -129,6 +130,7 @@ import {
   type RevokeProfessionalAccessResult,
   type RelatedPersonUpsertInput,
   addFreeOrganizationEmployeeLicensesWithDeps,
+  requestOrganizationEmployeeLicenseOfferWithDeps,
 } from './resource-operations.js';
 import type { LegalOrganizationOrderInput } from './host-onboarding.js';
 import type { SmartTokenExchangeResult } from './smart-token.js';
@@ -870,6 +872,26 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: OrganizationEmployeeLicenseAddInput,
   ): Promise<SubmitAndPollResult> {
     return addFreeOrganizationEmployeeLicensesWithDeps(ctx, input, {
+      organizationLicenseActionPath: this.paths.organizationLicenseActionPath.bind(this.paths),
+      organizationLicenseActionPollPath: this.paths.organizationLicenseActionPollPath.bind(this.paths),
+      submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
+        ? (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
+            submitPath,
+            pollPath,
+            payload,
+            this.transportProfile,
+            pollOptions,
+          )
+        : this.submitAndPoll.bind(this),
+    });
+  }
+
+  /** Starts the commercial Offer flow for additional professional seats. */
+  public async requestOrganizationEmployeeLicenseOffer(
+    ctx: RouteContext,
+    input: OrganizationEmployeeLicenseOfferInput,
+  ): Promise<SubmitAndPollResult> {
+    return requestOrganizationEmployeeLicenseOfferWithDeps(ctx, input, {
       organizationLicenseActionPath: this.paths.organizationLicenseActionPath.bind(this.paths),
       organizationLicenseActionPollPath: this.paths.organizationLicenseActionPollPath.bind(this.paths),
       submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm

@@ -24,6 +24,7 @@ import type {
   LicenseOrderRuntimeSearchInput,
   OrganizationEmployeeCreationInput,
   OrganizationEmployeeLicenseAddInput,
+  OrganizationEmployeeLicenseOfferInput,
   OrganizationEmployeeLicenseInvitationInput,
   OrganizationEmployeeLifecycleInput,
   OrganizationEmployeeSearchInput,
@@ -212,6 +213,14 @@ export class OrganizationControllerSdk {
     input: OrganizationEmployeeLicenseAddInput,
   ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'addFreeOrganizationEmployeeLicenses')(ctx, input);
+  }
+
+  /** Requests an Offer for additional employee seats before invitations. */
+  public requestEmployeeLicenseOffer(
+    ctx: RouteContext,
+    input: OrganizationEmployeeLicenseOfferInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'requestOrganizationEmployeeLicenseOffer')(ctx, input);
   }
 
   /**
