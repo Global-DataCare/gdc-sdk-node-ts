@@ -872,8 +872,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: OrganizationEmployeeLicenseAddInput,
   ): Promise<SubmitAndPollResult> {
     return addFreeOrganizationEmployeeLicensesWithDeps(ctx, input, {
-      organizationLicenseActionPath: this.paths.organizationLicenseActionPath.bind(this.paths),
-      organizationLicenseActionPollPath: this.paths.organizationLicenseActionPollPath.bind(this.paths),
+      organizationLicenseOfferCreatePath: this.paths.organizationLicenseOfferCreatePath.bind(this.paths),
+      organizationLicenseOfferCreatePollPath: this.paths.organizationLicenseOfferCreatePollPath.bind(this.paths),
       submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
         ? (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
             submitPath,
@@ -892,8 +892,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: OrganizationEmployeeLicenseOfferInput,
   ): Promise<SubmitAndPollResult> {
     return requestOrganizationEmployeeLicenseOfferWithDeps(ctx, input, {
-      organizationLicenseActionPath: this.paths.organizationLicenseActionPath.bind(this.paths),
-      organizationLicenseActionPollPath: this.paths.organizationLicenseActionPollPath.bind(this.paths),
+      organizationLicenseOfferCreatePath: this.paths.organizationLicenseOfferCreatePath.bind(this.paths),
+      organizationLicenseOfferCreatePollPath: this.paths.organizationLicenseOfferCreatePollPath.bind(this.paths),
       submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
         ? (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
             submitPath,
@@ -972,7 +972,15 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       defaultIntervalMs: pollOptions?.intervalMs,
       hostRegistryOrderBatchPath: this.paths.hostRegistryOrderBatchPath.bind(this.paths),
       hostRegistryOrderPollPath: this.paths.hostRegistryOrderPollPath.bind(this.paths),
-      submitAndPoll: this.submitAndPoll.bind(this),
+      submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
+        ? (submitPath, pollPath, payload, options) => this.submitClinicalMessageAndPoll(
+            submitPath,
+            pollPath,
+            payload,
+            this.transportProfile,
+            options,
+          )
+        : this.submitAndPoll.bind(this),
     });
   }
 

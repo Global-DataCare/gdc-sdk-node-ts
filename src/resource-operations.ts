@@ -190,6 +190,8 @@ export type IndividualMemberLicenseAddInput = {
 
 /** Requests a host-authored Offer for additional professional employee seats. */
 export type OrganizationEmployeeLicenseOfferInput = {
+  /** Exact DCR-registered controller DID that signs the protected request. */
+  issuerDid: string;
   quantity: number;
   requestThid?: string;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
@@ -1022,8 +1024,8 @@ type IndividualLicenseMutationDeps = {
 };
 
 type OrganizationLicenseMutationDeps = {
-  organizationLicenseActionPath: (ctx: RouteContext, action: string) => string;
-  organizationLicenseActionPollPath: (ctx: RouteContext, action: string) => string;
+  organizationLicenseOfferCreatePath: (ctx: RouteContext) => string;
+  organizationLicenseOfferCreatePollPath: (ctx: RouteContext) => string;
   submitAndPoll: IndividualLicenseMutationDeps['submitAndPoll'];
 };
 
@@ -1041,10 +1043,16 @@ export async function requestOrganizationEmployeeLicenseOfferWithDeps(
     userClass: 'employee',
     type: 'web',
   });
+  const issuerDid = String(input.issuerDid || '').trim();
+  if (!issuerDid) throw new Error('requestOrganizationEmployeeLicenseOffer requires issuerDid.');
   return deps.submitAndPoll(
-    deps.organizationLicenseActionPath(routeCtx, '_add'),
-    deps.organizationLicenseActionPollPath(routeCtx, '_add'),
+    deps.organizationLicenseOfferCreatePath(routeCtx),
+    deps.organizationLicenseOfferCreatePollPath(routeCtx),
     {
+      jti: `jti-${createRuntimeUuid()}`,
+      iss: issuerDid,
+      aud: routeCtx.tenantId,
+      type: 'application/didcomm-plain+json',
       thid: input.requestThid || `organization-license-offer-${createRuntimeUuid()}`,
       body: { resourceType: 'Bundle', type: 'batch', data: [entry] },
     },

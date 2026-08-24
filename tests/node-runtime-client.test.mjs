@@ -568,6 +568,7 @@ test('NodeHttpClient confirms organization-side extra license activation through
   await client.confirmOrganizationLicenseOrder(
     cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
     {
+      issuerDid: 'did:web:gw.example.org:tenant:controller:one',
       offerId: EXAMPLE_LICENSE_ACTIVE_RECORD.offerId || 'urn:cds:offer:test',
       hostNetwork: 'test',
       additionalClaims: { 'Order.paymentMethod': 'invoice' },
@@ -576,6 +577,7 @@ test('NodeHttpClient confirms organization-side extra license activation through
 
   assert.equal(calls[0][0], '/host/cds-ES/v1/test/registry/org.schema/Order/_batch');
   assert.equal(calls[0][1], '/host/cds-ES/v1/test/registry/org.schema/Order/_batch-response');
+  assert.equal(calls[0][2].iss, 'did:web:gw.example.org:tenant:controller:one');
   assert.equal(calls[0][2].body.data[0].meta.claims['Order.paymentMethod'], 'invoice');
 });
 

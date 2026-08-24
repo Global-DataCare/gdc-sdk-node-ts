@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.4.23 - 2026-08-24
+
+- Replace professional `License/_add` with host-authored `Offer/_create`.
+  Offer creation never preallocates seats; only verified `Order/_batch`
+  materializes inventory and `License/_issue` binds an available seat.
+- Require the exact DCR-registered controller `issuerDid` on Offer and Order,
+  author it as the root DIDComm `iss`, and send both submit and poll through
+  the configured signed-and-encrypted transport.
+
 ## 2.4.22 - 2026-08-23
 
 - Add the explicit `requestEmployeeLicenseOffer(...)` controller operation.
