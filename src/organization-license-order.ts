@@ -22,6 +22,8 @@ import type { RouteContext } from './individual-onboarding.js';
  *   runtime adapts that higher-level intent onto the current host route
  */
 export type OrganizationLicenseOrderConfirmInput = Readonly<{
+  /** Exact DCR-registered controller DID that signs the protected request. */
+  issuerDid: string;
   offerId: string;
   hostNetwork?: string;
   dataType?: string;
@@ -52,6 +54,10 @@ export async function confirmOrganizationLicenseOrderWithDeps(
   if (!offerId) {
     throw new Error('confirmOrganizationLicenseOrder requires offerId.');
   }
+  const issuerDid = String(deps.input.issuerDid || '').trim();
+  if (!issuerDid) {
+    throw new Error('confirmOrganizationLicenseOrder requires issuerDid.');
+  }
 
   const claims: Record<string, unknown> = {
     '@context': 'org.schema',
@@ -64,7 +70,7 @@ export async function confirmOrganizationLicenseOrderWithDeps(
   };
   const payload = {
     jti: `jti-${createRuntimeUuid()}`,
-    iss: deps.routeCtx.tenantId,
+    iss: issuerDid,
     aud: deps.routeCtx.tenantId,
     type: 'application/didcomm-plain+json',
     thid: `organization-license-order-${createRuntimeUuid()}`,

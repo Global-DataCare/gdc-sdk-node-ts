@@ -563,17 +563,21 @@ test('individual member license helpers keep add, FHIR-role issue and acceptance
 
 test('professional seat acquisition requests an Offer without inventing price or seat ids', async () => {
   const calls = [];
-  await requestOrganizationEmployeeLicenseOfferWithDeps(TEST_ROUTE_CTX, { quantity: 2 }, {
-    organizationLicenseActionPath: (_ctx, action) => gwV1Path('entity', 'org.schema', 'License', action),
-    organizationLicenseActionPollPath: (_ctx, action) => gwV1Path('entity', 'org.schema', 'License', `${action}-response`),
+  await requestOrganizationEmployeeLicenseOfferWithDeps(TEST_ROUTE_CTX, {
+    issuerDid: 'did:web:gw.example:tenant:controller:one',
+    quantity: 2,
+  }, {
+    organizationLicenseOfferCreatePath: () => gwV1Path('entity', 'org.schema', 'Offer', '_create'),
+    organizationLicenseOfferCreatePollPath: () => gwV1Path('entity', 'org.schema', 'Offer', '_create-response'),
     submitAndPoll: async (...args) => {
       calls.push(args);
       return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
     },
   });
   assert.equal(calls.length, 1);
-  assert.equal(calls[0][0], gwV1Path('entity', 'org.schema', 'License', '_add'));
-  assert.equal(calls[0][1], gwV1Path('entity', 'org.schema', 'License', '_add-response'));
+  assert.equal(calls[0][0], gwV1Path('entity', 'org.schema', 'Offer', '_create'));
+  assert.equal(calls[0][1], gwV1Path('entity', 'org.schema', 'Offer', '_create-response'));
+  assert.equal(calls[0][2].iss, 'did:web:gw.example:tenant:controller:one');
   const claims = calls[0][2].body.data[0].meta.claims;
   assert.equal(claims['org.schema.Offer.eligibleQuantity.value'], 2);
   assert.equal(claims['org.schema.IndividualProduct.category'], 'professional');
