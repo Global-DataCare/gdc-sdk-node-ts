@@ -6,6 +6,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE,
+  EXAMPLE_LICENSE_OFFER_ID,
+} from 'gdc-common-utils-ts/examples';
+import {
   NodeHttpClient,
   OrganizationControllerSdk,
   TransportProfiles,
@@ -18,6 +22,23 @@ const employeeClaims = {
   'org.schema.Person.hasOccupation.identifier.value': 'ISCO-08|3344',
   'org.schema.Person.memberOf.taxID': 'VATES-G02793479',
 };
+const employeeResourceId = 'employee-transport-example';
+
+function createSecureOrganizationController(calls, packedMessages) {
+  return new OrganizationControllerSdk(new NodeHttpClient({
+    baseUrl: 'https://gw.example',
+    ctx,
+    transportProfile: TransportProfiles.DidcommEncryptedForm,
+    secureTransportAdapter: {
+      async pack(message) {
+        packedMessages.push(message);
+        return `packed-${message.thid}`;
+      },
+      async unpack(jwe) { return { decrypted: jwe }; },
+    },
+    fetchImpl: createFetchRecorder(TransportProfiles.DidcommEncryptedForm, calls),
+  }));
+}
 
 function createFetchRecorder(profile, calls) {
   return async (url, init) => {
@@ -150,4 +171,71 @@ test('OrganizationControllerSdk confirms the professional Order through the same
     packedMessages[0].body.data[0].meta.claims['Order.acceptedOffer.identifier'],
     'urn:cds:ES:v1:onehealth-research:product:org.schema:Offer:example',
   );
+});
+
+test('configured secure transport governs employee and licence inventory submit and poll', async () => {
+  const calls = [];
+  const packedMessages = [];
+  const sdk = createSecureOrganizationController(calls, packedMessages);
+
+  await sdk.searchOrganizationEmployees(ctx, { employeeClaims });
+  await sdk.listLicenses(ctx);
+
+  assert.equal(calls.length, 4);
+  assert.equal(packedMessages.length, 4);
+  for (const call of calls) {
+    assert.equal(call.init.headers['Content-Type'], TransportProfiles.DidcommEncryptedForm);
+    assert.match(call.init.body, /^request=packed-/);
+  }
+  assert.match(calls[0].url, /Employee\/_search$/);
+  assert.match(calls[1].url, /Employee\/_search-response$/);
+  assert.match(calls[2].url, /License\/_search$/);
+  assert.match(calls[3].url, /License\/_search-response$/);
+});
+
+test('configured secure transport governs employee disable and purge submit and poll', async () => {
+  const calls = [];
+  const packedMessages = [];
+  const sdk = createSecureOrganizationController(calls, packedMessages);
+
+  await sdk.disableEmployee(ctx, { resourceId: employeeResourceId, employeeClaims });
+  await sdk.purgeEmployee(ctx, { resourceId: employeeResourceId, employeeClaims });
+
+  assert.equal(calls.length, 4);
+  assert.equal(packedMessages.length, 4);
+  for (const call of calls) {
+    assert.equal(call.init.headers['Content-Type'], TransportProfiles.DidcommEncryptedForm);
+    assert.match(call.init.body, /^request=packed-/);
+  }
+});
+
+test('staging professional flow keeps one encrypted profile from inventory through employee issue', async () => {
+  const calls = [];
+  const packedMessages = [];
+  const sdk = createSecureOrganizationController(calls, packedMessages);
+
+  await sdk.searchOrganizationEmployees(ctx, { employeeClaims });
+  await sdk.listLicenses(ctx);
+  await sdk.requestEmployeeLicenseOffer(ctx, {
+    issuerDid: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier,
+    quantity: 1,
+  });
+  await sdk.confirmOrganizationLicenseOrder(ctx, {
+    issuerDid: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier,
+    offerId: EXAMPLE_LICENSE_OFFER_ID,
+    hostNetwork: 'test',
+  });
+  await sdk.createOrganizationEmployee(ctx, { employeeClaims });
+  await sdk.issueOrganizationEmployeeLicense(ctx, {
+    email: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.email,
+    role: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.role,
+    subjectDid: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier,
+  });
+
+  assert.equal(calls.length, 12);
+  assert.equal(packedMessages.length, 12);
+  for (const call of calls) {
+    assert.equal(call.init.headers['Content-Type'], TransportProfiles.DidcommEncryptedForm);
+    assert.match(call.init.body, /^request=packed-/);
+  }
 });

@@ -29,3 +29,12 @@ for `application/x-www-form-urlencoded`.
 `NodeHttpClient.transportProfile` selects the wire representation. The secure
 profile additionally requires `secureTransportAdapter.pack/unpack`; absence of
 that wallet-backed adapter is a hard error and never falls back to plaintext.
+
+The selection belongs to the `NodeHttpClient` instance and governs every
+submit and asynchronous poll performed by its actor facades. Operation inputs
+cannot switch profiles. A repeated matching profile is accepted temporarily
+for source compatibility; a conflicting profile fails before network I/O.
+Demo runtimes may construct a plaintext client and FHIR compatibility runtimes
+may construct a FHIR JSON client. Protected staging and production runtimes
+construct the encrypted-form client once and therefore cannot emit plaintext
+from inventory, lifecycle, Offer, Order or clinical operations.

@@ -1,8 +1,5 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 // Always create JSDoc, do not use strings inline in keys nor values, use types instead, and reuse the data test examples.
-import {
-  DIDCOMM_PLAINTEXT_JSON_MEDIA_TYPE,
-} from 'gdc-common-utils-ts/utils/didcomm-submit';
 import type { OrganizationDidBindingInput } from 'gdc-sdk-core-ts';
 import type { AppInfo } from 'gdc-sdk-core-ts';
 import type { IndividualOrganizationLifecycleInput } from 'gdc-sdk-core-ts';
@@ -149,13 +146,10 @@ import type {
   SubmitPayload,
   SubmitResponse,
 } from './orchestration/client-port.js';
-import { submitAndPollWithMethods } from './orchestration/client-port.js';
 import {
   buildRuntimeHeaders,
   fetchWithTimeout,
   parseResponseBody,
-  pollBatchResponseWithRuntimeConfig,
-  postJsonWithRuntimeConfig,
   postRenderedWithRuntimeConfig,
   type RuntimeTransportConfig,
 } from './runtime-transport.js';
@@ -339,17 +333,46 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
-   * Submits a batch payload to a gateway batch endpoint.
+   * Submits a batch payload using the transport profile selected once when the
+   * runtime client was constructed. Operations cannot downgrade or replace
+   * that profile locally.
    */
   public async submitBatch(path: string, payload: SubmitPayload): Promise<SubmitResponse> {
-    return this.postJson(path, payload, DIDCOMM_PLAINTEXT_JSON_MEDIA_TYPE);
+    const rendered = await renderGatewayMessageRequest(
+      payload,
+      this.transportProfile,
+      this.secureTransportAdapter,
+    );
+    const response = await postRenderedWithRuntimeConfig(this.transportConfig, path, rendered);
+    return { status: response.status, location: response.location, body: response.body };
   }
 
   /**
    * Polls a batch-response endpoint until the GW reports a terminal state.
    */
   public async pollUntilComplete(pollPath: string, request: { thid: string }, pollOptions?: PollOptions): Promise<PollResult> {
-    return pollUntilCompleteWithMethod(this.pollBatchResponse.bind(this), pollPath, request, pollOptions);
+    return pollUntilCompleteWithMethod(
+      async (path, currentRequest) => {
+        const rendered = await renderTransportPollRequest(
+          currentRequest.thid,
+          this.transportProfile,
+          this.secureTransportAdapter,
+        );
+        const response = await postRenderedWithRuntimeConfig(this.transportConfig, path, rendered);
+        return {
+          status: response.status,
+          body: response.status === 202
+            ? response.body
+            : response.status >= 200 && response.status < 300
+              ? await decodeTransportResponse(response.body, this.transportProfile, this.secureTransportAdapter)
+              : response.body,
+          retryAfterMs: response.retryAfterMs,
+        };
+      },
+      pollPath,
+      request,
+      pollOptions,
+    );
   }
 
   /**
@@ -361,7 +384,13 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     payload: SubmitPayload,
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
-    return submitAndPollWithMethods(this, submitPath, pollPath, payload, pollOptions);
+    return this.submitClinicalMessageAndPoll(
+      submitPath,
+      pollPath,
+      payload,
+      this.transportProfile,
+      pollOptions,
+    );
   }
 
   /** Registers one neutral FHIR R5 topic in the tenant-owned CORE catalog. */
@@ -399,23 +428,29 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     payload: SubmitPayload,
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
-    const config = { ...this.transportConfig, bearerToken };
-    const submitted = await postJsonWithRuntimeConfig(
-      config,
+    return this.submitClinicalMessageAndPoll(
       submitPath,
-      payload,
-      DIDCOMM_PLAINTEXT_JSON_MEDIA_TYPE,
-    );
-    const poll = await pollUntilCompleteWithMethod(
-      (path, request) => pollBatchResponseWithRuntimeConfig(config, path, request),
       pollPath,
-      { thid: String(payload.thid) },
+      payload,
+      this.transportProfile,
       pollOptions,
+      bearerToken,
     );
-    return {
-      submit: { status: submitted.status, location: submitted.location, body: submitted.body },
-      poll,
-    };
+  }
+
+  /**
+   * Enforces the client-owned transport policy. Operation inputs retained for
+   * source compatibility may repeat the configured profile, but can never
+   * replace it or silently downgrade the wire protection selected at runtime
+   * construction.
+   */
+  private requireConfiguredTransportProfile(requested?: TransportProfile): TransportProfile {
+    if (requested && requested !== this.transportProfile) {
+      throw new Error(
+        `Operation transport profile '${requested}' conflicts with configured runtime profile '${this.transportProfile}'.`,
+      );
+    }
+    return this.transportProfile;
   }
 
   /**
@@ -451,15 +486,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       wrapBundleAsGatewayTransactionMessage: this.wrapBundleAsGatewayTransactionMessage.bind(this),
       submitPath: this.hostRegistryOrganizationTransactionPath.bind(this),
       pollPath: this.hostRegistryOrganizationTransactionPollPath.bind(this),
-      submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
-        ? (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
-            submitPath,
-            pollPath,
-            payload,
-            this.transportProfile,
-            pollOptions,
-          )
-        : this.submitAndPoll.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
 
@@ -486,15 +513,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       wrapBundleAsGatewayTransactionMessage: this.wrapBundleAsGatewayTransactionMessage.bind(this),
       submitPath: this.hostRegistryOrganizationIssuePath.bind(this),
       pollPath: this.hostRegistryOrganizationIssuePollPath.bind(this),
-      submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
-        ? (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
-            submitPath,
-            pollPath,
-            payload,
-            this.transportProfile,
-            pollOptions,
-          )
-        : this.submitAndPoll.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
 
@@ -694,11 +713,10 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return createOrganizationEmployeeWithDeps(ctx, input, pollOptions, {
       employeeBatchPath: this.paths.employeeBatchPath.bind(this.paths),
       employeePollPath: this.paths.employeePollPath.bind(this.paths),
-      submitAndPoll: (submitPath, pollPath, payload, options) => this.submitClinicalMessageAndPoll(
+      submitAndPoll: (submitPath, pollPath, payload, options) => this.submitAndPoll(
         submitPath,
         pollPath,
         prepareEmployeeLifecycleMessageForTransport(payload, this.transportProfile),
-        this.transportProfile,
         options,
       ),
     });
@@ -726,11 +744,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       input,
       identityDeviceRevokePath: this.paths.identityDeviceRevokePath.bind(this.paths),
       identityDeviceRevokePollPath: this.paths.identityDeviceRevokePollPath.bind(this.paths),
-      submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
-        ? (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
-            submitPath, pollPath, payload, this.transportProfile, pollOptions,
-          )
-        : this.submitAndPoll.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
 
@@ -742,15 +756,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return issueOrganizationEmployeeLicenseWithDeps(ctx, input, {
       identityLicenseIssuePath: this.paths.identityLicenseIssuePath.bind(this.paths),
       identityLicenseIssuePollPath: this.paths.identityLicenseIssuePollPath.bind(this.paths),
-      submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
-        ? (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
-            submitPath,
-            pollPath,
-            payload,
-            this.transportProfile,
-            pollOptions,
-          )
-        : this.submitAndPoll.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
 
@@ -874,15 +880,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return addFreeOrganizationEmployeeLicensesWithDeps(ctx, input, {
       organizationLicenseOfferCreatePath: this.paths.organizationLicenseOfferCreatePath.bind(this.paths),
       organizationLicenseOfferCreatePollPath: this.paths.organizationLicenseOfferCreatePollPath.bind(this.paths),
-      submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
-        ? (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
-            submitPath,
-            pollPath,
-            payload,
-            this.transportProfile,
-            pollOptions,
-          )
-        : this.submitAndPoll.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
 
@@ -894,15 +892,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return requestOrganizationEmployeeLicenseOfferWithDeps(ctx, input, {
       organizationLicenseOfferCreatePath: this.paths.organizationLicenseOfferCreatePath.bind(this.paths),
       organizationLicenseOfferCreatePollPath: this.paths.organizationLicenseOfferCreatePollPath.bind(this.paths),
-      submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
-        ? (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
-            submitPath,
-            pollPath,
-            payload,
-            this.transportProfile,
-            pollOptions,
-          )
-        : this.submitAndPoll.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
 
@@ -972,15 +962,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       defaultIntervalMs: pollOptions?.intervalMs,
       hostRegistryOrderBatchPath: this.paths.hostRegistryOrderBatchPath.bind(this.paths),
       hostRegistryOrderPollPath: this.paths.hostRegistryOrderPollPath.bind(this.paths),
-      submitAndPoll: this.transportProfile === TransportProfiles.DidcommEncryptedForm
-        ? (submitPath, pollPath, payload, options) => this.submitClinicalMessageAndPoll(
-            submitPath,
-            pollPath,
-            payload,
-            this.transportProfile,
-            options,
-          )
-        : this.submitAndPoll.bind(this),
+      submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
 
@@ -1390,16 +1372,11 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     ctx: RouteContext,
     input: ProfessionalAccessRequestInput,
   ): Promise<ProfessionalAccessRequestResult> {
+    this.requireConfiguredTransportProfile(input.transportProfile);
     return requestProfessionalAccessWithDeps(ctx, input, {
       individualCommunicationBatchPath: this.paths.individualCommunicationBatchPath.bind(this.paths),
       individualCommunicationPollPath: this.paths.individualCommunicationPollPath.bind(this.paths),
-      submitAndPoll: (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
-        submitPath,
-        pollPath,
-        payload,
-        input.transportProfile || this.transportProfile,
-        pollOptions,
-      ),
+      submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
 
@@ -1465,7 +1442,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: CommunicationIngestionInput,
   ): Promise<SubmitAndPollResult> {
     const job = input.communicationJob!;
-    const profile = input.transportProfile || this.transportProfile;
+    const profile = this.requireConfiguredTransportProfile(input.transportProfile);
     const format = normalizeCommunicationPathFormatSegment(input.clinicalFormat || input.pathFormatSegment);
     const submitPath = this.paths.individualCommunicationBatchPath(ctx, format);
     const pollPath = this.paths.individualCommunicationPollPath(ctx, format);
@@ -1628,16 +1605,11 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     ctx: RouteContext,
     input: ClinicalBundleSearchInput,
   ): Promise<SubmitAndPollResult> {
+    this.requireConfiguredTransportProfile(input.transportProfile);
     return searchClinicalBundleWithDeps(ctx, input, {
       bundleSearchPath: this.paths.individualBundleSearchPath.bind(this.paths),
       bundleSearchPollPath: this.paths.individualBundleSearchPollPath.bind(this.paths),
-      submitAndPoll: (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
-        submitPath,
-        pollPath,
-        payload,
-        input.transportProfile || this.transportProfile,
-        pollOptions,
-      ),
+      submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
 
@@ -1653,13 +1625,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       digitalTwinCompositionPollPath: this.paths.digitalTwinCompositionPollPath.bind(this.paths),
       digitalTwinCommunicationBatchPath: this.paths.digitalTwinCommunicationBatchPath.bind(this.paths),
       digitalTwinCommunicationPollPath: this.paths.digitalTwinCommunicationPollPath.bind(this.paths),
-      submitAndPoll: (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
-        submitPath,
-        pollPath,
-        payload,
-        this.transportProfile,
-        pollOptions,
-        input.accessToken,
+      submitAndPoll: (submitPath, pollPath, payload, pollOptions) => this.submitAndPollWithBearerToken(
+        input.accessToken, submitPath, pollPath, payload, pollOptions,
       ),
     });
   }
@@ -1676,13 +1643,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       digitalTwinCompositionPollPath: this.paths.digitalTwinCompositionPollPath.bind(this.paths),
       digitalTwinCommunicationBatchPath: this.paths.digitalTwinCommunicationBatchPath.bind(this.paths),
       digitalTwinCommunicationPollPath: this.paths.digitalTwinCommunicationPollPath.bind(this.paths),
-      submitAndPoll: (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
-        submitPath,
-        pollPath,
-        payload,
-        this.transportProfile,
-        pollOptions,
-        input.accessToken,
+      submitAndPoll: (submitPath, pollPath, payload, pollOptions) => this.submitAndPollWithBearerToken(
+        input.accessToken, submitPath, pollPath, payload, pollOptions,
       ),
     });
   }
@@ -1699,13 +1661,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       digitalTwinCompositionPollPath: this.paths.digitalTwinCompositionPollPath.bind(this.paths),
       digitalTwinCommunicationBatchPath: this.paths.digitalTwinCommunicationBatchPath.bind(this.paths),
       digitalTwinCommunicationPollPath: this.paths.digitalTwinCommunicationPollPath.bind(this.paths),
-      submitAndPoll: (submitPath, pollPath, payload, pollOptions) => this.submitClinicalMessageAndPoll(
-        submitPath,
-        pollPath,
-        payload,
-        this.transportProfile,
-        pollOptions,
-        input.accessToken,
+      submitAndPoll: (submitPath, pollPath, payload, pollOptions) => this.submitAndPollWithBearerToken(
+        input.accessToken, submitPath, pollPath, payload, pollOptions,
       ),
     });
   }
@@ -1762,14 +1719,6 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     claimsCid?: string;
   } {
     return buildGrantProfessionalAccessClaimsWithCid(input, runtimeUuid);
-  }
-
-  private async pollBatchResponse(path: string, request: { thid: string }): Promise<{ status: number; body: unknown; retryAfterMs?: number }> {
-    return pollBatchResponseWithRuntimeConfig(this.transportConfig, path, request);
-  }
-
-  private async postJson(path: string, payload: unknown, contentType: string): Promise<SubmitResponse> {
-    return postJsonWithRuntimeConfig(this.transportConfig, path, payload, contentType);
   }
 
   private buildHeaders(contentType: string): Record<string, string> {

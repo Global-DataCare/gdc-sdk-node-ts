@@ -463,6 +463,9 @@ GW CORE current contract:
 
 - `POST /{tenantId}/cds-{jurisdiction}/v1/{sector}/entity/org.schema/Employee/_search`
   canonical search path using `POST + Parameters`
+- the same `NodeHttpClient.transportProfile` selected for employee creation
+  governs search submission and polling; search cannot downgrade an encrypted
+  staging or production runtime to DIDComm plaintext
 
 ### Employee lifecycle
 

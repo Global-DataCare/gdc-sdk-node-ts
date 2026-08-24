@@ -288,9 +288,11 @@ npm run test:e2e:live-gw:all
 
 Profile note:
 
-- `didcomm-plain` is the current live baseline implemented by the Node runtime client
+- `didcomm-plain` is the explicit demo-only live profile
 - `legacy-fhir` exercises raw `application/fhir+json` async batch submission for `org.hl7.fhir.*`
 - `all` runs every implemented profile from the same suite file
+- each `NodeHttpClient` selects one profile at construction; every facade
+  operation and poll uses it and cannot override or downgrade it
 
 Run the IPS ingestion/search branch as well:
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.4.24 - 2026-08-24
+
+- Enforce the `NodeHttpClient` transport profile once for every submit and
+  asynchronous poll. Employee and licence inventory, lifecycle, Offer and
+  Order operations can no longer bypass an encrypted runtime by sending
+  DIDComm plaintext.
+- Reject per-operation transport overrides that conflict with the runtime
+  profile, preventing silent security downgrades in staging and production.
+- Extend the executable transport contract to employee search, licence search,
+  disable and purge, including both request and poll messages.
+
 ## 2.4.23 - 2026-08-24
 
 - Replace professional `License/_add` with host-authored `Offer/_create`.
