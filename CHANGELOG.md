@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.4.22 - 2026-08-23
+
+- Add the explicit `requestEmployeeLicenseOffer(...)` controller operation.
+  It requests a host-authored professional-seat Offer before any employee is
+  created and leaves seat materialization to the existing verified Order flow.
+- Keep `addFreeEmployeeLicenses(...)` only as a deprecated compatibility alias
+  for requesting that Offer; it no longer represents free professional seats.
+
 ## 2.4.21 - 2026-08-23
 
 - Bind encrypted server-profile messages to the DCR-issued `client_id` as well

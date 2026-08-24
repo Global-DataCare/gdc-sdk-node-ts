@@ -88,7 +88,7 @@ for (const profile of Object.values(TransportProfiles)) {
   });
 }
 
-test('OrganizationControllerSdk rejects professional License/_add before secure transport', async () => {
+test('OrganizationControllerSdk requests a professional Offer through secure transport', async () => {
   const calls = [];
   const packedMessages = [];
   const sdk = new OrganizationControllerSdk(new NodeHttpClient({
@@ -105,10 +105,12 @@ test('OrganizationControllerSdk rejects professional License/_add before secure 
     fetchImpl: createFetchRecorder(TransportProfiles.DidcommEncryptedForm, calls),
   }));
 
-  await assert.rejects(sdk.addFreeEmployeeLicenses(ctx, {
+  await sdk.requestEmployeeLicenseOffer(ctx, {
     quantity: 2,
     pollOptions: { intervalMs: 1, timeoutMs: 100 },
-  }), /Offer and Order payment verification/);
-  assert.equal(calls.length, 0);
-  assert.equal(packedMessages.length, 0);
+  });
+  assert.equal(calls.length, 2);
+  assert.equal(packedMessages.length, 2);
+  assert.equal(packedMessages[0].body.data[0].meta.claims['org.schema.Offer.eligibleQuantity.value'], 2);
+  assert.equal(packedMessages[0].body.data[0].meta.claims['org.schema.IndividualProduct.category'], 'professional');
 });
