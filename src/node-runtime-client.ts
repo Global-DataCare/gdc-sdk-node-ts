@@ -1526,7 +1526,13 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     const submit = await postRenderedWithRuntimeConfig(transportConfig, submitPath, renderedSubmit);
     const poll = await pollUntilCompleteWithMethod(
       async (path, request) => {
-        const renderedPoll = await renderTransportPollRequest(request.thid, profile, this.secureTransportAdapter);
+        const renderedPoll = profile === TransportProfiles.DidcommEncryptedForm
+          ? await renderGatewayMessageRequest({
+              thid: request.thid,
+              ...(typeof payload.iss === 'string' ? { iss: payload.iss } : {}),
+              ...(typeof payload.aud === 'string' ? { aud: payload.aud } : {}),
+            }, profile, this.secureTransportAdapter)
+          : await renderTransportPollRequest(request.thid, profile, this.secureTransportAdapter);
         const response = await postRenderedWithRuntimeConfig(transportConfig, path, renderedPoll);
         return {
           status: response.status,
