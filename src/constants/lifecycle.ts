@@ -10,6 +10,8 @@ import { LifecycleRequestType } from 'gdc-common-utils-ts';
  * is actually deployed.
  */
 export const GwCoreLifecycleAction = Object.freeze({
+  Create: '_create',
+  CreateResponse: '_create-response',
   Batch: '_batch',
   BatchResponse: '_batch-response',
   Issue: '_issue',

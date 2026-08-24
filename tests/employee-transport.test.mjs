@@ -113,6 +113,7 @@ test('OrganizationControllerSdk requests a professional Offer through secure tra
   assert.equal(calls.length, 2);
   assert.equal(packedMessages.length, 2);
   assert.equal(packedMessages[0].iss, 'did:web:gw.example:tenant:controller:one');
+  assert.equal(packedMessages[1].iss, 'did:web:gw.example:tenant:controller:one');
   assert.equal(packedMessages[0].body.data[0].meta.claims['org.schema.Offer.eligibleQuantity.value'], 2);
   assert.equal(packedMessages[0].body.data[0].meta.claims['org.schema.IndividualProduct.category'], 'professional');
 });
@@ -144,6 +145,7 @@ test('OrganizationControllerSdk confirms the professional Order through the same
   assert.equal(calls.length, 2);
   assert.equal(packedMessages.length, 2);
   assert.equal(packedMessages[0].iss, 'did:web:gw.example:tenant:controller:one');
+  assert.equal(packedMessages[1].iss, 'did:web:gw.example:tenant:controller:one');
   assert.equal(
     packedMessages[0].body.data[0].meta.claims['Order.acceptedOffer.identifier'],
     'urn:cds:ES:v1:onehealth-research:product:org.schema:Offer:example',
