@@ -120,6 +120,29 @@ test('secure clinical transport fails before network I/O without a wallet adapte
   assert.equal(calls.length, 0);
 });
 
+test('one runtime transport profile cannot be overridden by an operation', async () => {
+  const calls = [];
+  const sdk = new IndividualControllerSdk(new NodeHttpClient({
+    baseUrl: 'https://gw.example',
+    ctx,
+    transportProfile: TransportProfiles.DidcommEncryptedForm,
+    secureTransportAdapter: {
+      async pack(message) { return `packed-${message.thid}`; },
+      async unpack(jwe) { return { decrypted: jwe }; },
+    },
+    fetchImpl: createFetchRecorder(TransportProfiles.DidcommEncryptedForm, calls),
+  }));
+
+  await assert.rejects(
+    sdk.ingestCommunicationAndUpdateIndex(ctx, {
+      communicationJob: createClinicalOutboxJob(),
+      transportProfile: TransportProfiles.DidcommPlainJson,
+    }),
+    /conflicts with configured runtime profile/,
+  );
+  assert.equal(calls.length, 0);
+});
+
 test('subject-scoped clinical search uses the same protected profile as ingestion', async () => {
   const calls = [];
   const sdk = new IndividualControllerSdk(new NodeHttpClient({

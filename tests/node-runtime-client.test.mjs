@@ -84,7 +84,7 @@ test('NodeHttpClient injects AppId and AppVersion headers in outgoing GW request
       AppId: 'es.globaldatacare.portal',
       AppVersion: 'v2.0.0',
       'Content-Type': 'application/didcomm-plain+json',
-      Accept: 'application/json, application/didcomm-plain+json, */*',
+      Accept: 'application/didcomm-plain+json, application/json',
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -116,7 +116,7 @@ test('NodeHttpClient can reuse runtimeVpToken as the default Authorization Beare
     assert.equal(requests.length, 1);
     assert.deepEqual(requests[0][1].headers, {
       'Content-Type': 'application/didcomm-plain+json',
-      Accept: 'application/json, application/didcomm-plain+json, */*',
+      Accept: 'application/didcomm-plain+json, application/json',
       Authorization: 'Bearer vp-token-software-runtime-001',
     });
   } finally {
