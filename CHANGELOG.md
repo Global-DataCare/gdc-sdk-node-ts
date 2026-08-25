@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Document and test the `Order/_batch` split boundary: the operation is routed
+  and persisted by the host, while the signed/encrypted controller `kid`/`skid`
+  is resolved from the tenant where DCR registered it.
+- Correct the high-level `OrganizationControllerSdk` JSDoc that still described
+  license confirmation as unsupported, and explicitly keep DIDComm envelope
+  construction out of application/BFF code.
+
 ## 2.4.24 - 2026-08-24
 
 - Enforce the `NodeHttpClient` transport profile once for every submit and

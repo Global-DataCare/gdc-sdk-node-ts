@@ -575,9 +575,14 @@ test('NodeHttpClient confirms organization-side extra license activation through
     },
   );
 
+  // This regression contract deliberately checks route and security context
+  // together: the commercial Order is host-routed, while `iss` and `aud`
+  // preserve the tenant DCR principal so GW resolves kid/skid from that tenant.
+  // Resolving the same controller in the host vault caused the live portal 401.
   assert.equal(calls[0][0], '/host/cds-ES/v1/test/registry/org.schema/Order/_batch');
   assert.equal(calls[0][1], '/host/cds-ES/v1/test/registry/org.schema/Order/_batch-response');
   assert.equal(calls[0][2].iss, 'did:web:gw.example.org:tenant:controller:one');
+  assert.equal(calls[0][2].aud, EXAMPLE_TENANT_ROUTE_CONTEXT.tenantId);
   assert.equal(calls[0][2].body.data[0].meta.claims['Order.paymentMethod'], 'invoice');
 });
 

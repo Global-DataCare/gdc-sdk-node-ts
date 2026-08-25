@@ -238,6 +238,11 @@ Current runtime boundary:
 - `OrganizationControllerSdk.confirmOrganizationLicenseOrder(...)` now uses the
   public host `Order/_batch` route used by GW CORE for portal-managed
   post-payment seat activation
+- that route is commercial routing only: `iss` remains the exact controller DID
+  registered by tenant DCR, `aud` remains the tenant id, and GW resolves its
+  JWS/JWE key identifiers from the tenant rather than the host
+- applications use the high-level SDK method and configured transport profile;
+  they do not populate `meta.jws`, move public keys, or construct DIDComm by hand
 - the long root lifecycle is still not fully closed because the suite does not
   yet orchestrate the whole `license list -> pay -> confirm -> relist -> two
   employees -> selective purge -> cleanup` dialogue as one single test

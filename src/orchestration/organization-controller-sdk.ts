@@ -267,17 +267,18 @@ export class OrganizationControllerSdk {
 
   /**
    * Confirms an already paid organization-side license order so GW CORE can
-   * activate additional tenant seats once the public route exists.
+   * activate additional tenant seats.
    *
    * The commercial/payment step happens outside GW CORE. This method models
    * the follow-up confirmation that should materialize new seats from the
    * accepted order.
    *
-   * Current runtime note:
-   * - search/list of organization license offers and orders already exists
-   * - the public/write post-payment seat-activation route is not converged yet
-   * - current runtime clients therefore throw an explicit unsupported-flow
-   *   error instead of fabricating an unstable payload contract
+   * Security/routing contract:
+   * - the request is routed through the host `Order/_batch` endpoint
+   * - the signed `iss` is still the exact controller DID registered by DCR for
+   *   `ctx.tenantId`; its `kid`/`skid` keys belong to that tenant, not the host
+   * - the configured runtime transport profile applies unchanged, including
+   *   DIDComm encryption in protected staging/production runtimes
    */
   public confirmOrganizationLicenseOrder(
     ctx: RouteContext,
