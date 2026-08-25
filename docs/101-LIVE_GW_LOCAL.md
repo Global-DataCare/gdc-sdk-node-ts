@@ -302,6 +302,9 @@ Current public-route boundary:
   exists in `sdk-node` as the canonical post-payment business step
 - it currently submits through the public host `Order/_batch` route used by GW
   CORE for portal-managed payment confirmations
+- host routing does not imply host key custody: the exact DCR controller stays
+  in `iss`, the tenant stays in `aud`, and GW resolves the signed/encrypted
+  `kid`/`skid` from that tenant's DCR registration
 - what is still missing is the single long live suite that chains this step
   into the full `list -> pay -> confirm -> relist -> employees -> cleanup`
   dialogue

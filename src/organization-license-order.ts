@@ -18,11 +18,16 @@ import type { RouteContext } from './individual-onboarding.js';
  * Transport note:
  * - current GW CORE exposes this confirmation step through the host
  *   `registry/org.schema/Order/_batch` route
- * - the organization controller still reasons in tenant context, so the
- *   runtime adapts that higher-level intent onto the current host route
+ * - that host route owns commercial routing and persistence only; it does not
+ *   change the security principal or move controller keys into the host vault
+ * - `issuerDid` must be the exact controller DID registered through DCR for the
+ *   tenant in `routeCtx`; signed/encrypted transports therefore emit its
+ *   registered `kid`/`skid`, and GW resolves those public keys from that tenant
+ * - `aud` remains the tenant id so GW cannot confuse a host-routed Order with a
+ *   host-authored controller request
  */
 export type OrganizationLicenseOrderConfirmInput = Readonly<{
-  /** Exact DCR-registered controller DID that signs the protected request. */
+  /** Exact tenant DCR-registered controller DID used as `iss` and key owner. */
   issuerDid: string;
   offerId: string;
   hostNetwork?: string;

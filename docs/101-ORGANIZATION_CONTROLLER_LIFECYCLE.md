@@ -253,6 +253,29 @@ facades:
 
 If you are building a BFF, these are the methods to copy conceptually.
 
+### Host route, tenant keys
+
+`confirmOrganizationLicenseOrder(...)` is intentionally a high-level method:
+the application supplies the tenant route context, the accepted Offer and the
+exact controller DID registered through DCR. The SDK handles the lower-level
+transport contract.
+
+- `Order/_batch` is routed through `/host/...` because the host verifies and
+  persists the commercial confirmation.
+- Routing does not change key custody. The JWS `kid` and, for encrypted
+  DIDComm, the JWE `skid` identify the controller keys already registered in
+  the tenant DCR vault.
+- The DIDComm payload therefore keeps the controller DID in `iss` and the
+  tenant id in `aud`. GW derives the tenant key vault from that authenticated
+  issuer; it must not search for the controller in the host vault.
+- A public JWK may be present where a transport profile requires it, but DCR is
+  the authoritative registration. Application code must not copy keys into
+  `meta.jws` or manually assemble DIDComm envelopes.
+
+This rule is identical for plaintext and encrypted DIDComm. Encryption changes
+the envelope produced by the configured SDK transport, not the tenant that owns
+the controller keys.
+
 Technical-slice note:
 
 - `recoverOrganizationControllerWithCredentialReissuanceWithDeps(...)` is still useful inside
