@@ -98,6 +98,7 @@ test('NodeManagedWallet signs compact JWS payloads with managed runtime keys', a
     purpose: 'openid-id-token-signing',
     keyId: header.kid,
   });
+  assert.deepEqual(header.jwk, descriptor.publicJwk);
   assert.equal(cryptoVerify(
     'sha384',
     Buffer.from(`${encodedHeader}.${encodedPayload}`, 'ascii'),
@@ -128,8 +129,11 @@ test('NodeManagedWallet packs the DIDComm message itself as the signed JWS claim
     body: { data: [{ type: 'LicenseAddRequest' }] },
   };
   const compactJws = await wallet.packForRecipientWithContext(message, { kty: 'OKP', kid: 'recipient' }, { context });
+  const protectedHeader = JSON.parse(Buffer.from(compactJws.split('.')[0], 'base64url').toString('utf8'));
   const signedClaims = JSON.parse(Buffer.from(compactJws.split('.')[1], 'base64url').toString('utf8'));
 
+  assert.equal(protectedHeader.kid, protectedHeader.jwk.kid);
+  assert.equal(protectedHeader.jwk.d, undefined);
   assert.deepEqual(signedClaims, message);
   assert.equal(signedClaims.payload, undefined);
 });
