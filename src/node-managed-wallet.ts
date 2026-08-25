@@ -357,10 +357,6 @@ export class NodeManagedWallet implements IWallet {
       ...request.header,
       alg: entry.descriptor.alg,
       kid: entry.descriptor.kid,
-      // The public verification material travels with the signed message so a
-      // receiving GW can project it to `content.meta.jws.protected.jwk` after
-      // JOSE decoding. Private key members never enter the descriptor.
-      jwk: entry.descriptor.publicJwk,
     };
     const prepared = prepareJwtForSignature(header, request.claims);
     const signature = await this.sign(prepared.signingInput, context, request.key);

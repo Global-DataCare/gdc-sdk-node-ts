@@ -1,11 +1,5 @@
 # Changelog
 
-## 2.4.25 - 2026-08-25
-
-- Embed the selected public signing JWK in every managed compact JWS protected
-  header. DIDComm encrypted receivers can now project and verify the sender key
-  from `content.meta.jws.protected.jwk` without exposing private material.
-
 ## 2.4.24 - 2026-08-24
 
 - Enforce the `NodeHttpClient` transport profile once for every submit and
