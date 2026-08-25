@@ -409,6 +409,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Expose the effective `maxDevices` returned by `License/_issue` from
+  `provisionOrganizationEmployee(...)`, so BFFs display the reserved seat's
+  real installation allowance instead of a local fallback.
 - Consume the corrected common role-license identity contract, where
   `organizationOfficialId` is the raw legal identifier and never `urn:org:*`.
 

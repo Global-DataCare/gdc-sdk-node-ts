@@ -33,6 +33,7 @@ import {
   enrollInvitedOrganizationEmployeeWithDeps,
   listOrganizationEmployeeLifecycleWithDeps,
   provisionOrganizationEmployeeWithDeps,
+  readEmployeeLicenseMaxDevices,
   readEmployeeLicenseOfferId,
 } from '../dist/index.js';
 
@@ -66,6 +67,35 @@ test('provisionOrganizationEmployeeWithDeps owns create plus license issue orche
     },
   );
   assert.equal(result.activationCode, EXAMPLE_EMPLOYEE_ACTIVATION_CODE);
+});
+
+test('provisionOrganizationEmployeeWithDeps exposes the allowance persisted by License/_issue', async () => {
+  const issued = {
+    resourceType: 'Bundle',
+    type: 'batch-response',
+    data: [{
+      type: 'License:Issued',
+      id: EXAMPLE_EMPLOYEE_ACTIVATION_CODE,
+      meta: { maxDevices: 5 },
+      response: { status: '201' },
+    }],
+  };
+  const result = await provisionOrganizationEmployeeWithDeps(
+    EXAMPLE_TENANT_ROUTE_CONTEXT,
+    {
+      creation: { employeeClaims: buildExampleEmployeeClaims(EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE) },
+      invitation: {
+        ...EXAMPLE_LICENSE_ISSUE_INPUT,
+        subjectDid: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier,
+      },
+    },
+    {
+      createEmployee: async () => buildExampleSubmitAndPollResult(EXAMPLE_EMPLOYEE_SEARCH_RESPONSE_BODY),
+      issueLicense: async () => buildExampleSubmitAndPollResult(issued),
+    },
+  );
+  assert.equal(result.maxDevices, 5);
+  assert.equal(readEmployeeLicenseMaxDevices(issued), 5);
 });
 
 test('provisionOrganizationEmployeeWithDeps closes an employee Offer through Order before retrying creation', async () => {

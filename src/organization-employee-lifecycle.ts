@@ -40,6 +40,8 @@ export type OrganizationEmployeeProvisioningResult = Readonly<{
   license: SubmitAndPollResult;
   licenseOrder?: SubmitAndPollResult;
   activationCode: string;
+  /** Effective installation allowance returned by the reserved GW seat. */
+  maxDevices?: number;
 }>;
 
 /** Shared dependencies for the create plus seat issuance workflow. */
@@ -94,7 +96,23 @@ export async function provisionOrganizationEmployeeWithDeps(
   if (!activationCode) {
     throw new Error('provisionOrganizationEmployee: GW response did not contain an employee activation credential.');
   }
-  return { employee, license, licenseOrder, activationCode };
+  const maxDevices = readEmployeeLicenseMaxDevices(license.poll.body);
+  return {
+    employee,
+    license,
+    licenseOrder,
+    activationCode,
+    ...(maxDevices ? { maxDevices } : {}),
+  };
+}
+
+/** Reads the effective positive installation allowance returned by `License/_issue`. */
+export function readEmployeeLicenseMaxDevices(value: unknown): number | undefined {
+  for (const candidate of nestedRecords(value)) {
+    const configured = Number(record(candidate.meta)?.maxDevices ?? candidate.maxDevices);
+    if (Number.isInteger(configured) && configured > 0) return configured;
+  }
+  return undefined;
 }
 
 /**
