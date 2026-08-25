@@ -292,6 +292,9 @@ licensed operation; the SDK does not inject private control claims. If GW return
 `Employee-license-offer-v1.0`, it confirms that Offer through `Order/_batch`,
 retries employee creation and only then invokes `License/_issue`. A future
 governed bulk importer must use a distinct, explicit operation contract.
+The result exposes both the opaque `activationCode` and the effective optional
+`maxDevices` returned by that reserved seat; portals must prefer that explicit
+allowance over their backwards-compatible local default.
 
 ### A. Canonical onboarding path
 
