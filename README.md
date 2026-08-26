@@ -113,6 +113,8 @@ If you need the shortest path:
 
 - main onboarding guide:
   [docs/101-SDK_END_TO_END.md](./docs/101-SDK_END_TO_END.md)
+- wallet `context`, stable `runtimeId` and KMS-encrypted seed custody:
+  [docs/101-WALLET_CONTEXT_AND_KEY_CUSTODY.md](./docs/101-WALLET_CONTEXT_AND_KEY_CUSTODY.md)
 - first public actor surfaces:
   `HostOnboardingSdk`, `OrganizationControllerSdk`,
   `IndividualControllerSdk`, `ProfessionalSdk`

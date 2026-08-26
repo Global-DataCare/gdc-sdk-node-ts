@@ -639,12 +639,17 @@ const emailControllerOrg = 'legal.rep@acme.org';
 const controllerSameAs = normalizeSameAsHash(emailControllerOrg);
 
 // One technical wallet per controller device/runtime. Keep this context and
-// the protected seed stable so the portal can reconstruct the same private
-// communication keys after a restart.
+// the KMS-encrypted seed stable. The portal does not persist private JWKs:
+// NodeManagedWallet reconstructs them from the decrypted seed plus this same
+// context after a restart.
 const controllerWallet = new NodeManagedWallet();
 const controllerWalletContext = {
   runtime: {
+    // Application-owned stable id for this technical wallet/keyring. It is not
+    // an email, DID, PIN, DCR client_id or OpenID sub. Store it beside the
+    // encrypted seed and never generate a new value on each process start.
     runtimeId: 'globaldatacare:legal-representative:primary-device',
+    // Descriptive runtime category; runtimeId is the stable owner selector.
     runtimeType: 'web-bff',
   },
 };
@@ -704,15 +709,31 @@ const organizationActivation = await professionalSdk.activateOrganizationInGatew
 );
 ```
 
+`controllerWalletContext` is a `WalletExecutionContext`: it tells the local
+wallet which technical runtime owns the communication keyring. For this flow,
+`context.runtime.runtimeId` is mandatory. The portal chooses and persists that
+stable identifier; the SDK does not obtain it from GW or DCR. With deterministic
+provisioning, the only secret that must be persisted is the seed encrypted by
+the portal's KMS/KEK. The private keys are reconstructed and are not stored or
+sent separately.
+
+For the complete field contract, restart example and custody rules, see
+[101-WALLET_CONTEXT_AND_KEY_CUSTODY.md](./101-WALLET_CONTEXT_AND_KEY_CUSTODY.md).
+The behavior is executable in
+[tests/node-managed-wallet.test.mjs](../tests/node-managed-wallet.test.mjs),
+while the activation request is covered by
+[tests/host-onboarding.test.mjs](../tests/host-onboarding.test.mjs).
+
 `organizationActivation` completes the legacy representative key binding. The
 next operation is the returned commercial Order when present, followed by the
 normal controller business operations. There is no
 `profileSessions.enroll(...)` call for this same historical representative.
 That does not mean “no wallet”: `_activate` registers the professional role key
 and the optional communication JWKS in the same bootstrap operation. The portal
-must keep using the wallet that owns those communication private keys. Creating
-a new wallet after activation produces new `kid` values and GW will correctly
-reject them as unregistered.
+must keep using the same KMS-encrypted seed and stable wallet context so the SDK
+reconstructs that registered communication keyring. Changing the seed or
+context produces new `kid` values and GW will correctly reject them as
+unregistered.
 
 Mandatory rule for this onboarding step:
 
@@ -956,6 +977,10 @@ also be configured to trust that exact issuer, audience and JWKS. A self-signed
 JWT from an untrusted employee/device wallet is not email proof. An audience
 error means the token's `aud` does not equal the audience configured by GW; it
 must not be guessed from the GW DID or hostname.
+
+See [tests/server-profile-session.test.mjs](../tests/server-profile-session.test.mjs)
+for the executable separation between signed email `id_token`, actor
+`vp_token`, PIN-unlocked wallet material and managed enrollment.
 
 ```ts
 const registeredControllerProfile = await profileSessions.enroll({
@@ -1994,14 +2019,15 @@ Preferred teaching names:
 
 If you need the exact reference files used to maintain this guide, open:
 
-- [README.md](./README.md)
+- [README.md](../README.md)
 - [101-SDK_INTEGRATION.md](./101-SDK_INTEGRATION.md)
-- [tests/host-onboarding.test.mjs](./tests/host-onboarding.test.mjs)
-- [tests/individual-start.test.mjs](./tests/individual-start.test.mjs)
-- [tests/individual-onboarding.test.mjs](./tests/individual-onboarding.test.mjs)
-- [tests/device-activation.test.mjs](./tests/device-activation.test.mjs)
-- [tests/resource-operations.test.mjs](./tests/resource-operations.test.mjs)
-- [tests/smart-token.test.mjs](./tests/smart-token.test.mjs)
+- [101-WALLET_CONTEXT_AND_KEY_CUSTODY.md](./101-WALLET_CONTEXT_AND_KEY_CUSTODY.md)
+- [tests/host-onboarding.test.mjs](../tests/host-onboarding.test.mjs)
+- [tests/individual-start.test.mjs](../tests/individual-start.test.mjs)
+- [tests/individual-onboarding.test.mjs](../tests/individual-onboarding.test.mjs)
+- [tests/device-activation.test.mjs](../tests/device-activation.test.mjs)
+- [tests/resource-operations.test.mjs](../tests/resource-operations.test.mjs)
+- [tests/smart-token.test.mjs](../tests/smart-token.test.mjs)
 - [gdc-common-utils-ts/src/examples/organization-controller.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/organization-controller.ts)
 - [gdc-common-utils-ts/src/examples/individual-controller.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/individual-controller.ts)
 - [gdc-common-utils-ts/src/examples/professional.ts](https://github.com/Global-DataCare/gdc-common-utils-ts/blob/main/src/examples/professional.ts)
