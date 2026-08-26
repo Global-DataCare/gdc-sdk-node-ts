@@ -11,7 +11,11 @@ import type {
   DigitalTwinSearchInput,
   DigitalTwinSearchResult,
 } from '../digital-twin.js';
-import { DigitalTwinSearchParameter, readDigitalTwinSearchResult } from '../digital-twin.js';
+import {
+  assertDigitalTwinSubjectId,
+  DigitalTwinSearchParameter,
+  readDigitalTwinSearchResult,
+} from '../digital-twin.js';
 import { requireClientMethod, type NodeRuntimeClient, type SubmitAndPollResult } from './client-port.js';
 
 /** Public research facade for licensed digital-twin access. */
@@ -76,6 +80,7 @@ export class DigitalTwinSdk {
    * The canonical clinical twin is never modified.
    */
   public saveSelection(ctx: RouteContext, input: DigitalTwinSelectionInput): Promise<SubmitAndPollResult> {
+    assertDigitalTwinSubjectId(input.twinSubjectId);
     const requestedAuthorDid = String(input.authorDid || '').trim() || undefined;
     if (this.researcherDid && requestedAuthorDid && requestedAuthorDid !== this.researcherDid) {
       throw new Error('Digital twin selection authorDid must match the actor session.');
@@ -112,6 +117,7 @@ export class DigitalTwinSdk {
 
   /** Materializes one selected research subject through `ResearchSubject/$summary`. */
   public materialize(ctx: RouteContext, input: DigitalTwinMaterializationInput): Promise<SubmitAndPollResult> {
+    assertDigitalTwinSubjectId(input.twinSubjectId);
     return requireClientMethod(this.client, 'materializeDigitalTwin')(ctx, {
       ...input,
       accessToken: input.accessToken || this.smartAccessToken,

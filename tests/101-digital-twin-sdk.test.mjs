@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   ActorKinds,
+  ActorCapabilities,
   DigitalTwinSearchParameter,
   NodeActorSession,
 } from '../dist/index.js';
@@ -47,6 +48,45 @@ const WORKSET_TAG = Object.freeze({
   code: 'medication-review-april-2026',
 });
 const STORED_WORKSET_TAG = Object.freeze({ ...WORKSET_TAG, userSelected: true });
+
+test('101: patient BFF disables, resumes, and offboards the private twin link', async () => {
+  const decisions = [];
+  const purgedSubjects = [];
+  const individualController = new NodeActorSession({
+    actorKind: ActorKinds.IndividualController,
+    capabilities: [ActorCapabilities.IndividualGenerateDigitalTwin],
+  }, {
+    setDigitalTwinSecondaryUseConsent: async (_ctx, input) => {
+      decisions.push(input.decision);
+      return { consentClaims: { 'Consent.decision': input.decision } };
+    },
+    purgeDigitalTwinSubjectLink: async (_ctx, input) => {
+      purgedSubjects.push(input.subjectDid);
+      return { poll: { status: 200, body: { purged: true } } };
+    },
+  }).asIndividualController();
+  const consentInput = {
+    subjectDid: 'did:web:subject.example',
+    researchOrganizationDid: HOSTED_ORGANIZATION_DID,
+    actorRole: 'ISCO-08|221',
+    consentIdentifier: 'urn:uuid:00000000-0000-4000-8000-000000000201',
+  };
+
+  await individualController.setDigitalTwinSecondaryUseConsent(ROUTE_CONTEXT, {
+    ...consentInput,
+    decision: 'deny',
+  });
+  await individualController.setDigitalTwinSecondaryUseConsent(ROUTE_CONTEXT, {
+    ...consentInput,
+    decision: 'permit',
+  });
+  await individualController.purgeDigitalTwinSubjectLink(ROUTE_CONTEXT, {
+    subjectDid: consentInput.subjectDid,
+  });
+
+  assert.deepEqual(decisions, ['deny', 'permit']);
+  assert.deepEqual(purgedSubjects, [consentInput.subjectDid]);
+});
 
 test('101: employee searches, tags, reopens, and materializes a digital twin working selection', async () => {
   const calls = [];

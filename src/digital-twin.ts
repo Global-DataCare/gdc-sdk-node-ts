@@ -11,6 +11,20 @@ import type { PollOptions, SubmitAndPollResult } from './orchestration/client-po
 
 export type DigitalTwinFhirFormat = 'org.hl7.fhir.r4' | 'org.hl7.fhir.api';
 
+const DIGITAL_TWIN_SUBJECT_URN_UUID = /^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Returns whether a value can be used as a pseudonymous digital-twin subject. */
+export function isDigitalTwinSubjectId(value: unknown): value is string {
+  return DIGITAL_TWIN_SUBJECT_URN_UUID.test(String(value || '').trim());
+}
+
+/** Rejects operational DIDs and malformed or caller-invented subject shapes. */
+export function assertDigitalTwinSubjectId(value: unknown): asserts value is string {
+  if (!isDigitalTwinSubjectId(value)) {
+    throw new Error('Digital twin subject must be a valid urn:uuid identifier.');
+  }
+}
+
 /** Search parameters added by the digital-twin Composition profile. */
 export const DigitalTwinSearchParameter = Object.freeze({
   Section: 'section',
@@ -165,6 +179,9 @@ export function readDigitalTwinSearchResult(operation: SubmitAndPollResult): Dig
     throw new Error('Digital twin search did not return a Composition result set.');
   }
   const matches = responseEntry.resource.data as DigitalTwinSearchMatch[];
+  for (const match of matches) {
+    assertDigitalTwinSubjectId(match?.[CompositionClaim.Subject]);
+  }
   const parsedTotal = Number(responseEntry.resource.total);
   return {
     total: Number.isFinite(parsedTotal) ? parsedTotal : matches.length,
@@ -182,7 +199,7 @@ export async function saveDigitalTwinSelectionWithDeps(
   const twinSubjectId = String(input.twinSubjectId || '').trim();
   const section = String(input.section || '').trim();
   const authorDid = String(input.authorDid || '').trim();
-  if (!twinSubjectId) throw new Error('twinSubjectId is required.');
+  assertDigitalTwinSubjectId(twinSubjectId);
   if (!section) throw new Error('Digital twin selection section is required.');
   if (!authorDid) throw new Error('Digital twin selection authorDid is required.');
 
@@ -273,7 +290,7 @@ export async function materializeDigitalTwinWithDeps(
   deps: DigitalTwinRuntimeDeps,
 ): Promise<SubmitAndPollResult> {
   const twinSubjectId = String(input.twinSubjectId || '').trim();
-  if (!twinSubjectId) throw new Error('twinSubjectId is required.');
+  assertDigitalTwinSubjectId(twinSubjectId);
   const format = input.format || 'org.hl7.fhir.r4';
   const thid = String(input.thid || randomUUID());
   const parameters = [

@@ -42,6 +42,7 @@ const actorDid = buildProfessionalDidWeb({
   role: ExampleEmployeeRoles.Doctor,
 });
 const medicationSection = HealthcareCoreSections.HistoryOfMedicationUse.attributeValue;
+const twinSubjectId = 'urn:uuid:00000000-0000-4000-8000-000000000101';
 const worksetTag = Object.freeze({
   system: stableActorIdentifierFromDidWeb(actorDid),
   code: 'medication-review',
@@ -58,7 +59,7 @@ test('DigitalTwinSdk is public and delegates token, search, tagged selection, an
         poll: {
           status: 200,
           attempts: 1,
-          body: { data: [{ resource: { total: 1, data: [{ [CompositionClaim.Subject]: 'urn:uuid:twin-1' }] } }] },
+          body: { data: [{ resource: { total: 1, data: [{ [CompositionClaim.Subject]: twinSubjectId }] } }] },
         },
       };
     },
@@ -70,15 +71,15 @@ test('DigitalTwinSdk is public and delegates token, search, tagged selection, an
   await sdk.requestSmartToken({ actorDid, scopes: [] });
   const search = await sdk.search(ctx, { filters: { [DigitalTwinSearchParameter.Section]: medicationSection } });
   await sdk.saveSelection(ctx, {
-    twinSubjectId: 'urn:uuid:twin-1',
+    twinSubjectId,
     section: medicationSection,
     tags: [worksetTag],
   });
-  await sdk.materialize(ctx, { twinSubjectId: 'urn:uuid:twin-1' });
+  await sdk.materialize(ctx, { twinSubjectId });
 
   assert.deepEqual(calls.map(([name]) => name), ['token', 'search', 'save-selection', 'materialize']);
   assert.equal(search.total, 1);
-  assert.equal(search.matches[0][CompositionClaim.Subject], 'urn:uuid:twin-1');
+  assert.equal(search.matches[0][CompositionClaim.Subject], twinSubjectId);
   assert.equal(search.operation.poll.status, 200);
   assert.equal(calls[0][1][0].purpose, HealthcareConsentPurposes.Research);
   assert.deepEqual(calls[0][1][0].scopes, [ServiceCapability.DigitalTwinReader]);
@@ -86,6 +87,36 @@ test('DigitalTwinSdk is public and delegates token, search, tagged selection, an
   assert.equal(calls[2][1][1].accessToken, 'smart');
   assert.equal(calls[2][1][1].authorDid, actorDid);
   assert.equal(calls[3][1][1].accessToken, 'smart');
+});
+
+test('DigitalTwinSdk rejects operational DIDs returned or supplied as twin subjects', async () => {
+  const operationalDid = 'did:web:patient.example.org:individual:real-subject';
+  const sdk = new DigitalTwinSdk({
+    searchDigitalTwins: async () => ({
+      poll: {
+        body: { data: [{ resource: { total: 1, data: [{ [CompositionClaim.Subject]: operationalDid }] } }] },
+      },
+    }),
+    saveDigitalTwinSelection: async () => ({ ok: true }),
+    materializeDigitalTwin: async () => ({ ok: true }),
+  }, actorDid);
+
+  await assert.rejects(
+    () => sdk.search(ctx, { filters: { [DigitalTwinSearchParameter.Section]: medicationSection } }),
+    /valid urn:uuid/,
+  );
+  assert.throws(
+    () => sdk.saveSelection(ctx, {
+      twinSubjectId: operationalDid,
+      section: medicationSection,
+      tags: [worksetTag],
+    }),
+    /valid urn:uuid/,
+  );
+  assert.throws(
+    () => sdk.materialize(ctx, { twinSubjectId: operationalDid }),
+    /valid urn:uuid/,
+  );
 });
 
 test('organization employees and professionals can materialize DigitalTwinSdk from ActorSession', () => {
@@ -116,7 +147,7 @@ test('DigitalTwinSdk binds SMART and working-selection authorship to the actor s
   assert.throws(
     () => sdk.saveSelection(ctx, {
       authorDid: anotherDid,
-      twinSubjectId: 'urn:uuid:twin-1',
+      twinSubjectId,
       section: medicationSection,
       tags: [worksetTag],
     }),
@@ -231,7 +262,7 @@ test('digital-twin materialization calls Communication and embeds the twin subje
   const call = {};
   await materializeDigitalTwinWithDeps(ctx, {
     thid: 'materialize-1',
-    twinSubjectId: 'urn:uuid:twin-1',
+    twinSubjectId,
     sections: [medicationSection],
     sent: '2026-08-15T18:00:00.000Z',
   }, {
@@ -248,10 +279,10 @@ test('digital-twin materialization calls Communication and embeds the twin subje
   assert.equal(call.submitPath, '/digitaltwin/org.hl7.fhir.r4/Communication/_batch');
   assert.equal(call.pollPath, '/digitaltwin/org.hl7.fhir.r4/Communication/_batch-response');
   const communication = call.payload.body.entry[0].resource;
-  assert.equal(communication.subject.reference, 'urn:uuid:twin-1');
+  assert.equal(communication.subject.reference, twinSubjectId);
   const parameters = JSON.parse(Buffer.from(communication.payload[0].contentAttachment.data, 'base64').toString('utf8'));
   assert.deepEqual(parameters.parameter, [
-    { name: 'subject', valueString: 'urn:uuid:twin-1' },
+    { name: 'subject', valueString: twinSubjectId },
     { name: DigitalTwinSearchParameter.Section, valueString: medicationSection },
   ]);
 });
@@ -261,7 +292,7 @@ test('digital-twin selection saves a tagged researcher working Composition', asy
   await saveDigitalTwinSelectionWithDeps(ctx, {
     thid: 'selection-1',
     selectionId: 'selection-1',
-    twinSubjectId: 'urn:uuid:twin-1',
+    twinSubjectId,
     section: medicationSection,
     authorDid: actorDid,
     date: '2026-08-16T09:00:00.000Z',
@@ -284,7 +315,7 @@ test('digital-twin selection saves a tagged researcher working Composition', asy
   assert.equal(call.submitPath, '/digitaltwin/org.hl7.fhir.r4/Composition/_batch');
   assert.equal(call.pollPath, '/digitaltwin/org.hl7.fhir.r4/Composition/_batch-response');
   const composition = call.payload.body.entry[0].resource;
-  assert.equal(composition.meta.claims[CompositionClaim.Subject], 'urn:uuid:twin-1');
+  assert.equal(composition.meta.claims[CompositionClaim.Subject], twinSubjectId);
   assert.equal(composition.meta.claims[CompositionClaim.Author], actorDid);
   assert.equal(composition.meta.claims[CompositionClaim.Identifier], 'selection-1');
   assert.equal('Composition.branch' in composition.meta.claims, false);

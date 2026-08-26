@@ -1,6 +1,11 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
-import { HealthcareBasicSections, ResourceTypesFhirR4 } from 'gdc-common-utils-ts/constants';
+import {
+  HealthcareBasicSections,
+  HealthcareConsentPurposes,
+  ResourceTypesFhirR4,
+  ServiceCapability,
+} from 'gdc-common-utils-ts/constants';
 import { Format } from 'gdc-common-utils-ts/constants/Schemas';
 import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
 import { CommunicationClaim } from 'gdc-common-utils-ts/models/interoperable-claims/communication-claims';
@@ -583,6 +588,33 @@ export type DigitalTwinGenerationInput = {
   format?: 'api' | 'r4';
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
+
+/** Subject decision controlling publication into the pseudonymous research index. */
+export type DigitalTwinSecondaryUseConsentInput = {
+  subjectDid: string;
+  researchOrganizationDid: string;
+  actorRole: string;
+  decision: 'permit' | 'deny';
+  /** Stable identifier of this portal/index-provider rule; reuse it for every update. */
+  consentIdentifier: string;
+  consentDate?: string;
+  attachmentContentType?: string;
+  attachmentBase64?: string;
+  dataType?: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+};
+
+/** Result of enabling or disabling one subject's digital-twin publication. */
+export type DigitalTwinSecondaryUseConsentResult = GrantProfessionalAccessResult;
+
+/** Provider-offboarding command that destroys only the private subject/twin binding. */
+export type DigitalTwinSubjectLinkPurgeInput = {
+  subjectDid: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+};
+
+/** Async GW result for a subject/twin binding purge. */
+export type DigitalTwinSubjectLinkPurgeResult = SubmitAndPollResult;
 
 export async function createOrganizationEmployeeWithDeps(
   routeCtx: RouteContext,
@@ -1924,6 +1956,91 @@ export async function grantProfessionalAccessWithDeps(
     consentClaims: built.consentClaims,
     claimsCid: built.claimsCid,
   };
+}
+
+/**
+ * Enables or disables secondary research use for one subject.
+ *
+ * `permit` asks GW to build or rebuild the current pseudonymous projection;
+ * `deny` pauses later synchronization while preserving the published twin and
+ * tenant-private subject alias.
+ */
+export async function setDigitalTwinSecondaryUseConsentWithDeps(
+  routeCtx: RouteContext,
+  input: DigitalTwinSecondaryUseConsentInput,
+  deps: {
+    buildConsentClaimsWithCid: (
+      input: GrantProfessionalAccessInput,
+      options?: { consentIdentifierFactory: () => string },
+    ) => {
+      actorIdentifier: string;
+      subjectIdentifier: string;
+      consentClaims: Record<string, unknown>;
+      claimsCid?: string;
+    };
+    individualConsentR4BatchPath: (ctx: RouteContext) => string;
+    individualConsentR4PollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<DigitalTwinSecondaryUseConsentResult> {
+  if (!String(input.consentIdentifier || '').trim()) {
+    throw new Error('consentIdentifier is required for idempotent digital-twin consent updates.');
+  }
+  return grantProfessionalAccessWithDeps(routeCtx, {
+    subjectDid: input.subjectDid,
+    actorId: input.researchOrganizationDid,
+    actorRole: input.actorRole,
+    purpose: HealthcareConsentPurposes.Research,
+    actions: [ServiceCapability.DigitalTwinReader],
+    decision: input.decision,
+    consentIdentifier: input.consentIdentifier,
+    consentDate: input.consentDate,
+    attachmentContentType: input.attachmentContentType,
+    attachmentBase64: input.attachmentBase64,
+    dataType: input.dataType,
+    pollOptions: input.pollOptions,
+  }, deps);
+}
+
+/**
+ * Removes the index provider's private individual-to-twin correspondence.
+ * The anonymous twin is intentionally not deleted. A later enrollment gets a
+ * new UUID and cannot reconnect the detached twin to the individual.
+ */
+export async function purgeDigitalTwinSubjectLinkWithDeps(
+  routeCtx: RouteContext,
+  input: DigitalTwinSubjectLinkPurgeInput,
+  deps: {
+    individualResearchSubjectPurgePath: (ctx: RouteContext) => string;
+    individualResearchSubjectPurgePollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<DigitalTwinSubjectLinkPurgeResult> {
+  const subjectDid = String(input.subjectDid || '').trim();
+  if (!subjectDid) throw new Error('subjectDid is required.');
+  const thid = `digital-twin-link-purge-${createRuntimeUuid()}`;
+  return deps.submitAndPoll(
+    deps.individualResearchSubjectPurgePath(routeCtx),
+    deps.individualResearchSubjectPurgePollPath(routeCtx),
+    {
+      thid,
+      body: {
+        resourceType: 'Parameters',
+        parameter: [{ name: 'subject', valueString: subjectDid }],
+      },
+    },
+    input.pollOptions,
+  );
 }
 
 export async function revokeProfessionalAccessWithDeps(

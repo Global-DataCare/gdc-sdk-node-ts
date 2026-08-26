@@ -1,6 +1,8 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
 import { ActorCapabilities, ActorKinds } from 'gdc-common-utils-ts/constants/actor-session';
+import { HealthcareConsentPurposes, ServiceCapability } from 'gdc-common-utils-ts/constants';
+import { ClaimConsent, type ConsentRule } from 'gdc-common-utils-ts/models/consent-rule';
 import {
   buildIndividualControllerIdentityVpPayload,
   buildUnsignedIndividualControllerIdentityVpJwt,
@@ -26,6 +28,7 @@ import type { FamilyOrganizationSearchInput } from '../family-organization-searc
 import type { IndividualOrganizationConfirmOrderInput, RouteContext } from '../individual-onboarding.js';
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
 import type { NodeCapability } from '../session.js';
+import { GatewayActiveConsentProvider } from '../gateway-active-consent-provider.js';
 import type { IndividualOrganizationLifecycleInput } from 'gdc-sdk-core-ts';
 import { buildProfessionalAccessRequestDecisionGrant } from '../resource-operations.js';
 import { buildProfessionalAccessRequestSearchInput } from '../resource-operations.js';
@@ -39,6 +42,10 @@ import type {
   CommunicationIngestionInput,
   CommunicationParticipantRuntimeSearchInput,
   DigitalTwinGenerationInput,
+  DigitalTwinSecondaryUseConsentInput,
+  DigitalTwinSecondaryUseConsentResult,
+  DigitalTwinSubjectLinkPurgeInput,
+  DigitalTwinSubjectLinkPurgeResult,
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
   IndividualMemberLifecycleInput,
@@ -304,12 +311,63 @@ export class IndividualControllerSdk {
   }
 
   /**
-   * Explicitly packages subject data for a study/transfer flow.
-   * Normal clinical ingestion is projected into the tenant research index by GW.
+   * Legacy direct Composition transfer hook.
+   *
+   * @deprecated Canonical twins are created only by GW from current subject
+   * data after `setDigitalTwinSecondaryUseConsent(..., { decision: 'permit' })`.
+   * The Node runtime intentionally does not publish canonical Compositions.
    */
   public generateDigitalTwinFromSubjectData(ctx: RouteContext, input: DigitalTwinGenerationInput): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualGenerateDigitalTwin, ActorKinds.IndividualController, 'generateDigitalTwinFromSubjectData');
     return requireClientMethod(this.client, 'generateDigitalTwinFromSubjectData')(ctx, input);
+  }
+
+  /**
+   * Enables or disables the subject's secondary-use digital-twin projection.
+   * This is the canonical patient-side operation; application code must not
+   * publish a canonical Composition directly into the research index.
+   */
+  public setDigitalTwinSecondaryUseConsent(
+    ctx: RouteContext,
+    input: DigitalTwinSecondaryUseConsentInput,
+  ): Promise<DigitalTwinSecondaryUseConsentResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualGenerateDigitalTwin, ActorKinds.IndividualController, 'setDigitalTwinSecondaryUseConsent');
+    return requireClientMethod(this.client, 'setDigitalTwinSecondaryUseConsent')(ctx, input);
+  }
+
+  /**
+   * Offboards the subject from the current index provider. This removes only
+   * the private subject/twin correspondence; it never deletes anonymous twin
+   * data already shared for research.
+   */
+  public purgeDigitalTwinSubjectLink(
+    ctx: RouteContext,
+    input: DigitalTwinSubjectLinkPurgeInput,
+  ): Promise<DigitalTwinSubjectLinkPurgeResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualGenerateDigitalTwin, ActorKinds.IndividualController, 'purgeDigitalTwinSubjectLink');
+    return requireClientMethod(this.client, 'purgeDigitalTwinSubjectLink')(ctx, input);
+  }
+
+  /** Returns whether one research organization currently has an active permit. */
+  public async getDigitalTwinSecondaryUseConsentStatus(
+    ctx: RouteContext,
+    input: Readonly<{ subjectDid: string; researchOrganizationDid: string; consentIdentifier: string }>,
+  ): Promise<Readonly<{ exists: boolean; enabled: boolean; consent?: ConsentRule }>> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualGenerateDigitalTwin, ActorKinds.IndividualController, 'getDigitalTwinSecondaryUseConsentStatus');
+    const activeConsents = await new GatewayActiveConsentProvider(this.client, ctx)
+      .getActiveConsentsForSubject(input.subjectDid);
+    const consentIdentifier = String(input.consentIdentifier || '').trim();
+    if (!consentIdentifier) throw new Error('consentIdentifier is required to distinguish the portal rule from study consents.');
+    const consent = activeConsents.find((rule) => {
+      const actions = String(rule[ClaimConsent.action] || '').split(',').map((value) => value.trim());
+      return String(rule[ClaimConsent.identifier] || '').trim() === consentIdentifier
+        && String(rule[ClaimConsent.actorIdentifier] || '').trim() === input.researchOrganizationDid
+        && String(rule[ClaimConsent.purpose] || '').trim().toUpperCase() === String(HealthcareConsentPurposes.Research).toUpperCase()
+        && actions.includes(ServiceCapability.DigitalTwinReader);
+    });
+    return consent
+      ? { exists: true, enabled: String(consent[ClaimConsent.decision] || '').trim().toLowerCase() === 'permit', consent }
+      : { exists: false, enabled: false };
   }
 
   /**

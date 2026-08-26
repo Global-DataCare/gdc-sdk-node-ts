@@ -412,6 +412,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Add the complete patient-side digital-twin lifecycle for server BFFs:
+  canonical secondary-use `permit`/`deny`, active-status read, and
+  provider-offboarding `purgeDigitalTwinSubjectLink(...)`. Disable preserves
+  the alias and anonymous twin; purge removes only their private
+  correspondence and later enrollment receives a new UUID.
+- Validate that every searched, saved, or materialized twin subject is a UUID
+  URN and document that direct Composition batch is reserved for researcher
+  working selections. The legacy direct generation helper is deprecated.
+
 - Expose the effective `maxDevices` returned by `License/_issue` from
   `provisionOrganizationEmployee(...)`, so BFFs display the reserved seat's
   real installation allowance instead of a local fallback.

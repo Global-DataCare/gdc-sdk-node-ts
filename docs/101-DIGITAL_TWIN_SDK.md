@@ -1,9 +1,9 @@
-# DigitalTwinSdk 101: Search, Tag, Reopen, and Read
+# Digital Twin 101: Consent, Projection, Search, Tag, and Read
 
-This is the complete application flow for an organization employee who works
-with pseudonymous digital twins. Searching and tagging are one journey: a
-result only becomes part of a researcher's durable work when the researcher
-saves a tagged working selection.
+This is the complete server-side application flow shared by the subject BFF
+and the research-organization BFF. The subject first permits or denies
+secondary use. GW alone creates the pseudonymous projection. A verified
+employee can then search, tag and materialize permitted twins.
 
 The executable version of this guide is
 [`tests/101-digital-twin-sdk.test.mjs`](../tests/101-digital-twin-sdk.test.mjs).
@@ -32,7 +32,118 @@ workset or another employee-defined classification.
 “Workset” is only the application's name for all saved selections carrying the
 same tag; it is not a FHIR resource or a new persisted claim.
 
-## 2. Current authorization boundary
+The subject lifecycle precedes that researcher lifecycle:
+
+```text
+current operational IPS
+  -> Consent purpose=HRESCH, action=organization/ResearchSubject.rs
+     -> decision=permit: build/rebuild one registered urn:uuid twin
+     -> decision=deny:   pause synchronization, preserve alias and published twin
+```
+
+`deny` is reversible disable, not purge. A later `permit` reuses the private
+tenant alias and rebuilds the same twin from current operational data,
+including changes made while publication was disabled. The already published
+anonymous twin remains frozen while disabled.
+
+`purgeDigitalTwinSubjectLink` is a different provider-lifecycle command. It is
+used only when the subject deletes the index service or migrates to another
+index provider. It deletes the tenant-private operational-subject ↔ twin UUID
+correspondence, never the anonymous twin. A later enrollment creates a new
+`urn:uuid`; the old twin remains anonymous and cannot be reconnected or
+updated.
+
+## 2. Subject BFF: read and change secondary-use consent
+
+The browser sends only the user's product-level choice, for example
+`{ "enabled": false }`. The Next.js BFF resolves the authenticated subject,
+research organization, role, stable consent identifier and evidence. Those
+values, GW credentials and submit/poll behavior must remain server-side.
+
+```ts
+import {
+  ActorCapabilities,
+  ActorKinds,
+  HttpRuntimeClient,
+  NodeActorSession,
+  TransportProfiles,
+} from 'gdc-sdk-node-ts';
+
+const runtimeClient = new HttpRuntimeClient({
+  baseUrl: process.env.GW_BASE_URL!,
+  ctx,
+  runtimeVpToken: process.env.GW_RUNTIME_VP_TOKEN,
+  transportProfile: TransportProfiles.DidcommPlainJson,
+});
+
+const individualController = new NodeActorSession({
+  actorKind: ActorKinds.IndividualController,
+  actorDid: authenticatedSubjectControllerDid,
+  capabilities: [ActorCapabilities.IndividualGenerateDigitalTwin],
+}, runtimeClient).asIndividualController();
+
+const current = await individualController.getDigitalTwinSecondaryUseConsentStatus(ctx, {
+  subjectDid,
+  researchOrganizationDid,
+  consentIdentifier: stableConsentIdentifier,
+});
+
+const updated = await individualController.setDigitalTwinSecondaryUseConsent(ctx, {
+  subjectDid,
+  researchOrganizationDid,
+  actorRole: verifiedActorRole,
+  decision: enabled ? 'permit' : 'deny',
+  consentIdentifier: stableConsentIdentifier,
+  attachmentContentType: 'application/odrl+json',
+  attachmentBase64: signedOrAcceptedConsentEvidenceBase64,
+});
+
+// Only during account deletion or index-provider migration:
+await individualController.purgeDigitalTwinSubjectLink(ctx, { subjectDid });
+```
+
+The exact canonical claims authored by that facade are:
+
+```text
+Consent.purpose  = HRESCH
+Consent.action   = organization/ResearchSubject.rs
+Consent.decision = permit | deny
+```
+
+There is no `secondaryUseClaimKey` configuration. `Consent.action` is the
+claim key and `ServiceCapability.DigitalTwinReader` supplies its canonical
+value.
+
+`consentIdentifier` is mandatory and stable for the portal/index-provider
+agreement. The BFF obtains it when that service is enrolled and reuses it for
+every read, `permit`, and `deny`; GW therefore updates the same rule instead of
+creating duplicates. A future study uses a different consent identifier even
+when purpose, action, or research organization coincide. Status lookup matches
+the exact identifier, so a study permit can never make the portal toggle look
+enabled.
+
+The product API should expose `permit`/`deny` as a settings change and `purge`
+only inside the account/provider offboarding transaction. It must never map a
+normal consent toggle to purge.
+
+The BFF must inspect both the top-level submit result and the terminal bundle
+entry. Success is an initial `202`, a terminal poll response, and entry status
+`201`. It must not report success from the initial HTTP response alone.
+
+## 3. Projection and subject-identifier invariant
+
+Application code never posts the IPS or a canonical Composition to
+`digitaltwin/Composition/_batch`. GW projects current operational data after a
+`permit` and assigns `Composition.subject = urn:uuid:<uuid>` from the tenant's
+private alias registry.
+
+Syntax alone is insufficient: GW rejects UUID URNs that are not registered for
+that tenant. The direct Composition batch accepts only
+`@type = Composition:ResearcherWorkingSelection`, with an existing registered
+twin subject. The SDK also rejects non-UUID subjects before save or
+materialization.
+
+## 4. Current authorization boundary
 
 - A verified employee of the provider organization can currently request
   `organization/ResearchSubject.rs` and use the tenant's digital-twin search.
@@ -48,7 +159,7 @@ with that operational DID. `sameAs` is continuity/discovery data; it is not an
 authorization claim. The SDK then retains the returned SMART bearer for
 `search`, `saveSelection`, and `materialize`.
 
-## 3. Create the research facade and request SMART access
+## 5. Create the research facade and request SMART access
 
 ```ts
 import {
@@ -134,7 +245,7 @@ For a foreign consumer organization, `vpToken` also carries the applicable
 contract and consent evidence. Application code should not substitute an
 unsigned claim for that evidence.
 
-## 4. Search with coded research claims
+## 6. Search with coded research claims
 
 ```ts
 const medicationSection =
@@ -157,7 +268,7 @@ pseudonymous twin identifier. It is not the individual's DID and must not be
 replaced with a `Patient` reference. Search uses codes because display and free
 text are removed from the research projection.
 
-## 5. Save the selected twin with custom tags
+## 7. Save the selected twin with custom tags
 
 ```ts
 const worksetTag: DigitalTwinWorksetTagInput = {
@@ -214,7 +325,7 @@ Do not put an email, email hash, subject identifier, clinical observation,
 display text, or free-text note in either value. Those data do not belong in a
 ledger-safe tag.
 
-## 6. Reopen the saved workset
+## 8. Reopen the saved workset
 
 ```ts
 const workset = await digitalTwin.searchSelections(ctx, {
@@ -237,7 +348,7 @@ This 101 deliberately uses one workset tag only. The employee can create more
 codes in the same personal namespace; application code does not invent extra
 status or organization vocabularies.
 
-## 7. Materialize only the selected twin
+## 9. Materialize only the selected twin
 
 ```ts
 const selected = savedSelections[0];
@@ -252,11 +363,12 @@ Materialization uses the public asynchronous `Communication` transport and
 `ResearchSubject/$summary`. The same SMART bearer obtained in step 3 is used
 unless an operation explicitly supplies another `accessToken`.
 
-## 8. What this flow is not
+## 10. What this flow is not
 
-- `IndividualControllerSdk.generateDigitalTwinFromSubjectData(...)` is an
-  explicit generation/transfer operation. It is not the normal researcher
-  search or working-selection API.
+- `IndividualControllerSdk.generateDigitalTwinFromSubjectData(...)` is a
+  deprecated legacy direct-transfer hook and is intentionally not the
+  canonical Node runtime flow. Use `setDigitalTwinSecondaryUseConsent(...)`;
+  GW owns projection and alias generation.
 - A saved tag is not a FHIR display label and is not free-text annotation.
 - Saving a selection does not mutate or duplicate the canonical twin.
 - Moving projection/anonymization to DataConv later does not change this SDK
@@ -268,3 +380,15 @@ The full developer journey is therefore:
 verified employee -> SMART token -> coded search -> save tagged selection
                   -> reopen by tag -> materialize selected twin
 ```
+
+The executable contract is:
+
+```bash
+npm run build
+node --test tests/101-digital-twin-sdk.test.mjs tests/digital-twin.test.mjs
+```
+
+The 101 test proves the BFF-facing orchestration in memory. A deployed
+environment must additionally run the live GW suite with a licensed active
+research employee, signed `id_token`/VP evidence and the configured secure
+transport profile.
