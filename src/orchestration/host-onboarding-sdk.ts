@@ -4,6 +4,7 @@ import {
   requireClientMethod,
   submitAndPollWithClient,
   type NodeRuntimeClient,
+  type NodeLegalOrganizationVerificationTransactionInput,
   type NodeOrganizationActivationInput,
   type PollOptions,
   type SubmitAndPollResult,
@@ -22,8 +23,22 @@ import { assertFacadeCapability } from './capability-guard.js';
 export class HostOnboardingSdk implements HostingControllerFacade {
   constructor(
     private readonly client: NodeRuntimeClient,
-    private readonly capabilities: readonly NodeCapability[] = [],
+    private readonly capabilities?: readonly NodeCapability[],
   ) {}
+
+  /**
+   * Starts the canonical host-side legal-organization verification
+   * transaction. Confirm the returned Offer through
+   * `confirmLegalOrganizationOrder(...)`.
+   */
+  public submitLegalOrganizationVerificationTransaction(
+    hostCtx: HostRouteContext,
+    input: NodeLegalOrganizationVerificationTransactionInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.HostingActivateOrganization, ActorKinds.HostOnboarding, 'submitLegalOrganizationVerificationTransaction');
+    return requireClientMethod(this.client, 'submitLegalOrganizationVerificationTransaction')(hostCtx, input, pollOptions);
+  }
 
   /**
    * Submits the legal organization activation proof and required declared

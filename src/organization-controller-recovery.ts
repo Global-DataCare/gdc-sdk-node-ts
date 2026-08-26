@@ -7,15 +7,23 @@ import type {
 } from './orchestration/client-port.js';
 import type { HostRouteContext } from './host-onboarding.js';
 import type { RouteContext } from './individual-onboarding.js';
-import type { EmployeeDeviceActivationResult } from './device-activation.js';
-import { activateEmployeeDeviceWithActivationCodeWithDeps } from './device-activation.js';
+import type {
+  EmployeeDeviceActivationResult,
+  ProfileDeviceRegistrationInput,
+} from './device-activation.js';
+import {
+  activateEmployeeDeviceWithActivationCodeWithDeps,
+  activateEmployeeDeviceWithActivationRequestWithDeps,
+} from './device-activation.js';
 
 export type OrganizationControllerRecoveryInput = {
   credentialReissuanceInput?: NodeLegalOrganizationVerificationTransactionInput;
   /** @deprecated Use `credentialReissuanceInput`. */
   issueInput?: NodeLegalOrganizationVerificationTransactionInput;
   controllerIdToken: string;
-  dcrPayload: Record<string, unknown>;
+  deviceRegistration?: ProfileDeviceRegistrationInput;
+  /** @deprecated Use a profile-device draft and pass its `deviceRegistration`. */
+  dcrPayload?: Record<string, unknown>;
   credentialReissuancePollOptions?: PollOptions;
   /** @deprecated Use `credentialReissuancePollOptions`. */
   issuePollOptions?: PollOptions;
@@ -90,19 +98,26 @@ export async function recoverOrganizationControllerWithCredentialReissuanceWithD
     throw new Error('recoverOrganizationControllerWithCredentialReissuance: missing org.schema.IndividualProduct.serialNumber in Organization/_issue response.');
   }
 
-  const activation = await activateEmployeeDeviceWithActivationCodeWithDeps({
+  const activation = await activateEmployeeDeviceWithActivationRequestWithDeps({
     routeCtx: deps.tenantCtx,
     input: {
       activationCode,
       idToken: deps.input.controllerIdToken,
+      deviceRegistration: deps.input.deviceRegistration,
       dcrPayload: deps.input.dcrPayload,
-      pollOptions: deps.input.activationPollOptions,
     },
-    identityTokenExchangePath: deps.identityTokenExchangePath,
-    identityTokenExchangePollPath: deps.identityTokenExchangePollPath,
-    identityDeviceDcrPath: deps.identityDeviceDcrPath,
-    identityDeviceDcrPollPath: deps.identityDeviceDcrPollPath,
-    submitAndPollWithBearerToken: deps.submitAndPollWithBearerToken,
+    defaultTimeoutMs: deps.input.activationPollOptions?.timeoutMs,
+    defaultIntervalMs: deps.input.activationPollOptions?.intervalMs,
+    activateEmployeeDeviceWithActivationCode: (routeCtx, input) =>
+      activateEmployeeDeviceWithActivationCodeWithDeps({
+        routeCtx,
+        input,
+        identityTokenExchangePath: deps.identityTokenExchangePath,
+        identityTokenExchangePollPath: deps.identityTokenExchangePollPath,
+        identityDeviceDcrPath: deps.identityDeviceDcrPath,
+        identityDeviceDcrPollPath: deps.identityDeviceDcrPollPath,
+        submitAndPollWithBearerToken: deps.submitAndPollWithBearerToken,
+      }),
   });
 
   return {

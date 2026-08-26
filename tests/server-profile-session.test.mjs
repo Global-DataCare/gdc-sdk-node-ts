@@ -23,6 +23,8 @@ import {
  *    signed with the actor DID stored in the profile as its `iss` claim.
  * 6. The same protected seed deterministically restores a distinct ML-KEM
  *    document-at-rest key, while each document receives a fresh AES CEK.
+ * 7. Enrollment uses two independent proofs: a trusted signed OIDC id_token
+ *    binds the account/email, while the stored VP proves actor/role authority.
  */
 function memoryDeps() {
   const profiles = new Map();
@@ -97,11 +99,11 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
     routeContext: { tenantId: 'VATES-TEST', jurisdiction: 'ES', sector: 'health-care' },
     allowedSubjectDids: ['did:web:subject.example'],
     pin: '123456',
-    idToken: 'firebase-id-token',
+    idToken: 'signed-email-proof-id-token',
     activationCode: 'activation-code',
     vpToken: 'signed-vp-token',
-    dcrRedirectUris: ['https://portal.example/__/auth/handler'],
-    dcrClientName: 'Example Professional Portal',
+    redirectUris: ['https://portal.example/__/auth/handler'],
+    clientName: 'Example Professional Portal',
   };
   const enrolled = await manager.enroll(base);
   assert.equal(enrolled.clientId, 'device-client-1');
@@ -110,6 +112,12 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   assert.equal(enrolled.publicJwks.some((key) => key.kid === enrolled.storagePublicJwk.kid), false);
   assert.equal(enrolled.storagePublicJwk.crv, 'ML-KEM-768');
   assert.equal(enrolled.confidentialStorageProfile, 'confidential-pqc-v1');
+  // Token/_exchange receives only the trusted OIDC email proof as Bearer. The
+  // independent role VP is protected in the profile and used later for SMART.
+  assert.equal(
+    new Headers(calls[0].init.headers).get('authorization'),
+    `Bearer ${base.idToken}`,
+  );
   const dcrRequest = JSON.parse(String(calls[2].init.body));
   assert.deepEqual(dcrRequest.redirect_uris, ['https://portal.example/__/auth/handler']);
   assert.equal(dcrRequest.client_name, 'Example Professional Portal');
@@ -153,9 +161,39 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   );
 });
 
+test('profile enrollment does not accept a controller VP as a replacement for the signed email id_token', async () => {
+  const deps = memoryDeps();
+  const manager = new ServerProfileSessionManager({
+    store: deps.store,
+    sealer: deps.sealer,
+    gatewayBaseUrl: 'https://gw.example',
+    fetchImpl: async () => {
+      throw new Error('GW must not be called without the email-proof id_token.');
+    },
+  });
+
+  // Supplying a valid-looking VP is deliberately insufficient: this check
+  // must fail before any Token/_exchange or DCR network request is attempted.
+  await assert.rejects(manager.enroll({
+    ownerId: 'owner-1',
+    profileId: 'profile-1',
+    actorKind: ActorKinds.OrganizationController,
+    actorMode: 'controller',
+    actorDid: 'did:web:actor.example',
+    profileDid: 'did:web:actor.example',
+    providerDid: 'did:web:provider.example',
+    routeContext: { tenantId: 'VATES-TEST', jurisdiction: 'ES', sector: 'health-care' },
+    allowedSubjectDids: ['did:web:provider.example'],
+    pin: '123456',
+    activationCode: 'activation-code',
+    vpToken: 'signed-controller-vp',
+    idToken: '',
+  }), /requires idToken/);
+});
+
 test('server-only bootstrap seed and stable derivation id reproduce controller public keys', async () => {
   const bootstrapSeed = Buffer.alloc(32, 7).toString('base64url');
-  const derivationId = 'organization-controller:cto@example.org:v1';
+  const derivationId = 'organization-controller:stable-actor-1:v1';
   const enroll = async (profileId) => {
     const deps = memoryDeps();
     const responses = [
@@ -187,6 +225,8 @@ test('server-only bootstrap seed and stable derivation id reproduce controller p
       idToken: 'id-token',
       activationCode: 'activation-code',
       vpToken: 'vp-token',
+      redirectUris: ['https://portal.example.org/auth/callback'],
+      clientName: 'Example Organization Portal',
     });
   };
   const first = await enroll('firebase-profile-a');

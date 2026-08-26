@@ -238,10 +238,28 @@ Use:
 
 Main methods:
 
-- `activateEmployeeDeviceWithActivationRequest(...)`
+- `ServerProfileSessionManager.enroll(...)`
 - `grantProfessionalAccess(...)`
 - `requestSmartToken(...)`
 - `ingestCommunicationAndUpdateIndex(...)`
+
+`ServerProfileSessionManager.enroll(...)` is the 101 device/profile surface: it
+provisions the wallet, authors DCR, runs the exchange and persists the returned
+client binding. It requires both a GW-trusted signed OIDC `idToken` for the
+account/verified-email binding and a separate `vpToken` for actor/role proof;
+neither token substitutes for the other. If a portal self-issues the OIDC token,
+the portal—not `NodeManagedWallet`—is the OpenID Provider and must publish its
+discovery/JWKS endpoints and arrange GW trust for the exact issuer and audience.
+`createProfileDeviceActivationRequest(...)`, direct
+`activateEmployeeDeviceWithActivationRequest(...)` and raw `dcrPayload` are
+advanced runtime/compatibility surfaces and must not appear in ordinary portal
+integration examples.
+
+Legacy exception: when `activateOrganizationInGatewayFromIcaProof(...)` submits
+the historical representative's `controllerBinding`, `_activate` binds that
+public key during bootstrap. Do not call `ServerProfileSessionManager.enroll`,
+`Token/_exchange` or `Device/_dcr` again for the same legacy representative.
+Later service controllers and employee devices use the normal enrollment path.
 
 Do not teach legal-organization onboarding here:
 

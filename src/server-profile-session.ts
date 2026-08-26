@@ -2,7 +2,6 @@
 
 import { randomBytes } from 'node:crypto';
 import type { JWK } from 'gdc-common-utils-ts/models/jwk';
-import { IdentityDcrMetadataFields, IdentityDeviceInfoFields } from 'gdc-common-utils-ts/constants/identity-auth';
 import type { ActorKind } from 'gdc-common-utils-ts/models/actor-session';
 import { ActorKinds } from 'gdc-common-utils-ts/constants/actor-session';
 import type { LegalOrganizationVerificationTransactionInput } from 'gdc-common-utils-ts/utils/legal-organization-verification-transaction';
@@ -18,6 +17,7 @@ import { NodeHttpClient } from './node-runtime-client.js';
 import type { RouteContext } from './individual-onboarding.js';
 import type { HostRouteContext } from './host-onboarding.js';
 import { buildIdentityOpenIdSmartTokenPath } from './runtime-paths.js';
+import { createProfileDeviceActivationRequest } from './device-activation.js';
 import type { SecureDidcommTransportAdapter } from 'gdc-sdk-core-ts';
 import {
   ProfilePinRejectedError,
@@ -84,24 +84,53 @@ export type ServerProfileStore = Readonly<{
 }>;
 
 export type ServerProfileEnrollmentInput = Readonly<{
+  /** Stable confidential id of the authenticated portal account that owns and lists this profile. */
   ownerId: string;
+  /** Stable local id of this wallet/profile record. This is not the DCR `client_id`. */
   profileId: string;
+  /** SDK capability family being enrolled, for example an organization controller or employee. */
   actorKind: ActorKind;
+  /** Authorization semantics already granted to the profile; never take this from an untrusted UI field. */
   actorMode: ServerActorMode;
+  /** Exact role/controller DID used by the actor proof, including the VP issuer when a VP is supplied. */
   actorDid: string;
+  /** DID represented by the managed wallet. It may equal `actorDid`, as in a controller enrollment. */
   profileDid: string;
+  /** Organization/provider DID whose configured route and policies this profile will use. */
   providerDid: string;
+  /** Server-owned tenant, jurisdiction and sector routing context. */
   routeContext: RouteContext;
+  /** Server-derived subject authorization boundary; never accept arbitrary browser-selected DIDs here. */
   allowedSubjectDids: string[];
+  /**
+   * Unlock secret for the locally protected wallet seed. It is neither sent
+   * to GW nor persisted by the SDK. The integrating product decides whether
+   * it is user-entered or a separately stored, high-entropy per-profile BFF
+   * secret; it must never be logged or reused as one shared deployment PIN.
+   */
   pin: string;
+  /**
+   * Signed OIDC `id_token` used by GW to bind the activation code to an
+   * authenticated account/email. Its issuer, audience, signature `kid` and
+   * public JWKS must be trusted by GW. A controller VP cannot replace it.
+   */
   idToken: string;
+  /** One-time code returned by the completed organization flow or employee `License/_issue`. */
   activationCode: string;
-  /** Explicit per-installation id. Older callers fall back to the first DCR key id. */
+  /**
+   * Optional explicit installation identity. Normally omit it so the SDK
+   * derives the identity from the wallet key it creates for this profile.
+   */
   clientInstanceId?: string;
+  /** Signed actor/controller VP protected with the profile for later proof and session operations. */
   vpToken: string;
-  /** Registered web redirect URIs included in the OpenID DCR metadata. */
+  /** Redirect URIs owned by this portal/app installation. */
+  redirectUris?: string[];
+  /** Human-readable portal/app name. */
+  clientName?: string;
+  /** @deprecated Use `redirectUris`; OpenID metadata is authored internally. */
   dcrRedirectUris?: string[];
-  /** Human-readable DCR client name. */
+  /** @deprecated Use `clientName`; OpenID metadata is authored internally. */
   dcrClientName?: string;
   /**
    * Optional server-only recovery seed. It must be 32 bytes encoded as
@@ -198,23 +227,25 @@ export class ServerProfileSessionManager {
     if (!clientInstanceId) throw new Error('Server profile enrollment requires clientInstanceId or a DCR public key id.');
     const storagePublicJwk = publicKeys.find((entry) => entry.purpose === 'document-at-rest')?.publicJwk;
     if (!storagePublicJwk) throw new Error('Server profile enrollment requires a document-at-rest ML-KEM key.');
-    const client = this.createClient(input.routeContext, input.idToken);
-    const activation = await client.activateProfileDeviceWithActivationRequest({
-      ...input.routeContext,
+    const idToken = String(input.idToken || '').trim();
+    if (!idToken) throw new Error('Profile enrollment requires a signed OIDC idToken for account/email binding.');
+    const client = this.createClient(input.routeContext, idToken);
+    const redirectUris = input.redirectUris || input.dcrRedirectUris || [];
+    const clientName = String(input.clientName || input.dcrClientName || '').trim();
+    const activationRequest = createProfileDeviceActivationRequest({
       activationCode: input.activationCode,
-      idToken: input.idToken,
-      dcrPayload: {
-        [IdentityDcrMetadataFields.ExtendedDeviceInfo]: {
-          [IdentityDeviceInfoFields.DeviceId]: clientInstanceId,
-        },
-        application_type: 'web',
-        ...(input.dcrRedirectUris?.length ? { redirect_uris: unique(input.dcrRedirectUris) } : {}),
-        ...(input.dcrClientName ? { client_name: input.dcrClientName } : {}),
-        actor_did: input.actorDid,
-        profile_did: input.profileDid,
-        jwks: { keys: publicKeys.filter((entry) => entry.purpose !== 'document-at-rest').map((entry) => entry.publicJwk) },
-      },
-    });
+      idToken,
+      ...input.routeContext,
+    })
+      .setClientInstanceId(clientInstanceId)
+      .setClientName(clientName)
+      .setApplicationType('web')
+      .setRedirectUris(redirectUris)
+      .setPublicJwks(publicKeys.filter((entry) => entry.purpose !== 'document-at-rest').map((entry) => entry.publicJwk))
+      .setActorDid(input.actorDid)
+      .setProfileDid(input.profileDid)
+      .build();
+    const activation = await client.activateProfileDeviceWithActivationRequest(activationRequest);
     const dcrBody = terminalBody(activation.dcr.poll.body);
     const clientId = findText(dcrBody, ['client_id', 'clientId']);
     if (!clientId) throw new Error('GW DCR did not return client_id.');
@@ -551,6 +582,7 @@ function requireEnrollment(input: ServerProfileEnrollmentInput): void {
     profileDid: input.profileDid,
     providerDid: input.providerDid,
     activationCode: input.activationCode,
+    idToken: input.idToken,
     vpToken: input.vpToken,
   })) if (!String(value || '').trim()) throw new Error(`Profile enrollment requires ${name}.`);
   if (!input.allowedSubjectDids.length) throw new Error('Profile enrollment requires an allowed subject.');

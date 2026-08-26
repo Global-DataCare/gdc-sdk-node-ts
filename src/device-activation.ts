@@ -24,10 +24,105 @@ export type EmployeeDeviceActivationRequestInput = {
   sector?: string;
   activationCode: string;
   idToken: string;
-  dcrPayload: Record<string, unknown>;
+  /** Canonical high-level description converted to OpenID DCR metadata by the SDK. */
+  deviceRegistration?: ProfileDeviceRegistrationInput;
+  /**
+   * @deprecated Low-level OpenID escape hatch. Use
+   * `createProfileDeviceActivationRequest(...).set...build()` instead.
+   */
+  dcrPayload?: Record<string, unknown>;
   timeoutSeconds?: number;
   intervalSeconds?: number;
 };
+
+/** Application concepts required to bind one portal/app installation. */
+export type ProfileDeviceRegistrationInput = Readonly<{
+  clientInstanceId: string;
+  clientName: string;
+  applicationType: 'native' | 'web';
+  redirectUris: readonly string[];
+  publicJwks: readonly Record<string, unknown>[];
+  deviceName?: string;
+  actorDid?: string;
+  profileDid?: string;
+}>;
+
+/** Advanced typed editor used by SDK runtimes that already own profile keys. */
+export interface ProfileDeviceActivationDraft {
+  setClientInstanceId(value: string): ProfileDeviceActivationDraft;
+  setClientName(value: string): ProfileDeviceActivationDraft;
+  setApplicationType(value: 'native' | 'web'): ProfileDeviceActivationDraft;
+  setRedirectUris(values: readonly string[]): ProfileDeviceActivationDraft;
+  setPublicJwks(values: readonly Record<string, unknown>[]): ProfileDeviceActivationDraft;
+  setDeviceName(value: string): ProfileDeviceActivationDraft;
+  setActorDid(value: string): ProfileDeviceActivationDraft;
+  setProfileDid(value: string): ProfileDeviceActivationDraft;
+  setTimeoutSeconds(value: number): ProfileDeviceActivationDraft;
+  setIntervalSeconds(value: number): ProfileDeviceActivationDraft;
+  build(): EmployeeDeviceActivationRequestInput & { deviceRegistration: ProfileDeviceRegistrationInput };
+}
+
+/**
+ * Starts an advanced profile-device activation request.
+ *
+ * Product portals should normally use `ServerProfileSessionManager.enroll`,
+ * which provisions the wallet and calls this editor internally. This surface
+ * exists for runtimes that already own and select the profile public keys.
+ */
+export function createProfileDeviceActivationRequest(input: Readonly<{
+  activationCode: string;
+  idToken: string;
+  tenantId?: string;
+  jurisdiction?: string;
+  sector?: string;
+}>): ProfileDeviceActivationDraft {
+  const activationCode = requiredText(input.activationCode, 'activation code');
+  const idToken = requiredText(input.idToken, 'signed identity token');
+  let clientInstanceId = '';
+  let clientName = '';
+  let applicationType: 'native' | 'web' | undefined;
+  let redirectUris: string[] = [];
+  let publicJwks: Record<string, unknown>[] = [];
+  let deviceName = '';
+  let actorDid = '';
+  let profileDid = '';
+  let timeoutSeconds: number | undefined;
+  let intervalSeconds: number | undefined;
+
+  const draft: ProfileDeviceActivationDraft = {
+    setClientInstanceId(value) { clientInstanceId = normalizedText(value); return draft; },
+    setClientName(value) { clientName = normalizedText(value); return draft; },
+    setApplicationType(value) { applicationType = value; return draft; },
+    setRedirectUris(values) { redirectUris = uniqueText(values); return draft; },
+    setPublicJwks(values) { publicJwks = values.map((value) => ({ ...value })); return draft; },
+    setDeviceName(value) { deviceName = normalizedText(value); return draft; },
+    setActorDid(value) { actorDid = normalizedText(value); return draft; },
+    setProfileDid(value) { profileDid = normalizedText(value); return draft; },
+    setTimeoutSeconds(value) { timeoutSeconds = positiveNumber(value, 'timeout seconds'); return draft; },
+    setIntervalSeconds(value) { intervalSeconds = positiveNumber(value, 'interval seconds'); return draft; },
+    build() {
+      const registration: ProfileDeviceRegistrationInput = {
+        clientInstanceId: requiredText(clientInstanceId, 'client instance id'),
+        clientName: requiredText(clientName, 'client name'),
+        applicationType: applicationType || failRequired<'native' | 'web'>('application type'),
+        redirectUris: requiredList(redirectUris, 'redirect URI'),
+        publicJwks: requiredList(publicJwks, 'public JWK'),
+        ...(deviceName ? { deviceName } : {}),
+        ...(actorDid ? { actorDid } : {}),
+        ...(profileDid ? { profileDid } : {}),
+      };
+      return {
+        ...input,
+        activationCode,
+        idToken,
+        deviceRegistration: registration,
+        ...(timeoutSeconds !== undefined ? { timeoutSeconds } : {}),
+        ...(intervalSeconds !== undefined ? { intervalSeconds } : {}),
+      };
+    },
+  };
+  return draft;
+}
 
 export type EmployeeDeviceActivationResult = {
   initialAccessToken: string;
@@ -180,9 +275,60 @@ export async function activateEmployeeDeviceWithActivationRequestWithDeps(
   return deps.activateEmployeeDeviceWithActivationCode(deps.routeCtx, {
     activationCode: deps.input.activationCode,
     idToken: deps.input.idToken,
-    dcrPayload: deps.input.dcrPayload,
+    dcrPayload: resolveDcrPayload(deps.input),
     pollOptions,
   });
+}
+
+function resolveDcrPayload(input: EmployeeDeviceActivationRequestInput): Record<string, unknown> {
+  if (input.deviceRegistration && input.dcrPayload) {
+    throw new Error('Device activation accepts either deviceRegistration or the deprecated dcrPayload, not both.');
+  }
+  if (input.deviceRegistration) {
+    const registration = input.deviceRegistration;
+    return {
+      [IdentityDcrMetadataFields.ApplicationType]: registration.applicationType,
+      [IdentityDcrMetadataFields.ClientName]: registration.clientName,
+      [IdentityDcrMetadataFields.RedirectUris]: [...registration.redirectUris],
+      [IdentityDcrMetadataFields.Jwks]: { keys: registration.publicJwks.map((value) => ({ ...value })) },
+      [IdentityDcrMetadataFields.ExtendedDeviceInfo]: {
+        [IdentityDeviceInfoFields.DeviceId]: registration.clientInstanceId,
+        device_name: registration.deviceName || registration.clientName,
+      },
+      ...(registration.actorDid ? { [IdentityDcrMetadataFields.ActorDid]: registration.actorDid } : {}),
+      ...(registration.profileDid ? { [IdentityDcrMetadataFields.ProfileDid]: registration.profileDid } : {}),
+    };
+  }
+  if (input.dcrPayload) return { ...input.dcrPayload };
+  throw new Error('Device activation requires a device registration built by createProfileDeviceActivationRequest.');
+}
+
+function normalizedText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function requiredText(value: unknown, label: string): string {
+  const normalized = normalizedText(value);
+  if (!normalized) throw new Error(`Profile device activation requires ${label}.`);
+  return normalized;
+}
+
+function uniqueText(values: readonly string[]): string[] {
+  return [...new Set((values || []).map((value) => normalizedText(value)).filter(Boolean))];
+}
+
+function requiredList<T>(values: readonly T[], label: string): T[] {
+  if (!values.length) throw new Error(`Profile device activation requires at least one ${label}.`);
+  return [...values];
+}
+
+function positiveNumber(value: number, label: string): number {
+  if (!Number.isFinite(value) || value <= 0) throw new Error(`Profile device activation ${label} must be positive.`);
+  return value;
+}
+
+function failRequired<T>(label: string): T {
+  throw new Error(`Profile device activation requires ${label}.`);
 }
 
 function createRuntimeUuid(): string {

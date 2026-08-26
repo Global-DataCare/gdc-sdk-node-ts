@@ -148,10 +148,17 @@ main business journeys.
 
 Journey A: legal organization side
 
-1. activate organization from ICA proof
-2. confirm returned order or offer
+1. choose one organization-registration entry path:
+   - canonical: `_transaction` followed by the returned Order
+   - legacy compatibility: ICA `_verify`, GW `_activate`, then the returned Order
+2. finish the controller according to the chosen path:
+   - canonical: retain the activation code and enroll the controller device
+     through the high-level exchange + DCR continuation
+   - legacy: `_activate` already binds the historical representative's submitted
+     public key; do not enroll that bootstrap controller again through DCR
 3. create employee or professional
-4. activate employee device
+4. activate each later service-controller/employee device through the
+   high-level exchange + DCR continuation
 5. request SMART token
 
 Journey B: individual subject side
@@ -177,9 +184,16 @@ Copy/paste starter:
 ```ts
 import {
   NodeHttpClient,
+  HostOnboardingSdk,
+  OrganizationControllerSdk,
   ProfessionalSdk,
+  ServerProfileSessionManager,
+  NodeManagedWallet,
+  ActorKinds,
   IndividualControllerSdk,
   IndividualMemberSdk,
+  readCommercialOfferId,
+  readActivationCode,
   createCommMsgExtendedDraft,
   attachBundleToCommMsgExtendedDraft,
   createCommunicationOutboxJobFromCommMsgExtendedDraft,
@@ -208,6 +222,10 @@ import {
   buildIndividualDidWeb,
   buildSmartCompositionReadScope,
 } from 'gdc-common-utils-ts';
+import {
+  isEuCountryCode,
+  normalizeCountryCode,
+} from 'gdc-common-utils-ts/constants/eu-countries';
 ```
 
 Research-access naming note:
@@ -334,14 +352,21 @@ const softwareApplicationCredentialMock = vcSoftwareRegisteredByICA
 // this empty is still valid for the current demo/bootstrap path.
 const appServiceVpToken = process.env.GW_APP_SERVICE_VP_TOKEN || '';
 
+const jurisdiction = normalizeCountryCode(
+  organizationForm.address.addressCountry,
+);
+if (!isEuCountryCode(jurisdiction)) {
+  throw new Error('Organization address country must be an EU ISO-2 code.');
+}
+
 const tenantContext: TenantContext = {
   tenantId: 'acme-id',
-  jurisdiction: 'ES',
+  jurisdiction,
   sector: DataspaceSectors.HealthCare,
 };
 
 const hostOnboardingRoute: HostRouteContext = {
-  jurisdiction: 'ES',
+  jurisdiction,
   hostNetwork: HostNetworkTypes.Test,
 };
 
@@ -495,10 +520,77 @@ Secure mode:
 ### 6.1 Create the facade
 
 ```ts
+const hostOnboardingSdk = new HostOnboardingSdk(client);
+const organizationControllerSdk = new OrganizationControllerSdk(client);
 const professionalSdk = new ProfessionalSdk(client);
+
+const profileSessions = new ServerProfileSessionManager({
+  // Durable BFF repository for profile metadata and protected envelopes. It
+  // does not receive or persist the plaintext PIN or wallet seed.
+  store: profileStore,
+
+  // Host-custody wrapping boundary, normally backed by Cloud KMS in a BFF.
+  // This is an independent factor from the profile PIN.
+  sealer: profileSealer,
+
+  // GW origin used internally for exchange, DCR and SMART-token operations.
+  gatewayBaseUrl: 'https://gw.example.org',
+
+  // Resolves the public recipient key used when the SDK encrypts DIDComm.
+  // It does not expose or reuse the controller's private signing key.
+  resolveRecipientJwk,
+});
 ```
 
-### 6.2 Activate the legal organization from ICA proof
+### 6.2 Choose exactly one organization-registration path
+
+The two paths do **not** have the same first-controller continuation:
+
+- canonical `_transaction` + Order returns the activation code used to enroll
+  the modern controller device at [6.5](#65-activate-a-modern-controller-or-employee-device-without-authoring-dcr);
+- legacy `_activate` receives `controllerBinding` with the historical
+  representative's public key and binds that bootstrap controller during
+  activation. Do not call profile enrollment, `Token/_exchange` or
+  `Device/_dcr` again for that same legacy binding.
+
+Canonical path for new integrations:
+
+```ts
+const registration = await hostOnboardingSdk
+  .submitLegalOrganizationVerificationTransaction(
+    hostOnboardingRoute,
+    verificationInput,
+  );
+
+const offerId = readCommercialOfferId(registration);
+const confirmed = await hostOnboardingSdk.confirmLegalOrganizationOrder(
+  hostOnboardingRoute,
+  { offerId },
+);
+
+const controllerActivationCode = readActivationCode(confirmed);
+```
+
+`verificationInput`, `readCommercialOfferId(...)` and
+`readActivationCode(...)` come from exported shared authoring
+and response readers. The portal must not copy Bundle traversal or claim paths.
+
+Legacy compatibility path (no DCR continuation for the submitted historical
+representative binding):
+
+```text
+ICA _verify -> GW _activate -> returned Offer -> Order/_batch
+              -> historical representative key already bound
+```
+
+The legacy path preserves the verified historical representative as the first
+controller by binding the key submitted in `controllerBinding` during
+`_activate`. It must not register that same bootstrap controller again through
+DCR. A separately designated technical controller still completes its own
+`_issue`, activation-code exchange and device registration; the historical
+representative key is never copied to that actor.
+
+#### 6.2.1 Legacy `_activate` input
 
 Use this when the integrator already has:
 
@@ -583,6 +675,11 @@ const organizationActivation = await professionalSdk.activateOrganizationInGatew
   },
 );
 ```
+
+`organizationActivation` completes the legacy representative key binding. The
+next operation is the returned commercial Order when present, followed by the
+normal controller business operations. There is no
+`profileSessions.enroll(...)` call for this same historical representative.
 
 Mandatory rule for this onboarding step:
 
@@ -692,20 +789,245 @@ Where each value comes from:
 - `employeeClaims`
   flattened claim view expected by the current runtime
 
-### 6.5 Activate the employee device
+### 6.5 Activate a modern controller or employee device without authoring DCR
 
-If your flow already issued activation material, use it to bind a device/app
-profile.
+The portal does not initialize cryptographic keys, construct `dcrPayload`,
+select OpenID algorithms, or call `Token/_exchange` and `Device/_dcr`. It calls
+the profile-session service with business identity and application parameters;
+the SDK provisions and protects the wallet, registers its public keys and
+persists the returned `client_id`.
+
+This section applies to the canonical modern controller continuation, a later
+service controller, and ordinary employees. It does not apply to the historical
+representative key already bound by legacy `_activate` in 6.2.1.
+
+#### Two proofs are required and they are not interchangeable
+
+- The signed OIDC `id_token` proves that a GW-trusted identity provider
+  authenticated the account and verified the email being bound to the
+  activation code.
+- The signed `vp_token` presents the controller/professional credential and
+  proves role authority. It does **not** prove control of the email address.
+
+Consequently, never pass the controller VP as `idToken`. `Token/_exchange`
+uses the OIDC token as its Bearer credential; the SDK later retains and uses
+the VP for role/proof operations.
+
+If the portal already uses Firebase or another GW-trusted OpenID Provider, pass
+the signed `id_token` returned by that provider. If the portal itself is the
+OpenID Provider, `NodeManagedWallet` can manage the issuer signing key and
+produce the compact signed JWT, but the wallet is only the cryptographic
+component: the portal/BFF remains responsible for the OpenID Provider contract.
+
+The issuer key is server-owned and separate from both the representative's
+ES256K role key and each employee/device wallet. Provision it once in the BFF,
+not once per employee:
 
 ```ts
-await professionalSdk.activateEmployeeDeviceWithActivationRequest({
-  activationCode: 'ACT-001',
-  idToken: '<employee-id-token>',
-  dcrPayload: {
-    application_type: 'native',
+const oidcIssuerContext = {
+  runtime: {
+    runtimeId: 'portal-oidc-issuer',
+    runtimeType: 'web-bff',
   },
+} as const;
+
+const oidcIssuerWallet = new NodeManagedWallet();
+
+await oidcIssuerWallet.provisionManagedKeys(oidcIssuerContext, {
+  // This is the OpenID Provider's signing key, not an employee wallet key.
+  ownerScope: 'runtime',
+  purposes: ['openid-id-token-signing'],
+
+  // Load stable server-only issuer material from protected custody. Never
+  // generate a different OpenID issuer key for every login request.
+  seedMaterial: oidcIssuerSeed,
+  mode: 'deterministic',
+});
+
+const nowSeconds = Math.floor(Date.now() / 1000);
+const signedEmailProofIdToken = await oidcIssuerWallet.signCompactJws!(
+  oidcIssuerContext,
+  {
+    // NodeManagedWallet supplies the registered alg and kid automatically.
+    header: { typ: 'JWT' },
+    claims: {
+      // Must exactly match the issuer trusted by GW and published in discovery.
+      iss: portalOidcIssuer,
+
+      // Stable account subject at this issuer; it is not the controller DID.
+      sub: authenticatedPortalAccountId,
+
+      // Must exactly match the audience configured as trusted by this GW.
+      aud: gatewayTrustedOidcAudience,
+
+      // Assert true only after the portal has actually verified this email.
+      email: verifiedPortalEmail,
+      email_verified: true,
+      iat: nowSeconds,
+      exp: nowSeconds + 300,
+    },
+    key: {
+      ownerScope: 'runtime',
+      purpose: 'openid-id-token-signing',
+    },
+  },
+);
+```
+
+`signCompactJws(...)` creates `base64url(header).base64url(payload).signature`;
+the integrator does not manually compact the JWT. When key custody belongs to
+an external KMS/HSM, use the high-level `createJwtSigner(...).prepareJwt(...)`
+and `.buildCompact(...)` sequence documented by `gdc-common-utils-ts`, signing
+the returned bytes with the matching issuer key.
+
+Publish the public half of that same issuer key, never an employee/device key:
+
+```ts
+const oidcIssuerJwks = {
+  keys: (await oidcIssuerWallet.getPublicJwks(oidcIssuerContext, {
+    ownerScope: 'runtime',
+    purpose: 'openid-id-token-signing',
+  })).map(({ publicJwk }) => publicJwk),
+};
+
+// GET `${portalOidcIssuer}/.well-known/openid-configuration`
+const openIdProviderConfiguration = {
+  // Exact value emitted as the id_token `iss` claim.
+  issuer: portalOidcIssuer,
+
+  // Public HTTPS endpoint returning `oidcIssuerJwks`.
+  jwks_uri: `${portalOidcIssuer}/.well-known/jwks.json`,
+
+  // Must include the algorithm selected for openid-id-token-signing.
+  id_token_signing_alg_values_supported: ['ES384'],
+
+  // Complete these capabilities/endpoints according to the portal's actual
+  // OpenID login flow; do not publish capabilities it does not implement.
+  response_types_supported: ['id_token'],
+  subject_types_supported: ['public'],
+  claims_supported: ['sub', 'email', 'email_verified'],
+};
+
+// GET `${portalOidcIssuer}/.well-known/jwks.json` returns oidcIssuerJwks.
+```
+
+The portal acting as OpenID Provider must also publish, over HTTPS:
+
+- `/.well-known/openid-configuration`, whose `issuer` is exactly
+  `portalOidcIssuer` and whose `jwks_uri` points to its public JWKS;
+- the `jwks.json` addressed by `jwks_uri`, containing the public issuer key with
+  the same `kid` inserted by `NodeManagedWallet` in the JWT header.
+
+Publishing those files is necessary but not sufficient: the GW deployment must
+also be configured to trust that exact issuer, audience and JWKS. A self-signed
+JWT from an untrusted employee/device wallet is not email proof. An audience
+error means the token's `aud` does not equal the audience configured by GW; it
+must not be guessed from the GW DID or hostname.
+
+```ts
+const registeredControllerProfile = await profileSessions.enroll({
+  // Stable confidential account id from the portal session. It groups the
+  // profiles visible to that account; it is not a DID or a DCR client_id.
+  ownerId: authenticatedPortalAccountId,
+
+  // Stable BFF/database id chosen for this wallet record. Reuse it when this
+  // same profile is unlocked; do not confuse it with the GW-issued client_id.
+  profileId: controllerProfileId,
+
+  // Selects the SDK capability family. The portal does not derive OpenID
+  // metadata or key purposes from this value itself.
+  actorKind: ActorKinds.OrganizationController,
+
+  // Authority already established for this profile. This is server-owned
+  // state and must not be an arbitrary value accepted from the browser.
+  actorMode: 'controller',
+
+  // Exact professional-role/controller DID that issued the controller VP.
+  actorDid: controllerDid,
+
+  // DID represented by this managed wallet. It equals actorDid in this
+  // controller example, although other profile types can model them separately.
+  profileDid: controllerDid,
+
+  // Organization/provider DID whose route and policies this profile uses.
+  providerDid: organizationDid,
+
+  // Tenant, jurisdiction and sector previously derived and validated by the
+  // BFF (including addressCountry for an EU organization), never by DCR code.
+  routeContext: tenantContext,
+
+  // Server-derived authorization boundary. Never copy arbitrary subject DIDs
+  // selected by the frontend into this list.
+  allowedSubjectDids: [organizationDid],
+
+  // Unlocks the wallet seed protected by the SDK. It is not sent to GW and is
+  // not stored by the SDK. See the PIN decision immediately below.
+  pin: profilePin,
+
+  // One-time code returned after organization/controller activation or a later
+  // employee License/_issue operation.
+  activationCode: controllerActivationCode,
+
+  // Signed OIDC email/account proof consumed as Bearer by Token/_exchange.
+  // Its iss, aud, kid and JWKS must match the OpenID Provider trusted by GW.
+  idToken: signedEmailProofIdToken,
+
+  // Signed controller proof retained inside the protected profile for later
+  // proof/session operations. The SDK handles its use after enrollment.
+  vpToken: controllerVpBearer,
+
+  // Callback URLs owned by this particular portal installation.
+  redirectUris: [`${portalOrigin}/auth/callback`],
+
+  // Human-readable application name published during managed DCR.
+  clientName: 'Organization Portal',
 });
 ```
+
+#### PIN ownership and storage is a product decision
+
+`profilePin` is a local wallet-unlock secret. It does **not** belong to OpenID,
+is never included in DCR, and is never sent to GW. The SDK uses it together
+with the configured host sealer (for example Cloud KMS in a BFF) to protect the
+wallet seed. The SDK persists only the resulting protected envelope.
+
+The integrating portal must deliberately choose one of these designs:
+
+- **User-managed PIN:** ask the user for a PIN during enrollment and again when
+  the durable profile must be unlocked. Keep it only for the active request or
+  short-lived unlocked session; never log it or save it in plaintext.
+- **Service-managed unlock secret:** for an unattended BFF, generate a random,
+  high-entropy secret for each profile and keep it in a dedicated secret store,
+  separately from the protected profile record. It must not be one constant PIN
+  shared by every wallet or merely an environment variable reused by all users.
+
+The SDK's six-character validation is only a technical lower bound, not a
+recommended production policy. The portal owns PIN strength, retry/rate-limit,
+recovery and rotation UX. In either design, `profilePin` must never be accepted
+as an authority claim: the controller VP/credential establishes the role, while
+the PIN only unlocks locally protected wallet material.
+
+Where the values come from:
+
+- `controllerActivationCode`: the completed canonical or legacy registration,
+  or a later employee `License/_issue`
+- `signedEmailProofIdToken`: signed token returned by a GW-trusted OpenID
+  Provider, or issued by the portal only when it implements the provider
+  discovery/JWKS and verified-email responsibilities described above
+- `controllerVpBearer`: the signed VP proving the controller role
+- `controllerDid`: exact controller DID used as the VP `iss`
+- `profilePin`: user-entered PIN or separately stored, random per-profile BFF
+  secret, according to the explicit product decision above
+- `profileStore` and `profileSealer`: BFF infrastructure adapters configured
+  once, not OpenID/DCR payloads supplied for every operation
+
+The SDK derives a stable installation identity from its managed keys when the
+caller does not provide one. Passing public JWKs or raw `dcrPayload` is an
+advanced compatibility surface and is not part of the 101 flow. The same
+enrollment service is used for a modern service controller and an ordinary
+employee; actor kind, mode and activation-code origin are the business
+differences. The historical representative bound by legacy `_activate` is the
+explicit exception and is not enrolled again.
 
 ### 6.6 Request a SMART token for subject access
 

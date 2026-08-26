@@ -36,6 +36,7 @@ import {
   HostOnboardingSdk,
   NodeHttpClient,
   OrganizationControllerSdk,
+  createProfileDeviceActivationRequest,
   readLegalOrganizationCredentialReissuanceActivationCode,
 } from '../dist/index.js';
 import { extractOfferIdFromResponseBody } from '../dist/order-offer-summary.js';
@@ -353,26 +354,24 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
       email: controllerEmail,
       email_verified: true,
     });
-    const controllerDeviceActivation = await profiler.run('rebind-current-controller-device', () =>
-      runtimeClient.activateProfileDeviceWithActivationRequest({
+    const controllerDeviceRequest = createProfileDeviceActivationRequest({
         tenantId: suiteTenantRouteId,
         jurisdiction: suiteJurisdiction,
         sector: suiteSector,
         activationCode,
         idToken: controllerIdToken,
-        dcrPayload: {
-          application_type: 'native',
-          client_name: 'Local controller lifecycle E2E',
-          redirect_uris: [`gdc-controller-${runSlug}://callback`],
-          jwks: { keys: [controllerSigner.getPublicJwk()] },
-          ext_device_info: {
-            device_id: `controller-device-${runSlug}`,
-            device_name: 'Local controller lifecycle device',
-          },
-        },
-        timeoutSeconds: Math.ceil(pollTimeoutMs / 1000),
-        intervalSeconds: Math.max(1, Math.ceil(pollIntervalMs / 1000)),
-      }));
+      })
+      .setClientInstanceId(`controller-device-${runSlug}`)
+      .setClientName('Local controller lifecycle E2E')
+      .setDeviceName('Local controller lifecycle device')
+      .setApplicationType('native')
+      .setRedirectUris([`gdc-controller-${runSlug}://callback`])
+      .setPublicJwks([controllerSigner.getPublicJwk()])
+      .setTimeoutSeconds(Math.ceil(pollTimeoutMs / 1000))
+      .setIntervalSeconds(Math.max(1, Math.ceil(pollIntervalMs / 1000)))
+      .build();
+    const controllerDeviceActivation = await profiler.run('rebind-current-controller-device', () =>
+      runtimeClient.activateProfileDeviceWithActivationRequest(controllerDeviceRequest));
     debug.record('rebind-current-controller-device', { response: controllerDeviceActivation });
     assert.equal(controllerDeviceActivation.exchange.poll.status, 200);
     assert.equal(controllerDeviceActivation.dcr.poll.status, 200);

@@ -1451,6 +1451,16 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
+   * Actor-facade name retained for organization controllers and employees.
+   * The implementation is actor-neutral and shares the profile-device flow.
+   */
+  public async activateEmployeeDeviceWithActivationRequest(
+    input: EmployeeDeviceActivationRequestInput,
+  ): Promise<EmployeeDeviceActivationResult> {
+    return this.activateProfileDeviceWithActivationRequest(input);
+  }
+
+  /**
    * Creates or updates a `RelatedPerson` for non-employee family/caregiver
    * roles such as a grandfather, guardian, or external caregiver.
    */
