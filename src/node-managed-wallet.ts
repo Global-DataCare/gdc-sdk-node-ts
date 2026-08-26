@@ -24,6 +24,7 @@ import type { JWK, JwkSet } from 'gdc-common-utils-ts/models/jwk';
 import { Content } from 'gdc-common-utils-ts/utils/content';
 import { createJwtSigner, type JWKLikePrivateMaterial } from 'gdc-common-utils-ts/utils/jwt-signer';
 import { buildJwtCompact, prepareJwtForSignature } from 'gdc-common-utils-ts/utils/jwt';
+import { buildProfessionalIdentityVpPayload } from 'gdc-common-utils-ts/utils/professional-smart';
 import { NodeCryptoHelper } from './node-crypto-helper.js';
 
 type StoredManagedKey = {
@@ -45,6 +46,17 @@ export type NodeManagedWalletOptions = {
   resolveRecipientJwk?: (recipientDid: string) => Promise<JWK>;
   policy?: Partial<NodeManagedWalletPolicy>;
 };
+
+export type NodeProfessionalIdentityVpInput = Readonly<{
+  clientId: string;
+  actorDid: string;
+  profileDid?: string;
+  role: string;
+  email?: string;
+  sameAs?: string | readonly string[];
+  telephone?: string;
+  credentialMaterial?: string;
+}>;
 
 export type NodeCommunicationWalletInitialization = {
   /**
@@ -439,6 +451,40 @@ export class NodeManagedWallet implements IWallet {
     const prepared = prepareJwtForSignature(header, request.claims);
     const signature = await this.sign(prepared.signingInput, context, request.key);
     return buildJwtCompact(prepared.encodedHeader, prepared.encodedPayload, signature);
+  }
+
+  /**
+   * Builds and signs the canonical employee/professional VP with the managed
+   * `vp-token-signing` key. Callers provide identity facts only; they do not
+   * assemble JOSE headers, choose a JWK or handle private key material.
+   */
+  public async signProfessionalIdentityVp(
+    context: WalletExecutionContext,
+    input: NodeProfessionalIdentityVpInput,
+  ): Promise<string> {
+    const [vpSigningKey] = await this.getPublicJwks(context, {
+      ownerScope: 'runtime',
+      purpose: 'vp-token-signing',
+    });
+    if (!vpSigningKey) throw new Error('Managed VP signing key is not available.');
+    const payload = buildProfessionalIdentityVpPayload({
+      clientId: input.clientId,
+      actorDid: input.actorDid,
+      role: input.role,
+      ...(input.email ? { email: input.email } : {}),
+      ...(input.sameAs ? { sameAs: input.sameAs } : {}),
+      ...(input.telephone ? { telephone: input.telephone } : {}),
+      ...(input.credentialMaterial ? { credentialMaterial: input.credentialMaterial } : {}),
+    });
+    return this.signCompactJws(context, {
+      header: { typ: 'JWT', jwk: vpSigningKey.publicJwk },
+      claims: {
+        iss: vpSigningKey.kid,
+        sub: input.profileDid || input.actorDid,
+        ...payload,
+      },
+      key: { ownerScope: 'runtime', purpose: 'vp-token-signing' },
+    });
   }
 
   /**

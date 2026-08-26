@@ -327,6 +327,8 @@ const client = new NodeHttpClient({
   ctx: tenantContext,
   appInfo: {
     appId: 'https://portal.example.org',
+    appType: 'Organization',
+    sector: tenantContext.sector,
   },
 });
 ```
@@ -938,6 +940,23 @@ for the executable separation between signed email `id_token`, actor
 `vp_token`, PIN-unlocked wallet material and managed enrollment.
 
 ```ts
+// ICA (or the governed Test Network reviewer) has returned the organization,
+// legal-representative and ServiceControllerCredential VCs. The SDK selects
+// them, builds the canonical three-VC VP and signs it with the same
+// profile-owned actor key whose public commitment was registered during
+// organization verification. No private JWK leaves the managed wallet.
+const controllerVpBearer = await profileSessions.buildOrganizationControllerVpFromIcaProof({
+  walletSeed: protectedBootstrapWalletSeed,
+  walletKeyDerivationId: controllerWalletKeyDerivationId,
+  verificationResponseBody: organizationVerification.poll.body,
+  tenantId: tenantContext.tenantId,
+  // This is the exact audience configured by the receiving GW/host policy;
+  // it is not guessed from the portal origin or wallet runtimeId.
+  audience: controllerVpAudience,
+  // Supply only when the response contains more than one controller VC.
+  controllerSameAs,
+});
+
 const registeredControllerProfile = await profileSessions.enroll({
   // Stable confidential account id from the portal session. It groups the
   // profiles visible to that account; it is not a DID or a DCR client_id.
@@ -955,7 +974,8 @@ const registeredControllerProfile = await profileSessions.enroll({
   // state and must not be an arbitrary value accepted from the browser.
   actorMode: 'controller',
 
-  // Exact professional-role/controller DID that issued the controller VP.
+  // Exact professional-role/controller DID bound by the controller VC and
+  // registered device. It represents the role, not the human personally.
   actorDid: controllerDid,
 
   // DID represented by this managed wallet. It equals actorDid in this
@@ -996,6 +1016,41 @@ const registeredControllerProfile = await profileSessions.enroll({
   clientName: 'Organization Portal',
 });
 ```
+
+Configure the manager once with the portal application identity. This value is
+shared by every profile/device wallet and is unrelated to `runtimeId`:
+
+```ts
+const profileSessions = new ServerProfileSessionManager({
+  store: profileStore,
+  sealer: profileSealer,
+  gatewayBaseUrl,
+  resolveRecipientJwk,
+  // Portal-wide application identity used for AppId/AppVersion headers.
+  appInfo: {
+    appId: portalOrigin,
+    appType: 'Organization',
+    sector: routeContext.sector,
+  },
+});
+```
+
+The `vpToken` rule depends on the server-owned actor kind:
+
+- organization controllers, employees/professionals and individual members
+  supply their independently signed role/relationship VP;
+- individual-controller profiles omit `vpToken`; the SDK sends the signed
+  account `id_token`, registered-device `client_assertion` and no fabricated
+  VP fallback;
+- never assign `vpToken: idToken`.
+
+For an invited employee, call the high-level
+`enrollInvitedOrganizationEmployeeWithDeps(...)` helper with the server-owned
+activation grant. The grant already contains the verified role and stable actor
+alias. The helper passes those values as `professionalProof`; after DCR returns
+the actual `client_id`, `ServerProfileSessionManager` creates and signs the
+professional VP with the managed `vp-token-signing` key. The portal therefore
+does not build the employee VP, choose a JWK or copy the login token.
 
 #### PIN ownership and storage is a product decision
 
