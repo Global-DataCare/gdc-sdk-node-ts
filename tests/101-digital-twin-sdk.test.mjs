@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   ActorKinds,
   ActorCapabilities,
+  createDigitalTwinSecondaryUseConsentIdentifier,
   DigitalTwinSearchParameter,
   NodeActorSession,
 } from '../dist/index.js';
@@ -73,10 +74,12 @@ test('101: patient BFF disables, resumes, and offboards the private twin link', 
       return { poll: { status: 200, body: { purged: true } } };
     },
   }).asIndividualController();
+  const secondaryUseConsentIdentifier = createDigitalTwinSecondaryUseConsentIdentifier();
+  assert.match(secondaryUseConsentIdentifier, /^urn:uuid:[0-9a-f-]{36}$/i);
   const consentInput = {
     subjectDid: 'did:web:subject.example',
     indexProviderOrganizationDid: HOSTED_ORGANIZATION_DID,
-    consentIdentifier: 'urn:uuid:00000000-0000-4000-8000-000000000201',
+    consentIdentifier: secondaryUseConsentIdentifier,
   };
 
   await individualController.setDigitalTwinSecondaryUseConsent(ROUTE_CONTEXT, {

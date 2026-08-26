@@ -64,10 +64,18 @@ research organization, selects a FHIR identifier or supplies ODRL.
 import {
   ActorCapabilities,
   ActorKinds,
+  createDigitalTwinSecondaryUseConsentIdentifier,
   HttpRuntimeClient,
   NodeActorSession,
   TransportProfiles,
 } from 'gdc-sdk-node-ts';
+
+// In the one-time server-side index-enrollment transaction, persist:
+await createAuthenticatedIndexEnrollment({
+  secondaryUseConsentIdentifier:
+    createDigitalTwinSecondaryUseConsentIdentifier(),
+  // ...the rest of the authenticated enrollment
+});
 
 const runtimeClient = new HttpRuntimeClient({
   baseUrl: process.env.GW_BASE_URL!,
@@ -132,11 +140,15 @@ claim key and `ServiceCapability.DigitalTwinReader` supplies its canonical
 value.
 
 `consentIdentifier` is mandatory and stable internally, but it is not frontend
-state. The BFF reads it from the subject's index-enrollment record and reuses it
-for every read, `permit`, and `deny`; GW therefore updates the same FHIR Consent
-rule instead of creating duplicates. A future study is represented by another
-FHIR Consent with its own identifier and research actor. It cannot make this
-provider-level toggle appear enabled.
+state. It is not derived from the subject DID or organization DID. The BFF
+creates it once with `createDigitalTwinSecondaryUseConsentIdentifier()` in the
+same server-side transaction that creates the index enrollment, persists it
+with that enrollment and reuses it for every read, `permit`, and `deny`; GW
+therefore updates the same FHIR Consent rule instead of creating duplicates.
+Existing enrollments must be backfilled once and then retain the assigned
+value. A future study is represented by another FHIR Consent with its own
+identifier and research actor. It cannot make this provider-level toggle
+appear enabled.
 
 The product API should expose `permit`/`deny` as a settings change and `purge`
 only inside the account/provider offboarding transaction. It must never map a

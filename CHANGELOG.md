@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 2.4.31 - 2026-08-26
+
+- Add `createDigitalTwinSecondaryUseConsentIdentifier()` for the one-time,
+  server-side creation of the opaque FHIR Consent identifier stored with an
+  index enrollment. Document that it is random, never derived from subject or
+  tenant identifiers, never accepted from the browser and reused for every
+  digital-twin `permit`/`deny` update.
+
+## 2.4.30 - 2026-08-26
+
 - Add high-level controller communication-wallet initialization and JWKS
   retrieval to `NodeManagedWallet`. The legacy `_activate` 101 now distinguishes
   the professional-role signing key from the wallet's DIDComm signing and
