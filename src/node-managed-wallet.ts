@@ -66,6 +66,11 @@ const DEFAULT_POLICY: NodeManagedWalletPolicy = {
  * - OpenID/JWT signing
  * - DIDComm-style transport wrapping
  * - confidential document protection
+ *
+ * OpenID boundary: managing an `openid-id-token-signing` key and producing a
+ * compact JWT does not turn this wallet into an OpenID Provider. The hosting
+ * portal/BFF must authenticate the account, verify any asserted email, publish
+ * provider metadata and JWKS, and be explicitly trusted by the receiving GW.
  */
 export class NodeManagedWallet implements IWallet {
   private readonly cryptoHelper: ICryptoHelper;

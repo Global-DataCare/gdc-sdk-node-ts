@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## 2.4.29 - 2026-08-26
+
+- Replace hand-authored OpenID `dcrPayload` in the Node 101 flow with SDK-owned
+  `ServerProfileSessionManager.enroll(...)`, which provisions the wallet and
+  uses the typed profile-device draft internally. Keep direct key selection
+  and the raw shape only as advanced compatibility surfaces, and expose the
+  actor-facade activation method on `NodeHttpClient`. The 101 now
+  separates canonical `_transaction` onboarding from legacy `_activate` while
+  sharing the same activation-code exchange and device-registration
+  continuation, and `HostOnboardingSdk` exposes both the canonical transaction
+  and its Order confirmation. Profile enrollment keeps the signed OIDC
+  `idToken` for account/email binding separate from the controller `vpToken`:
+  the VP proves role authority but cannot replace the trusted email proof.
+  Preserve the legacy exception: `Organization/_activate` already binds the
+  submitted historical representative key, so that same bootstrap controller
+  must not repeat token exchange or DCR.
+
 - Correct the Digital Twin 101 and high-level consent facade: the browser sends
   only `enabled`; the BFF supplies its server-owned index enrollment, the FHIR
   Consent targets the index-provider organization rather than an unrelated

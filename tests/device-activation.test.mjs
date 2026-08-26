@@ -9,9 +9,77 @@ import {
 } from 'gdc-common-utils-ts/examples';
 
 import {
+  NodeHttpClient,
   activateEmployeeDeviceWithActivationRequestWithDeps,
   activateEmployeeDeviceWithActivationCodeWithDeps,
+  createProfileDeviceActivationRequest,
 } from '../dist/index.js';
+
+test('NodeHttpClient exposes the activation method required by actor facades', () => {
+  assert.equal(typeof NodeHttpClient.prototype.activateEmployeeDeviceWithActivationRequest, 'function');
+  assert.equal(typeof NodeHttpClient.prototype.activateProfileDeviceWithActivationRequest, 'function');
+});
+
+/**
+ * Advanced runtime contract: build a typed activation request after a runtime
+ * already owns the profile public keys.
+ */
+test('profile-device draft builds the DCR metadata behind typed application concepts', async () => {
+  // Step 1. Start from continuation material returned by either organization onboarding flow.
+  const draft = createProfileDeviceActivationRequest({
+    activationCode: 'activation-code',
+    idToken: 'signed-id-token',
+  });
+
+  // Step 2. Describe the portal installation and its public proof key.
+  const request = draft
+    .setClientInstanceId('portal-installation-1')
+    .setClientName('Example Organization Portal')
+    .setApplicationType('web')
+    .setRedirectUris(['https://portal.example.org/auth/callback'])
+    .setPublicJwks([{ kty: 'EC', crv: 'P-384', x: 'x', y: 'y', kid: 'portal-key-1' }])
+    .build();
+
+  // Step 3. The high-level request contains application concepts, not a hand-authored dcrPayload.
+  assert.equal(request.deviceRegistration.clientInstanceId, 'portal-installation-1');
+  assert.equal(request.deviceRegistration.applicationType, 'web');
+  assert.equal('dcrPayload' in request, false);
+
+  const calls = [];
+  await activateEmployeeDeviceWithActivationRequestWithDeps({
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    input: request,
+    activateEmployeeDeviceWithActivationCode: async (_ctx, input) => {
+      calls.push(input);
+      return {
+        initialAccessToken: 'initial-access-001',
+        exchange: cloneExample(EXAMPLE_EMPLOYEE_DEVICE_EXCHANGE_RESPONSE),
+        dcr: cloneExample(EXAMPLE_EMPLOYEE_DEVICE_DCR_RESPONSE),
+      };
+    },
+  });
+
+  assert.deepEqual(calls[0].dcrPayload, {
+    application_type: 'web',
+    client_name: 'Example Organization Portal',
+    redirect_uris: ['https://portal.example.org/auth/callback'],
+    jwks: { keys: [{ kty: 'EC', crv: 'P-384', x: 'x', y: 'y', kid: 'portal-key-1' }] },
+    ext_device_info: {
+      device_id: 'portal-installation-1',
+      device_name: 'Example Organization Portal',
+    },
+  });
+});
+
+test('profile-device draft rejects incomplete registration instead of emitting partial OpenID metadata', () => {
+  assert.throws(
+    () => createProfileDeviceActivationRequest({
+      activationCode: 'activation-code',
+      idToken: 'signed-id-token',
+    }).build(),
+    /client instance id/i,
+  );
+});
 
 test('activateEmployeeDeviceWithActivationCodeWithDeps performs exchange then dcr', async () => {
   const calls = [];

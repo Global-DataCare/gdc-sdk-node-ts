@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import {
   OrganizationControllerSdk,
   HostOnboardingSdk,
+  createProfileDeviceActivationRequest,
   recoverOrganizationControllerWithCredentialReissuanceWithDeps,
 } from '../dist/index.js';
 import {
@@ -26,7 +27,11 @@ import {
 } from 'gdc-common-utils-ts/constants/schemaorg';
 import {
   EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT,
+  EXAMPLE_CONTROLLER_BINDING,
+  EXAMPLE_DCR_REDIRECT_URI,
   EXAMPLE_EMPLOYEE_DEVICE_ACTIVATION_INPUT,
+  EXAMPLE_EMPLOYEE_DEVICE_INSTANCE_ID_PRIMARY,
+  EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
   EXAMPLE_EMPLOYEE_DEVICE_DCR_RESPONSE,
   EXAMPLE_EMPLOYEE_DEVICE_EXCHANGE_RESPONSE,
   EXAMPLE_GW_ORGANIZATION_ACTIVATE_ACCEPTED_RESPONSE,
@@ -206,6 +211,9 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
     const verification = await organizationControllerSdk.submitLegalOrganizationVerificationTransaction(hostCtx, issueInput);
     assert.equal(verification.poll.status, 200);
   } else {
+    // Legacy `_activate` receives the historical representative key binding
+    // directly. No exchange/DCR operation belongs between activation and the
+    // returned commercial Order for that same bootstrap controller.
     const activation = await hostOnboardingSdk.activateOrganizationInGatewayFromIcaProof(
       hostCtx,
       cloneExample(EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT),
@@ -232,13 +240,24 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
     'Confirming an already-accepted organization order must materialize the additional contracted seats.',
   );
 
+  const recoveryDeviceRequest = createProfileDeviceActivationRequest({
+    activationCode: EXAMPLE_EMPLOYEE_DEVICE_ACTIVATION_INPUT.activationCode,
+    idToken: EXAMPLE_EMPLOYEE_DEVICE_ACTIVATION_INPUT.idToken,
+  })
+    .setClientInstanceId(EXAMPLE_EMPLOYEE_DEVICE_INSTANCE_ID_PRIMARY)
+    .setClientName(EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME)
+    .setApplicationType('web')
+    .setRedirectUris([EXAMPLE_DCR_REDIRECT_URI])
+    .setPublicJwks(EXAMPLE_CONTROLLER_BINDING.jwks.keys)
+    .build();
+
   const recovery = await recoverOrganizationControllerWithCredentialReissuanceWithDeps({
     hostCtx,
     tenantCtx,
     input: {
       credentialReissuanceInput: issueInput,
       controllerIdToken: EXAMPLE_EMPLOYEE_DEVICE_ACTIVATION_INPUT.idToken,
-      dcrPayload: cloneExample(EXAMPLE_EMPLOYEE_DEVICE_ACTIVATION_INPUT.dcrPayload),
+      deviceRegistration: recoveryDeviceRequest.deviceRegistration,
     },
     submitLegalOrganizationCredentialReissuance:
       organizationControllerSdk.submitLegalOrganizationCredentialReissuance.bind(organizationControllerSdk),
@@ -333,7 +352,7 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
   assert.deepEqual(
     operations,
     expectedOperations,
-    'The canonical controller lifecycle must always reissue/rebind before disable and purge, and it must never run the host activation paths in parallel.',
+    'Initial legacy activation must not run DCR; the later explicit Organization/_issue recovery owns its own exchange/rebind before disable and purge.',
   );
 }
 

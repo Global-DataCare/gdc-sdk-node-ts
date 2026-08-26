@@ -20,6 +20,7 @@ import {
   ActorKinds,
   IndividualControllerSdk,
   IndividualMemberSdk,
+  HostOnboardingSdk,
   NodeActorSession,
   OrganizationControllerSdk,
   PersonalSdk,
@@ -27,6 +28,25 @@ import {
   submitAndPollWithMethods,
   submitAndPollWithClient,
 } from '../dist/index.js';
+
+test('HostOnboardingSdk exposes the canonical transaction and Order continuation', async () => {
+  const calls = [];
+  const sdk = new HostOnboardingSdk({
+    submitLegalOrganizationVerificationTransaction: async (...args) => {
+      calls.push(['transaction', args]);
+      return { poll: { status: 200 } };
+    },
+    confirmLegalOrganizationOrder: async (...args) => {
+      calls.push(['order', args]);
+      return { poll: { status: 200 } };
+    },
+  });
+
+  await sdk.submitLegalOrganizationVerificationTransaction({ jurisdiction: 'ES' }, {});
+  await sdk.confirmLegalOrganizationOrder({ jurisdiction: 'ES' }, { offerId: 'offer-1' });
+
+  assert.deepEqual(calls.map(([name]) => name), ['transaction', 'order']);
+});
 
 test('clinical actor facades expose distinct section and summary update methods', async () => {
   // Step 1. The public facade must keep one-section and multi-section writes
