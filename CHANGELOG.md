@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add high-level organization-controller preflight and explicit descendant
+  cleanup methods for non-cascading tenant shutdown. Generic cleanup applies
+  only to individuals; employees retain their dedicated encrypted lifecycle so
+  assigned licenses and audit metadata are handled atomically. The SDK keeps
+  DIDComm submit/poll handling internal.
+- Add same-identifier tenant re-enable to the controller facade; corrected
+  legal identifiers still require a separate registration rather than rename.
+
 - Preserve failed asynchronous `Token/_exchange` `OperationOutcome`
   diagnostics in the high-level device-activation helper instead of reporting
   the secondary absence of `initial_access_token`.

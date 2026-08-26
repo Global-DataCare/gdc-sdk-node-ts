@@ -325,6 +325,16 @@ export class OrganizationControllerSdk {
     return requireClientMethod(this.client, 'disableTenant')(hostCtx, input, pollOptions);
   }
 
+  /** Re-enables the same suspended tenant and immutable legal identifier. */
+  public enableTenant(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationDisableTenant, ActorKinds.OrganizationController, 'enableTenant');
+    return requireClientMethod(this.client, 'enableTenant')(hostCtx, input, pollOptions);
+  }
+
   /**
    * Purges the hosted tenant through the host registry after tenant disable and
    * descendant purges have both completed.
@@ -336,6 +346,36 @@ export class OrganizationControllerSdk {
   ): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationPurgeTenant, ActorKinds.OrganizationController, 'purgeTenant');
     return requireClientMethod(this.client, 'purgeTenant')(hostCtx, input, pollOptions);
+  }
+
+  /** Returns host-confirmed tenant state and descendant counters. */
+  public getTenantLifecycleStatus(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationDisableTenant, ActorKinds.OrganizationController, 'getTenantLifecycleStatus');
+    return requireClientMethod(this.client, 'getTenantLifecycleStatus')(hostCtx, input, pollOptions);
+  }
+
+  /** Explicitly disables individuals before tenant disable. Employees use their dedicated lifecycle. */
+  public disableTenantDescendants(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput & { descendantKind: 'individuals' },
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationDisableTenant, ActorKinds.OrganizationController, 'disableTenantDescendants');
+    return requireClientMethod(this.client, 'disableTenantDescendants')(hostCtx, input, pollOptions);
+  }
+
+  /** Explicitly purges individuals before tenant purge. Employees use their dedicated lifecycle. */
+  public purgeTenantDescendants(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput & { descendantKind: 'individuals' },
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationPurgeTenant, ActorKinds.OrganizationController, 'purgeTenantDescendants');
+    return requireClientMethod(this.client, 'purgeTenantDescendants')(hostCtx, input, pollOptions);
   }
 
   /**

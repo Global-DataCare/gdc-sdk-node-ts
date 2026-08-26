@@ -19,7 +19,11 @@ export const GwCoreLifecycleAction = Object.freeze({
   Transaction: '_transaction',
   TransactionResponse: '_transaction-response',
   Disable: '_disable',
+  Enable: '_enable',
   Purge: '_purge',
+  Status: '_status',
+  DisableDescendants: '_disable-descendants',
+  PurgeDescendants: '_purge-descendants',
 } as const);
 
 /**
@@ -41,6 +45,10 @@ export const GwCoreLifecycleRequestType = Object.freeze({
   IndividualOrganizationDisable: 'Family-disable-request-v1.0',
   IndividualOrganizationPurge: 'Family-purge-request-v1.0',
   IndividualMemberPurge: LifecycleRequestType.RelatedPersonPurge,
+  TenantStatus: 'Organization-lifecycle-status-request-v1.0',
+  TenantEnable: 'Organization-enable-request-v1.0',
+  TenantDisableDescendants: 'Organization-disable-descendants-request-v1.0',
+  TenantPurgeDescendants: 'Organization-purge-descendants-request-v1.0',
 } as const);
 
 /**

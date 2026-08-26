@@ -21,3 +21,11 @@ export type {
   HostedTenantLifecycleInput,
   LegalOrganizationOrderInput,
 } from 'gdc-sdk-core-ts';
+
+/** Descendant groups that a controller can clean explicitly before tenant shutdown. */
+/**
+ * Tenant-owned subject group supported by the generic cleanup endpoint.
+ * Employees use their dedicated encrypted lifecycle so license release and
+ * audit metadata cannot be bypassed.
+ */
+export type HostedTenantDescendantKind = 'individuals';
