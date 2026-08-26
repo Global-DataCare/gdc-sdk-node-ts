@@ -70,7 +70,8 @@ import {
   TransportProfiles,
 } from 'gdc-sdk-node-ts';
 
-// In the one-time server-side index-enrollment transaction, persist:
+// In the one-time server-side index-enrollment transaction, persist this
+// atomically with the rest of the enrollment. Do not run this per request:
 await createAuthenticatedIndexEnrollment({
   secondaryUseConsentIdentifier:
     createDigitalTwinSecondaryUseConsentIdentifier(),

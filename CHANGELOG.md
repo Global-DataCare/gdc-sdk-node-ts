@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.4.32 - 2026-08-26
+
+- Synchronize the Digital Twin public-surface inventory, JSDoc, executable 101
+  comments, copyable snippet and repository-local governance skill around the
+  one-time server-owned Consent identifier and canonical Communication-based
+  IPS projection flow.
+
 ## 2.4.31 - 2026-08-26
 
 - Add `createDigitalTwinSecondaryUseConsentIdentifier()` for the one-time,

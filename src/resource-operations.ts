@@ -597,7 +597,11 @@ export type DigitalTwinSecondaryUseConsentInput = {
   /** Organization/tenant that provides and stores the subject's index. */
   indexProviderOrganizationDid: string;
   decision: 'permit' | 'deny';
-  /** Server-owned FHIR Consent identifier. Never accept it from the browser. */
+  /**
+   * Server-owned FHIR Consent identifier. Create it once with
+   * `createDigitalTwinSecondaryUseConsentIdentifier()` in the index-enrollment
+   * transaction, persist it there and never accept it from the browser.
+   */
   consentIdentifier: string;
   consentDate?: string;
   dataType?: string;

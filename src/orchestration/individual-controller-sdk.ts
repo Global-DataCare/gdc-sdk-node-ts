@@ -325,7 +325,9 @@ export class IndividualControllerSdk {
   /**
    * Enables or disables the subject's secondary-use digital-twin projection.
    * This is the canonical patient-side operation; application code must not
-   * publish a canonical Composition directly into the research index.
+   * publish a canonical Composition directly into the research index. The
+   * caller reuses the server-owned identifier created once with
+   * `createDigitalTwinSecondaryUseConsentIdentifier()` during index enrollment.
    */
   public setDigitalTwinSecondaryUseConsent(
     ctx: RouteContext,
