@@ -37,7 +37,7 @@ The subject lifecycle precedes that researcher lifecycle:
 ```text
 current operational IPS
   -> Consent purpose=HRESCH, action=organization/ResearchSubject.rs
-     -> decision=permit: build/rebuild one registered urn:uuid twin
+     -> decision=permit: the next normal IPS Communication builds/rebuilds one registered urn:uuid twin
      -> decision=deny:   pause synchronization, preserve alias and published twin
 ```
 
@@ -146,7 +146,32 @@ The BFF must inspect both the top-level submit result and the terminal bundle
 entry. Success is an initial `202`, a terminal poll response, and entry status
 `201`. It must not report success from the initial HTTP response alone.
 
-## 3. Projection and subject-identifier invariant
+## 3. Project from the normal IPS Communication flow
+
+Enabling consent does not make the portal publish a canonical `Composition`.
+The portal keeps using its existing clinical outbox and submits the IPS Bundle
+through the individual route:
+
+```ts
+await individualController.ingestCommunicationAndUpdateIndex(ctx, {
+  communicationJob, // existing server-built Communication carrying the IPS Bundle
+  clinicalFormat: 'r4',
+});
+```
+
+This resolves to
+`individual/org.hl7.fhir.r4/Communication/_batch`; GW processes the clinical
+resources, updates the operational index and, when the FHIR Consent rule is
+`permit`, creates or refreshes the pseudonymous digital-twin projection. The
+portal must not split the IPS into one `Composition` per section and must not
+submit the IPS Bundle to `digitaltwin/.../Composition/_batch`.
+
+The `communicationJob` is server-owned and comes from the same outbox builder
+the portal already uses for IPS/FHIR ingestion. The browser supplies the
+clinical document to its authenticated BFF; it does not select GW paths or
+author the digital-twin `Composition`.
+
+## 4. Projection and subject-identifier invariant
 
 Application code never posts the IPS or a canonical Composition to
 `digitaltwin/Composition/_batch`. GW projects current operational data after a
@@ -159,7 +184,7 @@ that tenant. The direct Composition batch accepts only
 twin subject. The SDK also rejects non-UUID subjects before save or
 materialization.
 
-## 4. Current authorization boundary
+## 5. Current authorization boundary
 
 - A verified employee of the provider organization can currently request
   `organization/ResearchSubject.rs` and use the tenant's digital-twin search.
@@ -175,7 +200,7 @@ with that operational DID. `sameAs` is continuity/discovery data; it is not an
 authorization claim. The SDK then retains the returned SMART bearer for
 `search`, `saveSelection`, and `materialize`.
 
-## 5. Create the research facade and request SMART access
+## 6. Create the research facade and request SMART access
 
 ```ts
 import {
@@ -261,7 +286,7 @@ For a foreign consumer organization, `vpToken` also carries the applicable
 contract and consent evidence. Application code should not substitute an
 unsigned claim for that evidence.
 
-## 6. Search with coded research claims
+## 7. Search with coded research claims
 
 ```ts
 const medicationSection =
@@ -284,7 +309,7 @@ pseudonymous twin identifier. It is not the individual's DID and must not be
 replaced with a `Patient` reference. Search uses codes because display and free
 text are removed from the research projection.
 
-## 7. Save the selected twin with custom tags
+## 8. Save the selected twin with custom tags
 
 ```ts
 const worksetTag: DigitalTwinWorksetTagInput = {
@@ -341,7 +366,7 @@ Do not put an email, email hash, subject identifier, clinical observation,
 display text, or free-text note in either value. Those data do not belong in a
 ledger-safe tag.
 
-## 8. Reopen the saved workset
+## 9. Reopen the saved workset
 
 ```ts
 const workset = await digitalTwin.searchSelections(ctx, {
@@ -364,7 +389,7 @@ This 101 deliberately uses one workset tag only. The employee can create more
 codes in the same personal namespace; application code does not invent extra
 status or organization vocabularies.
 
-## 9. Materialize only the selected twin
+## 10. Materialize only the selected twin
 
 ```ts
 const selected = savedSelections[0];
@@ -376,10 +401,10 @@ const summary = await digitalTwin.materialize(ctx, {
 ```
 
 Materialization uses the public asynchronous `Communication` transport and
-`ResearchSubject/$summary`. The same SMART bearer obtained in step 3 is used
+`ResearchSubject/$summary`. The same SMART bearer obtained in step 6 is used
 unless an operation explicitly supplies another `accessToken`.
 
-## 10. What this flow is not
+## 11. What this flow is not
 
 - `IndividualControllerSdk.generateDigitalTwinFromSubjectData(...)` is a
   deprecated legacy direct-transfer hook and is intentionally not the

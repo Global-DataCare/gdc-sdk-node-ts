@@ -51,14 +51,22 @@ const STORED_WORKSET_TAG = Object.freeze({ ...WORKSET_TAG, userSelected: true })
 
 test('101: patient BFF disables, resumes, and offboards the private twin link', async () => {
   const decisions = [];
+  const ingestedCommunications = [];
   const purgedSubjects = [];
   const individualController = new NodeActorSession({
     actorKind: ActorKinds.IndividualController,
-    capabilities: [ActorCapabilities.IndividualGenerateDigitalTwin],
+    capabilities: [
+      ActorCapabilities.IndividualGenerateDigitalTwin,
+      ActorCapabilities.IndividualIngestCommunication,
+    ],
   }, {
     setDigitalTwinSecondaryUseConsent: async (_ctx, input) => {
       decisions.push(input.decision);
       return { consentClaims: { 'Consent.decision': input.decision } };
+    },
+    ingestCommunicationAndUpdateIndex: async (_ctx, input) => {
+      ingestedCommunications.push(input);
+      return { poll: { status: 200, body: { indexed: true } } };
     },
     purgeDigitalTwinSubjectLink: async (_ctx, input) => {
       purgedSubjects.push(input.subjectDid);
@@ -79,11 +87,17 @@ test('101: patient BFF disables, resumes, and offboards the private twin link', 
     ...consentInput,
     decision: 'permit',
   });
+  const communicationJob = Object.freeze({ id: 'existing-server-outbox-job-with-ips-bundle' });
+  await individualController.ingestCommunicationAndUpdateIndex(ROUTE_CONTEXT, {
+    communicationJob,
+    clinicalFormat: 'r4',
+  });
   await individualController.purgeDigitalTwinSubjectLink(ROUTE_CONTEXT, {
     subjectDid: consentInput.subjectDid,
   });
 
   assert.deepEqual(decisions, ['deny', 'permit']);
+  assert.deepEqual(ingestedCommunications, [{ communicationJob, clinicalFormat: 'r4' }]);
   assert.deepEqual(purgedSubjects, [consentInput.subjectDid]);
 });
 
