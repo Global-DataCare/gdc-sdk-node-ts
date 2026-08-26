@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Correct the Digital Twin 101 and high-level consent facade: the browser sends
+  only `enabled`; the BFF supplies its server-owned index enrollment, the FHIR
+  Consent targets the index-provider organization rather than an unrelated
+  research organization, and no legacy ODRL attachment is emitted.
+
 - Add high-level organization-controller preflight and explicit descendant
   cleanup methods for non-cascading tenant shutdown. Generic cleanup applies
   only to individuals; employees retain their dedicated encrypted lifecycle so

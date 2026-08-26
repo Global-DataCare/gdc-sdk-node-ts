@@ -67,8 +67,7 @@ test('101: patient BFF disables, resumes, and offboards the private twin link', 
   }).asIndividualController();
   const consentInput = {
     subjectDid: 'did:web:subject.example',
-    researchOrganizationDid: HOSTED_ORGANIZATION_DID,
-    actorRole: 'ISCO-08|221',
+    indexProviderOrganizationDid: HOSTED_ORGANIZATION_DID,
     consentIdentifier: 'urn:uuid:00000000-0000-4000-8000-000000000201',
   };
 
