@@ -94,3 +94,35 @@ test('activateEmployeeDeviceWithActivationCodeWithDeps rejects exchange response
   assert.equal(calls.length, 1);
   assert.equal(calls[0].bearerToken, 'employee-id-token-001');
 });
+
+/**
+ * Async GW failures are returned inside the poll envelope. The high-level
+ * activation helper must preserve that diagnostic instead of misreporting the
+ * secondary absence of an initial_access_token.
+ */
+test('activateEmployeeDeviceWithActivationCodeWithDeps surfaces the exchange OperationOutcome', async () => {
+  const exchangeFailure = cloneExample(EXAMPLE_EMPLOYEE_DEVICE_EXCHANGE_RESPONSE);
+  exchangeFailure.poll.body = {
+    data: [{
+      resourceType: 'OperationOutcome',
+      issue: [{
+        severity: 'error',
+        code: 'business-rule',
+        diagnostics: 'Verified identity does not authorize the requested tenant.',
+      }],
+    }],
+  };
+
+  await assert.rejects(
+    activateEmployeeDeviceWithActivationCodeWithDeps({
+      routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+      input: cloneExample(EXAMPLE_EMPLOYEE_DEVICE_ACTIVATION_INPUT),
+      identityTokenExchangePath: () => '/exchange',
+      identityTokenExchangePollPath: () => '/exchange-response',
+      identityDeviceDcrPath: () => '/dcr',
+      identityDeviceDcrPollPath: () => '/dcr-response',
+      submitAndPollWithBearerToken: async () => exchangeFailure,
+    }),
+    /Verified identity does not authorize the requested tenant/,
+  );
+});
