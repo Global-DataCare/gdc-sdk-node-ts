@@ -9,6 +9,10 @@
   runtime keys come from a stable KMS-encrypted seed, and the not-yet-implemented
   ICA `SoftwareApplicationCredential` flow is an explicit TODO instead of a
   fabricated mock/current requirement.
+- Make the wallet-custody 101 role-neutral with `userWalletContext`,
+  `userWallet` and `userPublicCommunicationJwks`, and explain how the same
+  custody pattern applies to controller, employee/professional and individual
+  controller profiles without reusing professional-role/person signing keys.
 
 ## 2.4.34 - 2026-08-26
 

@@ -5,128 +5,188 @@ import { createPublicKey, verify as cryptoVerify } from 'node:crypto';
 import { NodeCryptoHelper, NodeManagedWallet } from '../dist/index.js';
 
 /**
- * Teaching goal:
- * sdk-node owns the concrete Node wallet/runtime adapters while reusing the
- * sdk-core wallet contract and common-utils crypto primitives.
+ * Low-level key contract, not a complete onboarding recipe:
+ * this runtime scope is one generic portal user/profile device wallet. It can
+ * belong to an organization controller, employee/professional or individual
+ * controller. The actor kind is selected by the later high-level lifecycle,
+ * not by these communication-key inputs.
  */
-test('NodeManagedWallet provisions runtime and profile keys deterministically', async () => {
-  const wallet = new NodeManagedWallet({
+test('NodeManagedWallet provisions communication keys for any user/profile device', async () => {
+  const userWallet = new NodeManagedWallet({
     cryptoHelper: new NodeCryptoHelper(),
   });
 
-  const runtimeKeys = await wallet.provisionManagedKeys(
+  const userCommunicationKeys = await userWallet.provisionManagedKeys(
     {
       runtime: {
-        runtimeId: 'portal-runtime:gdc-bff',
+        // Stable opaque id of this profile/device wallet, not an actor role,
+        // DID, email, DCR client_id or global deployment identifier.
+        runtimeId: 'portal-runtime:user-profile-7f3a:primary-device',
+        // Describes where the wallet executes; it grants no authority.
         runtimeType: 'web-bff',
       },
     },
     {
       ownerScope: 'runtime',
-      purposes: ['comm-signing', 'comm-encryption', 'openid-id-token-signing'],
-      seedMaterial: 'runtime-seed-001',
+      // DIDComm signing and encryption keys are technical communication keys,
+      // not the user's person/professional-role signing key.
+      purposes: ['comm-signing', 'comm-encryption'],
+      // Test fixture only. A portal decrypts its stable KMS-protected seed in
+      // the trusted backend and never hardcodes or sends it to ICA/GW.
+      seedMaterial: 'user-profile-device-seed-001',
       mode: 'deterministic',
     },
   );
 
-  const profileKeys = await wallet.provisionManagedKeys(
-    {
-      profile: {
-        profileId: 'professional-profile:main',
-        actorType: 'professional',
-        actorId: 'did:web:example.org:prof:main',
-      },
-    },
-    {
-      ownerScope: 'profile',
-      purposes: ['actor-signing'],
-      seedMaterial: 'profile-seed-001',
-      mode: 'deterministic',
-    },
-  );
-
-  const runtimeDescriptors = await wallet.getPublicJwks(
+  const userCommunicationDescriptors = await userWallet.getPublicJwks(
     {
       runtime: {
-        runtimeId: 'portal-runtime:gdc-bff',
+        runtimeId: 'portal-runtime:user-profile-7f3a:primary-device',
         runtimeType: 'web-bff',
       },
     },
     { ownerScope: 'runtime' },
   );
 
-  assert.equal(runtimeKeys.keys.length, 3);
-  assert.equal(profileKeys.keys.length, 1);
-  assert.equal(runtimeDescriptors.length, 3);
-  assert.ok(runtimeDescriptors.some((entry) => entry.alg === 'ML-DSA-44' && entry.use === 'sig'));
-  assert.ok(runtimeDescriptors.some((entry) => entry.alg === 'ML-KEM-768' && entry.use === 'enc'));
+  assert.equal(userCommunicationKeys.keys.length, 2);
+  assert.equal(userCommunicationDescriptors.length, 2);
+  assert.ok(userCommunicationDescriptors.some(
+    (entry) => entry.alg === 'ML-DSA-44' && entry.use === 'sig',
+  ));
+  assert.ok(userCommunicationDescriptors.some(
+    (entry) => entry.alg === 'ML-KEM-768' && entry.use === 'enc',
+  ));
 });
 
-test('NodeManagedWallet exposes the controller communication JWKS without the professional role key', async () => {
-  const wallet = new NodeManagedWallet({ cryptoHelper: new NodeCryptoHelper() });
-  const context = {
-    runtime: {
-      runtimeId: 'portal-runtime:legacy-controller',
-      runtimeType: 'web-bff',
-    },
-  };
-
-  // The portal persists this stable context plus the seed encrypted by its
-  // KMS/KEK. It does not need to persist private JWKs. If the product uses a
-  // user PIN, the PIN only protects/unlocks that encrypted seed; context, PIN,
-  // seed and private key material are never sent to ICA/GW.
-  const publicKeys = await wallet.initializeCommunicationJsonWebKeySet(context, {
-    seedMaterial: 'legacy-controller-wallet-seed',
-  });
-  const samePublicKeys = await wallet.getCommunicationJsonWebKeySet(context);
-
-  // A new process/wallet instance reconstructs exactly the same keyring from
-  // the same decrypted seed plus the same runtimeId.
-  const restartedWallet = new NodeManagedWallet({ cryptoHelper: new NodeCryptoHelper() });
-  const reconstructedPublicKeys = await restartedWallet.initializeCommunicationJsonWebKeySet(context, {
-    seedMaterial: 'legacy-controller-wallet-seed',
-  });
-
-  assert.deepEqual(samePublicKeys, publicKeys);
-  assert.deepEqual(reconstructedPublicKeys, publicKeys);
-  assert.equal(publicKeys.keys.length, 2);
-  assert.ok(publicKeys.keys.some((key) => key.use === 'sig'));
-  assert.ok(publicKeys.keys.some((key) => key.use === 'enc'));
-  assert.ok(publicKeys.keys.every((key) => key.d === undefined && key.dBytes === undefined));
-});
-
-test('NodeManagedWallet signs compact JWS payloads with managed runtime keys', async () => {
-  const wallet = new NodeManagedWallet({
+/**
+ * Actor/person or professional-role signing is a separate profile scope. The
+ * professional below is one explicit fixture; a controller or individual
+ * controller supplies its own actor type and DID instead of reusing this key.
+ */
+test('NodeManagedWallet keeps actor-role signing separate from communication keys', async () => {
+  const actorWallet = new NodeManagedWallet({
     cryptoHelper: new NodeCryptoHelper(),
   });
 
-  const context = {
+  const actorProfileContext = {
+    profile: {
+      // Stable local profile id for this actor key scope.
+      profileId: 'professional-profile:main',
+      // This fixture is specifically a professional. Other actor flows use
+      // their own canonical actor type rather than copying this literal.
+      actorType: 'professional',
+      // Exact actor DID represented by the role-signing key.
+      actorId: 'did:web:example.org:prof:main',
+    },
+  };
+
+  const actorRoleKeys = await actorWallet.provisionManagedKeys(
+    actorProfileContext,
+    {
+      ownerScope: 'profile',
+      purposes: ['actor-signing'],
+      // Deterministic test fixture only; production custody remains protected.
+      seedMaterial: 'profile-role-seed-001',
+      mode: 'deterministic',
+    },
+  );
+  const actorRoleDescriptors = await actorWallet.getPublicJwks(
+    actorProfileContext,
+    { ownerScope: 'profile' },
+  );
+
+  assert.equal(actorRoleKeys.keys.length, 1);
+  assert.equal(actorRoleDescriptors.length, 1);
+  assert.equal(actorRoleDescriptors[0]?.purpose, 'actor-signing');
+});
+
+test('NodeManagedWallet exposes role-neutral user communication JWKS without a professional role key', async () => {
+  // This wallet represents one portal profile/device. The actor may be a
+  // controller, employee/professional or individual controller; that role is
+  // established by the higher-level lifecycle proof, not by this keyring.
+  const userWallet = new NodeManagedWallet({ cryptoHelper: new NodeCryptoHelper() });
+  const userWalletContext = {
     runtime: {
-      runtimeId: 'portal-runtime:jwt-001',
+      runtimeId: 'portal-runtime:user-profile-7f3a:primary-device',
       runtimeType: 'web-bff',
     },
   };
 
-  await wallet.provisionManagedKeys(context, {
+  // The portal persists this stable userWalletContext plus the seed encrypted
+  // by its KMS/KEK. It does not need to persist private JWKs. If the product
+  // uses a user PIN, that PIN only protects/unlocks the encrypted seed.
+  const userPublicCommunicationJwks =
+    await userWallet.initializeCommunicationJsonWebKeySet(userWalletContext, {
+      seedMaterial: 'user-profile-device-wallet-seed',
+    });
+  const sameUserPublicCommunicationJwks =
+    await userWallet.getCommunicationJsonWebKeySet(userWalletContext);
+
+  // A new process/wallet instance reconstructs exactly the same keyring from
+  // the same decrypted seed plus the same runtimeId.
+  const restartedUserWallet = new NodeManagedWallet({ cryptoHelper: new NodeCryptoHelper() });
+  const reconstructedUserPublicCommunicationJwks =
+    await restartedUserWallet.initializeCommunicationJsonWebKeySet(userWalletContext, {
+      seedMaterial: 'user-profile-device-wallet-seed',
+    });
+
+  assert.deepEqual(sameUserPublicCommunicationJwks, userPublicCommunicationJwks);
+  assert.deepEqual(reconstructedUserPublicCommunicationJwks, userPublicCommunicationJwks);
+  assert.equal(userPublicCommunicationJwks.keys.length, 2);
+  assert.ok(userPublicCommunicationJwks.keys.some((key) => key.use === 'sig'));
+  assert.ok(userPublicCommunicationJwks.keys.some((key) => key.use === 'enc'));
+  assert.ok(userPublicCommunicationJwks.keys.every(
+    (key) => key.d === undefined && key.dBytes === undefined,
+  ));
+});
+
+test('NodeManagedWallet signs an id_token with the separate portal OpenID issuer wallet', async () => {
+  // This is one portal-wide OpenID Provider issuer wallet, not one wallet per
+  // controller, employee or individual. It proves the authenticated account
+  // and verified email; user/profile communication wallets cannot replace it.
+  const portalOidcIssuerWallet = new NodeManagedWallet({
+    cryptoHelper: new NodeCryptoHelper(),
+  });
+
+  const portalOidcIssuerContext = {
+    runtime: {
+      // Stable application-owned identity of the portal's OIDC issuer runtime.
+      runtimeId: 'portal-runtime:openid-provider:primary-issuer',
+      runtimeType: 'web-bff',
+    },
+  };
+
+  await portalOidcIssuerWallet.provisionManagedKeys(portalOidcIssuerContext, {
     ownerScope: 'runtime',
     purposes: ['openid-id-token-signing'],
-    seedMaterial: 'jwt-seed-001',
+    // Test fixture only; production uses the portal's protected issuer seed.
+    seedMaterial: 'portal-openid-issuer-seed-001',
     mode: 'deterministic',
   });
 
-  const compact = await wallet.signCompactJws(context, {
-    header: { alg: 'ES384', typ: 'JWT' },
-    claims: { sub: 'did:web:example.org:user:001', aud: 'gw', iss: 'bff' },
-    key: {
-      ownerScope: 'runtime',
-      purpose: 'openid-id-token-signing',
+  const signedIdToken = await portalOidcIssuerWallet.signCompactJws(
+    portalOidcIssuerContext,
+    {
+      header: { alg: 'ES384', typ: 'JWT' },
+      claims: {
+        // Stable account subject at this issuer; it is not an actor DID.
+        sub: 'portal-account-001',
+        // Exact audience configured as trusted by the receiving GW.
+        aud: 'did:web:gw.example.org',
+        // Exact HTTPS issuer published in openid-configuration.
+        iss: 'https://portal.example.org',
+      },
+      key: {
+        ownerScope: 'runtime',
+        purpose: 'openid-id-token-signing',
+      },
     },
-  });
+  );
 
-  assert.match(compact, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
-  const [encodedHeader, encodedPayload, encodedSignature] = compact.split('.');
+  assert.match(signedIdToken, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+  const [encodedHeader, encodedPayload, encodedSignature] = signedIdToken.split('.');
   const header = JSON.parse(Buffer.from(encodedHeader, 'base64url').toString('utf8'));
-  const [descriptor] = await wallet.getPublicJwks(context, {
+  const [descriptor] = await portalOidcIssuerWallet.getPublicJwks(portalOidcIssuerContext, {
     ownerScope: 'runtime',
     purpose: 'openid-id-token-signing',
     keyId: header.kid,

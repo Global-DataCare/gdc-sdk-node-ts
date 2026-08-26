@@ -203,21 +203,23 @@ export class NodeManagedWallet implements IWallet {
   }
 
   /**
-   * Initializes the runtime communication wallet and returns exactly the
-   * public signing/encryption JWKS accepted as `controller.publicKeys` by the
-   * legacy organization activation builder.
+   * Initializes one user/profile device communication wallet and returns only
+   * its public signing/encryption JWKS. The wallet is actor-role neutral: the
+   * same custody contract can back a controller, employee/professional or
+   * individual-controller profile.
    *
-   * This does not replace the professional-role signing key supplied as
-   * `controller.publicSignKey`. The role key identifies the historical legal
-   * representative; these runtime keys protect DIDComm communications.
+   * These communication keys do not replace the actor's person/professional-
+   * role signing key. In the historical legal-representative flow, for example,
+   * this returned set is accepted as `controller.publicKeys`, while the
+   * independent role key is supplied as `controller.publicSignKey`.
    *
    * The caller owns durable wallet custody. When deterministic provisioning is
    * used, protect `seedMaterial` in the portal wallet store (for example with
    * its KMS/KEK and optionally a user PIN) and persist the same non-secret
    * `context.runtime.runtimeId`. A fresh `NodeManagedWallet` reconstructs the
    * same private keys from that seed and context after restart, so private JWKs
-   * do not need separate persistence. ICA and GW receive only this returned
-   * public JWKS.
+   * do not need separate persistence. Only the returned public JWKS may be
+   * submitted when the selected high-level onboarding flow requires it.
    */
   public async initializeCommunicationJsonWebKeySet(
     context: WalletExecutionContext,
@@ -237,7 +239,8 @@ export class NodeManagedWallet implements IWallet {
 
   /**
    * Returns only the public DIDComm signing/encryption keys for a previously
-   * initialized runtime wallet. Private material never leaves the wallet.
+   * initialized user/profile device runtime wallet. Private material never
+   * leaves the wallet, and the returned keys do not convey an actor role.
    */
   public async getCommunicationJsonWebKeySet(context: WalletExecutionContext): Promise<JwkSet> {
     if (!context.runtime?.runtimeId) {
