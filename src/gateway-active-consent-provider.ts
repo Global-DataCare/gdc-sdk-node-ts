@@ -56,8 +56,9 @@ export function extractConsentRules(value: unknown): ConsentRule[] {
       ? record.claims as Record<string, unknown>
       : undefined;
     for (const candidate of [record, claims]) {
-      if (!candidate || !looksLikeConsentRule(candidate)) continue;
-      const rule = candidate as unknown as ConsentRule;
+      if (!candidate) continue;
+      const rule = normalizeConsentRule(candidate);
+      if (!looksLikeConsentRule(rule as unknown as Record<string, unknown>)) continue;
       const key = String(rule[ClaimConsent.identifier] || JSON.stringify(rule));
       if (!seenRules.has(key)) {
         seenRules.add(key);
@@ -69,6 +70,18 @@ export function extractConsentRules(value: unknown): ConsentRule[] {
 
   visit(value);
   return candidates;
+}
+
+function normalizeConsentRule(value: Record<string, unknown>): ConsentRule {
+  const normalized: Record<string, unknown> = { ...value };
+  const context = String(value['@context'] || '').trim();
+  if (context) {
+    const prefix = context.endsWith('.') ? context : `${context}.`;
+    for (const [key, claimValue] of Object.entries(value)) {
+      if (key.startsWith(prefix)) normalized[key.slice(prefix.length)] = claimValue;
+    }
+  }
+  return normalized as unknown as ConsentRule;
 }
 
 function looksLikeConsentRule(value: Record<string, unknown>): boolean {

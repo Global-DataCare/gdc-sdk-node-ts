@@ -2,7 +2,7 @@
 
 import { ActorCapabilities, ActorKinds } from 'gdc-common-utils-ts/constants/actor-session';
 import { HealthcareConsentPurposes, ServiceCapability } from 'gdc-common-utils-ts/constants';
-import { ClaimConsent, type ConsentRule } from 'gdc-common-utils-ts/models/consent-rule';
+import { ClaimConsent } from 'gdc-common-utils-ts/models/consent-rule';
 import {
   buildIndividualControllerIdentityVpPayload,
   buildUnsignedIndividualControllerIdentityVpJwt,
@@ -326,8 +326,8 @@ export class IndividualControllerSdk {
    * Enables or disables the subject's secondary-use digital-twin projection.
    * This is the canonical patient-side operation; application code must not
    * publish a canonical Composition directly into the research index. The
-   * caller reuses the server-owned identifier created once with
-   * `createDigitalTwinSecondaryUseConsentIdentifier()` during index enrollment.
+   * caller supplies only the portal/software/study reference. GW owns and
+   * reuses the underlying FHIR Consent identifier.
    */
   public setDigitalTwinSecondaryUseConsent(
     ctx: RouteContext,
@@ -350,31 +350,32 @@ export class IndividualControllerSdk {
     return requireClientMethod(this.client, 'purgeDigitalTwinSubjectLink')(ctx, input);
   }
 
-  /** Returns whether the subject currently permits projection by its index provider. */
+  /** Returns the current decision for one portal, software or research study. */
   public async getDigitalTwinSecondaryUseConsentStatus(
     ctx: RouteContext,
     input: Readonly<{
       subjectDid: string;
       indexProviderOrganizationDid: string;
-      consentIdentifier: string;
+      researchUseReference: string;
     }>,
-  ): Promise<Readonly<{ exists: boolean; enabled: boolean; consent?: ConsentRule }>> {
+  ): Promise<Readonly<{ exists: boolean; enabled: boolean }>> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualGenerateDigitalTwin, ActorKinds.IndividualController, 'getDigitalTwinSecondaryUseConsentStatus');
-    const activeConsents = await new GatewayActiveConsentProvider(this.client, ctx)
+    const consents = await new GatewayActiveConsentProvider(this.client, ctx)
       .getActiveConsentsForSubject(input.subjectDid);
-    const consentIdentifier = String(input.consentIdentifier || '').trim();
-    if (!consentIdentifier) throw new Error('consentIdentifier is required to distinguish the portal rule from study consents.');
+    const researchUseReference = String(input.researchUseReference || '').trim();
+    if (!researchUseReference) throw new Error('researchUseReference is required to identify the portal, software or study consent.');
     const indexProviderOrganizationDid = String(input.indexProviderOrganizationDid || '').trim();
     if (!indexProviderOrganizationDid) throw new Error('indexProviderOrganizationDid is required.');
-    const consent = activeConsents.find((rule) => {
+    const consent = consents.find((rule) => {
+      const claims = rule as unknown as Record<string, unknown>;
       const actions = String(rule[ClaimConsent.action] || '').split(',').map((value) => value.trim());
-      return String(rule[ClaimConsent.identifier] || '').trim() === consentIdentifier
+      return String(claims[ClaimConsent.sourceReference] || '').trim() === researchUseReference
         && String(rule[ClaimConsent.actorIdentifier] || '').trim() === indexProviderOrganizationDid
         && String(rule[ClaimConsent.purpose] || '').trim().toUpperCase() === String(HealthcareConsentPurposes.Research).toUpperCase()
         && actions.includes(ServiceCapability.DigitalTwinReader);
     });
     return consent
-      ? { exists: true, enabled: String(consent[ClaimConsent.decision] || '').trim().toLowerCase() === 'permit', consent }
+      ? { exists: true, enabled: String(consent[ClaimConsent.decision] || '').trim().toLowerCase() === 'permit' }
       : { exists: false, enabled: false };
   }
 

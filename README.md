@@ -649,7 +649,7 @@ modules below.
   - functions: `createOrganizationEmployeeWithDeps(...)`, `importIpsOrFhirAndUpdateIndexWithDeps(...)`, `upsertRelatedPersonAndPollWithDeps(...)`, `ingestCommunicationAndUpdateIndexWithDeps(...)`, `searchClinicalBundleWithDeps(...)`, `searchLatestIpsWithDeps(...)`, `grantProfessionalAccessWithDeps(...)`, `setDigitalTwinSecondaryUseConsentWithDeps(...)`, `purgeDigitalTwinSubjectLinkWithDeps(...)`
 - [`src/digital-twin.ts`](src/digital-twin.ts)
   - types: `DigitalTwinSearchInput`, `DigitalTwinSelectionInput`, `DigitalTwinResearchTag`, `DigitalTwinMaterializationInput`
-  - functions: `createDigitalTwinSecondaryUseConsentIdentifier()`, `searchDigitalTwinsWithDeps(...)`, `saveDigitalTwinSelectionWithDeps(...)`, `materializeDigitalTwinWithDeps(...)`
+  - functions: `searchDigitalTwinsWithDeps(...)`, `saveDigitalTwinSelectionWithDeps(...)`, `materializeDigitalTwinWithDeps(...)`
 - [`src/orchestration/digital-twin-sdk.ts`](src/orchestration/digital-twin-sdk.ts)
   - class: `DigitalTwinSdk` (`requestSmartToken`, `search`, `saveSelection`, `materialize`)
 - [`src/session.ts`](src/session.ts)
