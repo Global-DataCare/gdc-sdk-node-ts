@@ -183,6 +183,21 @@ export type RuntimeClient = {
     input: HostedTenantLifecycleInput,
     pollOptions?: PollOptions,
   ) => Promise<SubmitAndPollResult>;
+  getTenantLifecycleStatus?: (
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  disableTenantDescendants?: (
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput & { descendantKind: 'employees' | 'individuals' },
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+  purgeTenantDescendants?: (
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput & { descendantKind: 'employees' | 'individuals' },
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
   createOrganizationEmployee?: (
     ctx: RouteContext,
     input: OrganizationEmployeeCreationInput,

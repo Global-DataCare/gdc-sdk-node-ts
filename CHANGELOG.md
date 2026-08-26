@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add high-level organization-controller preflight and explicit descendant
+  cleanup methods for non-cascading tenant shutdown. The SDK keeps DIDComm
+  submit/poll handling internal and requires callers to select employees or
+  individuals explicitly.
+
 - Preserve failed asynchronous `Token/_exchange` `OperationOutcome`
   diagnostics in the high-level device-activation helper instead of reporting
   the secondary absence of `initial_access_token`.

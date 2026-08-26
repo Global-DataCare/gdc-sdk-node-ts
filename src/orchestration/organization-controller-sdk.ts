@@ -338,6 +338,36 @@ export class OrganizationControllerSdk {
     return requireClientMethod(this.client, 'purgeTenant')(hostCtx, input, pollOptions);
   }
 
+  /** Returns host-confirmed tenant state and descendant counters. */
+  public getTenantLifecycleStatus(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationDisableTenant, ActorKinds.OrganizationController, 'getTenantLifecycleStatus');
+    return requireClientMethod(this.client, 'getTenantLifecycleStatus')(hostCtx, input, pollOptions);
+  }
+
+  /** Explicitly disables employees or individuals before tenant disable. */
+  public disableTenantDescendants(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput & { descendantKind: 'employees' | 'individuals' },
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationDisableTenant, ActorKinds.OrganizationController, 'disableTenantDescendants');
+    return requireClientMethod(this.client, 'disableTenantDescendants')(hostCtx, input, pollOptions);
+  }
+
+  /** Explicitly purges employees or individuals before tenant purge. */
+  public purgeTenantDescendants(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput & { descendantKind: 'employees' | 'individuals' },
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationPurgeTenant, ActorKinds.OrganizationController, 'purgeTenantDescendants');
+    return requireClientMethod(this.client, 'purgeTenantDescendants')(hostCtx, input, pollOptions);
+  }
+
   /**
    * Activates the employee device from a previously issued activation request.
    */

@@ -172,6 +172,21 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
       );
       return buildAcceptedLifecycleResponse({ status: 'purged' });
     },
+    async getTenantLifecycleStatus(ctx) {
+      operations.push('organization-tenant-status');
+      assert.deepEqual(ctx, hostCtx);
+      return buildAcceptedLifecycleResponse({ status: 'active', activeEmployees: 0 });
+    },
+    async disableTenantDescendants(ctx, input) {
+      operations.push(`organization-disable-${input.descendantKind}`);
+      assert.deepEqual(ctx, hostCtx);
+      return buildAcceptedLifecycleResponse({ status: 'disabled' });
+    },
+    async purgeTenantDescendants(ctx, input) {
+      operations.push(`organization-purge-${input.descendantKind}`);
+      assert.deepEqual(ctx, hostCtx);
+      return buildAcceptedLifecycleResponse({ status: 'purged' });
+    },
   };
 
   const organizationControllerSdk = new OrganizationControllerSdk(runtimeClient, [
@@ -266,6 +281,11 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
   const disabledTenant = await organizationControllerSdk.disableTenant(hostCtx, tenantLifecycleInput);
   assert.equal(disabledTenant.poll.status, 200);
 
+  const tenantStatus = await organizationControllerSdk.getTenantLifecycleStatus(hostCtx, tenantLifecycleInput);
+  assert.equal(tenantStatus.poll.status, 200);
+  await organizationControllerSdk.disableTenantDescendants(hostCtx, { ...tenantLifecycleInput, descendantKind: 'employees' });
+  await organizationControllerSdk.purgeTenantDescendants(hostCtx, { ...tenantLifecycleInput, descendantKind: 'employees' });
+
   const purgedTenant = await organizationControllerSdk.purgeTenant(hostCtx, tenantLifecycleInput);
   assert.equal(purgedTenant.poll.status, 200);
 
@@ -280,6 +300,9 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
         'organization-issue-dcr',
         'organization-list-licenses',
         'organization-disable-tenant',
+        'organization-tenant-status',
+        'organization-disable-employees',
+        'organization-purge-employees',
         'organization-purge-tenant',
       ]
     : [
@@ -292,6 +315,9 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
         'organization-issue-dcr',
         'organization-list-licenses',
         'organization-disable-tenant',
+        'organization-tenant-status',
+        'organization-disable-employees',
+        'organization-purge-employees',
         'organization-purge-tenant',
       ];
 

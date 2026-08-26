@@ -27,6 +27,8 @@ import {
   type HostRouteContext,
   type HostedTenantLifecycleInput,
 } from './host-onboarding.js';
+import type { HostedTenantDescendantKind } from './host-onboarding.js';
+import { GwCoreLifecycleRequestType } from './constants/lifecycle.js';
 import type {
   NodeLegalOrganizationVerificationTransactionInput,
   NodeOrganizationDidBindingInput,
@@ -700,6 +702,74 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       submitPath: this.paths.hostRegistryOrganizationPurgePath.bind(this.paths),
       pollPath: this.paths.hostRegistryOrganizationPurgePollPath.bind(this.paths),
       thidPrefix: 'tenant-purge',
+      submitAndPoll: this.submitAndPoll.bind(this),
+      defaultTimeoutMs: pollOptions?.timeoutMs,
+      defaultIntervalMs: pollOptions?.intervalMs,
+    });
+  }
+
+  /** Reads authoritative tenant and descendant lifecycle state from the host registry. */
+  public async getTenantLifecycleStatus(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return submitHostedTenantLifecycleWithDeps({
+      hostCtx,
+      input,
+      requestType: GwCoreLifecycleRequestType.TenantStatus,
+      submitPath: this.paths.hostRegistryOrganizationStatusPath.bind(this.paths),
+      pollPath: this.paths.hostRegistryOrganizationStatusPollPath.bind(this.paths),
+      thidPrefix: 'tenant-status',
+      submitAndPoll: this.submitAndPoll.bind(this),
+      defaultTimeoutMs: pollOptions?.timeoutMs,
+      defaultIntervalMs: pollOptions?.intervalMs,
+    });
+  }
+
+  /** Explicitly disables one descendant group; tenant disable itself never cascades. */
+  public async disableTenantDescendants(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput & { descendantKind: HostedTenantDescendantKind },
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return this.submitTenantDescendantLifecycle(hostCtx, input, false, pollOptions);
+  }
+
+  /** Explicitly purges one descendant group; tenant purge itself never cascades. */
+  public async purgeTenantDescendants(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput & { descendantKind: HostedTenantDescendantKind },
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return this.submitTenantDescendantLifecycle(hostCtx, input, true, pollOptions);
+  }
+
+  private submitTenantDescendantLifecycle(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput & { descendantKind: HostedTenantDescendantKind },
+    purge: boolean,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return submitHostedTenantLifecycleWithDeps({
+      hostCtx,
+      input: {
+        ...input,
+        additionalClaims: {
+          ...input.additionalClaims,
+          'org.schema.Action.lifecycle.descendantKind': input.descendantKind,
+        },
+      },
+      requestType: purge
+        ? GwCoreLifecycleRequestType.TenantPurgeDescendants
+        : GwCoreLifecycleRequestType.TenantDisableDescendants,
+      submitPath: purge
+        ? this.paths.hostRegistryOrganizationPurgeDescendantsPath.bind(this.paths)
+        : this.paths.hostRegistryOrganizationDisableDescendantsPath.bind(this.paths),
+      pollPath: purge
+        ? this.paths.hostRegistryOrganizationPurgeDescendantsPollPath.bind(this.paths)
+        : this.paths.hostRegistryOrganizationDisableDescendantsPollPath.bind(this.paths),
+      thidPrefix: purge ? 'tenant-purge-descendants' : 'tenant-disable-descendants',
       submitAndPoll: this.submitAndPoll.bind(this),
       defaultTimeoutMs: pollOptions?.timeoutMs,
       defaultIntervalMs: pollOptions?.intervalMs,
