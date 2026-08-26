@@ -358,20 +358,20 @@ export class OrganizationControllerSdk {
     return requireClientMethod(this.client, 'getTenantLifecycleStatus')(hostCtx, input, pollOptions);
   }
 
-  /** Explicitly disables employees or individuals before tenant disable. */
+  /** Explicitly disables individuals before tenant disable. Employees use their dedicated lifecycle. */
   public disableTenantDescendants(
     hostCtx: HostRouteContext,
-    input: HostedTenantLifecycleInput & { descendantKind: 'employees' | 'individuals' },
+    input: HostedTenantLifecycleInput & { descendantKind: 'individuals' },
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationDisableTenant, ActorKinds.OrganizationController, 'disableTenantDescendants');
     return requireClientMethod(this.client, 'disableTenantDescendants')(hostCtx, input, pollOptions);
   }
 
-  /** Explicitly purges employees or individuals before tenant purge. */
+  /** Explicitly purges individuals before tenant purge. Employees use their dedicated lifecycle. */
   public purgeTenantDescendants(
     hostCtx: HostRouteContext,
-    input: HostedTenantLifecycleInput & { descendantKind: 'employees' | 'individuals' },
+    input: HostedTenantLifecycleInput & { descendantKind: 'individuals' },
     pollOptions?: PollOptions,
   ): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationPurgeTenant, ActorKinds.OrganizationController, 'purgeTenantDescendants');

@@ -290,8 +290,8 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
   assert.equal(tenantStatus.poll.status, 200);
   const enabledTenant = await organizationControllerSdk.enableTenant(hostCtx, tenantLifecycleInput);
   assert.equal(enabledTenant.poll.status, 200);
-  await organizationControllerSdk.disableTenantDescendants(hostCtx, { ...tenantLifecycleInput, descendantKind: 'employees' });
-  await organizationControllerSdk.purgeTenantDescendants(hostCtx, { ...tenantLifecycleInput, descendantKind: 'employees' });
+  await organizationControllerSdk.disableTenantDescendants(hostCtx, { ...tenantLifecycleInput, descendantKind: 'individuals' });
+  await organizationControllerSdk.purgeTenantDescendants(hostCtx, { ...tenantLifecycleInput, descendantKind: 'individuals' });
 
   const purgedTenant = await organizationControllerSdk.purgeTenant(hostCtx, tenantLifecycleInput);
   assert.equal(purgedTenant.poll.status, 200);
@@ -309,8 +309,8 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
         'organization-disable-tenant',
         'organization-tenant-status',
         'organization-enable-tenant',
-        'organization-disable-employees',
-        'organization-purge-employees',
+    'organization-disable-individuals',
+    'organization-purge-individuals',
         'organization-purge-tenant',
       ]
     : [
@@ -325,8 +325,8 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
         'organization-disable-tenant',
         'organization-tenant-status',
         'organization-enable-tenant',
-        'organization-disable-employees',
-        'organization-purge-employees',
+        'organization-disable-individuals',
+        'organization-purge-individuals',
         'organization-purge-tenant',
       ];
 
