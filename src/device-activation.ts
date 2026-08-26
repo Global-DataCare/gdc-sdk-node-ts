@@ -122,6 +122,17 @@ export async function activateEmployeeDeviceWithActivationCodeWithDeps(
     deps.input.pollOptions,
   );
 
+  const exchangeDiagnostics = firstFailedOperationOutcomeDiagnostic(exchange.poll.body)
+    || firstFailedOperationOutcomeDiagnostic(exchange.submit.body);
+  if (exchangeDiagnostics) {
+    throw new Error(`activateEmployeeDeviceWithActivationCode: exchange failed: ${exchangeDiagnostics}`);
+  }
+  const failedExchangeStatus = [exchange.submit.status, exchange.poll.status]
+    .find((status) => status < 200 || status >= 300);
+  if (failedExchangeStatus !== undefined) {
+    throw new Error(`activateEmployeeDeviceWithActivationCode: exchange failed (HTTP ${failedExchangeStatus}).`);
+  }
+
   const pollBody = (exchange.poll.body as Record<string, unknown>) || {};
   const exchangeBody = ((pollBody.body as Record<string, unknown> | undefined) || pollBody);
   const initialAccessToken = String(
@@ -180,4 +191,41 @@ function createRuntimeUuid(): string {
     return fromCrypto;
   }
   return `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+/** Preserves a terminal async GW diagnostic before checking success fields. */
+function firstFailedOperationOutcomeDiagnostic(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const candidate = value.trim();
+    if (!candidate || (candidate[0] !== '{' && candidate[0] !== '[')) return undefined;
+    try {
+      return firstFailedOperationOutcomeDiagnostic(JSON.parse(candidate));
+    } catch {
+      return undefined;
+    }
+  }
+  if (!value || typeof value !== 'object') return undefined;
+  if (Array.isArray(value)) {
+    for (const child of value) {
+      const diagnostic = firstFailedOperationOutcomeDiagnostic(child);
+      if (diagnostic) return diagnostic;
+    }
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  if (record.resourceType === 'OperationOutcome' && Array.isArray(record.issue)) {
+    for (const rawIssue of record.issue) {
+      if (!rawIssue || typeof rawIssue !== 'object') continue;
+      const issue = rawIssue as Record<string, unknown>;
+      const severity = String(issue.severity || '').trim().toLowerCase();
+      if (severity !== 'error' && severity !== 'fatal') continue;
+      const diagnostic = String(issue.diagnostics || '').trim();
+      if (diagnostic) return diagnostic;
+    }
+  }
+  for (const child of Object.values(record)) {
+    const diagnostic = firstFailedOperationOutcomeDiagnostic(child);
+    if (diagnostic) return diagnostic;
+  }
+  return undefined;
 }

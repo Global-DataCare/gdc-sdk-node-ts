@@ -796,10 +796,14 @@ Live E2E legal PDF source:
 Recovery-specific live rule:
 
 - `Organization/_issue` can succeed and still be followed by `_exchange` failure
-  if the controller `id_token` is not production-shaped enough
-- the current GW `_exchange` path expects at least:
-  - syntactically valid JWT format
-  - `tenant_id` claim matching the target tenant
+  if the controller `id_token` is invalid, expired or does not prove the
+  expected actor/contact
+- the current GW `_exchange` path expects a valid IdP token but takes tenant
+  authority from the already validated request route
+- a custom `tenant_id` claim is optional; when present it must match the route
+  and cannot select another tenant
+- a failed poll `OperationOutcome` is surfaced before the helper checks for
+  `initial_access_token`, preserving the real GW diagnostic
 - the bundled recovery runner generates a syntactically valid demo JWT if
   `CONTROLLER_ID_TOKEN` is not provided, but production/staging should use a
   real IdP-issued token

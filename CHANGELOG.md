@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Preserve failed asynchronous `Token/_exchange` `OperationOutcome`
+  diagnostics in the high-level device-activation helper instead of reporting
+  the secondary absence of `initial_access_token`.
 - Document and test the `Order/_batch` split boundary: the operation is routed
   and persisted by the host, while the signed/encrypted controller `kid`/`skid`
   is resolved from the tenant where DCR registered it.
