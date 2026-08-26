@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 2.4.35 - 2026-08-26
+
+- Correct the 101 backend bootstrap so participant identity comes from the
+  persisted organization profile rather than one global environment variable,
+  runtime keys come from a stable KMS-encrypted seed, and the not-yet-implemented
+  ICA `SoftwareApplicationCredential` flow is an explicit TODO instead of a
+  fabricated mock/current requirement.
+
 ## 2.4.34 - 2026-08-26
 
 - Add a linked 101 guide for `WalletExecutionContext`, stable `runtimeId` and
