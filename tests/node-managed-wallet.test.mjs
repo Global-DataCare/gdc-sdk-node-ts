@@ -62,6 +62,30 @@ test('NodeManagedWallet provisions runtime and profile keys deterministically', 
   assert.ok(runtimeDescriptors.some((entry) => entry.alg === 'ML-KEM-768' && entry.use === 'enc'));
 });
 
+test('NodeManagedWallet exposes the controller communication JWKS without the professional role key', async () => {
+  const wallet = new NodeManagedWallet({ cryptoHelper: new NodeCryptoHelper() });
+  const context = {
+    runtime: {
+      runtimeId: 'portal-runtime:legacy-controller',
+      runtimeType: 'web-bff',
+    },
+  };
+
+  // The portal protects this seed in its wallet store. If the product uses a
+  // user PIN, the PIN protects/unlocks that stored seed; neither the PIN nor
+  // private key material is sent to ICA/GW.
+  const publicKeys = await wallet.initializeCommunicationJsonWebKeySet(context, {
+    seedMaterial: 'legacy-controller-wallet-seed',
+  });
+  const samePublicKeys = await wallet.getCommunicationJsonWebKeySet(context);
+
+  assert.deepEqual(samePublicKeys, publicKeys);
+  assert.equal(publicKeys.keys.length, 2);
+  assert.ok(publicKeys.keys.some((key) => key.use === 'sig'));
+  assert.ok(publicKeys.keys.some((key) => key.use === 'enc'));
+  assert.ok(publicKeys.keys.every((key) => key.d === undefined && key.dBytes === undefined));
+});
+
 test('NodeManagedWallet signs compact JWS payloads with managed runtime keys', async () => {
   const wallet = new NodeManagedWallet({
     cryptoHelper: new NodeCryptoHelper(),

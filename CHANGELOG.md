@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Add high-level controller communication-wallet initialization and JWKS
+  retrieval to `NodeManagedWallet`. The legacy `_activate` 101 now distinguishes
+  the professional-role signing key from the wallet's DIDComm signing and
+  encryption keys, explains protected seed/PIN custody, and passes the public
+  communication JWKS through `buildControllerBindingInput(...)` without a
+  second DCR.
+
 ## 2.4.29 - 2026-08-26
 
 - Replace hand-authored OpenID `dcrPayload` in the Node 101 flow with SDK-owned

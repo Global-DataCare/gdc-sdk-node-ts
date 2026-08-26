@@ -15,6 +15,7 @@ import type {
   WalletKeyPurpose,
   WalletKeySelection,
   WalletPackOptions,
+  WalletProvisionMode,
   WalletProvisionRequest,
   WalletUnpackOptions,
 } from 'gdc-sdk-core-ts';
@@ -43,6 +44,21 @@ export type NodeManagedWalletOptions = {
   cryptography?: CryptographyService;
   resolveRecipientJwk?: (recipientDid: string) => Promise<JWK>;
   policy?: Partial<NodeManagedWalletPolicy>;
+};
+
+export type NodeCommunicationWalletInitialization = {
+  /**
+   * Stable secret used to reconstruct the same communication keys after a
+   * process restart. Persist it only through the portal's protected wallet
+   * store; never send it to ICA or GW.
+   */
+  seedMaterial?: string | Uint8Array;
+  /**
+   * Defaults to deterministic when seedMaterial is present, otherwise random.
+   * Random keys are suitable only when the wallet implementation itself is
+   * durably persisted.
+   */
+  mode?: WalletProvisionMode;
 };
 
 const DEFAULT_POLICY: NodeManagedWalletPolicy = {
@@ -184,6 +200,58 @@ export class NodeManagedWallet implements IWallet {
       }
     }
     return descriptors;
+  }
+
+  /**
+   * Initializes the runtime communication wallet and returns exactly the
+   * public signing/encryption JWKS accepted as `controller.publicKeys` by the
+   * legacy organization activation builder.
+   *
+   * This does not replace the professional-role signing key supplied as
+   * `controller.publicSignKey`. The role key identifies the historical legal
+   * representative; these runtime keys protect DIDComm communications.
+   *
+   * The caller owns durable wallet custody. When deterministic provisioning is
+   * used, protect `seedMaterial` in the portal wallet store (for example behind
+   * the user's PIN and a server-held KEK) so the same private keys can be
+   * reconstructed after restart. ICA and GW receive only this returned public
+   * JWKS.
+   */
+  public async initializeCommunicationJsonWebKeySet(
+    context: WalletExecutionContext,
+    options: NodeCommunicationWalletInitialization = {},
+  ): Promise<JwkSet> {
+    if (!context.runtime?.runtimeId) {
+      throw new Error('Communication wallet initialization requires context.runtime.runtimeId.');
+    }
+    await this.provisionManagedKeys(context, {
+      ownerScope: 'runtime',
+      purposes: ['comm-signing', 'comm-encryption'],
+      ...(options.seedMaterial !== undefined ? { seedMaterial: options.seedMaterial } : {}),
+      mode: options.mode ?? (options.seedMaterial !== undefined ? 'deterministic' : 'random'),
+    });
+    return this.getCommunicationJsonWebKeySet(context);
+  }
+
+  /**
+   * Returns only the public DIDComm signing/encryption keys for a previously
+   * initialized runtime wallet. Private material never leaves the wallet.
+   */
+  public async getCommunicationJsonWebKeySet(context: WalletExecutionContext): Promise<JwkSet> {
+    if (!context.runtime?.runtimeId) {
+      throw new Error('Communication JWKS lookup requires context.runtime.runtimeId.');
+    }
+    const descriptors = await this.getPublicJwks(context, { ownerScope: 'runtime' });
+    return {
+      keys: descriptors
+        .filter((entry) => entry.purpose === 'comm-signing' || entry.purpose === 'comm-encryption')
+        .map((entry) => ({
+          ...entry.publicJwk,
+          kid: entry.publicJwk.kid ?? entry.kid,
+          use: entry.use,
+          alg: entry.publicJwk.alg ?? entry.alg,
+        })),
+    };
   }
 
   /**

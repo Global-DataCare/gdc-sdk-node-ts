@@ -212,8 +212,10 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
     assert.equal(verification.poll.status, 200);
   } else {
     // Legacy `_activate` receives the historical representative key binding
-    // directly. No exchange/DCR operation belongs between activation and the
-    // returned commercial Order for that same bootstrap controller.
+    // directly. Its publicSignKey is the professional-role signing key; its
+    // optional JWKS contains the wallet's separate DIDComm signing/encryption
+    // public keys. No exchange/DCR operation belongs between activation and
+    // the returned commercial Order for that same bootstrap controller.
     const activation = await hostOnboardingSdk.activateOrganizationInGatewayFromIcaProof(
       hostCtx,
       cloneExample(EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT),

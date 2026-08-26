@@ -599,8 +599,11 @@ Use this when the integrator already has:
 - controller alias only when the caller must still pass explicit demo bootstrap
   material
 - controller DID if the request must carry explicit controller bootstrap material
-- public signing key
-- public auxiliary keys
+- the professional-role public signing key (`publicSignKey`), for example the
+  existing ES256K legal-representative key
+- the controller wallet's public communication JWKS (`publicKeys`): a separate
+  DIDComm signing key plus encryption key; these are optional in the ICA/GW
+  binding shape but required when the portal will use encrypted communication
 - business registration claims
 
 Normal production expectation:
@@ -635,11 +638,36 @@ const orgControllerDid = 'did:web:people.acme.org:controllers:primary';
 const emailControllerOrg = 'legal.rep@acme.org';
 const controllerSameAs = normalizeSameAsHash(emailControllerOrg);
 
+// One technical wallet per controller device/runtime. Keep this context and
+// the protected seed stable so the portal can reconstruct the same private
+// communication keys after a restart.
+const controllerWallet = new NodeManagedWallet();
+const controllerWalletContext = {
+  runtime: {
+    runtimeId: 'globaldatacare:legal-representative:primary-device',
+    runtimeType: 'web-bff',
+  },
+};
+const controllerCommunicationJwks =
+  await controllerWallet.initializeCommunicationJsonWebKeySet(
+    controllerWalletContext,
+    {
+      // Store this seed only in the portal's protected wallet storage. A PIN
+      // may protect/unlock that stored seed, but neither PIN nor seed is sent
+      // to ICA or GW. The product decides whether the PIN is user-entered or
+      // managed internally under an equivalent protection policy.
+      seedMaterial: protectedControllerWalletSeed,
+    },
+  );
+
 const controllerBinding = buildControllerBindingInput({
   did: orgControllerDid,
   sameAs: controllerSameAs,
+  // Professional-role key: proves/publishes the legal representative actor.
   publicSignKey,
-  publicKeys,
+  // Technical wallet keys: used later for signed/encrypted DIDComm traffic.
+  // buildControllerBindingInput shapes controller.jwks; do not hand-author it.
+  publicKeys: controllerCommunicationJwks,
 });
 
 const organizationActivation = await professionalSdk.activateOrganizationInGatewayFromIcaProof(
@@ -680,6 +708,11 @@ const organizationActivation = await professionalSdk.activateOrganizationInGatew
 next operation is the returned commercial Order when present, followed by the
 normal controller business operations. There is no
 `profileSessions.enroll(...)` call for this same historical representative.
+That does not mean “no wallet”: `_activate` registers the professional role key
+and the optional communication JWKS in the same bootstrap operation. The portal
+must keep using the wallet that owns those communication private keys. Creating
+a new wallet after activation produces new `kid` values and GW will correctly
+reject them as unregistered.
 
 Mandatory rule for this onboarding step:
 
