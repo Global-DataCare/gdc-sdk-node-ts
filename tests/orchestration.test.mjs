@@ -519,8 +519,8 @@ test('IndividualControllerSdk exposes the patient secondary-use decision as the 
                 claims: {
                   'Consent.identifier': 'urn:uuid:00000000-0000-4000-8000-000000000201',
                   'Consent.subject': 'did:web:subject.example',
-                  'Consent.actor-identifier': 'did:web:research.example',
-                  'Consent.actor-role': 'ISCO-08|221',
+                  'Consent.actor-identifier': 'did:web:index-provider.example',
+                  'Consent.actor-role': '*',
                   'Consent.decision': 'permit',
                   'Consent.purpose': 'HRESCH',
                   'Consent.action': 'organization/ResearchSubject.rs',
@@ -537,8 +537,7 @@ test('IndividualControllerSdk exposes the patient secondary-use decision as the 
     { tenantId: 'acme', jurisdiction: 'ES', sector: 'health-care' },
     {
       subjectDid: 'did:web:subject.example',
-      researchOrganizationDid: 'did:web:research.example',
-      actorRole: 'ISCO-08|221',
+      indexProviderOrganizationDid: 'did:web:index-provider.example',
       decision: 'deny',
       consentIdentifier: 'urn:uuid:00000000-0000-4000-8000-000000000201',
     },
@@ -550,7 +549,7 @@ test('IndividualControllerSdk exposes the patient secondary-use decision as the 
     { tenantId: 'acme', jurisdiction: 'ES', sector: 'health-care' },
     {
       subjectDid: 'did:web:subject.example',
-      researchOrganizationDid: 'did:web:research.example',
+      indexProviderOrganizationDid: 'did:web:index-provider.example',
       consentIdentifier: 'urn:uuid:00000000-0000-4000-8000-000000000201',
     },
   );

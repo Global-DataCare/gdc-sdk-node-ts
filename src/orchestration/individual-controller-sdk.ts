@@ -348,20 +348,26 @@ export class IndividualControllerSdk {
     return requireClientMethod(this.client, 'purgeDigitalTwinSubjectLink')(ctx, input);
   }
 
-  /** Returns whether one research organization currently has an active permit. */
+  /** Returns whether the subject currently permits projection by its index provider. */
   public async getDigitalTwinSecondaryUseConsentStatus(
     ctx: RouteContext,
-    input: Readonly<{ subjectDid: string; researchOrganizationDid: string; consentIdentifier: string }>,
+    input: Readonly<{
+      subjectDid: string;
+      indexProviderOrganizationDid: string;
+      consentIdentifier: string;
+    }>,
   ): Promise<Readonly<{ exists: boolean; enabled: boolean; consent?: ConsentRule }>> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualGenerateDigitalTwin, ActorKinds.IndividualController, 'getDigitalTwinSecondaryUseConsentStatus');
     const activeConsents = await new GatewayActiveConsentProvider(this.client, ctx)
       .getActiveConsentsForSubject(input.subjectDid);
     const consentIdentifier = String(input.consentIdentifier || '').trim();
     if (!consentIdentifier) throw new Error('consentIdentifier is required to distinguish the portal rule from study consents.');
+    const indexProviderOrganizationDid = String(input.indexProviderOrganizationDid || '').trim();
+    if (!indexProviderOrganizationDid) throw new Error('indexProviderOrganizationDid is required.');
     const consent = activeConsents.find((rule) => {
       const actions = String(rule[ClaimConsent.action] || '').split(',').map((value) => value.trim());
       return String(rule[ClaimConsent.identifier] || '').trim() === consentIdentifier
-        && String(rule[ClaimConsent.actorIdentifier] || '').trim() === input.researchOrganizationDid
+        && String(rule[ClaimConsent.actorIdentifier] || '').trim() === indexProviderOrganizationDid
         && String(rule[ClaimConsent.purpose] || '').trim().toUpperCase() === String(HealthcareConsentPurposes.Research).toUpperCase()
         && actions.includes(ServiceCapability.DigitalTwinReader);
     });

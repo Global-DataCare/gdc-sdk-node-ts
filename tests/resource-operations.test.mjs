@@ -1141,6 +1141,7 @@ test('grantProfessionalAccessWithDeps builds consent payload and returns built m
 
 test('setDigitalTwinSecondaryUseConsentWithDeps authors the canonical research permit and deny rule', async () => {
   const captured = [];
+  const submissions = [];
   const deps = {
     buildConsentClaimsWithCid: (input) => {
       captured.push(input);
@@ -1153,20 +1154,24 @@ test('setDigitalTwinSecondaryUseConsentWithDeps authors the canonical research p
           [ClaimConsent.purpose]: input.purpose,
           [ClaimConsent.action]: input.actions.join(','),
           [ClaimConsent.decision]: input.decision,
+          [ClaimConsent.attachmentContentType]: 'application/odrl+json',
+          [ClaimConsent.attachmentData]: 'e30=',
         },
       };
     },
     individualConsentR4BatchPath: () => INDIVIDUAL_CONSENT_R4_BATCH_PATH,
     individualConsentR4PollPath: () => INDIVIDUAL_CONSENT_R4_BATCH_POLL_PATH,
-    submitAndPoll: async () => ({
-      submit: { status: 202, body: {} },
-      poll: { status: 200, body: {}, attempts: 1 },
-    }),
+    submitAndPoll: async (...args) => {
+      submissions.push(args);
+      return {
+        submit: { status: 202, body: {} },
+        poll: { status: 200, body: {}, attempts: 1 },
+      };
+    },
   };
   const baseInput = {
     subjectDid: 'did:web:subject.example',
-    researchOrganizationDid: 'did:web:research.example',
-    actorRole: 'ISCO-08|221',
+    indexProviderOrganizationDid: 'did:web:index-provider.example',
     consentIdentifier: 'urn:uuid:00000000-0000-4000-8000-000000000201',
   };
 
@@ -1184,6 +1189,11 @@ test('setDigitalTwinSecondaryUseConsentWithDeps authors the canonical research p
   assert.deepEqual(captured.map((input) => input.decision), ['deny', 'permit']);
   assert.equal(captured[0].purpose, HealthcareConsentPurposes.Research);
   assert.deepEqual(captured[0].actions, [ServiceCapability.DigitalTwinReader]);
+  assert.equal(captured[0].actor, 'did:web:index-provider.example');
+  assert.equal(captured[0].actorRole, '*');
+  const submittedClaims = submissions[0][2].body.data[0].meta.claims;
+  assert.equal(submittedClaims[ClaimConsent.attachmentContentType], undefined);
+  assert.equal(submittedClaims[ClaimConsent.attachmentData], undefined);
 });
 
 test('setDigitalTwinSecondaryUseConsentWithDeps rejects updates without the stable portal consent identifier', async () => {
@@ -1192,8 +1202,7 @@ test('setDigitalTwinSecondaryUseConsentWithDeps rejects updates without the stab
       cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
       {
         subjectDid: 'did:web:subject.example',
-        researchOrganizationDid: 'did:web:research.example',
-        actorRole: 'ISCO-08|221',
+        indexProviderOrganizationDid: 'did:web:index-provider.example',
         decision: 'permit',
         consentIdentifier: '',
       },

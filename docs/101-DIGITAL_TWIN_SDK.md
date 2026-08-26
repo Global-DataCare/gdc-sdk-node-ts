@@ -56,9 +56,9 @@ updated.
 ## 2. Subject BFF: read and change secondary-use consent
 
 The browser sends only the user's product-level choice, for example
-`{ "enabled": false }`. The Next.js BFF resolves the authenticated subject,
-research organization, role, stable consent identifier and evidence. Those
-values, GW credentials and submit/poll behavior must remain server-side.
+`{ "enabled": false }`. The Next.js BFF resolves the authenticated subject and
+its existing index enrollment. Nothing in the browser request identifies a
+research organization, selects a FHIR identifier or supplies ODRL.
 
 ```ts
 import {
@@ -82,20 +82,26 @@ const individualController = new NodeActorSession({
   capabilities: [ActorCapabilities.IndividualGenerateDigitalTwin],
 }, runtimeClient).asIndividualController();
 
+// Server-only enrollment state. Do not accept these values from request JSON.
+const {
+  subjectDid,
+  indexProviderOrganizationDid,
+  secondaryUseConsentIdentifier,
+} = await loadAuthenticatedIndexEnrollment();
+
+const { enabled } = await request.json() as { enabled: boolean };
+
 const current = await individualController.getDigitalTwinSecondaryUseConsentStatus(ctx, {
   subjectDid,
-  researchOrganizationDid,
-  consentIdentifier: stableConsentIdentifier,
+  indexProviderOrganizationDid,
+  consentIdentifier: secondaryUseConsentIdentifier,
 });
 
 const updated = await individualController.setDigitalTwinSecondaryUseConsent(ctx, {
   subjectDid,
-  researchOrganizationDid,
-  actorRole: verifiedActorRole,
+  indexProviderOrganizationDid,
   decision: enabled ? 'permit' : 'deny',
-  consentIdentifier: stableConsentIdentifier,
-  attachmentContentType: 'application/odrl+json',
-  attachmentBase64: signedOrAcceptedConsentEvidenceBase64,
+  consentIdentifier: secondaryUseConsentIdentifier,
 });
 
 // Only during account deletion or index-provider migration:
@@ -105,22 +111,32 @@ await individualController.purgeDigitalTwinSubjectLink(ctx, { subjectDid });
 The exact canonical claims authored by that facade are:
 
 ```text
-Consent.purpose  = HRESCH
-Consent.action   = organization/ResearchSubject.rs
-Consent.decision = permit | deny
+@context                = org.hl7.fhir.api
+Consent.subject         = authenticated subject DID
+Consent.actor-identifier = index-provider organization DID
+Consent.actor-role      = *
+Consent.identifier      = server-owned enrollment consent identifier
+Consent.purpose         = HRESCH
+Consent.action          = organization/ResearchSubject.rs
+Consent.decision        = permit | deny
 ```
+
+They are sent in `resource.meta.claims` and `entry.meta.claims` of one FHIR
+`Consent`. This index-level setting has no ODRL attachment. The provider
+organization identified by `Consent.actor-identifier` is the tenant that owns
+and stores the individual's index; it is not a research organization selected
+by the browser.
 
 There is no `secondaryUseClaimKey` configuration. `Consent.action` is the
 claim key and `ServiceCapability.DigitalTwinReader` supplies its canonical
 value.
 
-`consentIdentifier` is mandatory and stable for the portal/index-provider
-agreement. The BFF obtains it when that service is enrolled and reuses it for
-every read, `permit`, and `deny`; GW therefore updates the same rule instead of
-creating duplicates. A future study uses a different consent identifier even
-when purpose, action, or research organization coincide. Status lookup matches
-the exact identifier, so a study permit can never make the portal toggle look
-enabled.
+`consentIdentifier` is mandatory and stable internally, but it is not frontend
+state. The BFF reads it from the subject's index-enrollment record and reuses it
+for every read, `permit`, and `deny`; GW therefore updates the same FHIR Consent
+rule instead of creating duplicates. A future study is represented by another
+FHIR Consent with its own identifier and research actor. It cannot make this
+provider-level toggle appear enabled.
 
 The product API should expose `permit`/`deny` as a settings change and `purge`
 only inside the account/provider offboarding transaction. It must never map a

@@ -69,6 +69,8 @@ import {
 } from 'gdc-sdk-core-ts';
 import type { SubmitAndPollResult } from './orchestration/client-port.js';
 import type { RouteContext } from './individual-onboarding.js';
+import { ClaimConsent } from 'gdc-common-utils-ts/models/consent-rule';
+import { assignCidToClaimsId } from 'gdc-common-utils-ts/utils/fhir-cid';
 
 export type {
   ClinicalSummaryReadResult,
@@ -592,14 +594,12 @@ export type DigitalTwinGenerationInput = {
 /** Subject decision controlling publication into the pseudonymous research index. */
 export type DigitalTwinSecondaryUseConsentInput = {
   subjectDid: string;
-  researchOrganizationDid: string;
-  actorRole: string;
+  /** Organization/tenant that provides and stores the subject's index. */
+  indexProviderOrganizationDid: string;
   decision: 'permit' | 'deny';
-  /** Stable identifier of this portal/index-provider rule; reuse it for every update. */
+  /** Server-owned FHIR Consent identifier. Never accept it from the browser. */
   consentIdentifier: string;
   consentDate?: string;
-  attachmentContentType?: string;
-  attachmentBase64?: string;
   dataType?: string;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 };
@@ -1991,20 +1991,38 @@ export async function setDigitalTwinSecondaryUseConsentWithDeps(
   if (!String(input.consentIdentifier || '').trim()) {
     throw new Error('consentIdentifier is required for idempotent digital-twin consent updates.');
   }
+  const indexProviderOrganizationDid = String(input.indexProviderOrganizationDid || '').trim();
+  if (!indexProviderOrganizationDid) {
+    throw new Error('indexProviderOrganizationDid is required.');
+  }
+  const buildFhirConsentClaimsWithoutLegacyAttachment = (
+    consentInput: GrantProfessionalAccessInput,
+    options?: { consentIdentifierFactory: () => string },
+  ) => {
+    const built = deps.buildConsentClaimsWithCid(consentInput, options);
+    const claims = { ...built.consentClaims };
+    delete claims[ClaimConsent.attachmentContentType];
+    delete claims[ClaimConsent.attachmentData];
+    const context = String(claims['@context'] || '').trim();
+    if (context) {
+      delete claims[`${context}.${ClaimConsent.attachmentContentType}`];
+      delete claims[`${context}.${ClaimConsent.attachmentData}`];
+    }
+    const assigned = assignCidToClaimsId(claims);
+    return { ...built, consentClaims: assigned.claims, claimsCid: assigned.cid };
+  };
   return grantProfessionalAccessWithDeps(routeCtx, {
     subjectDid: input.subjectDid,
-    actorId: input.researchOrganizationDid,
-    actorRole: input.actorRole,
+    actorId: indexProviderOrganizationDid,
+    actorRole: '*',
     purpose: HealthcareConsentPurposes.Research,
     actions: [ServiceCapability.DigitalTwinReader],
     decision: input.decision,
     consentIdentifier: input.consentIdentifier,
     consentDate: input.consentDate,
-    attachmentContentType: input.attachmentContentType,
-    attachmentBase64: input.attachmentBase64,
     dataType: input.dataType,
     pollOptions: input.pollOptions,
-  }, deps);
+  }, { ...deps, buildConsentClaimsWithCid: buildFhirConsentClaimsWithoutLegacyAttachment });
 }
 
 /**
