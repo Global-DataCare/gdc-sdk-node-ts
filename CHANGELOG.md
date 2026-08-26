@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 2.4.34 - 2026-08-26
+
+- Add a linked 101 guide for `WalletExecutionContext`, stable `runtimeId` and
+  KMS-encrypted deterministic seed custody. Clarify that portals do not persist
+  private communication JWKs separately, link the end-to-end steps to their
+  detailed docs/tests, and prove restart reconstruction with a fresh wallet
+  instance.
+
 ## 2.4.33 - 2026-08-26
 
 - Replace the erroneous BFF-owned Digital Twin Consent identifier contract with

@@ -71,15 +71,24 @@ test('NodeManagedWallet exposes the controller communication JWKS without the pr
     },
   };
 
-  // The portal protects this seed in its wallet store. If the product uses a
-  // user PIN, the PIN protects/unlocks that stored seed; neither the PIN nor
-  // private key material is sent to ICA/GW.
+  // The portal persists this stable context plus the seed encrypted by its
+  // KMS/KEK. It does not need to persist private JWKs. If the product uses a
+  // user PIN, the PIN only protects/unlocks that encrypted seed; context, PIN,
+  // seed and private key material are never sent to ICA/GW.
   const publicKeys = await wallet.initializeCommunicationJsonWebKeySet(context, {
     seedMaterial: 'legacy-controller-wallet-seed',
   });
   const samePublicKeys = await wallet.getCommunicationJsonWebKeySet(context);
 
+  // A new process/wallet instance reconstructs exactly the same keyring from
+  // the same decrypted seed plus the same runtimeId.
+  const restartedWallet = new NodeManagedWallet({ cryptoHelper: new NodeCryptoHelper() });
+  const reconstructedPublicKeys = await restartedWallet.initializeCommunicationJsonWebKeySet(context, {
+    seedMaterial: 'legacy-controller-wallet-seed',
+  });
+
   assert.deepEqual(samePublicKeys, publicKeys);
+  assert.deepEqual(reconstructedPublicKeys, publicKeys);
   assert.equal(publicKeys.keys.length, 2);
   assert.ok(publicKeys.keys.some((key) => key.use === 'sig'));
   assert.ok(publicKeys.keys.some((key) => key.use === 'enc'));

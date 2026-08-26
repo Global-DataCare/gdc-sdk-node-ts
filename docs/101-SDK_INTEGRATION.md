@@ -266,6 +266,14 @@ result to `buildControllerBindingInput({ publicKeys })`. Do not call
 for the same legacy representative. Later service controllers and employee
 devices use the normal enrollment path.
 
+`context` in those wallet calls is a `WalletExecutionContext`; its
+`runtime.runtimeId` is a stable portal-owned identifier for the technical
+wallet/keyring. Persist that non-secret context beside the KMS-encrypted seed.
+Private JWKs do not need separate persistence because deterministic
+initialization reconstructs them. See
+[101-WALLET_CONTEXT_AND_KEY_CUSTODY.md](./101-WALLET_CONTEXT_AND_KEY_CUSTODY.md)
+and its linked executable tests.
+
 Do not teach legal-organization onboarding here:
 
 - `activateOrganizationInGatewayFromIcaProof(...)` may still exist on some
@@ -717,3 +725,4 @@ What is still converging:
 For those, use:
 
 - [101-SDK_END_TO_END.md](./101-SDK_END_TO_END.md)
+- [101-WALLET_CONTEXT_AND_KEY_CUSTODY.md](./101-WALLET_CONTEXT_AND_KEY_CUSTODY.md)

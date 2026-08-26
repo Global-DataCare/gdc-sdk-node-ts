@@ -212,10 +212,12 @@ export class NodeManagedWallet implements IWallet {
    * representative; these runtime keys protect DIDComm communications.
    *
    * The caller owns durable wallet custody. When deterministic provisioning is
-   * used, protect `seedMaterial` in the portal wallet store (for example behind
-   * the user's PIN and a server-held KEK) so the same private keys can be
-   * reconstructed after restart. ICA and GW receive only this returned public
-   * JWKS.
+   * used, protect `seedMaterial` in the portal wallet store (for example with
+   * its KMS/KEK and optionally a user PIN) and persist the same non-secret
+   * `context.runtime.runtimeId`. A fresh `NodeManagedWallet` reconstructs the
+   * same private keys from that seed and context after restart, so private JWKs
+   * do not need separate persistence. ICA and GW receive only this returned
+   * public JWKS.
    */
   public async initializeCommunicationJsonWebKeySet(
     context: WalletExecutionContext,
