@@ -327,6 +327,12 @@ export async function enrollInvitedOrganizationEmployeeWithDeps(input: Readonly<
     clientInstanceId: input.clientInstanceId,
     dcrRedirectUris: input.dcrRedirectUris,
     dcrClientName: input.dcrClientName,
-    vpToken: input.idToken,
+    // The grant contains the server-verified stable actor alias and role. The
+    // profile runtime signs the VP with its managed DCR wallet after GW has
+    // returned the real client_id; idToken remains only the OIDC account proof.
+    professionalProof: {
+      role: input.grant.employeeRoleCode,
+      sameAs: input.grant.employeeActorIdentifier,
+    },
   });
 }

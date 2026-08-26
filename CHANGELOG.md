@@ -13,6 +13,18 @@
   `userWallet` and `userPublicCommunicationJwks`, and explain how the same
   custody pattern applies to controller, employee/professional and individual
   controller profiles without reusing professional-role/person signing keys.
+- Let the managed profile runtime propagate one portal-wide `appInfo`, omit
+  `vp_token` for individual-controller SMART flows, and require an independent
+  signed VP for organization, professional and member profiles instead of
+  accepting an `id_token` as its replacement.
+- Add `buildOrganizationControllerVpFromIcaProof(...)` so a BFF can turn the
+  ICA-issued organization, legal-representative and service-controller VCs
+  into the signed controller VP with its managed actor key, without composing
+  VP/JWS payloads or exporting private JWK material.
+- Stop the high-level invited-employee enrollment helper from copying
+  `id_token` into `vp_token`; it now passes the server-verified role and stable
+  actor alias to the managed profile runtime, which signs the professional VP
+  with the DCR wallet after GW returns its real `client_id`.
 
 ## 2.4.34 - 2026-08-26
 

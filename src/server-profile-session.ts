@@ -6,7 +6,18 @@ import type { ActorKind } from 'gdc-common-utils-ts/models/actor-session';
 import { ActorKinds } from 'gdc-common-utils-ts/constants/actor-session';
 import type { LegalOrganizationVerificationTransactionInput } from 'gdc-common-utils-ts/utils/legal-organization-verification-transaction';
 import {
+  readLegalOrganizationVerificationCredentialPairFromResponseBody,
+  readServiceControllerCredentialFromResponseBody,
+} from 'gdc-common-utils-ts/utils/legal-organization-verification-result';
+import {
+  addLegalRepresentativeCredential,
+  addOrganizationCredential,
+  addServiceControllerCredential,
+  createVP,
+} from 'gdc-common-utils-ts/utils/vp-token';
+import {
   TransportProfiles,
+  type AppInfo,
   type ConfidentialStorageProfile,
   type PollOptions,
   type SubmitAndPollResult,
@@ -55,7 +66,8 @@ export type ServerProfileRecord = Readonly<{
   /** Server-owned policy; browser input is never authoritative for this value. */
   confidentialStorageProfile?: ConfidentialStorageProfile;
   protectedWalletSeed: PinProtectedProfileSecret;
-  protectedVpToken: PinProtectedProfileSecret;
+  /** Present only when this actor kind requires an independent signed role/relationship VP. */
+  protectedVpToken?: PinProtectedProfileSecret;
   failedUnlocks: number;
   lockedUntil?: string;
   createdAt: string;
@@ -122,8 +134,25 @@ export type ServerProfileEnrollmentInput = Readonly<{
    * derives the identity from the wallet key it creates for this profile.
    */
   clientInstanceId?: string;
-  /** Signed actor/controller VP protected with the profile for later proof and session operations. */
-  vpToken: string;
+  /**
+   * Signed actor/controller VP protected for later SMART operations. Required
+   * for organization/professional/member actors. Individual-controller
+   * profiles omit it: their account `id_token`, DCR device binding and
+   * provider-side relationship policy are evaluated independently.
+   */
+  vpToken?: string;
+  /**
+   * High-level employee/professional proof source. When supplied, the SDK
+   * builds and signs the VP with the managed DCR wallet after registration;
+   * callers do not compose JWT/JWK material.
+   */
+  professionalProof?: Readonly<{
+    role: string;
+    email?: string;
+    sameAs?: string | readonly string[];
+    telephone?: string;
+    credentialMaterial?: string;
+  }>;
   /** Redirect URIs owned by this portal/app installation. */
   redirectUris?: string[];
   /** Human-readable portal/app name. */
@@ -162,6 +191,21 @@ export type ServerProfileOrganizationIssueInput = Readonly<{
   pollOptions?: PollOptions;
 }>;
 
+export type ServerOrganizationControllerVpInput = Readonly<{
+  /** Same protected seed that committed the controller public key to ICA. */
+  walletSeed: string;
+  /** Stable application-owned derivation id reused after every restart. */
+  walletKeyDerivationId: string;
+  /** Terminal ICA/GW verification body containing the issued organization, representative and controller VCs. */
+  verificationResponseBody: unknown;
+  /** Exact organization tenant identifier represented by the controller proof. */
+  tenantId: string;
+  /** Exact audience required by the receiving GW/host policy. */
+  audience: string;
+  /** Optional stable sameAs selector when the response contains several controller credentials. */
+  controllerSameAs?: string;
+}>;
+
 /** One explicit unlock request; scopes and subject remain session-bound. */
 export type ServerProfileUnlockInput = Readonly<{
   ownerId: string;
@@ -192,6 +236,8 @@ export type ServerProfileSessionManagerOptions = Readonly<{
   sealer: ServerProfileSealer;
   gatewayBaseUrl: string;
   resolveRecipientJwk: (recipientDid: string) => Promise<JWK>;
+  /** Stable identity of the portal/application, shared by all of its user wallets. */
+  appInfo?: AppInfo;
   fetchImpl?: typeof fetch;
   sessionTtlSeconds?: number;
   maxFailedUnlocks?: number;
@@ -251,6 +297,14 @@ export class ServerProfileSessionManager {
     if (!clientId) throw new Error('GW DCR did not return client_id.');
     const deviceDid = findText(dcrBody, ['device_did', 'deviceDid', 'did']) || clientId;
     const now = this.now();
+    const managedVpToken = input.vpToken || (input.professionalProof
+      ? await buildManagedProfessionalVp(wallet, context, {
+        clientId,
+        actorDid: input.actorDid,
+        profileDid: input.profileDid,
+        ...input.professionalProof,
+      })
+      : undefined);
     const record: ServerProfileRecord = {
       profileId: input.profileId,
       walletKeyDerivationId,
@@ -269,7 +323,9 @@ export class ServerProfileSessionManager {
       storagePublicJwk: storagePublicJwk as Record<string, unknown>,
       confidentialStorageProfile: this.options.requiredConfidentialStorageProfile ?? 'confidential-basic-v1',
       protectedWalletSeed: await protectServerProfileSecret(seed, input.pin, `${input.profileId}:wallet-seed`, this.options.sealer, this.options.profileProtection),
-      protectedVpToken: await protectServerProfileSecret(input.vpToken, input.pin, `${input.profileId}:vp-token`, this.options.sealer, this.options.profileProtection),
+      ...(managedVpToken ? {
+        protectedVpToken: await protectServerProfileSecret(managedVpToken, input.pin, `${input.profileId}:vp-token`, this.options.sealer, this.options.profileProtection),
+      } : {}),
       failedUnlocks: 0,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
@@ -303,6 +359,64 @@ export class ServerProfileSessionManager {
   }
 
   /**
+   * Builds and signs the canonical controller VP directly from ICA-issued
+   * credentials. The caller never assembles a VP/JWS or exports a private key.
+   *
+   * This proof is independent from the signed OIDC id_token: the VP proves
+   * organization/controller authority, while id_token proves control of the
+   * verified login identifier used by Token/_exchange and DCR.
+   */
+  public async buildOrganizationControllerVpFromIcaProof(
+    input: ServerOrganizationControllerVpInput,
+  ): Promise<string> {
+    requireBase64UrlSeed32(input.walletSeed);
+    const walletKeyDerivationId = normalizedWalletKeyDerivationId(input.walletKeyDerivationId, '');
+    if (!walletKeyDerivationId) {
+      throw new Error('buildOrganizationControllerVpFromIcaProof requires walletKeyDerivationId.');
+    }
+    const tenantId = String(input.tenantId || '').trim();
+    const audience = String(input.audience || '').trim();
+    if (!tenantId) throw new Error('buildOrganizationControllerVpFromIcaProof requires tenantId.');
+    if (!audience) throw new Error('buildOrganizationControllerVpFromIcaProof requires audience.');
+
+    const { organizationCredential, legalRepresentativeCredential } =
+      readLegalOrganizationVerificationCredentialPairFromResponseBody(input.verificationResponseBody);
+    const controllerCredential = readServiceControllerCredentialFromResponseBody(
+      input.verificationResponseBody,
+      input.controllerSameAs,
+    );
+    if (!controllerCredential) {
+      throw new Error('ICA verification response does not contain a ServiceControllerCredential.');
+    }
+
+    const wallet = await this.createWallet(walletKeyDerivationId, input.walletSeed);
+    const context = walletContext(walletKeyDerivationId);
+    const [actorSigningKey] = await wallet.getPublicJwks(context, {
+      ownerScope: 'profile',
+      purpose: 'actor-signing',
+    });
+    if (!actorSigningKey) throw new Error('Controller actor-signing key is not available.');
+
+    const vp = createVP({
+      iss: actorSigningKey.kid,
+      sub: tenantId,
+      aud: audience,
+      vp: { holder: actorSigningKey.kid, verifiableCredential: [] },
+    });
+    addOrganizationCredential(vp, organizationCredential);
+    addLegalRepresentativeCredential(vp, legalRepresentativeCredential);
+    addServiceControllerCredential(vp, controllerCredential);
+    return wallet.signCompactJws!(context, {
+      header: {
+        typ: 'JWT',
+        jwk: actorSigningKey.publicJwk,
+      },
+      claims: vp as unknown as Record<string, unknown>,
+      key: { ownerScope: 'profile', purpose: 'actor-signing' },
+    });
+  }
+
+  /**
    * Reissues an existing organization controller activation through protected
    * DIDComm transport before a durable profile exists. The deterministic seed
    * remains server-only and the caller receives only the normal GW response.
@@ -321,6 +435,7 @@ export class ServerProfileSessionManager {
       baseUrl: this.options.gatewayBaseUrl,
       ctx: input.routeContext,
       bearerToken: input.bearerToken,
+      appInfo: this.options.appInfo,
       fetchImpl: this.options.fetchImpl,
       transportProfile: TransportProfiles.DidcommEncryptedForm,
       secureTransportAdapter: {
@@ -354,10 +469,12 @@ export class ServerProfileSessionManager {
       throw new Error('Profile is temporarily locked after failed PIN attempts.');
     }
     let seed: string;
-    let vpToken: string;
+    let vpToken: string | undefined;
     try {
       seed = await openServerProfileSecret(profile.protectedWalletSeed, input.pin, `${profile.profileId}:wallet-seed`, this.options.sealer);
-      vpToken = await openServerProfileSecret(profile.protectedVpToken, input.pin, `${profile.profileId}:vp-token`, this.options.sealer);
+      vpToken = profile.protectedVpToken
+        ? await openServerProfileSecret(profile.protectedVpToken, input.pin, `${profile.profileId}:vp-token`, this.options.sealer)
+        : undefined;
     } catch (reason) {
       if (!(reason instanceof ProfilePinRejectedError)) throw reason;
       const failures = profile.failedUnlocks + 1;
@@ -385,6 +502,7 @@ export class ServerProfileSessionManager {
       audience: smartTokenEndpoint,
       idToken: input.idToken,
       vpToken,
+      vpTokenFallback: vpToken ? undefined : 'omit',
       clientAssertion: assertion,
       clientAssertionType: 'private_key_jwt',
       smartTokenKind: 'openid-smart',
@@ -453,6 +571,7 @@ export class ServerProfileSessionManager {
       ctx,
       bearerToken,
       fetchImpl: this.options.fetchImpl,
+      appInfo: this.options.appInfo,
     });
   }
 
@@ -536,6 +655,24 @@ function profileSmartAcrValues(actorKind: ActorKind): string {
     : 'urn:antifraud:acr:openid4vp:employee';
 }
 
+/** Creates the role VP after DCR has returned the wallet's actual client_id. */
+async function buildManagedProfessionalVp(
+  wallet: NodeManagedWallet,
+  context: WalletExecutionContext,
+  input: Readonly<{
+    clientId: string;
+    actorDid: string;
+    profileDid: string;
+    role: string;
+    email?: string;
+    sameAs?: string | readonly string[];
+    telephone?: string;
+    credentialMaterial?: string;
+  }>,
+): Promise<string> {
+  return wallet.signProfessionalIdentityVp(context, input);
+}
+
 async function buildWalletClientAssertion(
   wallet: NodeManagedWallet,
   profile: ServerProfileRecord,
@@ -583,8 +720,15 @@ function requireEnrollment(input: ServerProfileEnrollmentInput): void {
     providerDid: input.providerDid,
     activationCode: input.activationCode,
     idToken: input.idToken,
-    vpToken: input.vpToken,
   })) if (!String(value || '').trim()) throw new Error(`Profile enrollment requires ${name}.`);
+  if (input.actorKind !== ActorKinds.IndividualController
+    && !String(input.vpToken || '').trim()
+    && !input.professionalProof) {
+    throw new Error('Profile enrollment requires vpToken for this actor kind.');
+  }
+  if (input.professionalProof && !String(input.professionalProof.role || '').trim()) {
+    throw new Error('Profile enrollment professionalProof requires role.');
+  }
   if (!input.allowedSubjectDids.length) throw new Error('Profile enrollment requires an allowed subject.');
 }
 

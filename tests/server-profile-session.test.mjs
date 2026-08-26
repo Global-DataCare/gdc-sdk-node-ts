@@ -86,6 +86,11 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
       return responses.shift();
     },
     requiredConfidentialStorageProfile: 'confidential-pqc-v1',
+    appInfo: {
+      appId: 'https://portal.example',
+      appType: 'Family',
+      sector: 'health-care',
+    },
     profileProtection: { cost: 1_024 },
   });
   const base = {
@@ -101,7 +106,6 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
     pin: '123456',
     idToken: 'signed-email-proof-id-token',
     activationCode: 'activation-code',
-    vpToken: 'signed-vp-token',
     redirectUris: ['https://portal.example/__/auth/handler'],
     clientName: 'Example Professional Portal',
   };
@@ -118,6 +122,8 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
     new Headers(calls[0].init.headers).get('authorization'),
     `Bearer ${base.idToken}`,
   );
+  assert.equal(new Headers(calls[0].init.headers).get('AppId'), 'example.portal');
+  assert.equal(new Headers(calls[0].init.headers).get('AppVersion'), 'v1.0');
   const dcrRequest = JSON.parse(String(calls[2].init.body));
   assert.deepEqual(dcrRequest.redirect_uris, ['https://portal.example/__/auth/handler']);
   assert.equal(dcrRequest.client_name, 'Example Professional Portal');
@@ -136,7 +142,7 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   assert.match(smartRequest.body.client_assertion, /^[^.]+\.[^.]+\.[^.]+$/);
   const claims = JSON.parse(Buffer.from(smartRequest.body.client_assertion.split('.')[1], 'base64url').toString());
   assert.equal(claims.iss, 'device-client-1');
-  assert.equal(smartRequest.body.vp_token, 'signed-vp-token');
+  assert.equal('vp_token' in smartRequest.body, false);
   assert.equal(smartRequest.body.acr_values, 'urn:antifraud:acr:openid4vp:individual');
   assert.ok(deps.sessions.get(unlocked.sessionId).sealedUnlockedWalletSeed);
   const packedPoll = await unlocked.secureTransportAdapter.pack({ thid: 'message-1' });
@@ -189,6 +195,72 @@ test('profile enrollment does not accept a controller VP as a replacement for th
     vpToken: 'signed-controller-vp',
     idToken: '',
   }), /requires idToken/);
+});
+
+test('organization and professional enrollment requires an independent signed VP', async () => {
+  const deps = memoryDeps();
+  const manager = new ServerProfileSessionManager({
+    store: deps.store,
+    sealer: deps.sealer,
+    gatewayBaseUrl: 'https://gw.example',
+    resolveRecipientJwk: async () => ({}),
+    fetchImpl: async () => { throw new Error('GW must not be called without the actor VP.'); },
+  });
+  await assert.rejects(manager.enroll({
+    ownerId: 'owner-1', profileId: 'profile-1',
+    actorKind: ActorKinds.OrganizationController, actorMode: 'controller',
+    actorDid: 'did:web:actor.example', profileDid: 'did:web:actor.example',
+    providerDid: 'did:web:provider.example',
+    routeContext: { tenantId: 'VATES-TEST', jurisdiction: 'ES', sector: 'health-care' },
+    allowedSubjectDids: ['did:web:provider.example'], pin: '123456',
+    activationCode: 'activation-code', idToken: 'signed-email-id-token',
+  }), /requires vpToken for this actor kind/);
+});
+
+test('employee enrollment builds its signed role VP after DCR instead of copying idToken', async () => {
+  const deps = memoryDeps();
+  const responses = [
+    Response.json({}, { status: 202 }),
+    Response.json({ access_token: 'initial-access-token' }),
+    Response.json({}, { status: 202 }),
+    Response.json({ client_id: 'employee-device-client', device_did: 'did:key:employee-device' }),
+  ];
+  const manager = new ServerProfileSessionManager({
+    ...deps,
+    gatewayBaseUrl: 'https://gw.example',
+    resolveRecipientJwk: async () => ({}),
+    fetchImpl: async () => responses.shift(),
+    profileProtection: { cost: 1_024 },
+  });
+  const profile = await manager.enroll({
+    ownerId: 'employee-owner', profileId: 'employee-profile',
+    actorKind: ActorKinds.OrganizationEmployee, actorMode: 'member',
+    actorDid: 'did:web:clinic.example:employees:zStableActor',
+    profileDid: 'did:web:clinic.example:employees:zStableActor',
+    providerDid: 'did:web:clinic.example',
+    routeContext: { tenantId: 'CA-BC-CLINIC', jurisdiction: 'CA-BC', sector: 'animal-care' },
+    allowedSubjectDids: ['did:web:clinic.example:employees:zStableActor'],
+    pin: '123456', idToken: 'signed-oidc-email-token', activationCode: 'employee-activation-code',
+    professionalProof: { role: 'ISCO-08|2250', sameAs: 'urn:multibase:zStableActor' },
+    redirectUris: ['https://professional.vetchain.example/auth/callback'],
+    clientName: 'VetChain Professional',
+  });
+  const vpToken = await openServerProfileSecret(
+    profile.protectedVpToken,
+    '123456',
+    'employee-profile:vp-token',
+    deps.sealer,
+  );
+  assert.notEqual(vpToken, 'signed-oidc-email-token');
+  const [encodedHeader, encodedPayload, signature] = vpToken.split('.');
+  const header = JSON.parse(Buffer.from(encodedHeader, 'base64url').toString());
+  const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString());
+  assert.equal(header.alg, 'ES384');
+  assert.ok(header.kid);
+  assert.ok(signature.length > 20);
+  assert.equal(payload.sub, 'did:web:clinic.example:employees:zStableActor');
+  assert.equal(payload.vp.holder, 'employee-device-client');
+  assert.equal(payload.vp.verifiableCredential[0].credentialSubject.hasOccupation, 'ISCO-08|2250');
 });
 
 test('server-only bootstrap seed and stable derivation id reproduce controller public keys', async () => {
@@ -265,6 +337,49 @@ test('server bootstrap derives public controller binding material without a gate
   assert.equal(actorKey.alg, 'ES384');
   assert.match(actorKey.kid, /^urn:ietf:params:oauth:jwk-thumbprint:sha-256:/);
   assert.equal('d' in actorKey.publicJwk, false);
+});
+
+test('server bootstrap builds the signed controller VP from ICA credentials without exposing private keys', async () => {
+  const deps = memoryDeps();
+  const manager = new ServerProfileSessionManager({
+    ...deps, gatewayBaseUrl: 'https://gw.example', resolveRecipientJwk: async () => ({}),
+    fetchImpl: async () => { throw new Error('network must not be used'); },
+  });
+  const walletSeed = Buffer.alloc(32, 8).toString('base64url');
+  const walletKeyDerivationId = 'organization-controller:legal-representative:v1';
+  const responseBody = {
+    data: [{
+      vc: [
+        { type: ['VerifiableCredential', 'OrganizationCredential'], credentialSubject: { id: 'did:web:clinic.example' } },
+        { type: ['VerifiableCredential', 'LegalRepresentativeCredential'], credentialSubject: { id: 'did:web:representative.example' } },
+        { type: ['VerifiableCredential', 'ServiceControllerCredential'], credentialSubject: { owner: { sameAs: 'sha256:representative' } } },
+      ],
+    }],
+  };
+
+  const vpToken = await manager.buildOrganizationControllerVpFromIcaProof({
+    walletSeed,
+    walletKeyDerivationId,
+    verificationResponseBody: responseBody,
+    tenantId: 'CA-BC-CLINIC-1',
+    audience: 'did:web:vet-gw.example',
+    controllerSameAs: 'sha256:representative',
+  });
+  const [encodedHeader, encodedPayload, signature] = vpToken.split('.');
+  const header = JSON.parse(Buffer.from(encodedHeader, 'base64url').toString());
+  const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString());
+  const keys = await manager.prepareEnrollmentPublicKeys({ walletSeed, walletKeyDerivationId });
+  const actorKey = keys.find((entry) => entry.purpose === 'actor-signing');
+
+  assert.equal(header.alg, 'ES384');
+  assert.equal(header.kid, actorKey.kid);
+  assert.deepEqual(header.jwk, actorKey.publicJwk);
+  assert.ok(signature.length > 20);
+  assert.equal(payload.iss, actorKey.kid);
+  assert.equal(payload.sub, 'CA-BC-CLINIC-1');
+  assert.equal(payload.aud, 'did:web:vet-gw.example');
+  assert.equal(payload.vp.holder, actorKey.kid);
+  assert.equal(payload.vp.verifiableCredential.length, 3);
 });
 
 test('server bootstrap submits organization reissue through encrypted DIDComm form transport', async () => {

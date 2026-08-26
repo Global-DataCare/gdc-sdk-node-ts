@@ -285,4 +285,10 @@ test('enrollInvitedOrganizationEmployeeWithDeps reuses a product-neutral routing
   });
   assert.equal(profile.actorDid, EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier);
   assert.deepEqual(enrollment.routeContext, EXAMPLE_TENANT_ROUTE_CONTEXT);
+  assert.equal(enrollment.vpToken, undefined);
+  assert.deepEqual(enrollment.professionalProof, {
+    role: grant.employeeRoleCode,
+    sameAs: grant.employeeActorIdentifier,
+  });
+  assert.notEqual(enrollment.professionalProof, enrollment.idToken);
 });
