@@ -178,6 +178,11 @@ export type RuntimeClient = {
     input: HostedTenantLifecycleInput,
     pollOptions?: PollOptions,
   ) => Promise<SubmitAndPollResult>;
+  enableTenant?: (
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
   purgeTenant?: (
     hostCtx: HostRouteContext,
     input: HostedTenantLifecycleInput,

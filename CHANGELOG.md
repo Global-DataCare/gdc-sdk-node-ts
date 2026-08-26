@@ -6,6 +6,8 @@
   cleanup methods for non-cascading tenant shutdown. The SDK keeps DIDComm
   submit/poll handling internal and requires callers to select employees or
   individuals explicitly.
+- Add same-identifier tenant re-enable to the controller facade; corrected
+  legal identifiers still require a separate registration rather than rename.
 
 - Preserve failed asynchronous `Token/_exchange` `OperationOutcome`
   diagnostics in the high-level device-activation helper instead of reporting

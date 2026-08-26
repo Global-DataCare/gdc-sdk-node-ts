@@ -687,6 +687,25 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     });
   }
 
+  /** Re-enables one suspended hosted tenant without changing its legal identity. */
+  public async enableTenant(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    return submitHostedTenantLifecycleWithDeps({
+      hostCtx,
+      input,
+      requestType: GwCoreLifecycleRequestType.TenantEnable,
+      submitPath: this.paths.hostRegistryOrganizationEnablePath.bind(this.paths),
+      pollPath: this.paths.hostRegistryOrganizationEnablePollPath.bind(this.paths),
+      thidPrefix: 'tenant-enable',
+      submitAndPoll: this.submitAndPoll.bind(this),
+      defaultTimeoutMs: pollOptions?.timeoutMs,
+      defaultIntervalMs: pollOptions?.intervalMs,
+    });
+  }
+
   /**
    * Purges one already-disabled hosted tenant through the host registry.
    */

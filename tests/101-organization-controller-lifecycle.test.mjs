@@ -163,6 +163,11 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
       );
       return buildAcceptedLifecycleResponse({ status: 'disabled' });
     },
+    async enableTenant(ctx) {
+      operations.push('organization-enable-tenant');
+      assert.deepEqual(ctx, hostCtx);
+      return buildAcceptedLifecycleResponse({ status: 'active' });
+    },
     async purgeTenant(ctx, input) {
       operations.push('organization-purge-tenant');
       assert.deepEqual(ctx, hostCtx);
@@ -283,6 +288,8 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
 
   const tenantStatus = await organizationControllerSdk.getTenantLifecycleStatus(hostCtx, tenantLifecycleInput);
   assert.equal(tenantStatus.poll.status, 200);
+  const enabledTenant = await organizationControllerSdk.enableTenant(hostCtx, tenantLifecycleInput);
+  assert.equal(enabledTenant.poll.status, 200);
   await organizationControllerSdk.disableTenantDescendants(hostCtx, { ...tenantLifecycleInput, descendantKind: 'employees' });
   await organizationControllerSdk.purgeTenantDescendants(hostCtx, { ...tenantLifecycleInput, descendantKind: 'employees' });
 
@@ -301,6 +308,7 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
         'organization-list-licenses',
         'organization-disable-tenant',
         'organization-tenant-status',
+        'organization-enable-tenant',
         'organization-disable-employees',
         'organization-purge-employees',
         'organization-purge-tenant',
@@ -316,6 +324,7 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
         'organization-list-licenses',
         'organization-disable-tenant',
         'organization-tenant-status',
+        'organization-enable-tenant',
         'organization-disable-employees',
         'organization-purge-employees',
         'organization-purge-tenant',

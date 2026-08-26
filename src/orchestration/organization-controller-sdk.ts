@@ -325,6 +325,16 @@ export class OrganizationControllerSdk {
     return requireClientMethod(this.client, 'disableTenant')(hostCtx, input, pollOptions);
   }
 
+  /** Re-enables the same suspended tenant and immutable legal identifier. */
+  public enableTenant(
+    hostCtx: HostRouteContext,
+    input: HostedTenantLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationDisableTenant, ActorKinds.OrganizationController, 'enableTenant');
+    return requireClientMethod(this.client, 'enableTenant')(hostCtx, input, pollOptions);
+  }
+
   /**
    * Purges the hosted tenant through the host registry after tenant disable and
    * descendant purges have both completed.
