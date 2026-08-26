@@ -53,6 +53,10 @@ import type {
   ClinicalSummaryUpdateInput,
   VitalSignBatchCommunicationFromSearchResponseInput,
   DigitalTwinGenerationInput,
+  DigitalTwinSecondaryUseConsentInput,
+  DigitalTwinSecondaryUseConsentResult,
+  DigitalTwinSubjectLinkPurgeInput,
+  DigitalTwinSubjectLinkPurgeResult,
   GrantProfessionalAccessInput,
   GrantProfessionalAccessResult,
   IndividualMemberLifecycleInput,
@@ -402,6 +406,14 @@ export type RuntimeClient = {
     ctx: RouteContext,
     input: DigitalTwinGenerationInput,
   ) => Promise<SubmitAndPollResult>;
+  setDigitalTwinSecondaryUseConsent?: (
+    ctx: RouteContext,
+    input: DigitalTwinSecondaryUseConsentInput,
+  ) => Promise<DigitalTwinSecondaryUseConsentResult>;
+  purgeDigitalTwinSubjectLink?: (
+    ctx: RouteContext,
+    input: DigitalTwinSubjectLinkPurgeInput,
+  ) => Promise<DigitalTwinSubjectLinkPurgeResult>;
   searchClinicalBundle?: (
     ctx: RouteContext,
     input: ClinicalBundleSearchInput,

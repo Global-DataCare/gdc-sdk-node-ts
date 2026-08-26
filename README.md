@@ -645,8 +645,8 @@ modules below.
   - types: `SmartTokenRequestInput`, `SmartTokenExchangeResult`
   - function: `requestSmartTokenWithDeps(...)`
 - [`src/resource-operations.ts`](src/resource-operations.ts)
-  - types: `OrganizationEmployeeCreationInput`, `IpsOrFhirImportInput`, `RelatedPersonUpsertInput`, `CommunicationIngestionInput`, `ClinicalDateRange`, `ClinicalBundleSearchInput`, `ConsentActorTargetInput`, `GrantProfessionalAccessInput`, `GrantProfessionalAccessResult`, `DigitalTwinGenerationInput`
-  - functions: `createOrganizationEmployeeWithDeps(...)`, `importIpsOrFhirAndUpdateIndexWithDeps(...)`, `upsertRelatedPersonAndPollWithDeps(...)`, `ingestCommunicationAndUpdateIndexWithDeps(...)`, `searchClinicalBundleWithDeps(...)`, `searchLatestIpsWithDeps(...)`, `grantProfessionalAccessWithDeps(...)`, `generateDigitalTwinFromSubjectDataWithDeps(...)`
+  - types: `OrganizationEmployeeCreationInput`, `IpsOrFhirImportInput`, `RelatedPersonUpsertInput`, `CommunicationIngestionInput`, `ClinicalDateRange`, `ClinicalBundleSearchInput`, `ConsentActorTargetInput`, `GrantProfessionalAccessInput`, `GrantProfessionalAccessResult`, `DigitalTwinSecondaryUseConsentInput`, `DigitalTwinSubjectLinkPurgeInput`
+  - functions: `createOrganizationEmployeeWithDeps(...)`, `importIpsOrFhirAndUpdateIndexWithDeps(...)`, `upsertRelatedPersonAndPollWithDeps(...)`, `ingestCommunicationAndUpdateIndexWithDeps(...)`, `searchClinicalBundleWithDeps(...)`, `searchLatestIpsWithDeps(...)`, `grantProfessionalAccessWithDeps(...)`, `setDigitalTwinSecondaryUseConsentWithDeps(...)`, `purgeDigitalTwinSubjectLinkWithDeps(...)`
 - [`src/digital-twin.ts`](src/digital-twin.ts)
   - types: `DigitalTwinSearchInput`, `DigitalTwinSelectionInput`, `DigitalTwinResearchTag`, `DigitalTwinMaterializationInput`
   - functions: `searchDigitalTwinsWithDeps(...)`, `saveDigitalTwinSelectionWithDeps(...)`, `materializeDigitalTwinWithDeps(...)`

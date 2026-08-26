@@ -496,6 +496,74 @@ test('IndividualControllerSdk enforces consent, ingest, related-person, and digi
   );
 });
 
+test('IndividualControllerSdk exposes the patient secondary-use decision as the canonical generation control', async () => {
+  const calls = [];
+  const session = new NodeActorSession({
+    actorKind: ActorKinds.IndividualController,
+    capabilities: [ActorCapabilities.IndividualGenerateDigitalTwin],
+  }, {
+    setDigitalTwinSecondaryUseConsent: async (...args) => {
+      calls.push(args);
+      return { consentClaims: { 'Consent.decision': args[1].decision } };
+    },
+    purgeDigitalTwinSubjectLink: async (...args) => {
+      calls.push(args);
+      return { poll: { status: 200, body: { purged: true } } };
+    },
+    searchClinicalBundle: async () => ({
+      poll: {
+        body: {
+          data: [{
+            resource: {
+              meta: {
+                claims: {
+                  'Consent.identifier': 'urn:uuid:00000000-0000-4000-8000-000000000201',
+                  'Consent.subject': 'did:web:subject.example',
+                  'Consent.actor-identifier': 'did:web:research.example',
+                  'Consent.actor-role': 'ISCO-08|221',
+                  'Consent.decision': 'permit',
+                  'Consent.purpose': 'HRESCH',
+                  'Consent.action': 'organization/ResearchSubject.rs',
+                },
+              },
+            },
+          }],
+        },
+      },
+    }),
+  });
+
+  const result = await session.asIndividualController().setDigitalTwinSecondaryUseConsent(
+    { tenantId: 'acme', jurisdiction: 'ES', sector: 'health-care' },
+    {
+      subjectDid: 'did:web:subject.example',
+      researchOrganizationDid: 'did:web:research.example',
+      actorRole: 'ISCO-08|221',
+      decision: 'deny',
+      consentIdentifier: 'urn:uuid:00000000-0000-4000-8000-000000000201',
+    },
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(result.consentClaims['Consent.decision'], 'deny');
+  const status = await session.asIndividualController().getDigitalTwinSecondaryUseConsentStatus(
+    { tenantId: 'acme', jurisdiction: 'ES', sector: 'health-care' },
+    {
+      subjectDid: 'did:web:subject.example',
+      researchOrganizationDid: 'did:web:research.example',
+      consentIdentifier: 'urn:uuid:00000000-0000-4000-8000-000000000201',
+    },
+  );
+  assert.equal(status.exists, true);
+  assert.equal(status.enabled, true);
+  const purge = await session.asIndividualController().purgeDigitalTwinSubjectLink(
+    { tenantId: 'acme', jurisdiction: 'ES', sector: 'health-care' },
+    { subjectDid: 'did:web:subject.example' },
+  );
+  assert.equal(purge.poll.status, 200);
+  assert.equal(calls.length, 2);
+});
+
 test('ProfessionalSdk exposes high-level SMART and IPS read methods through the runtime client', async () => {
   const calls = [];
   const session = new NodeActorSession({

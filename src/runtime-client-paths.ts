@@ -120,6 +120,8 @@ export class RuntimeClientPaths {
   public individualRelatedPersonPurgePollPath(ctx?: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'RelatedPerson', '_purge-response'); }
   public individualConsentR4BatchPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Consent', '_batch'); }
   public individualConsentR4PollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Consent', '_batch-response'); }
+  public individualResearchSubjectPurgePath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'ResearchSubject', '_purge'); }
+  public individualResearchSubjectPurgePollPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'ResearchSubject', '_purge-response'); }
   public individualCommunicationBatchPath(ctx: RouteContext, format: string): string { return this.v1Path(ctx, 'individual', format, 'Communication', '_batch'); }
   public individualCommunicationPollPath(ctx: RouteContext, format: string): string { return this.v1Path(ctx, 'individual', format, 'Communication', '_batch-response'); }
   public individualCommunicationSearchPath(ctx: RouteContext): string { return this.v1Path(ctx, 'individual', 'org.hl7.fhir.r4', 'Communication', '_search'); }

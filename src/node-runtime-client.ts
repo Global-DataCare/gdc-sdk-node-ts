@@ -73,6 +73,8 @@ import {
   listOrganizationLicenseOrdersWithDeps,
   listOrganizationLicensesWithDeps,
   grantProfessionalAccessWithDeps,
+  setDigitalTwinSecondaryUseConsentWithDeps,
+  purgeDigitalTwinSubjectLinkWithDeps,
   buildClinicalSectionUpdateIngestion,
   buildClinicalSummaryUpdateIngestion,
   ingestCommunicationAndUpdateIndexWithDeps,
@@ -108,6 +110,10 @@ import {
   type ClinicalSummaryUpdateInput,
   type GrantProfessionalAccessInput,
   type GrantProfessionalAccessResult,
+  type DigitalTwinSecondaryUseConsentInput,
+  type DigitalTwinSecondaryUseConsentResult,
+  type DigitalTwinSubjectLinkPurgeInput,
+  type DigitalTwinSubjectLinkPurgeResult,
   type IndividualMemberLifecycleInput,
   type IndividualMemberLicenseAddInput,
   type IndividualMemberLicenseInvitationInput,
@@ -1262,6 +1268,34 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
+   * Applies the subject's reversible secondary-use decision and lets GW
+   * rebuild or pause the tenant-private digital-twin projection.
+   */
+  public async setDigitalTwinSecondaryUseConsent(
+    ctx: RouteContext,
+    input: DigitalTwinSecondaryUseConsentInput,
+  ): Promise<DigitalTwinSecondaryUseConsentResult> {
+    return setDigitalTwinSecondaryUseConsentWithDeps(ctx, input, {
+      buildConsentClaimsWithCid: this.buildConsentClaimsWithCid.bind(this),
+      individualConsentR4BatchPath: this.paths.individualConsentR4BatchPath.bind(this.paths),
+      individualConsentR4PollPath: this.paths.individualConsentR4PollPath.bind(this.paths),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /** Offboards the subject from this index provider without deleting the anonymous twin. */
+  public async purgeDigitalTwinSubjectLink(
+    ctx: RouteContext,
+    input: DigitalTwinSubjectLinkPurgeInput,
+  ): Promise<DigitalTwinSubjectLinkPurgeResult> {
+    return purgeDigitalTwinSubjectLinkWithDeps(ctx, input, {
+      individualResearchSubjectPurgePath: this.paths.individualResearchSubjectPurgePath.bind(this.paths),
+      individualResearchSubjectPurgePollPath: this.paths.individualResearchSubjectPurgePollPath.bind(this.paths),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
    * Closes an existing professional consent by setting its period end and
    * resubmitting the updated consent resource.
    */
@@ -1793,6 +1827,8 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   public individualRelatedPersonPurgePollPath(ctx?: RouteContext): string { return this.paths.individualRelatedPersonPurgePollPath(ctx); }
   public individualConsentR4BatchPath(ctx: RouteContext): string { return this.paths.individualConsentR4BatchPath(ctx); }
   public individualConsentR4PollPath(ctx: RouteContext): string { return this.paths.individualConsentR4PollPath(ctx); }
+  public individualResearchSubjectPurgePath(ctx: RouteContext): string { return this.paths.individualResearchSubjectPurgePath(ctx); }
+  public individualResearchSubjectPurgePollPath(ctx: RouteContext): string { return this.paths.individualResearchSubjectPurgePollPath(ctx); }
   public individualCommunicationBatchPath(ctx: RouteContext, format: string): string { return this.paths.individualCommunicationBatchPath(ctx, format); }
   public individualCommunicationPollPath(ctx: RouteContext, format: string): string { return this.paths.individualCommunicationPollPath(ctx, format); }
   public individualCommunicationSearchPath(ctx: RouteContext): string { return this.paths.individualCommunicationSearchPath(ctx); }

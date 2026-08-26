@@ -34,6 +34,8 @@ import {
   EmployeeBundleRoutes,
   IndividualOrganizationLifecycleEditor,
   InteroperableLifecycleStatuses,
+  HealthcareConsentPurposes,
+  ServiceCapability,
 } from 'gdc-common-utils-ts';
 import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
 import { ClaimConsent } from 'gdc-common-utils-ts/models/consent-rule';
@@ -51,6 +53,8 @@ import {
   disableOrganizationEmployeeWithDeps,
   generateDigitalTwinFromSubjectDataWithDeps,
   grantProfessionalAccessWithDeps,
+  setDigitalTwinSecondaryUseConsentWithDeps,
+  purgeDigitalTwinSubjectLinkWithDeps,
   buildProfessionalAccessRequestDecisionGrant,
   buildProfessionalAccessRequestSearchInput,
   importIpsOrFhirAndUpdateIndexWithDeps,
@@ -1133,6 +1137,89 @@ test('grantProfessionalAccessWithDeps builds consent payload and returns built m
   assert.equal(consentInput.eventBasedOn, 'urn:uuid:permission-request-1');
   assert.equal(consentInput.sourceReference, 'Communication/permission-request-1');
   assert.equal(consentInput.periodEnd, '2026-08-31T18:30:00Z');
+});
+
+test('setDigitalTwinSecondaryUseConsentWithDeps authors the canonical research permit and deny rule', async () => {
+  const captured = [];
+  const deps = {
+    buildConsentClaimsWithCid: (input) => {
+      captured.push(input);
+      return {
+        actorIdentifier: input.actorId,
+        subjectIdentifier: input.subjectDid,
+        consentClaims: {
+          [ClaimConsent.subject]: input.subjectDid,
+          [ClaimConsent.actorIdentifier]: input.actorId,
+          [ClaimConsent.purpose]: input.purpose,
+          [ClaimConsent.action]: input.actions.join(','),
+          [ClaimConsent.decision]: input.decision,
+        },
+      };
+    },
+    individualConsentR4BatchPath: () => INDIVIDUAL_CONSENT_R4_BATCH_PATH,
+    individualConsentR4PollPath: () => INDIVIDUAL_CONSENT_R4_BATCH_POLL_PATH,
+    submitAndPoll: async () => ({
+      submit: { status: 202, body: {} },
+      poll: { status: 200, body: {}, attempts: 1 },
+    }),
+  };
+  const baseInput = {
+    subjectDid: 'did:web:subject.example',
+    researchOrganizationDid: 'did:web:research.example',
+    actorRole: 'ISCO-08|221',
+    consentIdentifier: 'urn:uuid:00000000-0000-4000-8000-000000000201',
+  };
+
+  await setDigitalTwinSecondaryUseConsentWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    { ...baseInput, decision: 'deny' },
+    deps,
+  );
+  await setDigitalTwinSecondaryUseConsentWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    { ...baseInput, decision: 'permit' },
+    deps,
+  );
+
+  assert.deepEqual(captured.map((input) => input.decision), ['deny', 'permit']);
+  assert.equal(captured[0].purpose, HealthcareConsentPurposes.Research);
+  assert.deepEqual(captured[0].actions, [ServiceCapability.DigitalTwinReader]);
+});
+
+test('setDigitalTwinSecondaryUseConsentWithDeps rejects updates without the stable portal consent identifier', async () => {
+  await assert.rejects(
+    setDigitalTwinSecondaryUseConsentWithDeps(
+      cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+      {
+        subjectDid: 'did:web:subject.example',
+        researchOrganizationDid: 'did:web:research.example',
+        actorRole: 'ISCO-08|221',
+        decision: 'permit',
+        consentIdentifier: '',
+      },
+      {},
+    ),
+    /consentIdentifier is required/,
+  );
+});
+
+test('purgeDigitalTwinSubjectLinkWithDeps calls the provider-offboarding endpoint with only the operational subject', async () => {
+  const calls = [];
+  await purgeDigitalTwinSubjectLinkWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    { subjectDid: 'did:web:subject.example' },
+    {
+      individualResearchSubjectPurgePath: () => '/individual/ResearchSubject/_purge',
+      individualResearchSubjectPurgePollPath: () => '/individual/ResearchSubject/_purge-response',
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][0], '/individual/ResearchSubject/_purge');
+  assert.equal(calls[0][1], '/individual/ResearchSubject/_purge-response');
+  assert.deepEqual(calls[0][2].body.parameter, [{ name: 'subject', valueString: 'did:web:subject.example' }]);
 });
 
 test('runtime consent builder signs temporary expiry and request correlation claims together', () => {
