@@ -257,9 +257,14 @@ integration examples.
 
 Legacy exception: when `activateOrganizationInGatewayFromIcaProof(...)` submits
 the historical representative's `controllerBinding`, `_activate` binds that
-public key during bootstrap. Do not call `ServerProfileSessionManager.enroll`,
-`Token/_exchange` or `Device/_dcr` again for the same legacy representative.
-Later service controllers and employee devices use the normal enrollment path.
+professional-role public signing key and its optional public communication JWKS
+during bootstrap. The portal must initialize and durably retain the matching
+controller communication wallet; use
+`NodeManagedWallet.initializeCommunicationJsonWebKeySet(...)` and pass the
+result to `buildControllerBindingInput({ publicKeys })`. Do not call
+`ServerProfileSessionManager.enroll`, `Token/_exchange` or `Device/_dcr` again
+for the same legacy representative. Later service controllers and employee
+devices use the normal enrollment path.
 
 Do not teach legal-organization onboarding here:
 
