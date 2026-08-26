@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.4.33 - 2026-08-26
+
+- Replace the erroneous BFF-owned Digital Twin Consent identifier contract with
+  `researchUseReference`: callers provide only a stable portal/software/study
+  URL or URI through `Consent.source-reference`, GW resolves its private
+  `Consent.identifier`, and status lookup includes both permit and deny rules.
+
 ## 2.4.32 - 2026-08-26
 
 - Synchronize the Digital Twin public-surface inventory, JSDoc, executable 101
@@ -15,7 +22,8 @@
   server-side creation of the opaque FHIR Consent identifier stored with an
   index enrollment. Document that it is random, never derived from subject or
   tenant identifiers, never accepted from the browser and reused for every
-  digital-twin `permit`/`deny` update.
+  digital-twin `permit`/`deny` update. Superseded by the corrected GW-owned
+  identifier contract in 2.4.33.
 
 ## 2.4.30 - 2026-08-26
 

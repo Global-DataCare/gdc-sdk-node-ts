@@ -59,3 +59,31 @@ test('GatewayActiveConsentProvider excludes expired and wrong-subject rules', as
 test('extractConsentRules ignores non-Consent payloads', () => {
   assert.deepEqual(extractConsentRules({ data: [{ resource: { resourceType: 'Observation' } }] }), []);
 });
+
+test('GatewayActiveConsentProvider returns contextualized deny rules for settings lookup', async () => {
+  const provider = new GatewayActiveConsentProvider({
+    searchClinicalBundle: async () => ({
+      poll: {
+        body: {
+          data: [{
+            claims: {
+              '@context': 'org.hl7.fhir.r4',
+              'org.hl7.fhir.r4.Consent.identifier': 'urn:uuid:internal-only',
+              'org.hl7.fhir.r4.Consent.subject': 'did:web:subject.example',
+              'org.hl7.fhir.r4.Consent.actor-identifier': 'did:web:index.example',
+              'org.hl7.fhir.r4.Consent.decision': 'deny',
+              'org.hl7.fhir.r4.Consent.action': 'organization/ResearchSubject.rs',
+              'org.hl7.fhir.r4.Consent.source-reference': 'urn:study:alpha',
+            },
+          }],
+        },
+      },
+    }),
+  }, { tenantId: 'tenant', jurisdiction: 'ES', sector: 'health-care' });
+
+  const rules = await provider.getActiveConsentsForSubject('did:web:subject.example');
+  assert.equal(rules.length, 1);
+  assert.equal(rules[0]['Consent.decision'], 'deny');
+  assert.equal(rules[0]['Consent.source-reference'], 'urn:study:alpha');
+  // "Active" describes the Consent period/status, not whether its decision is permit.
+});

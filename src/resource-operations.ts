@@ -598,11 +598,11 @@ export type DigitalTwinSecondaryUseConsentInput = {
   indexProviderOrganizationDid: string;
   decision: 'permit' | 'deny';
   /**
-   * Server-owned FHIR Consent identifier. Create it once with
-   * `createDigitalTwinSecondaryUseConsentIdentifier()` in the index-enrollment
-   * transaction, persist it there and never accept it from the browser.
+   * Stable URL or URI identifying the portal, software or research study whose
+   * permission is being changed. GW uses it as `Consent.source-reference` to
+   * find or create the rule; callers never manage `Consent.identifier`.
    */
-  consentIdentifier: string;
+  researchUseReference: string;
   consentDate?: string;
   dataType?: string;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
@@ -1992,8 +1992,9 @@ export async function setDigitalTwinSecondaryUseConsentWithDeps(
     ) => Promise<SubmitAndPollResult>;
   },
 ): Promise<DigitalTwinSecondaryUseConsentResult> {
-  if (!String(input.consentIdentifier || '').trim()) {
-    throw new Error('consentIdentifier is required for idempotent digital-twin consent updates.');
+  const researchUseReference = String(input.researchUseReference || '').trim();
+  if (!researchUseReference) {
+    throw new Error('researchUseReference is required to identify the portal, software or study consent.');
   }
   const indexProviderOrganizationDid = String(input.indexProviderOrganizationDid || '').trim();
   if (!indexProviderOrganizationDid) {
@@ -2011,7 +2012,9 @@ export async function setDigitalTwinSecondaryUseConsentWithDeps(
     if (context) {
       delete claims[`${context}.${ClaimConsent.attachmentContentType}`];
       delete claims[`${context}.${ClaimConsent.attachmentData}`];
+      delete claims[`${context}.${ClaimConsent.identifier}`];
     }
+    delete claims[ClaimConsent.identifier];
     const assigned = assignCidToClaimsId(claims);
     return { ...built, consentClaims: assigned.claims, claimsCid: assigned.cid };
   };
@@ -2022,7 +2025,7 @@ export async function setDigitalTwinSecondaryUseConsentWithDeps(
     purpose: HealthcareConsentPurposes.Research,
     actions: [ServiceCapability.DigitalTwinReader],
     decision: input.decision,
-    consentIdentifier: input.consentIdentifier,
+    sourceReference: researchUseReference,
     consentDate: input.consentDate,
     dataType: input.dataType,
     pollOptions: input.pollOptions,

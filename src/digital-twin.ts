@@ -13,17 +13,6 @@ export type DigitalTwinFhirFormat = 'org.hl7.fhir.r4' | 'org.hl7.fhir.api';
 
 const DIGITAL_TWIN_SUBJECT_URN_UUID = /^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/**
- * Creates the opaque FHIR identifier for the provider-level secondary-use
- * Consent. Call this exactly once when the server creates the subject's index
- * enrollment, persist the result there, and reuse it for every permit/deny.
- * It is intentionally random and must not be derived from a subject or tenant
- * identifier.
- */
-export function createDigitalTwinSecondaryUseConsentIdentifier(): string {
-  return `urn:uuid:${randomUUID()}`;
-}
-
 /** Returns whether a value can be used as a pseudonymous digital-twin subject. */
 export function isDigitalTwinSubjectId(value: unknown): value is string {
   return DIGITAL_TWIN_SUBJECT_URN_UUID.test(String(value || '').trim());

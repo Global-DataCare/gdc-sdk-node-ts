@@ -1154,6 +1154,8 @@ test('setDigitalTwinSecondaryUseConsentWithDeps authors the canonical research p
           [ClaimConsent.purpose]: input.purpose,
           [ClaimConsent.action]: input.actions.join(','),
           [ClaimConsent.decision]: input.decision,
+          [ClaimConsent.identifier]: 'urn:uuid:caller-generated-value-must-not-leave-sdk',
+          [ClaimConsent.sourceReference]: input.sourceReference,
           [ClaimConsent.attachmentContentType]: 'application/odrl+json',
           [ClaimConsent.attachmentData]: 'e30=',
         },
@@ -1172,7 +1174,7 @@ test('setDigitalTwinSecondaryUseConsentWithDeps authors the canonical research p
   const baseInput = {
     subjectDid: 'did:web:subject.example',
     indexProviderOrganizationDid: 'did:web:index-provider.example',
-    consentIdentifier: 'urn:uuid:00000000-0000-4000-8000-000000000201',
+    researchUseReference: 'https://portal.example/research',
   };
 
   await setDigitalTwinSecondaryUseConsentWithDeps(
@@ -1194,9 +1196,11 @@ test('setDigitalTwinSecondaryUseConsentWithDeps authors the canonical research p
   const submittedClaims = submissions[0][2].body.data[0].meta.claims;
   assert.equal(submittedClaims[ClaimConsent.attachmentContentType], undefined);
   assert.equal(submittedClaims[ClaimConsent.attachmentData], undefined);
+  assert.equal(submittedClaims[ClaimConsent.identifier], undefined);
+  assert.equal(submittedClaims[ClaimConsent.sourceReference], 'https://portal.example/research');
 });
 
-test('setDigitalTwinSecondaryUseConsentWithDeps rejects updates without the stable portal consent identifier', async () => {
+test('setDigitalTwinSecondaryUseConsentWithDeps rejects updates without a portal/software/study reference', async () => {
   await assert.rejects(
     setDigitalTwinSecondaryUseConsentWithDeps(
       cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
@@ -1204,11 +1208,11 @@ test('setDigitalTwinSecondaryUseConsentWithDeps rejects updates without the stab
         subjectDid: 'did:web:subject.example',
         indexProviderOrganizationDid: 'did:web:index-provider.example',
         decision: 'permit',
-        consentIdentifier: '',
+        researchUseReference: '',
       },
       {},
     ),
-    /consentIdentifier is required/,
+    /researchUseReference is required/,
   );
 });
 

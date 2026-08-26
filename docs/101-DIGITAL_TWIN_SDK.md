@@ -64,19 +64,10 @@ research organization, selects a FHIR identifier or supplies ODRL.
 import {
   ActorCapabilities,
   ActorKinds,
-  createDigitalTwinSecondaryUseConsentIdentifier,
   HttpRuntimeClient,
   NodeActorSession,
   TransportProfiles,
 } from 'gdc-sdk-node-ts';
-
-// In the one-time server-side index-enrollment transaction, persist this
-// atomically with the rest of the enrollment. Do not run this per request:
-await createAuthenticatedIndexEnrollment({
-  secondaryUseConsentIdentifier:
-    createDigitalTwinSecondaryUseConsentIdentifier(),
-  // ...the rest of the authenticated enrollment
-});
 
 const runtimeClient = new HttpRuntimeClient({
   baseUrl: process.env.GW_BASE_URL!,
@@ -95,22 +86,24 @@ const individualController = new NodeActorSession({
 const {
   subjectDid,
   indexProviderOrganizationDid,
-  secondaryUseConsentIdentifier,
 } = await loadAuthenticatedIndexEnrollment();
+// Server configuration owned by this BFF. Use a stable URL/URI for each
+// portal, software product or research study.
+const researchUseReference = 'https://portal.example.org/research';
 
 const { enabled } = await request.json() as { enabled: boolean };
 
 const current = await individualController.getDigitalTwinSecondaryUseConsentStatus(ctx, {
   subjectDid,
   indexProviderOrganizationDid,
-  consentIdentifier: secondaryUseConsentIdentifier,
+  researchUseReference,
 });
 
 const updated = await individualController.setDigitalTwinSecondaryUseConsent(ctx, {
   subjectDid,
   indexProviderOrganizationDid,
   decision: enabled ? 'permit' : 'deny',
-  consentIdentifier: secondaryUseConsentIdentifier,
+  researchUseReference,
 });
 
 // Only during account deletion or index-provider migration:
@@ -124,7 +117,8 @@ The exact canonical claims authored by that facade are:
 Consent.subject         = authenticated subject DID
 Consent.actor-identifier = index-provider organization DID
 Consent.actor-role      = *
-Consent.identifier      = server-owned enrollment consent identifier
+Consent.source-reference = stable portal/software/study URL or URI
+Consent.identifier      = assigned and retained privately by GW
 Consent.purpose         = HRESCH
 Consent.action          = organization/ResearchSubject.rs
 Consent.decision        = permit | deny
@@ -140,16 +134,17 @@ There is no `secondaryUseClaimKey` configuration. `Consent.action` is the
 claim key and `ServiceCapability.DigitalTwinReader` supplies its canonical
 value.
 
-`consentIdentifier` is mandatory and stable internally, but it is not frontend
-state. It is not derived from the subject DID or organization DID. The BFF
-creates it once with `createDigitalTwinSecondaryUseConsentIdentifier()` in the
-same server-side transaction that creates the index enrollment, persists it
-with that enrollment and reuses it for every read, `permit`, and `deny`; GW
-therefore updates the same FHIR Consent rule instead of creating duplicates.
-Existing enrollments must be backfilled once and then retain the assigned
-value. A future study is represented by another FHIR Consent with its own
-identifier and research actor. It cannot make this provider-level toggle
-appear enabled.
+`researchUseReference` is the only application/study discriminator. Given that
+same stable URL or URI, GW finds the existing rule and reuses its internal
+`Consent.identifier`; if none exists, GW creates it. The BFF does not generate,
+store, send or receive that internal identifier, so existing installations need
+no consent-id backfill. A different portal, product or study reference creates
+a separate FHIR Consent and never overwrites another use's choice.
+
+The browser still sends only `{ enabled }`. Prefer configuring
+`researchUseReference` in the BFF instead of accepting an arbitrary reference
+from browser JSON. The authenticated route supplies the subject and index
+provider; the tenant remains the source of truth for all these Consent rules.
 
 The product API should expose `permit`/`deny` as a settings change and `purge`
 only inside the account/provider offboarding transaction. It must never map a
