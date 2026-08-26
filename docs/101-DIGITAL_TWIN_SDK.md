@@ -37,7 +37,7 @@ The subject lifecycle precedes that researcher lifecycle:
 ```text
 current operational IPS
   -> Consent purpose=HRESCH, action=organization/ResearchSubject.rs
-     -> decision=permit: the next normal IPS Communication builds/rebuilds one registered urn:uuid twin
+     -> decision=permit: enable one registered urn:uuid twin; normal IPS Communications refresh it
      -> decision=deny:   pause synchronization, preserve alias and published twin
 ```
 
