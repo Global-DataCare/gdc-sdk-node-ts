@@ -350,7 +350,11 @@ export class IndividualControllerSdk {
     return requireClientMethod(this.client, 'purgeDigitalTwinSubjectLink')(ctx, input);
   }
 
-  /** Returns the current decision for one portal, software or research study. */
+  /**
+   * Returns the current decision for one portal, software or research study.
+   * Consent is read through Communication -> individual `Subject/_search`;
+   * this does not query a clinical Bundle or the twin ResearchSubject index.
+   */
   public async getDigitalTwinSecondaryUseConsentStatus(
     ctx: RouteContext,
     input: Readonly<{

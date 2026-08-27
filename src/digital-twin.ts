@@ -25,7 +25,7 @@ export function assertDigitalTwinSubjectId(value: unknown): asserts value is str
   }
 }
 
-/** Search parameters added by the digital-twin Composition profile. */
+/** Search parameters evaluated against a ResearchSubject's canonical Composition index. */
 export const DigitalTwinSearchParameter = Object.freeze({
   Section: 'section',
   DateFrom: 'date-from',
@@ -39,7 +39,8 @@ export type DigitalTwinSearchInput = {
   accessToken?: string;
   thid?: string;
   format?: DigitalTwinFhirFormat;
-  resourceType?: string;
+  /** Public twin search resource; exposed for low-level request inspection only. */
+  resourceType?: 'ResearchSubject';
   /** One or more IPS section tokens. Basic search uses OR across sections. */
   sections?: readonly string[];
   /** Inclusive clinical-event lower bound as ISO date or dateTime. */
@@ -53,11 +54,19 @@ export type DigitalTwinSearchInput = {
   pollOptions?: PollOptions;
 };
 
-/** One pseudonymous Composition returned by a digital-twin search. */
+/**
+ * One public ResearchSubject digital twin returned by search.
+ *
+ * `composition` is the canonical Composition GW uses as the aggregate's
+ * internal index document. It joins the ResearchSubject to the projected
+ * clinical resources later returned by `ResearchSubject/$summary`.
+ */
 export type DigitalTwinSearchMatch = Record<string, unknown> & {
+  resourceType?: 'ResearchSubject';
   id?: string;
   [CompositionClaim.Subject]: string;
   [CompositionClaim.Section]?: string;
+  composition?: Record<string, unknown>;
   meta?: { tag?: DigitalTwinResearchTag[] };
 };
 
@@ -175,7 +184,7 @@ function normalizeResearchTags(tags: readonly DigitalTwinWorksetTagInput[]): Arr
   return normalized;
 }
 
-/** Opens the GW async response and exposes the matched Compositions directly. */
+/** Opens the GW async response and exposes the matched ResearchSubjects directly. */
 export function readDigitalTwinSearchResult(operation: SubmitAndPollResult): DigitalTwinSearchResult {
   const body = operation?.poll?.body as Record<string, unknown> | undefined;
   const responseEntries = Array.isArray(body?.data)
@@ -256,14 +265,18 @@ export async function saveDigitalTwinSelectionWithDeps(
   );
 }
 
-/** Searches the tenant digital-twin index through its public asynchronous route. */
+/**
+ * Searches ResearchSubject digital twins through the public asynchronous route.
+ * GW filters their canonical Composition index documents internally; callers
+ * never switch to a separate public Composition search surface.
+ */
 export async function searchDigitalTwinsWithDeps(
   ctx: RouteContext,
   input: DigitalTwinSearchInput,
   deps: DigitalTwinRuntimeDeps,
 ): Promise<SubmitAndPollResult> {
   const format = input.format || 'org.hl7.fhir.r4';
-  const resourceType = String(input.resourceType || 'Composition').trim();
+  const resourceType = String(input.resourceType || 'ResearchSubject').trim();
   if (!resourceType) throw new Error('Digital twin resourceType is required.');
   const usesBasicSearch = Boolean(input.sections || input.dateFrom || input.dateTo || input.text);
   if (usesBasicSearch && Object.keys(input.filters || {}).length > 0) {

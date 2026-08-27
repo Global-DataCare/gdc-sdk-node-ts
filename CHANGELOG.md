@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Use `organization/ResearchSubject.rs?subject=*` as the default SMART reader
+  scope and one FHIR-Parameters `ResearchSubject/_search` route for discovery
+  and saved selections. Document each result's canonical internal Composition.
+  Read secondary-use Consent status through Communication -> individual
+  `Subject/_search` instead of the clinical Bundle index.
+
 ## 2.4.43 - 2026-08-27
 
 - Add `replaceProfilePinFromAuthorizedSecrets(...)` for passkey, active-session
@@ -70,7 +76,6 @@
 - Document bilateral inter-tenant Contract VCs with provider/consumer
   authorized signatories and two `contractAgreement` proofs, separating legal
   acceptance from technical controller presentation.
-
 ## 2.4.35 - 2026-08-26
 
 - Correct the 101 backend bootstrap so participant identity comes from the

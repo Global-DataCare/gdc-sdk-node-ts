@@ -34,11 +34,18 @@ export class DigitalTwinSdk {
       throw new Error('DigitalTwinSdk actorDid must match the actor session.');
     }
     const actorDid = this.researcherDid || requestedActorDid;
+    const requestedScopes = input.scopes?.length
+      ? input.scopes
+      : [ServiceCapability.DigitalTwinReader];
     const result = await requireClientMethod(this.client, 'requestSmartToken')({
       ...input,
       actorDid,
       purpose: input.purpose || HealthcareConsentPurposes.Research,
-      scopes: input.scopes?.length ? input.scopes : [ServiceCapability.DigitalTwinReader],
+      // GW root scopes are explicit queries. Complete the common bare SDK
+      // capability so callers do not have to know the SMART wire syntax.
+      scopes: requestedScopes.map((scope) => scope === ServiceCapability.DigitalTwinReader
+        ? `${scope}?subject=*`
+        : scope),
     });
     if (result.accessToken) this.smartAccessToken = result.accessToken;
     if (actorDid) this.researcherDid = actorDid;
@@ -46,7 +53,9 @@ export class DigitalTwinSdk {
   }
 
   /**
-   * Searches pseudonymous records and exposes matched Compositions directly.
+   * Searches the public `ResearchSubject/_search` aggregate with FHIR
+   * Parameters. Each match includes the canonical Composition GW uses
+   * internally to index that ResearchSubject and connect its resources.
    *
    * MVP basic search supplies `sections`, `dateFrom`, optional `dateTo`, and
    * `text`. GW resolves an omitted `dateTo` to its current time, applies OR
@@ -76,6 +85,7 @@ export class DigitalTwinSdk {
     }
     const operation = await requireClientMethod(this.client, 'searchDigitalTwins')(ctx, {
       ...input,
+      resourceType: 'ResearchSubject',
       filters,
       accessToken: input.accessToken || this.smartAccessToken,
     });
@@ -99,7 +109,11 @@ export class DigitalTwinSdk {
     });
   }
 
-  /** Reopens only this employee's saved selections for one exact custom tag. */
+  /**
+   * Reopens this employee's saved ResearchSubjects through the same public
+   * route. The tag is combined with an author filter bound to the actor DID;
+   * GW verifies that author against the authenticated SMART `sub`.
+   */
   public searchSelections(
     ctx: RouteContext,
     input: Omit<DigitalTwinSearchInput, 'filters'> & {

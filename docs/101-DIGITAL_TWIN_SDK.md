@@ -273,10 +273,14 @@ await digitalTwin.requestSmartToken({
   actorDid: employeeDid,
   clientId,
   purpose: HealthcareConsentPurposes.Research,
-  scopes: [ServiceCapability.DigitalTwinReader],
+  scopes: [`${ServiceCapability.DigitalTwinReader}?subject=*`],
   smartTokenKind: 'openid-smart',
 });
 ```
+
+The SDK supplies `?subject=*` by default and also completes an explicitly
+passed bare `ServiceCapability.DigitalTwinReader`. GW requires that root query;
+the portal does not need to concatenate the SMART scope string itself.
 
 In production, replace the fixture assignment with the portal BFF's issued-card
 binding lookup. The callback returns the hosted primary DID and proves the
@@ -312,7 +316,13 @@ const twinSubjectId =
   result.matches[0][CompositionClaim.Subject];
 ```
 
-The identifier returned in `Composition.subject` is the research-safe,
+`search(...)` posts a FHIR `Parameters` resource to
+`digitaltwin/.../ResearchSubject/_search`. The public result is a
+`ResearchSubject`; its `composition` property is the canonical Composition GW
+uses internally to index that twin and connect its projected FHIR resources.
+There is no separate public `Composition/_search` flow.
+
+The identifier retained in `Composition.subject` for compatibility is the research-safe,
 pseudonymous twin identifier. It is not the individual's DID and must not be
 replaced with a `Patient` reference. Sections use OR semantics. Text and date
 must match the same resource inside one selected section. The portal does not
@@ -335,7 +345,10 @@ await digitalTwin.saveSelection(ctx, {
 });
 ```
 
-`saveSelection` stores a separate working selection. The employee DID cached by the facade becomes
+`saveSelection` selects one ResearchSubject. Internally the SDK posts a small,
+researcher-owned working-selection `Composition` through
+`digitaltwin/org.hl7.fhir.r4/Composition/_batch` and polls its
+`_batch-response`. The employee DID cached by the facade becomes
 `Composition.author`. It generates one opaque FHIR logical id for the saved
 Composition unless a low-level caller supplies `selectionId`. There are no
 `Composition.branch` or `Composition.branch-version` claims: worksets are
@@ -386,12 +399,13 @@ const workset = await digitalTwin.searchSelections(ctx, {
 const savedSelections = workset.matches;
 ```
 
-`searchSelections` converts the tag to the exact
+`searchSelections` uses the same public `ResearchSubject/_search` route as
+normal discovery and converts the tag to the exact
 `Composition.meta-tag=system|code` query and binds `Composition.author` to the
 current actor session. GW repeats that ownership check from the verified SMART
 `sub`, so another employee cannot retrieve the selection by guessing the same
 tag. The returned selection still carries the same pseudonymous
-`Composition.subject`, so the portal can list saved selections without
+ResearchSubject identifier, so the portal can list saved selections without
 materializing all clinical data.
 
 This 101 deliberately uses one workset tag only. The employee can create more

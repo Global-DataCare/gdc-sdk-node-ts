@@ -79,6 +79,7 @@ import type {
   RevokeProfessionalAccessInput,
   RevokeProfessionalAccessResult,
   RelatedPersonUpsertInput,
+  SubjectConsentSearchInput,
 } from '../resource-operations.js';
 
 /**
@@ -443,6 +444,10 @@ export type RuntimeClient = {
     ctx: RouteContext,
     input: DigitalTwinSubjectLinkPurgeInput,
   ) => Promise<DigitalTwinSubjectLinkPurgeResult>;
+  searchSubjectConsents?: (
+    ctx: RouteContext,
+    input: SubjectConsentSearchInput,
+  ) => Promise<SubmitAndPollResult>;
   searchClinicalBundle?: (
     ctx: RouteContext,
     input: ClinicalBundleSearchInput,

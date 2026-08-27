@@ -530,7 +530,7 @@ test('IndividualControllerSdk exposes the patient secondary-use decision as the 
       calls.push(args);
       return { poll: { status: 200, body: { purged: true } } };
     },
-    searchClinicalBundle: async () => ({
+    searchSubjectConsents: async () => ({
       poll: {
         body: {
           data: [{

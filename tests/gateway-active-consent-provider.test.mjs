@@ -18,7 +18,7 @@ const activeRule = {
 test('GatewayActiveConsentProvider reads active subject rules from GW instead of an app table', async () => {
   const calls = [];
   const provider = new GatewayActiveConsentProvider({
-    async searchClinicalBundle(ctx, input) {
+    async searchSubjectConsents(ctx, input) {
       calls.push([ctx, input]);
       return {
         submit: { status: 202, body: {} },
@@ -32,12 +32,12 @@ test('GatewayActiveConsentProvider reads active subject rules from GW instead of
   }, { tenantId: 'subject-provider', jurisdiction: 'ES', sector: 'health-care' });
 
   assert.deepEqual(await provider.getActiveConsentsForSubject(subject), [activeRule]);
-  assert.deepEqual(calls[0][1], { subject, includedTypes: ['Consent'] });
+  assert.deepEqual(calls[0][1], { subject });
 });
 
 test('GatewayActiveConsentProvider excludes expired and wrong-subject rules', async () => {
   const provider = new GatewayActiveConsentProvider({
-    async searchClinicalBundle() {
+    async searchSubjectConsents() {
       return {
         submit: { status: 202, body: {} },
         poll: {
@@ -62,7 +62,7 @@ test('extractConsentRules ignores non-Consent payloads', () => {
 
 test('GatewayActiveConsentProvider returns contextualized deny rules for settings lookup', async () => {
   const provider = new GatewayActiveConsentProvider({
-    searchClinicalBundle: async () => ({
+    searchSubjectConsents: async () => ({
       poll: {
         body: {
           data: [{

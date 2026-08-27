@@ -125,6 +125,7 @@ test('101: employee searches, tags, reopens, and materializes a digital twin wor
               resource: {
                 total: 1,
                 data: [{
+                  resourceType: 'ResearchSubject',
                   id: isWorksetSearch ? 'urn:uuid:researcher-selection-1' : 'urn:uuid:canonical-twin-composition-1',
                   [CompositionClaim.Subject]: TWIN_SUBJECT_ID,
                   [CompositionClaim.Section]: MEDICATION_SECTION,
@@ -157,7 +158,7 @@ test('101: employee searches, tags, reopens, and materializes a digital twin wor
   await digitalTwin.requestSmartToken({
     actorDid: EMPLOYEE_DID,
     purpose: HealthcareConsentPurposes.Research,
-    scopes: [ServiceCapability.DigitalTwinReader],
+    scopes: [`${ServiceCapability.DigitalTwinReader}?subject=*`],
   });
 
   // Step 2. Search one or several IPS sections. GW applies the text and date
@@ -188,6 +189,7 @@ test('101: employee searches, tags, reopens, and materializes a digital twin wor
   });
   const reopenedSelection = workset.matches[0];
   assert.equal(workset.total, 1);
+  assert.equal(reopenedSelection.resourceType, 'ResearchSubject');
   assert.equal(reopenedSelection[CompositionClaim.Subject], TWIN_SUBJECT_ID);
   assert.deepEqual(reopenedSelection.meta.tag, [STORED_WORKSET_TAG]);
 
@@ -209,5 +211,7 @@ test('101: employee searches, tags, reopens, and materializes a digital twin wor
   assert.equal(savedInput.authorDid, EMPLOYEE_DID);
   assert.equal(savedInput.accessToken, 'smart-research-token');
   assert.equal(savedInput.twinSubjectId, TWIN_SUBJECT_ID);
+  assert.equal(calls[1][1].resourceType, 'ResearchSubject');
+  assert.equal(calls[3][1].resourceType, 'ResearchSubject');
   assert.equal(calls[3][1].filters[CompositionClaim.Author], EMPLOYEE_DID);
 });

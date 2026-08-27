@@ -620,6 +620,12 @@ export type DigitalTwinSubjectLinkPurgeInput = {
 /** Async GW result for a subject/twin binding purge. */
 export type DigitalTwinSubjectLinkPurgeResult = SubmitAndPollResult;
 
+/** Input for reading the subject-owned Consent records through its individual aggregate. */
+export type SubjectConsentSearchInput = Readonly<{
+  subject: string;
+  pollOptions?: { timeoutMs?: number; intervalMs?: number };
+}>;
+
 export async function createOrganizationEmployeeWithDeps(
   routeCtx: RouteContext,
   input: OrganizationEmployeeCreationInput,
@@ -2062,6 +2068,69 @@ export async function purgeDigitalTwinSubjectLinkWithDeps(
       body: {
         resourceType: 'Parameters',
         parameter: [{ name: 'subject', valueString: subjectDid }],
+      },
+    },
+    input.pollOptions,
+  );
+}
+
+/**
+ * Reads Consent through the individual `Subject/_search` aggregate carried by
+ * an auditable Communication. `Subject` is the individual aggregate; it is
+ * intentionally separate from the public digital-twin `ResearchSubject`
+ * aggregate, whose canonical index document is a Composition.
+ */
+export async function searchSubjectConsentsWithDeps(
+  routeCtx: RouteContext,
+  input: SubjectConsentSearchInput,
+  deps: {
+    individualCommunicationBatchPath: (ctx: RouteContext, pathFormatSegment: string) => string;
+    individualCommunicationPollPath: (ctx: RouteContext, pathFormatSegment: string) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  const subject = String(input.subject || '').trim();
+  if (!subject.startsWith('did:')) {
+    throw new Error('Consent search requires a subject DID.');
+  }
+  const format = 'org.hl7.fhir.r4';
+  const parameters = {
+    resourceType: 'Parameters',
+    parameter: [{ name: 'subject', valueString: subject }],
+  };
+  const thid = `subject-consent-search-${createRuntimeUuid()}`;
+  const communication = {
+    resourceType: 'Communication',
+    status: 'completed',
+    subject: { reference: subject },
+    payload: [{
+      contentReference: {
+        reference: 'individual/org.hl7.fhir.api/Subject/_search',
+      },
+      contentAttachment: {
+        contentType: 'application/fhir+json',
+        title: 'subject-consent-search-parameters.json',
+        data: Buffer.from(JSON.stringify(parameters), 'utf8').toString('base64'),
+      },
+    }],
+  };
+  return deps.submitAndPoll(
+    deps.individualCommunicationBatchPath(routeCtx, format),
+    deps.individualCommunicationPollPath(routeCtx, format),
+    {
+      thid,
+      body: {
+        resourceType: 'Bundle',
+        type: 'batch',
+        entry: [{
+          request: { method: 'POST', url: 'Communication' },
+          resource: communication,
+        }],
       },
     },
     input.pollOptions,

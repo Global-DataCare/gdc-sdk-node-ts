@@ -82,6 +82,7 @@ import {
   searchOrganizationLicenseOrdersWithDeps,
   searchOrganizationEmployeesWithDeps,
   searchClinicalBundleWithDeps,
+  searchSubjectConsentsWithDeps,
   searchCommunicationParticipantsWithDeps,
   searchLatestIpsWithDeps,
   revokeProfessionalAccessWithDeps,
@@ -1214,6 +1215,34 @@ test('setDigitalTwinSecondaryUseConsentWithDeps rejects updates without a portal
     ),
     /researchUseReference is required/,
   );
+});
+
+test('searchSubjectConsentsWithDeps reads Consent through Communication -> Subject/_search Parameters', async () => {
+  const calls = [];
+  await searchSubjectConsentsWithDeps(TEST_ROUTE_CTX, { subject: EXAMPLE_SUBJECT_DID }, {
+    individualCommunicationBatchPath: () => INDIVIDUAL_COMMUNICATION_R4_BATCH_PATH,
+    individualCommunicationPollPath: () => INDIVIDUAL_COMMUNICATION_R4_BATCH_POLL_PATH,
+    submitAndPoll: async (submitPath, pollPath, payload) => {
+      calls.push({ submitPath, pollPath, payload });
+      return { poll: { body: { data: [] } } };
+    },
+  });
+
+  assert.equal(calls[0].submitPath, INDIVIDUAL_COMMUNICATION_R4_BATCH_PATH);
+  const communication = calls[0].payload.body.entry[0].resource;
+  assert.equal(communication.resourceType, 'Communication');
+  assert.equal(
+    communication.payload[0].contentReference.reference,
+    'individual/org.hl7.fhir.api/Subject/_search',
+  );
+  const parameters = JSON.parse(Buffer.from(
+    communication.payload[0].contentAttachment.data,
+    'base64',
+  ).toString('utf8'));
+  assert.deepEqual(parameters, {
+    resourceType: 'Parameters',
+    parameter: [{ name: 'subject', valueString: EXAMPLE_SUBJECT_DID }],
+  });
 });
 
 test('purgeDigitalTwinSubjectLinkWithDeps calls the provider-offboarding endpoint with only the operational subject', async () => {

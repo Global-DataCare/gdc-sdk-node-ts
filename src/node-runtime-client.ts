@@ -81,6 +81,7 @@ import {
   grantProfessionalAccessWithDeps,
   setDigitalTwinSecondaryUseConsentWithDeps,
   purgeDigitalTwinSubjectLinkWithDeps,
+  searchSubjectConsentsWithDeps,
   buildClinicalSectionUpdateIngestion,
   buildClinicalSummaryUpdateIngestion,
   ingestCommunicationAndUpdateIndexWithDeps,
@@ -120,6 +121,7 @@ import {
   type DigitalTwinSecondaryUseConsentResult,
   type DigitalTwinSubjectLinkPurgeInput,
   type DigitalTwinSubjectLinkPurgeResult,
+  type SubjectConsentSearchInput,
   type IndividualMemberLifecycleInput,
   type IndividualMemberLicenseAddInput,
   type IndividualMemberLicenseInvitationInput,
@@ -1407,6 +1409,18 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return purgeDigitalTwinSubjectLinkWithDeps(ctx, input, {
       individualResearchSubjectPurgePath: this.paths.individualResearchSubjectPurgePath.bind(this.paths),
       individualResearchSubjectPurgePollPath: this.paths.individualResearchSubjectPurgePollPath.bind(this.paths),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /** Reads the subject-owned Consent records through Communication -> Subject/_search. */
+  public async searchSubjectConsents(
+    ctx: RouteContext,
+    input: SubjectConsentSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return searchSubjectConsentsWithDeps(ctx, input, {
+      individualCommunicationBatchPath: this.paths.individualCommunicationBatchPath.bind(this.paths),
+      individualCommunicationPollPath: this.paths.individualCommunicationPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }

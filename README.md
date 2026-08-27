@@ -650,13 +650,13 @@ modules below.
   - types: `SmartTokenRequestInput`, `SmartTokenExchangeResult`
   - function: `requestSmartTokenWithDeps(...)`
 - [`src/resource-operations.ts`](src/resource-operations.ts)
-  - types: `OrganizationEmployeeCreationInput`, `IpsOrFhirImportInput`, `RelatedPersonUpsertInput`, `CommunicationIngestionInput`, `ClinicalDateRange`, `ClinicalBundleSearchInput`, `ConsentActorTargetInput`, `GrantProfessionalAccessInput`, `GrantProfessionalAccessResult`, `DigitalTwinSecondaryUseConsentInput`, `DigitalTwinSubjectLinkPurgeInput`
-  - functions: `createOrganizationEmployeeWithDeps(...)`, `importIpsOrFhirAndUpdateIndexWithDeps(...)`, `upsertRelatedPersonAndPollWithDeps(...)`, `ingestCommunicationAndUpdateIndexWithDeps(...)`, `searchClinicalBundleWithDeps(...)`, `searchLatestIpsWithDeps(...)`, `grantProfessionalAccessWithDeps(...)`, `setDigitalTwinSecondaryUseConsentWithDeps(...)`, `purgeDigitalTwinSubjectLinkWithDeps(...)`
+  - types: `OrganizationEmployeeCreationInput`, `IpsOrFhirImportInput`, `RelatedPersonUpsertInput`, `CommunicationIngestionInput`, `ClinicalDateRange`, `ClinicalBundleSearchInput`, `ConsentActorTargetInput`, `GrantProfessionalAccessInput`, `GrantProfessionalAccessResult`, `DigitalTwinSecondaryUseConsentInput`, `DigitalTwinSubjectLinkPurgeInput`, `SubjectConsentSearchInput`
+  - functions: `createOrganizationEmployeeWithDeps(...)`, `importIpsOrFhirAndUpdateIndexWithDeps(...)`, `upsertRelatedPersonAndPollWithDeps(...)`, `ingestCommunicationAndUpdateIndexWithDeps(...)`, `searchClinicalBundleWithDeps(...)`, `searchSubjectConsentsWithDeps(...)`, `searchLatestIpsWithDeps(...)`, `grantProfessionalAccessWithDeps(...)`, `setDigitalTwinSecondaryUseConsentWithDeps(...)`, `purgeDigitalTwinSubjectLinkWithDeps(...)`
 - [`src/digital-twin.ts`](src/digital-twin.ts)
   - types: `DigitalTwinSearchInput`, `DigitalTwinSelectionInput`, `DigitalTwinResearchTag`, `DigitalTwinMaterializationInput`
   - functions: `searchDigitalTwinsWithDeps(...)`, `saveDigitalTwinSelectionWithDeps(...)`, `materializeDigitalTwinWithDeps(...)`
 - [`src/orchestration/digital-twin-sdk.ts`](src/orchestration/digital-twin-sdk.ts)
-  - class: `DigitalTwinSdk` (`requestSmartToken`, `search`, `saveSelection`, `materialize`)
+  - class: `DigitalTwinSdk` (`requestSmartToken`, `search`, `saveSelection`, `searchSelections`, `materialize`); both searches expose `ResearchSubject` through FHIR Parameters, with its canonical internal Composition available as `composition`
 - [`src/session.ts`](src/session.ts)
   - types: `NodeCapability`, `NodeActorSessionContext`, `ActorSessionContext`
   - classes: `ActorSession`, `NodeActorSession`

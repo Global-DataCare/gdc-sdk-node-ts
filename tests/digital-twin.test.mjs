@@ -87,11 +87,28 @@ test('DigitalTwinSdk is public and delegates token, search, tagged selection, an
   assert.equal(search.matches[0][CompositionClaim.Subject], twinSubjectId);
   assert.equal(search.operation.poll.status, 200);
   assert.equal(calls[0][1][0].purpose, HealthcareConsentPurposes.Research);
-  assert.deepEqual(calls[0][1][0].scopes, [ServiceCapability.DigitalTwinReader]);
+  assert.deepEqual(calls[0][1][0].scopes, [`${ServiceCapability.DigitalTwinReader}?subject=*`]);
   assert.equal(calls[1][1][1].accessToken, 'smart');
   assert.equal(calls[2][1][1].accessToken, 'smart');
   assert.equal(calls[2][1][1].authorDid, actorDid);
   assert.equal(calls[3][1][1].accessToken, 'smart');
+});
+
+test('DigitalTwinSdk completes an explicit bare ResearchSubject reader scope with the root query', async () => {
+  const calls = [];
+  const sdk = new DigitalTwinSdk({
+    requestSmartToken: async (input) => {
+      calls.push(input);
+      return { accessToken: 'smart' };
+    },
+  }, actorDid);
+
+  await sdk.requestSmartToken({
+    actorDid,
+    scopes: [ServiceCapability.DigitalTwinReader],
+  });
+
+  assert.deepEqual(calls[0].scopes, [`${ServiceCapability.DigitalTwinReader}?subject=*`]);
 });
 
 test('DigitalTwinSdk rejects operational DIDs returned or supplied as twin subjects', async () => {
@@ -176,6 +193,7 @@ test('DigitalTwinSdk scopes exact-tag searches to the operational employee DID',
 
   assert.equal(received.filters[CompositionClaim.Author], actorDid);
   assert.equal(received.filters[DigitalTwinSearchParameter.MetaTag], `${worksetTag.system}|${worksetTag.code}`);
+  assert.equal(received.resourceType, 'ResearchSubject');
 });
 
 test('DigitalTwinSdk rejects a conflicting author even when supplied as a filter list', async () => {
@@ -204,11 +222,10 @@ test('public portal aliases resolve to a hosted operational actor DID before ses
   );
 });
 
-test('digital-twin search uses the direct GW digitaltwin search and batch-response routes', async () => {
+test('digital-twin search exposes ResearchSubject/_search and sends FHIR Parameters', async () => {
   const call = {};
   await searchDigitalTwinsWithDeps(ctx, {
     thid: 'search-1',
-    resourceType: 'Composition',
     filters: {
       [DigitalTwinSearchParameter.Section]: medicationSection,
       [MedicationStatementClaim.Code]: 'RXNORM|161',
@@ -224,8 +241,8 @@ test('digital-twin search uses the direct GW digitaltwin search and batch-respon
     },
   });
 
-  assert.equal(call.submitPath, '/digitaltwin/org.hl7.fhir.r4/Composition/_search');
-  assert.equal(call.pollPath, '/digitaltwin/org.hl7.fhir.r4/Composition/_batch-response');
+  assert.equal(call.submitPath, '/digitaltwin/org.hl7.fhir.r4/ResearchSubject/_search');
+  assert.equal(call.pollPath, '/digitaltwin/org.hl7.fhir.r4/ResearchSubject/_batch-response');
   assert.deepEqual(call.payload.body.parameter, [
     { name: DigitalTwinSearchParameter.Section, valueString: medicationSection },
     { name: MedicationStatementClaim.Code, valueString: 'RXNORM|161' },

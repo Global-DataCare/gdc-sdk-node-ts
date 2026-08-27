@@ -1,6 +1,5 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
-import { ResourceTypesFhirR4 } from 'gdc-common-utils-ts/constants/fhir-resource-types';
 import { ClaimConsent, type ConsentRule } from 'gdc-common-utils-ts/models/consent-rule';
 import { isConsentRuleActive } from 'gdc-common-utils-ts/utils/consent';
 import type { ActiveConsentProvider } from 'gdc-sdk-core-ts';
@@ -25,12 +24,9 @@ export class GatewayActiveConsentProvider implements ActiveConsentProvider {
     if (!normalizedSubject.startsWith('did:')) {
       throw new Error('Active Consent lookup requires a subject DID.');
     }
-    const result = await requireClientMethod(this.client, 'searchClinicalBundle')(
+    const result = await requireClientMethod(this.client, 'searchSubjectConsents')(
       this.routeContext,
-      {
-        subject: normalizedSubject,
-        includedTypes: [ResourceTypesFhirR4.Consent],
-      },
+      { subject: normalizedSubject },
     );
     return extractConsentRules(result.poll.body)
       .filter((rule) => isConsentRuleActive(rule, { subject: normalizedSubject }));
