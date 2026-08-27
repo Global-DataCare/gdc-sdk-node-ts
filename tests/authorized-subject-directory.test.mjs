@@ -62,6 +62,10 @@ test('authors and resolves the contact-bound authorized-subject directory inside
   assert.deepEqual(result, [{
     subjectDid: 'did:web:index.example:card:1',
     role: 'CAREGIVER',
+    grantClaims: {
+      'RelatedPerson.role': 'CAREGIVER',
+      'org.schema.Person.hasOccupation.identifier.value': 'ISCO-08|5322',
+    },
     authorizationEvidenceId: 'urn:uuid:evidence-1',
     issuerDid: 'did:web:index.example',
     subjectClaims: {
