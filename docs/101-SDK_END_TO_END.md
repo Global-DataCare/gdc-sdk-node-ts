@@ -1216,7 +1216,7 @@ What you get back:
 
 ```ts
 if (individualStart.orderConfirmationRequired) {
-  await individualSdk.confirmIndividualOrganizationOrder({
+  const individualOrder = await individualSdk.confirmIndividualOrganizationOrder({
     tenantId: tenantContext.tenantId,
     jurisdiction: tenantContext.jurisdiction,
     sector: tenantContext.sector,
@@ -1224,8 +1224,20 @@ if (individualStart.orderConfirmationRequired) {
     timeoutSeconds: 9,
     intervalSeconds: 2,
   });
+
+  // Opaque one-time input for the subsequent managed-wallet activation. The
+  // SDK reads it from the terminal Order response; the BFF must not traverse
+  // Bundle entries or know `IndividualProduct.serialNumber`.
+  const controllerActivationCode = individualOrder.activationCode;
 }
 ```
+
+`confirmIndividualOrganizationOrder(...)` fails closed when a newly confirmed
+Order does not contain `activationCode`. Pass that value server-side to
+`ServerProfileSessionManager.enroll(...)` together with the signed OIDC
+`idToken`. Never return it to browser storage. For an `IndividualController`,
+the independent actor VP is optional; the `idToken` still remains mandatory
+because DCR must bind the device to the verified login identifier.
 
 An `already_exists` receipt refers to an active registration whose original
 Offer was already confirmed. Confirming that same Offer again correctly finds

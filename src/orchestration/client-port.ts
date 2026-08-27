@@ -33,7 +33,7 @@ import type {
 } from '../organization-employee-lifecycle.js';
 import type { OrganizationEmployeeLifecycleRecord } from 'gdc-common-utils-ts/models/organization-employee-lifecycle';
 import type { HostRouteContext, HostedTenantLifecycleInput, LegalOrganizationOrderInput } from '../host-onboarding.js';
-import type { IndividualOrganizationConfirmOrderInput, RouteContext } from '../individual-onboarding.js';
+import type { IndividualOrganizationConfirmOrderInput, IndividualOrganizationOrderResult, RouteContext } from '../individual-onboarding.js';
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
 import type { FamilyOrganizationSearchInput } from '../family-organization-search.js';
 import type { FhirR5Subscription, FhirR5SubscriptionTopic } from 'gdc-common-utils-ts/models/fhir-r5-subscription';
@@ -307,7 +307,7 @@ export type RuntimeClient = {
   ) => Promise<EnsureFamilyOrganizationRegistrationResult>;
   confirmIndividualOrganizationOrder?: (
     input: IndividualOrganizationConfirmOrderInput,
-  ) => Promise<SubmitAndPollResult>;
+  ) => Promise<IndividualOrganizationOrderResult>;
   disableIndividual?: (
     ctx: RouteContext,
     input: IndividualOrganizationLifecycleInput,
