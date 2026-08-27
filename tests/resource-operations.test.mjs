@@ -1217,9 +1217,15 @@ test('setDigitalTwinSecondaryUseConsentWithDeps rejects updates without a portal
   );
 });
 
-test('searchSubjectConsentsWithDeps reads Consent through Communication -> Subject/_search Parameters', async () => {
+test('searchSubjectConsentsWithDeps reads one Consent rule through Communication -> Subject/_search Parameters', async () => {
   const calls = [];
-  await searchSubjectConsentsWithDeps(TEST_ROUTE_CTX, { subject: EXAMPLE_SUBJECT_DID }, {
+  await searchSubjectConsentsWithDeps(TEST_ROUTE_CTX, {
+    subject: EXAMPLE_SUBJECT_DID,
+    actorIdentifier: 'did:web:index-provider.example',
+    purpose: HealthcareConsentPurposes.Research,
+    action: ServiceCapability.DigitalTwinReader,
+    sourceReference: 'https://portal.example/research',
+  }, {
     individualCommunicationBatchPath: () => INDIVIDUAL_COMMUNICATION_R4_BATCH_PATH,
     individualCommunicationPollPath: () => INDIVIDUAL_COMMUNICATION_R4_BATCH_POLL_PATH,
     submitAndPoll: async (submitPath, pollPath, payload) => {
@@ -1241,7 +1247,13 @@ test('searchSubjectConsentsWithDeps reads Consent through Communication -> Subje
   ).toString('utf8'));
   assert.deepEqual(parameters, {
     resourceType: 'Parameters',
-    parameter: [{ name: 'subject', valueString: EXAMPLE_SUBJECT_DID }],
+    parameter: [
+      { name: 'subject', valueString: EXAMPLE_SUBJECT_DID },
+      { name: 'actor-identifier', valueString: 'did:web:index-provider.example' },
+      { name: 'purpose', valueString: HealthcareConsentPurposes.Research },
+      { name: 'action', valueString: ServiceCapability.DigitalTwinReader },
+      { name: 'source-reference', valueString: 'https://portal.example/research' },
+    ],
   });
 });
 

@@ -623,6 +623,10 @@ export type DigitalTwinSubjectLinkPurgeResult = SubmitAndPollResult;
 /** Input for reading the subject-owned Consent records through its individual aggregate. */
 export type SubjectConsentSearchInput = Readonly<{
   subject: string;
+  actorIdentifier?: string;
+  purpose?: string;
+  action?: string;
+  sourceReference?: string;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 }>;
 
@@ -2099,9 +2103,20 @@ export async function searchSubjectConsentsWithDeps(
     throw new Error('Consent search requires a subject DID.');
   }
   const format = 'org.hl7.fhir.r4';
+  const optionalParameters = [
+    ['actor-identifier', input.actorIdentifier],
+    ['purpose', input.purpose],
+    ['action', input.action],
+    ['source-reference', input.sourceReference],
+  ] as const;
   const parameters = {
     resourceType: 'Parameters',
-    parameter: [{ name: 'subject', valueString: subject }],
+    parameter: [
+      { name: 'subject', valueString: subject },
+      ...optionalParameters
+        .map(([name, rawValue]) => ({ name, valueString: String(rawValue || '').trim() }))
+        .filter((parameter) => parameter.valueString),
+    ],
   };
   const thid = `subject-consent-search-${createRuntimeUuid()}`;
   const communication = {

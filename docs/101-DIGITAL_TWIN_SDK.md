@@ -99,6 +99,10 @@ const current = await individualController.getDigitalTwinSecondaryUseConsentStat
   researchUseReference,
 });
 
+// The SDK sends those same values as FHIR Parameters through the auditable
+// Communication -> Subject/_search read. GW matches the contextualized Consent
+// rule; the browser still sends only { enabled } to this BFF.
+
 const updated = await individualController.setDigitalTwinSecondaryUseConsent(ctx, {
   subjectDid,
   indexProviderOrganizationDid,

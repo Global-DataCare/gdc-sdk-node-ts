@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Filter Digital Twin secondary-use status reads at GW by subject, index
+  provider, HRESCH purpose, DigitalTwinReader action and stable source
+  reference, including contextualized FHIR Consent records.
+
 ## 2.4.44 - 2026-08-27
 
 - Use `organization/ResearchSubject.rs?subject=*` as the default SMART reader
