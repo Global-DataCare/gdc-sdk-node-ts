@@ -365,7 +365,12 @@ export class IndividualControllerSdk {
   ): Promise<Readonly<{ exists: boolean; enabled: boolean }>> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualGenerateDigitalTwin, ActorKinds.IndividualController, 'getDigitalTwinSecondaryUseConsentStatus');
     const consents = await new GatewayActiveConsentProvider(this.client, ctx)
-      .getActiveConsentsForSubject(input.subjectDid);
+      .getActiveConsentsForSubject(input.subjectDid, {
+        actorIdentifier: input.indexProviderOrganizationDid,
+        purpose: HealthcareConsentPurposes.Research,
+        action: ServiceCapability.DigitalTwinReader,
+        sourceReference: input.researchUseReference,
+      });
     const researchUseReference = String(input.researchUseReference || '').trim();
     if (!researchUseReference) throw new Error('researchUseReference is required to identify the portal, software or study consent.');
     const indexProviderOrganizationDid = String(input.indexProviderOrganizationDid || '').trim();

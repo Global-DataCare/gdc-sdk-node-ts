@@ -5,6 +5,7 @@ import { isConsentRuleActive } from 'gdc-common-utils-ts/utils/consent';
 import type { ActiveConsentProvider } from 'gdc-sdk-core-ts';
 import type { RouteContext } from './individual-onboarding.js';
 import { requireClientMethod, type NodeRuntimeClient } from './orchestration/client-port.js';
+import type { SubjectConsentSearchInput } from './resource-operations.js';
 
 /**
  * GW-backed implementation of the runtime-neutral ActiveConsentProvider.
@@ -19,14 +20,17 @@ export class GatewayActiveConsentProvider implements ActiveConsentProvider {
   ) {}
 
   /** Loads and normalizes the active Consent rules owned by one subject. */
-  public async getActiveConsentsForSubject(subject: string): Promise<ConsentRule[]> {
+  public async getActiveConsentsForSubject(
+    subject: string,
+    filters: Omit<SubjectConsentSearchInput, 'subject' | 'pollOptions'> = {},
+  ): Promise<ConsentRule[]> {
     const normalizedSubject = String(subject || '').trim();
     if (!normalizedSubject.startsWith('did:')) {
       throw new Error('Active Consent lookup requires a subject DID.');
     }
     const result = await requireClientMethod(this.client, 'searchSubjectConsents')(
       this.routeContext,
-      { subject: normalizedSubject },
+      { subject: normalizedSubject, ...filters },
     );
     return extractConsentRules(result.poll.body)
       .filter((rule) => isConsentRuleActive(rule, { subject: normalizedSubject }));

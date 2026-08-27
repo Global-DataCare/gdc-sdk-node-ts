@@ -530,28 +530,32 @@ test('IndividualControllerSdk exposes the patient secondary-use decision as the 
       calls.push(args);
       return { poll: { status: 200, body: { purged: true } } };
     },
-    searchSubjectConsents: async () => ({
+    searchSubjectConsents: async (...args) => {
+      calls.push(args);
+      return ({
       poll: {
         body: {
           data: [{
             resource: {
               meta: {
                 claims: {
-                  'Consent.identifier': 'urn:uuid:00000000-0000-4000-8000-000000000201',
-                  'Consent.source-reference': 'https://portal.example/research',
-                  'Consent.subject': 'did:web:subject.example',
-                  'Consent.actor-identifier': 'did:web:index-provider.example',
-                  'Consent.actor-role': '*',
-                  'Consent.decision': 'deny',
-                  'Consent.purpose': 'HRESCH',
-                  'Consent.action': 'organization/ResearchSubject.rs',
+                  '@context': 'org.hl7.fhir.api',
+                  'org.hl7.fhir.api.Consent.identifier': 'urn:uuid:00000000-0000-4000-8000-000000000201',
+                  'org.hl7.fhir.api.Consent.source-reference': 'https://portal.example/research',
+                  'org.hl7.fhir.api.Consent.subject': 'did:web:subject.example',
+                  'org.hl7.fhir.api.Consent.actor-identifier': 'did:web:index-provider.example',
+                  'org.hl7.fhir.api.Consent.actor-role': '*',
+                  'org.hl7.fhir.api.Consent.decision': 'deny',
+                  'org.hl7.fhir.api.Consent.purpose': 'HRESCH',
+                  'org.hl7.fhir.api.Consent.action': 'organization/ResearchSubject.rs',
                 },
               },
             },
           }],
         },
       },
-    }),
+      });
+    },
   });
 
   const result = await session.asIndividualController().setDigitalTwinSecondaryUseConsent(
@@ -576,12 +580,19 @@ test('IndividualControllerSdk exposes the patient secondary-use decision as the 
   );
   assert.equal(status.exists, true);
   assert.equal(status.enabled, false);
+  assert.deepEqual(calls[1][1], {
+    subject: 'did:web:subject.example',
+    actorIdentifier: 'did:web:index-provider.example',
+    purpose: 'HRESCH',
+    action: 'organization/ResearchSubject.rs',
+    sourceReference: 'https://portal.example/research',
+  });
   const purge = await session.asIndividualController().purgeDigitalTwinSubjectLink(
     { tenantId: 'acme', jurisdiction: 'ES', sector: 'health-care' },
     { subjectDid: 'did:web:subject.example' },
   );
   assert.equal(purge.poll.status, 200);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
 });
 
 test('ProfessionalSdk exposes high-level SMART and IPS read methods through the runtime client', async () => {
