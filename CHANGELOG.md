@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.4.44 - 2026-08-27
+
 - Use `organization/ResearchSubject.rs?subject=*` as the default SMART reader
   scope and one FHIR-Parameters `ResearchSubject/_search` route for discovery
   and saved selections. Document each result's canonical internal Composition.
