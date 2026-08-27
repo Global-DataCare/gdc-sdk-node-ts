@@ -9,6 +9,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 
 import {
   listAuthorizedIndividualSubjectsWithDeps,
@@ -20,6 +21,13 @@ const routeContext = {
   jurisdiction: 'ES',
   sector: 'health-care',
 };
+
+test('101 uses only canonical profile app families for directory clients', async () => {
+  const doc = await readFile(new URL('../docs/101-AUTHORIZED_SUBJECT_DIRECTORY.md', import.meta.url), 'utf8');
+  assert.doesNotMatch(doc, /appType:\s*['"]Emergency['"]/);
+  assert.match(doc, /appType:\s*['"]Family['"]/);
+  assert.match(doc, /professional.*Organization/is);
+});
 
 test('authors and resolves the contact-bound authorized-subject directory inside the SDK', async () => {
   const submissions = [];
@@ -117,7 +125,7 @@ test('NodeHttpClient exposes the complete operation with no caller-authored path
     appInfo: {
       appId: 'https://sos.example.org',
       appVersion: 'v1.0',
-      appType: 'Emergency',
+      appType: 'Family',
       sector: 'health-care',
     },
   });

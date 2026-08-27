@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.4.40 - 2026-08-26
+
+- Correct the authorized-subject 101 to use canonical profile app families:
+  `Family` for personal/family portals and `Organization` for professional
+  organization portals. Product names are not valid `appType` values, and the
+  docs now distinguish `appId` from wallet `runtimeId`, tenant and subject ids.
+
 ## 2.4.39 - 2026-08-26
 
 - Preserve the accepted License `grantClaims` beside each authorized subject,

@@ -34,7 +34,9 @@ const directoryClient = new HttpRuntimeClient({
   appInfo: {
     appId: 'https://sos.example.org',
     appVersion: 'v1.0',
-    appType: 'Emergency',
+    // Personal/family profile. A professional organization portal uses
+    // `Organization`; product names such as `Emergency` are not app families.
+    appType: 'Family',
     sector: provider.sector,
   },
 });
@@ -53,6 +55,11 @@ const authorizedSubjects = await directoryClient.listAuthorizedIndividualSubject
   },
 );
 ```
+
+`appType` is the SDK profile family, not the product name: use `Family` for a
+personal/family portal and `Organization` for a professional organization
+portal. `appId` is the stable application identity; neither field is the
+wallet's `runtimeId`, a tenant DID or a subject identifier.
 
 The SDK authors and polls the required provider requests internally. It keeps
 the accepted relationship and occupation claims together in `grantClaims`, so
