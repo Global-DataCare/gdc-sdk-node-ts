@@ -2,7 +2,7 @@
 
 import type { SubmitAndPollResult } from 'gdc-sdk-core-ts';
 import type { FamilyOrganizationSummary } from 'gdc-common-utils-ts/utils/family-organization-summary';
-import type { IndividualOrganizationConfirmOrderInput, RouteContext } from './individual-onboarding.js';
+import type { IndividualOrganizationConfirmOrderInput, IndividualOrganizationOrderResult, RouteContext } from './individual-onboarding.js';
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from './individual-start.js';
 import type { EnsureFamilyOrganizationRegistrationInput, EnsureFamilyOrganizationRegistrationResult } from './family-organization-registration.js';
 import type { FamilyOrganizationSearchInput } from './family-organization-search.js';
@@ -87,7 +87,7 @@ export class IndividualControllerBackendRuntime {
   public confirmIndividualOrganizationOrder(
     profile: BackendIndividualControllerProfile,
     input: IndividualOrganizationConfirmOrderInput,
-  ): Promise<SubmitAndPollResult> {
+  ): Promise<IndividualOrganizationOrderResult> {
     return profile.sdk.confirmIndividualOrganizationOrder(input);
   }
 

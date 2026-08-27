@@ -1,6 +1,7 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
 import type { DataspaceSector } from 'gdc-common-utils-ts/constants';
+import { extractPrimaryClaims } from 'gdc-common-utils-ts';
 import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
 import { resolvePollOptionsFromSeconds } from './poll-options.js';
 
@@ -27,6 +28,14 @@ export type IndividualOrganizationConfirmOrderInput = {
   intervalSeconds?: number;
 };
 
+/**
+ * Terminal individual Order result with the opaque code required by the
+ * subsequent managed-wallet activation and DCR flow.
+ */
+export type IndividualOrganizationOrderResult = SubmitAndPollResult & Readonly<{
+  activationCode: string;
+}>;
+
 type ConfirmIndividualOrganizationOrderDeps = {
   input: IndividualOrganizationConfirmOrderInput;
   routeCtx: RouteContext;
@@ -44,7 +53,7 @@ type ConfirmIndividualOrganizationOrderDeps = {
 
 export async function confirmIndividualOrganizationOrderWithDeps(
   deps: ConfirmIndividualOrganizationOrderDeps,
-): Promise<SubmitAndPollResult> {
+): Promise<IndividualOrganizationOrderResult> {
   /**
    * Programming rule:
    * - `offerId` here must come from the commercial individual/family bootstrap
@@ -87,12 +96,27 @@ export async function confirmIndividualOrganizationOrderWithDeps(
     },
   );
 
-  return deps.submitAndPoll(
+  const order = await deps.submitAndPoll(
     deps.individualFamilyOrderBatchPath(deps.routeCtx),
     deps.individualFamilyOrderPollPath(deps.routeCtx),
     payload,
     pollOptions,
   );
+  const activationCode = readIndividualOrganizationActivationCode(order.poll.body);
+  if (!activationCode) {
+    throw new Error('confirmIndividualOrganizationOrder failed: missing controller activation code in GW Order response.');
+  }
+  return { ...order, activationCode };
+}
+
+/**
+ * Reads the opaque controller activation code from a completed individual
+ * Order. Integrators should consume `result.activationCode` instead of calling
+ * this reader directly; it remains public for response-adapter compatibility.
+ */
+export function readIndividualOrganizationActivationCode(responseBody: unknown): string | undefined {
+  const claims = extractPrimaryClaims(responseBody);
+  return String(claims['org.schema.IndividualProduct.serialNumber'] || '').trim() || undefined;
 }
 
 function createRuntimeUuid(): string {

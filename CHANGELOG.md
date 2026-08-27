@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Return the opaque individual-controller `activationCode` directly from
+  `confirmIndividualOrganizationOrder(...)` and fail closed when GW omits it,
+  so portal and telephone BFFs can continue into managed wallet activation and
+  DCR without traversing Bundle internals or knowing schema.org claim paths.
 - Add typed MVP digital-twin basic search with one or more sections, inclusive
   `dateFrom`, optional `dateTo` and text. The SDK leaves an omitted upper bound
   for GW to resolve and keeps advanced resource filters as compatibility input.

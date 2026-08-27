@@ -1,3 +1,10 @@
+/**
+ * Flow contract:
+ * 1. The caller confirms the Offer returned by individual bootstrap.
+ * 2. The SDK authors the canonical Order payload and polls GW.
+ * 3. The SDK exposes the one-time controller activation code without making a
+ *    portal traverse Bundle internals or know schema.org claim paths.
+ */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -19,7 +26,18 @@ test('confirmIndividualOrganizationOrderWithDeps builds canonical family order p
     individualFamilyOrderPollPath: (ctx) => `/${ctx.tenantId}/${ctx.jurisdiction}/${ctx.sector}/family/_batch-response`,
     submitAndPoll: async (...args) => {
       calls.push(args);
-      return cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_RESPONSE);
+      const response = cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_RESPONSE);
+      response.poll.body = {
+        body: {
+          data: [{
+            type: 'Family-order-response-v1.0',
+            meta: { claims: {
+              'org.schema.IndividualProduct.serialNumber': 'individual-controller-activation-1',
+            } },
+          }],
+        },
+      };
+      return response;
     },
   });
 
@@ -32,6 +50,20 @@ test('confirmIndividualOrganizationOrderWithDeps builds canonical family order p
     intervalMs: 2_000,
   });
   assert.equal(result.poll.status, 200);
+  assert.equal(result.activationCode, 'individual-controller-activation-1');
+});
+
+test('confirmIndividualOrganizationOrderWithDeps fails closed when GW omits the controller activation code', async () => {
+  await assert.rejects(
+    confirmIndividualOrganizationOrderWithDeps({
+      input: cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_INPUT),
+      routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+      individualFamilyOrderBatchPath: () => '/submit',
+      individualFamilyOrderPollPath: () => '/poll',
+      submitAndPoll: async () => cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_RESPONSE),
+    }),
+    /missing controller activation code/,
+  );
 });
 
 test('confirmIndividualOrganizationOrderWithDeps rejects missing offerId', async () => {

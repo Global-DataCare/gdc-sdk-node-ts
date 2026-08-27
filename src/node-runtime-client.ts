@@ -37,6 +37,7 @@ import type {
 import {
   confirmIndividualOrganizationOrderWithDeps,
   type IndividualOrganizationConfirmOrderInput,
+  type IndividualOrganizationOrderResult,
   type RouteContext,
 } from './individual-onboarding.js';
 import {
@@ -1129,7 +1130,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   /**
    * Confirms the order returned by `startIndividualOrganization(...)`.
    */
-  public async confirmIndividualOrganizationOrder(input: IndividualOrganizationConfirmOrderInput): Promise<SubmitAndPollResult> {
+  public async confirmIndividualOrganizationOrder(input: IndividualOrganizationConfirmOrderInput): Promise<IndividualOrganizationOrderResult> {
     const routeCtx = this.paths.routeCtxFromInput(input);
     return confirmIndividualOrganizationOrderWithDeps({
       input,

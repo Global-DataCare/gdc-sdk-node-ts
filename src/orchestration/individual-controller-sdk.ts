@@ -25,7 +25,7 @@ import type { FamilyOrganizationSummary } from 'gdc-common-utils-ts/utils/family
 import { assertFacadeCapability } from './capability-guard.js';
 import type { EnsureFamilyOrganizationRegistrationInput, EnsureFamilyOrganizationRegistrationResult } from '../family-organization-registration.js';
 import type { FamilyOrganizationSearchInput } from '../family-organization-search.js';
-import type { IndividualOrganizationConfirmOrderInput, RouteContext } from '../individual-onboarding.js';
+import type { IndividualOrganizationConfirmOrderInput, IndividualOrganizationOrderResult, RouteContext } from '../individual-onboarding.js';
 import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
 import type { NodeCapability } from '../session.js';
 import { GatewayActiveConsentProvider } from '../gateway-active-consent-provider.js';
@@ -112,7 +112,7 @@ export class IndividualControllerSdk {
   /**
    * Confirms the order returned by `startIndividualOrganization(...)`.
    */
-  public confirmIndividualOrganizationOrder(input: IndividualOrganizationConfirmOrderInput): Promise<SubmitAndPollResult> {
+  public confirmIndividualOrganizationOrder(input: IndividualOrganizationConfirmOrderInput): Promise<IndividualOrganizationOrderResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualBootstrap, ActorKinds.IndividualController, 'confirmIndividualOrganizationOrder');
     return requireClientMethod(this.client, 'confirmIndividualOrganizationOrder')(input);
   }
