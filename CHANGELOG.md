@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Add typed MVP digital-twin basic search with one or more sections, inclusive
+  `dateFrom`, optional `dateTo` and text. The SDK leaves an omitted upper bound
+  for GW to resolve and keeps advanced resource filters as compatibility input.
+- Document bilateral inter-tenant Contract VCs with provider/consumer
+  authorized signatories and two `contractAgreement` proofs, separating legal
+  acceptance from technical controller presentation.
+
 ## 2.4.35 - 2026-08-26
 
 - Correct the 101 backend bootstrap so participant identity comes from the

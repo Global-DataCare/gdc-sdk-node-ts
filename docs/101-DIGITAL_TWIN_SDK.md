@@ -199,6 +199,10 @@ materialization.
 - This MVP does not require an employee to have a separate researcher role.
 - Access from another organization additionally requires the matching
   inter-tenant contract and consent proof in the VP used for SMART issuance.
+- That FHIR Contract VC names `provider-authorized-signatory` and
+  `consumer-authorized-signatory` and carries a verified `contractAgreement`
+  proof from each. A technical controller may present the proof but `RESPRSN`
+  alone does not make that controller a legal signatory.
 - Research-group membership and finer policies can be added later without
   changing the search/tag/reopen API shown here.
 
@@ -213,7 +217,6 @@ authorization claim. The SDK then retains the returned SMART bearer for
 ```ts
 import {
   ActorKinds,
-  DigitalTwinSearchParameter,
   NodeActorSession,
   resolveOperationalActorDid,
   type DigitalTwinWorksetTagInput,
@@ -227,7 +230,6 @@ import {
   stableActorIdentifierFromDidWeb,
 } from 'gdc-common-utils-ts/utils/actor-identifier';
 import {
-  EXAMPLE_MEDICATION_STATEMENT_CODE,
   ExampleEmployeeEmails,
   ExampleEmployeeRoles,
 } from 'gdc-common-utils-ts/examples';
@@ -237,10 +239,7 @@ import {
   HealthcareConsentPurposes,
   ServiceCapability,
 } from 'gdc-common-utils-ts/constants';
-import {
-  CompositionClaim,
-  MedicationStatementClaim,
-} from 'gdc-common-utils-ts/models';
+import { CompositionClaim } from 'gdc-common-utils-ts/models';
 
 // These three values are the route segments configured for this tenant.
 const ctx: RouteContext = {
@@ -294,18 +293,19 @@ For a foreign consumer organization, `vpToken` also carries the applicable
 contract and consent evidence. Application code should not substitute an
 unsigned claim for that evidence.
 
-## 7. Search with coded research claims
+## 7. Basic search by sections, clinical date and text
 
 ```ts
 const medicationSection =
   HealthcareCoreSections.HistoryOfMedicationUse.attributeValue;
-const medicationCode = EXAMPLE_MEDICATION_STATEMENT_CODE;
+const resultsSection =
+  HealthcareCoreSections.Results.attributeValue;
 
 const result = await digitalTwin.search(ctx, {
-  filters: {
-    [DigitalTwinSearchParameter.Section]: medicationSection,
-    [MedicationStatementClaim.Code]: medicationCode,
-  },
+  sections: [medicationSection, resultsSection],
+  dateFrom: '2026-01-01',
+  // dateTo is optional; GW uses its current time when it is absent.
+  text: searchTextFromForm,
 });
 
 const twinSubjectId =
@@ -314,8 +314,11 @@ const twinSubjectId =
 
 The identifier returned in `Composition.subject` is the research-safe,
 pseudonymous twin identifier. It is not the individual's DID and must not be
-replaced with a `Patient` reference. Search uses codes because display and free
-text are removed from the research projection.
+replaced with a `Patient` reference. Sections use OR semantics. Text and date
+must match the same resource inside one selected section. The portal does not
+choose a FHIR resource type: a section may contain several resource families.
+GW searches a private derived text/date/language document and never returns
+those internal fields. Age filtering is deliberately outside this MVP.
 
 ## 8. Save the selected twin with custom tags
 
@@ -332,9 +335,7 @@ await digitalTwin.saveSelection(ctx, {
 });
 ```
 
-`saveSelection` posts a new working-selection `Composition` through
-`digitaltwin/org.hl7.fhir.r4/Composition/_batch` and polls its
-`_batch-response`. The employee DID cached by the facade becomes
+`saveSelection` stores a separate working selection. The employee DID cached by the facade becomes
 `Composition.author`. It generates one opaque FHIR logical id for the saved
 Composition unless a low-level caller supplies `selectionId`. There are no
 `Composition.branch` or `Composition.branch-version` claims: worksets are

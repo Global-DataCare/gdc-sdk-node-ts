@@ -1,3 +1,9 @@
+/**
+ * Teaching goal:
+ * show the complete application-level secondary-use and research journey.
+ * The BFF uses actor facades only; no GW route, batch envelope or storage
+ * implementation appears in this executable 101.
+ */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -13,12 +19,11 @@ import {
   HealthcareCoreSections,
   ServiceCapability,
 } from 'gdc-common-utils-ts/constants';
-import { CompositionClaim, MedicationStatementClaim } from 'gdc-common-utils-ts/models';
+import { CompositionClaim } from 'gdc-common-utils-ts/models';
 import { buildOrganizationDidWeb, buildProfessionalDidWeb } from 'gdc-common-utils-ts/utils/did';
 import { stableActorIdentifierFromDidWeb } from 'gdc-common-utils-ts/utils/actor-identifier';
 import {
   EXAMPLE_HOST_PUBLIC_HOSTNAME,
-  EXAMPLE_MEDICATION_STATEMENT_CODE,
   ExampleEmployeeEmails,
   ExampleEmployeeRoles,
 } from 'gdc-common-utils-ts/examples';
@@ -42,7 +47,6 @@ const EMPLOYEE_DID = buildProfessionalDidWeb({
 });
 const TWIN_SUBJECT_ID = 'urn:uuid:00000000-0000-4000-8000-000000000101';
 const MEDICATION_SECTION = HealthcareCoreSections.HistoryOfMedicationUse.attributeValue;
-const MEDICATION_CODE = EXAMPLE_MEDICATION_STATEMENT_CODE;
 const WORKSET_TAG = Object.freeze({
   system: stableActorIdentifierFromDidWeb(EMPLOYEE_DID),
   code: 'medication-review-april-2026',
@@ -156,12 +160,16 @@ test('101: employee searches, tags, reopens, and materializes a digital twin wor
     scopes: [ServiceCapability.DigitalTwinReader],
   });
 
-  // Discovery uses coded research claims. Free text and display are absent.
+  // Step 2. Search one or several IPS sections. GW applies the text and date
+  // constraints to the same clinical resource and resolves an omitted end
+  // date to its current time.
   const discovery = await digitalTwin.search(ROUTE_CONTEXT, {
-    filters: {
-      [DigitalTwinSearchParameter.Section]: MEDICATION_SECTION,
-      [MedicationStatementClaim.Code]: MEDICATION_CODE,
-    },
+    sections: [
+      MEDICATION_SECTION,
+      HealthcareCoreSections.Results.attributeValue,
+    ],
+    dateFrom: '2026-01-01',
+    text: 'antiinflamatorio',
   });
   const selectedTwinSubjectId = discovery.matches[0][CompositionClaim.Subject];
 

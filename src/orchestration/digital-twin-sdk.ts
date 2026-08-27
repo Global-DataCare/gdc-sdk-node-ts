@@ -45,7 +45,14 @@ export class DigitalTwinSdk {
     return result;
   }
 
-  /** Searches pseudonymous records and exposes matched Compositions directly. */
+  /**
+   * Searches pseudonymous records and exposes matched Compositions directly.
+   *
+   * MVP basic search supplies `sections`, `dateFrom`, optional `dateTo`, and
+   * `text`. GW resolves an omitted `dateTo` to its current time, applies OR
+   * across sections and requires text/date to match the same clinical record.
+   * Organization/tenant scope comes from the authenticated SMART token.
+   */
   public async search(ctx: RouteContext, input: DigitalTwinSearchInput): Promise<DigitalTwinSearchResult> {
     const filters = { ...(input.filters || {}) };
     const isPrivateSelectionSearch = Object.keys(filters).some((name) => {

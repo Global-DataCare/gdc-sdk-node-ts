@@ -1,3 +1,8 @@
+/**
+ * Flow contract: an authenticated organization professional obtains SMART,
+ * performs tenant-scoped basic discovery, saves a private working selection
+ * and materializes only a registered pseudonymous twin subject.
+ */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -225,6 +230,33 @@ test('digital-twin search uses the direct GW digitaltwin search and batch-respon
     { name: DigitalTwinSearchParameter.Section, valueString: medicationSection },
     { name: MedicationStatementClaim.Code, valueString: 'RXNORM|161' },
   ]);
+});
+
+test('digital-twin basic search sends repeated sections, text and an open-ended date range', async () => {
+  const call = {};
+  await searchDigitalTwinsWithDeps(ctx, {
+    thid: 'basic-search-1',
+    sections: [medicationSection, HealthcareCoreSections.Results.attributeValue],
+    dateFrom: '2026-01-01',
+    text: 'antiinflamatorio',
+  }, {
+    digitalTwinSearchPath: (_ctx, format, resourceType) => `/digitaltwin/${format}/${resourceType}/_search`,
+    digitalTwinSearchPollPath: (_ctx, format, resourceType) => `/digitaltwin/${format}/${resourceType}/_batch-response`,
+    digitalTwinCommunicationBatchPath: () => '',
+    digitalTwinCommunicationPollPath: () => '',
+    submitAndPoll: async (_submitPath, _pollPath, payload) => {
+      Object.assign(call, { payload });
+      return { ok: true };
+    },
+  });
+
+  assert.deepEqual(call.payload.body.parameter, [
+    { name: DigitalTwinSearchParameter.Section, valueString: medicationSection },
+    { name: DigitalTwinSearchParameter.Section, valueString: HealthcareCoreSections.Results.attributeValue },
+    { name: DigitalTwinSearchParameter.DateFrom, valueDate: '2026-01-01' },
+    { name: DigitalTwinSearchParameter.Text, valueString: 'antiinflamatorio' },
+  ]);
+  assert.equal(call.payload.body.parameter.some(({ name }) => name === DigitalTwinSearchParameter.DateTo), false);
 });
 
 test('digital-twin API search wraps Parameters so GW reads coded and custom-tag filters', async () => {

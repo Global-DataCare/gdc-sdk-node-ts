@@ -5,6 +5,10 @@ description: Implement or audit the FHIR Consent, IPS projection, pseudonymous s
 
 # Govern Digital Twin Consent
 
+## Mandatory TDD
+
+Use red-green-refactor TDD for every behavior or flow change. Write and run the smallest executable contract test first; it must fail for the intended reason before implementation begins. Then implement the minimum change and make focused, integration and affected end-to-end tests green. Begin every new or modified test suite with a flow-contract comment. Begin every Playwright or other E2E file with the complete numbered journey and its authorization and persistence invariants. Mocks may isolate units but never replace real boundary proof. Never make a test green by accepting an error, placeholder, pending setup or other incomplete terminal state.
+
 ## Read before acting
 
 Read the current files in both repositories:
@@ -59,6 +63,22 @@ Verify current branches, versions and published npm state before release claims.
 - Reject operational DIDs, caller-invented UUIDs and unregistered UUIDs on canonical research records.
 - Never teach a patient portal to submit an IPS Bundle or canonical Composition to `digitaltwin/.../Composition/_batch`.
 - Treat the direct Composition batch only as explicitly scoped adapter/compatibility plumbing for a pre-authorized registered twin; keep it outside the portal 101.
+
+## Preserve MVP discovery and organization authorization
+
+- Basic search accepts one or more IPS sections, inclusive `dateFrom`, optional
+  inclusive `dateTo`, and non-empty `text`; the SDK omits the end date and lets
+  GW resolve current time when the application does not provide one.
+- Sections use OR. Text and date use AND on the same clinical resource. The BFF
+  never selects a resource type for basic search.
+- Derived search text/date/language stays private and is absent from matches
+  and materialized resources. Age and host-wide aggregation are post-MVP.
+- Same-tenant access uses employee proof. Foreign access also needs a matching
+  FHIR Contract VC and provider authorization.
+- Emit `provider-authorized-signatory` and `consumer-authorized-signatory`;
+  legacy controller labels are read-only aliases.
+- Require both verified `contractAgreement` proofs. `RESPRSN` is technical
+  control, not legal signing authority without separate verified delegation.
 
 ## Preserve lifecycle semantics
 

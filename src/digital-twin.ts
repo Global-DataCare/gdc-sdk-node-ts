@@ -28,6 +28,9 @@ export function assertDigitalTwinSubjectId(value: unknown): asserts value is str
 /** Search parameters added by the digital-twin Composition profile. */
 export const DigitalTwinSearchParameter = Object.freeze({
   Section: 'section',
+  DateFrom: 'date-from',
+  DateTo: 'date-to',
+  Text: 'text',
   MetaTag: 'Composition.meta-tag',
 });
 
@@ -37,6 +40,15 @@ export type DigitalTwinSearchInput = {
   thid?: string;
   format?: DigitalTwinFhirFormat;
   resourceType?: string;
+  /** One or more IPS section tokens. Basic search uses OR across sections. */
+  sections?: readonly string[];
+  /** Inclusive clinical-event lower bound as ISO date or dateTime. */
+  dateFrom?: string;
+  /** Inclusive upper bound. When omitted, GW resolves its current time. */
+  dateTo?: string;
+  /** Case- and accent-insensitive text matched against GW's private derived index. */
+  text?: string;
+  /** Advanced/compatibility filters. Do not combine with basic-search fields. */
   filters?: Readonly<Record<string, string | readonly string[] | undefined>>;
   pollOptions?: PollOptions;
 };
@@ -253,10 +265,36 @@ export async function searchDigitalTwinsWithDeps(
   const format = input.format || 'org.hl7.fhir.r4';
   const resourceType = String(input.resourceType || 'Composition').trim();
   if (!resourceType) throw new Error('Digital twin resourceType is required.');
-  const parameters = Object.entries(input.filters || {}).flatMap(([name, value]) => {
+  const usesBasicSearch = Boolean(input.sections || input.dateFrom || input.dateTo || input.text);
+  if (usesBasicSearch && Object.keys(input.filters || {}).length > 0) {
+    throw new Error('Digital twin basic search cannot be combined with advanced filters.');
+  }
+  const sections = (input.sections || []).map((value) => String(value || '').trim()).filter(Boolean);
+  const dateFrom = String(input.dateFrom || '').trim();
+  const dateTo = String(input.dateTo || '').trim();
+  const searchText = String(input.text || '').trim();
+  if (usesBasicSearch) {
+    if (sections.length === 0) throw new Error('Digital twin basic search requires at least one section.');
+    if (!dateFrom) throw new Error('Digital twin basic search requires dateFrom.');
+    if (!searchText) throw new Error('Digital twin basic search requires text.');
+    const fromMs = Date.parse(dateFrom);
+    const toMs = dateTo ? Date.parse(dateTo) : undefined;
+    if (Number.isNaN(fromMs)) throw new Error('Digital twin basic search dateFrom must be an ISO date or dateTime.');
+    if (dateTo && Number.isNaN(toMs)) throw new Error('Digital twin basic search dateTo must be an ISO date or dateTime.');
+    if (toMs !== undefined && toMs < fromMs) throw new Error('Digital twin basic search dateTo must be on or after dateFrom.');
+  }
+  const advancedParameters = Object.entries(input.filters || {}).flatMap(([name, value]) => {
     const values = Array.isArray(value) ? value : value === undefined ? [] : [value];
     return values.map((item) => ({ name, valueString: String(item) }));
   });
+  const parameters: Array<{ name: string; valueString?: string; valueDate?: string }> = usesBasicSearch
+    ? [
+        ...sections.map((section) => ({ name: DigitalTwinSearchParameter.Section, valueString: section })),
+        { name: DigitalTwinSearchParameter.DateFrom, valueDate: dateFrom },
+        ...(dateTo ? [{ name: DigitalTwinSearchParameter.DateTo, valueDate: dateTo }] : []),
+        { name: DigitalTwinSearchParameter.Text, valueString: searchText },
+      ]
+    : advancedParameters;
   const thid = String(input.thid || randomUUID());
   const body = format === 'org.hl7.fhir.api'
     ? {
@@ -266,7 +304,7 @@ export async function searchDigitalTwinsWithDeps(
           meta: {
             claims: Object.fromEntries([
               ['@context', format],
-              ...parameters.map((parameter) => [parameter.name, parameter.valueString]),
+              ...parameters.map((parameter) => [parameter.name, parameter.valueString || parameter.valueDate || '']),
             ]),
           },
         }],
