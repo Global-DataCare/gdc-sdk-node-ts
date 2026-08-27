@@ -188,6 +188,11 @@ import {
   type DigitalTwinSearchInput,
   type DigitalTwinSelectionInput,
 } from './digital-twin.js';
+import {
+  listAuthorizedIndividualSubjectsWithDeps,
+  type AuthorizedIndividualSubject,
+  type AuthorizedIndividualSubjectDirectoryInput,
+} from './authorized-subject-directory.js';
 
 const bootstrapFacade = createBootstrapFacade();
 
@@ -1244,6 +1249,24 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return listIndividualLicensesWithDeps(ctx, input, {
       individualLicenseSearchPath: this.paths.individualLicenseSearchPath.bind(this.paths),
       individualLicenseSearchPollPath: this.paths.individualLicenseSearchPollPath.bind(this.paths),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /**
+   * Resolves the complete high-level directory of subjects already authorized
+   * for a verified OpenID contact. The SDK owns both GW searches and polling;
+   * the result itself grants no professional role or SMART capability.
+   */
+  public async listAuthorizedIndividualSubjects(
+    ctx: RouteContext,
+    input: AuthorizedIndividualSubjectDirectoryInput,
+  ): Promise<AuthorizedIndividualSubject[]> {
+    return listAuthorizedIndividualSubjectsWithDeps(ctx, input, {
+      individualLicenseSearchPath: this.paths.individualLicenseSearchPath.bind(this.paths),
+      individualLicenseSearchPollPath: this.paths.individualLicenseSearchPollPath.bind(this.paths),
+      individualOrganizationSearchPath: this.paths.individualFamilyOrganizationSearchPath.bind(this.paths),
+      individualOrganizationSearchPollPath: this.paths.individualFamilyOrganizationSearchPollPath.bind(this.paths),
       submitAndPoll: this.submitAndPoll.bind(this),
     });
   }
