@@ -496,6 +496,14 @@ const profileSessions = new ServerProfileSessionManager({
   // Resolves the public recipient key used when the SDK encrypts DIDComm.
   // It does not expose or reuse the controller's private signing key.
   resolveRecipientJwk,
+
+  // One application identity shared by every managed user/controller wallet.
+  // This is not a wallet runtimeId, tenant id, profile id or user id.
+  appInfo: {
+    appId: 'https://professional.example.org',
+    appType: 'Organization',
+    sector: 'health-care',
+  },
 });
 ```
 
@@ -756,6 +764,31 @@ Notes:
 
 ### 6.4 Create an employee or professional under the organization
 
+First reopen the already-enrolled modern controller profile. This is the
+ordinary BFF surface after DCR: the SDK reconstructs the wallet, checks that
+its public keys match the stored DCR profile, configures encrypted DIDComm and
+binds `iss`, `aud` and `client_id` from that profile. Application code must not
+instantiate `NodeManagedWallet`, `NodeHttpClient` or a transport adapter here.
+
+```ts
+const { sdk: organizationControllerSdk } =
+  await profileSessions.openOrganizationController({
+    ownerId: authenticatedPortalAccount.id,
+    profileId: selectedControllerProfile.id,
+    // Fresh signed OIDC account proof. A VP does not prove email ownership.
+    idToken: signedPortalIdToken,
+
+    // Choose exactly one server-side unlock path:
+    pin: controllerWalletPin,
+    // authorizedWalletSeed: seedUnsealedAfterPortalPasskeyAuthorization,
+  });
+```
+
+`authorizedWalletSeed` is only for a BFF that has already authorized its own
+passkey/session and unsealed the profile seed. It is never browser input and is
+not returned by this method. If the SDK owns PIN verification, pass `pin`
+instead. Both paths return the same role-scoped facade.
+
 ```ts
 const authorityResolver = new StaticAuthorityResolver();
 
@@ -778,7 +811,7 @@ const professionalActorDid = buildProfessionalDidWeb({
   role: professionalRole,
 });
 
-await professionalSdk.createOrganizationEmployee(tenantContext, {
+await organizationControllerSdk.createOrganizationEmployee(tenantContext, {
   employeeClaims: {
     '@context': 'org.schema',
     [ClaimsPersonSchemaorg.identifier]: professionalActorDid,

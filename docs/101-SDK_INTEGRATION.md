@@ -255,6 +255,14 @@ discovery/JWKS endpoints and arrange GW trust for the exact issuer and audience.
 advanced runtime/compatibility surfaces and must not appear in ordinary portal
 integration examples.
 
+After a modern organization controller has been enrolled, use
+`ServerProfileSessionManager.openOrganizationController(...)` for controller
+operations. It accepts either the profile PIN or a server-only seed already
+unsealed by the product's passkey/session policy, verifies the reconstructed
+keys against the durable DCR profile, owns encrypted DIDComm and returns an
+`OrganizationControllerSdk`. The BFF must not rebuild the wallet, HTTP client,
+transport adapter, `iss`, `aud` or `client_id` itself.
+
 Legacy exception: when `activateOrganizationInGatewayFromIcaProof(...)` submits
 the historical representative's `controllerBinding`, `_activate` binds that
 professional-role public signing key and its optional public communication JWKS

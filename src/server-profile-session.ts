@@ -25,6 +25,7 @@ import {
 } from 'gdc-sdk-core-ts';
 import { NodeManagedWallet } from './node-managed-wallet.js';
 import { NodeHttpClient } from './node-runtime-client.js';
+import { OrganizationControllerSdk } from './orchestration/organization-controller-sdk.js';
 import type { RouteContext } from './individual-onboarding.js';
 import type { HostRouteContext } from './host-onboarding.js';
 import { buildIdentityOpenIdSmartTokenPath } from './runtime-paths.js';
@@ -243,6 +244,30 @@ export type ResolvedServerProfileSession = Readonly<{
     protect(document: Readonly<{ id?: string; content: unknown }>): Promise<unknown>;
     unprotect(document: Readonly<{ id?: string; jwe: string }>): Promise<unknown>;
   }>;
+}>;
+
+/**
+ * Server-only authorization material used to reopen one registered controller.
+ *
+ * A product may let this manager open the PIN-protected seed directly, or may
+ * pass the same seed after its own passkey/session policy has authorized and
+ * unsealed it. `authorizedWalletSeed` must never cross a browser/API boundary.
+ */
+export type ServerOrganizationControllerOpenInput = Readonly<{
+  ownerId: string;
+  profileId: string;
+  /** Fresh signed OIDC id_token used as the HTTP bearer for this operation. */
+  idToken: string;
+  /** User-entered or product-managed profile PIN; mutually exclusive with authorizedWalletSeed. */
+  pin?: string;
+  /** Already-authorized server-only 32-byte base64url seed; mutually exclusive with pin. */
+  authorizedWalletSeed?: string;
+}>;
+
+/** High-level controller facade plus its immutable durable profile metadata. */
+export type OpenedServerOrganizationController = Readonly<{
+  profile: ServerProfileRecord;
+  sdk: OrganizationControllerSdk;
 }>;
 
 export type ServerProfileSessionManagerOptions = Readonly<{
@@ -682,6 +707,64 @@ export class ServerProfileSessionManager {
     };
   }
 
+  /**
+   * Opens the high-level organization-controller API without exposing wallet,
+   * DIDComm, DCR or HTTP-client plumbing to the integrating BFF.
+   *
+   * The durable profile remains authoritative for actor DID, provider DID,
+   * route and DCR client id. The reconstructed keys must match the public keys
+   * registered for that profile before any gateway request can be sent.
+   */
+  public async openOrganizationController(
+    input: ServerOrganizationControllerOpenInput,
+  ): Promise<OpenedServerOrganizationController> {
+    const profile = await this.requireOwnedProfile(input.ownerId, input.profileId);
+    if (profile.actorKind !== ActorKinds.OrganizationController || profile.actorMode !== 'controller') {
+      throw new Error('Profile is not an organization controller.');
+    }
+    const idToken = String(input.idToken || '').trim();
+    if (!idToken) throw new Error('Opening an organization controller requires a signed OIDC idToken.');
+    const hasPin = Boolean(String(input.pin || '').trim());
+    const hasAuthorizedSeed = Boolean(String(input.authorizedWalletSeed || '').trim());
+    if (hasPin === hasAuthorizedSeed) {
+      throw new Error('Opening an organization controller requires exactly one of pin or authorizedWalletSeed.');
+    }
+    const seed = hasAuthorizedSeed
+      ? String(input.authorizedWalletSeed)
+      : await openServerProfileSecret(
+        profile.protectedWalletSeed,
+        String(input.pin),
+        `${profile.profileId}:wallet-seed`,
+        this.options.sealer,
+      );
+    requireBase64UrlSeed32(seed);
+    const walletKeyDerivationId = normalizedWalletKeyDerivationId(
+      profile.walletKeyDerivationId,
+      profile.profileId,
+    );
+    const wallet = await this.createWallet(walletKeyDerivationId, seed);
+    const context = walletContext(walletKeyDerivationId);
+    await requireRegisteredProfileKeys(wallet, context, profile);
+    const secureTransportAdapter: SecureDidcommTransportAdapter = {
+      pack: (message) => wallet.packForRecipientWithContext!(
+        bindOrganizationControllerTransport(message, profile),
+        profile.providerDid,
+        { context },
+      ),
+      unpack: async (jwe) => (await wallet.unpackWithContext!(jwe, { context })).content,
+    };
+    const client = new NodeHttpClient({
+      baseUrl: this.options.gatewayBaseUrl,
+      ctx: profile.routeContext,
+      bearerToken: idToken,
+      fetchImpl: this.options.fetchImpl,
+      appInfo: this.options.appInfo,
+      transportProfile: TransportProfiles.DidcommEncryptedForm,
+      secureTransportAdapter,
+    });
+    return { profile, sdk: new OrganizationControllerSdk(client) };
+  }
+
   public async lock(ownerId: string, sessionId: string): Promise<void> {
     const session = await this.options.store.getSession(sessionId);
     if (session?.ownerId === ownerId) await this.options.store.deleteSession(sessionId);
@@ -767,6 +850,38 @@ function bindTransportActor(
   clientId: string,
 ): Record<string, unknown> {
   return { ...message, iss: actorDid, client_id: clientId };
+}
+
+/** Binds the encrypted request to the immutable controller registration. */
+function bindOrganizationControllerTransport(
+  message: Record<string, unknown>,
+  profile: ServerProfileRecord,
+): Record<string, unknown> {
+  return {
+    ...message,
+    iss: profile.actorDid,
+    aud: profile.providerDid,
+    client_id: profile.clientId,
+  };
+}
+
+/** Refuses a wrong or rotated seed before it can produce network traffic. */
+async function requireRegisteredProfileKeys(
+  wallet: NodeManagedWallet,
+  context: WalletExecutionContext,
+  profile: ServerProfileRecord,
+): Promise<void> {
+  const derived = await wallet.getPublicJwks(context, {});
+  const derivedKids = new Set(derived.map((entry) => String(entry.kid || '').trim()).filter(Boolean));
+  const registeredKids = profile.publicJwks
+    .map((jwk) => String(jwk.kid || '').trim())
+    .filter(Boolean);
+  if (!registeredKids.length || registeredKids.some((kid) => !derivedKids.has(kid))) {
+    throw new Error('Authorized wallet seed does not match registered profile keys.');
+  }
+  if (profile.clientInstanceId && !derivedKids.has(profile.clientInstanceId)) {
+    throw new Error('Authorized wallet seed does not match the registered client instance.');
+  }
 }
 
 /** Keeps the OpenID proof class aligned with the durable actor profile. */

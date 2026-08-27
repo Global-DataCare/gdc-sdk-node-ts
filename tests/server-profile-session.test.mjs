@@ -437,6 +437,119 @@ test('server bootstrap derives public controller binding material without a gate
   assert.equal('d' in actorKey.publicJwk, false);
 });
 
+test('high-level manager opens the organization-controller facade without transport plumbing', async () => {
+  const deps = memoryDeps();
+  const walletSeed = Buffer.alloc(32, 12).toString('base64url');
+  const walletKeyDerivationId = 'organization-controller:profile-1:wallet-v1';
+  const providerDid = 'did:web:gw.example:tenant-1';
+  const gatewayWallet = new NodeManagedWallet();
+  const gatewayContext = { runtime: { runtimeId: 'gateway-runtime', runtimeType: 'backend-service' } };
+  await gatewayWallet.provisionManagedKeys(gatewayContext, {
+    ownerScope: 'runtime', purposes: ['comm-signing', 'comm-encryption'], mode: 'deterministic', seedMaterial: 'gateway-seed',
+  });
+  const [gatewayEncryption] = await gatewayWallet.getPublicJwks(gatewayContext, {
+    ownerScope: 'runtime', purpose: 'comm-encryption',
+  });
+  const calls = [];
+  let terminalResponseJwe = '';
+  const manager = new ServerProfileSessionManager({
+    ...deps,
+    gatewayBaseUrl: 'https://gw.example',
+    appInfo: { appId: 'https://professional.example', appType: 'Organization', sector: 'health-care' },
+    resolveRecipientJwk: async (did) => {
+      assert.equal(did, providerDid);
+      return gatewayEncryption.publicJwk;
+    },
+    fetchImpl: async (url, init) => {
+      calls.push({ url: String(url), init });
+      if (calls.length === 1) return Response.json({}, { status: 202 });
+      return new Response(`response=${encodeURIComponent(terminalResponseJwe)}`, {
+        status: 200,
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      });
+    },
+  });
+  const enrollmentKeys = await manager.prepareEnrollmentPublicKeys({ walletSeed, walletKeyDerivationId });
+  const profile = {
+    profileId: 'controller-profile-1',
+    walletKeyDerivationId,
+    ownerId: 'firebase-owner-1',
+    actorKind: ActorKinds.OrganizationController,
+    actorMode: 'controller',
+    actorDid: 'did:web:gw.example:tenant-1:controllers:primary',
+    profileDid: 'did:web:gw.example:tenant-1:controllers:primary',
+    providerDid,
+    routeContext: { tenantId: 'tenant-1', jurisdiction: 'ES', sector: 'health-care' },
+    allowedSubjectDids: [providerDid],
+    clientId: 'dcr-client-1',
+    clientInstanceId: enrollmentKeys.find((entry) => entry.purpose === 'openid-id-token-signing').kid,
+    deviceDid: 'did:key:device-1',
+    publicJwks: enrollmentKeys.filter((entry) => entry.purpose !== 'document-at-rest').map((entry) => entry.publicJwk),
+    storagePublicJwk: enrollmentKeys.find((entry) => entry.purpose === 'document-at-rest').publicJwk,
+    protectedWalletSeed: await protectServerProfileSecret(
+      walletSeed, '123456', 'controller-profile-1:wallet-seed', deps.sealer, { cost: 1_024 },
+    ),
+    failedUnlocks: 0,
+    createdAt: '2026-08-26T00:00:00.000Z',
+    updatedAt: '2026-08-26T00:00:00.000Z',
+  };
+  deps.profiles.set(profile.profileId, profile);
+  const portalEncryption = enrollmentKeys.find((entry) => entry.purpose === 'comm-encryption');
+  terminalResponseJwe = await gatewayWallet.packForRecipientWithContext({
+    data: [{ response: { status: '200' } }],
+  }, portalEncryption.publicJwk, { context: gatewayContext });
+
+  // A BFF that lets this manager own PIN verification gets the same facade;
+  // opening it is local and must not contact GW.
+  const pinOpened = await manager.openOrganizationController({
+    ownerId: profile.ownerId,
+    profileId: profile.profileId,
+    idToken: 'fresh-signed-id-token',
+    pin: '123456',
+  });
+  assert.equal(pinOpened.profile, profile);
+  assert.equal(calls.length, 0);
+
+  // A product-managed passkey/session may unseal the seed itself, but a wrong
+  // seed must fail against the registered public keys before network traffic.
+  await assert.rejects(manager.openOrganizationController({
+    ownerId: profile.ownerId,
+    profileId: profile.profileId,
+    idToken: 'fresh-signed-id-token',
+    authorizedWalletSeed: Buffer.alloc(32, 13).toString('base64url'),
+  }), /does not match registered profile keys/);
+  assert.equal(calls.length, 0);
+
+  const opened = await manager.openOrganizationController({
+    ownerId: profile.ownerId,
+    profileId: profile.profileId,
+    idToken: 'fresh-signed-id-token',
+    authorizedWalletSeed: walletSeed,
+  });
+  const result = await opened.sdk.createOrganizationEmployee(profile.routeContext, {
+    employeeClaims: {
+      '@context': 'org.schema',
+      'org.schema.Person.email': 'employee@example.test',
+      'org.schema.Person.hasOccupation.identifier.value': 'ISCO-08|3344',
+    },
+  }, { intervalMs: 1, timeoutMs: 100 });
+
+  assert.equal(opened.profile, profile);
+  assert.equal(result.poll.status, 200);
+  assert.equal(calls.length, 2);
+  assert.equal(new Headers(calls[0].init.headers).get('AppId'), 'example.professional');
+  const compactRequest = new URLSearchParams(String(calls[0].init.body)).get('request');
+  const compactRequestJws = Buffer.from(await gatewayWallet.decryptCompactJwe(
+    compactRequest,
+    gatewayContext,
+    { key: { ownerScope: 'runtime', purpose: 'comm-encryption' } },
+  )).toString();
+  const message = JSON.parse(Buffer.from(compactRequestJws.split('.')[1], 'base64url').toString());
+  assert.equal(message.iss, profile.actorDid);
+  assert.equal(message.aud, profile.providerDid);
+  assert.equal(message.client_id, profile.clientId);
+});
+
 test('server bootstrap builds the signed controller VP from ICA credentials without exposing private keys', async () => {
   const deps = memoryDeps();
   const manager = new ServerProfileSessionManager({

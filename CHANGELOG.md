@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 2.4.41 - 2026-08-26
+
+- Add `ServerProfileSessionManager.openOrganizationController(...)` as the
+  post-enrollment BFF surface. It reconstructs and validates the registered
+  controller wallet, owns encrypted DIDComm plus immutable `iss`/`aud`/DCR
+  client binding, and returns `OrganizationControllerSdk` without exposing
+  wallet, transport-adapter or HTTP-client plumbing.
+
 ## 2.4.40 - 2026-08-26
 
 - Correct the authorized-subject 101 to use canonical profile app families:
