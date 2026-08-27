@@ -81,6 +81,7 @@ export type ServerProfileSessionRecord = Readonly<{
   subjectDid: string;
   scopes: string[];
   sealedUnlockedWalletSeed: string;
+  sealedUnlockedVpToken?: string;
   sealedAccessToken: string;
   expiresAt: string;
 }>;
@@ -93,7 +94,20 @@ export type ServerProfileStore = Readonly<{
   getSession(sessionId: string): Promise<ServerProfileSessionRecord | undefined>;
   putSession(session: ServerProfileSessionRecord): Promise<void>;
   deleteSession(sessionId: string): Promise<void>;
+  /** Required by key rotation so no session can retain the superseded seed. */
+  deleteSessionsForProfile?(profileId: string): Promise<void>;
 }>;
+
+export type ServerEmployeeProfileOtpRotationInput = Readonly<{
+  ownerId: string;
+  profileId: string;
+  idToken: string;
+  newPin: string;
+  redirectUris: string[];
+  clientName: string;
+}>;
+
+export type ServerEmployeeProfileOtpRotationResult = ServerProfileRecord;
 
 export type ServerProfileEnrollmentInput = Readonly<{
   /** Stable confidential id of the authenticated portal account that owns and lists this profile. */
@@ -335,6 +349,55 @@ export class ServerProfileSessionManager {
   }
 
   /**
+   * Rotates an employee wallet after a fresh OTP-authenticated GW recovery.
+   * The old PIN and seed are never opened: DCR replaces the installation with
+   * newly generated keys, all old BFF sessions are removed, and the new wallet
+   * is opened once with the new PIN.
+   */
+  public async rotateEmployeeProfileWithOtp(
+    input: ServerEmployeeProfileOtpRotationInput,
+  ): Promise<ServerEmployeeProfileOtpRotationResult> {
+    const previous = await this.requireOwnedProfile(input.ownerId, input.profileId);
+    if (previous.actorKind !== ActorKinds.OrganizationEmployee || previous.actorMode !== 'member') {
+      throw new Error('OTP wallet rotation is restricted to organization employee profiles.');
+    }
+    const clientInstanceId = String(previous.clientInstanceId || '').trim();
+    if (!clientInstanceId) throw new Error('Employee profile has no registered installation id.');
+    if (!this.options.store.deleteSessionsForProfile) {
+      throw new Error('Employee wallet rotation requires profile-session invalidation support.');
+    }
+    const client = this.createClient(previous.routeContext, input.idToken);
+    const replacement = await client.recoverEmployeeDeviceWithOtp({
+      ...previous.routeContext,
+      idToken: input.idToken,
+      clientInstanceId,
+    });
+    const profile = await this.enroll({
+      ownerId: previous.ownerId,
+      profileId: previous.profileId,
+      actorKind: previous.actorKind,
+      actorMode: previous.actorMode,
+      actorDid: previous.actorDid,
+      profileDid: previous.profileDid,
+      providerDid: previous.providerDid,
+      routeContext: previous.routeContext,
+      allowedSubjectDids: previous.allowedSubjectDids,
+      pin: input.newPin,
+      idToken: input.idToken,
+      activationCode: replacement.activationCode,
+      clientInstanceId,
+      redirectUris: input.redirectUris,
+      clientName: input.clientName,
+      professionalProof: {
+        role: replacement.employeeRole,
+        sameAs: replacement.employeeActorIdentifier,
+      },
+    });
+    await this.options.store.deleteSessionsForProfile(profile.profileId);
+    return profile;
+  }
+
+  /**
    * Derives only the public enrollment descriptors for a server-governed
    * recovery seed. This is intended for pre-DCR controller binding requests;
    * no private material or seed is returned.
@@ -521,10 +584,69 @@ export class ServerProfileSessionManager {
       subjectDid: input.subjectDid,
       scopes: unique(input.scopes),
       sealedUnlockedWalletSeed: await this.options.sealer.seal(seed, `${sessionId}:unlocked-wallet-seed`),
+      ...(vpToken ? {
+        sealedUnlockedVpToken: await this.options.sealer.seal(vpToken, `${sessionId}:unlocked-vp-token`),
+      } : {}),
       sealedAccessToken: await this.options.sealer.seal(token.accessToken, `${sessionId}:access-token`),
       expiresAt: expiresAt.toISOString(),
     });
     return this.resolveSession(input.ownerId, sessionId);
+  }
+
+  /**
+   * Renews the short SMART bearer while retaining the already-open server
+   * wallet session. The caller must supply a fresh authenticated account
+   * token; neither the PIN nor wallet keys return to the browser.
+   */
+  public async refreshSession(ownerId: string, sessionId: string, idToken: string): Promise<ResolvedServerProfileSession> {
+    const session = await this.options.store.getSession(sessionId);
+    if (!session || session.ownerId !== ownerId) throw new Error('Profile session not found.');
+    if (new Date(session.expiresAt) <= this.now()) {
+      await this.options.store.deleteSession(sessionId);
+      throw new Error('Profile session expired.');
+    }
+    const normalizedIdToken = String(idToken || '').trim();
+    if (!normalizedIdToken) throw new Error('Profile session refresh requires idToken.');
+    const profile = await this.requireOwnedProfile(ownerId, session.profileId);
+    this.requireSubject(profile, session.subjectDid);
+    const seed = await this.options.sealer.unseal(
+      session.sealedUnlockedWalletSeed,
+      `${sessionId}:unlocked-wallet-seed`,
+    );
+    const vpToken = session.sealedUnlockedVpToken
+      ? await this.options.sealer.unseal(session.sealedUnlockedVpToken, `${sessionId}:unlocked-vp-token`)
+      : undefined;
+    const walletKeyDerivationId = profile.walletKeyDerivationId || profile.profileId;
+    const wallet = await this.createWallet(walletKeyDerivationId, seed);
+    const now = this.now();
+    const smartTokenEndpoint = [
+      this.options.gatewayBaseUrl.replace(/\/+$/, ''),
+      buildIdentityOpenIdSmartTokenPath(profile.routeContext),
+    ].join('');
+    const assertion = await buildWalletClientAssertion(wallet, profile, smartTokenEndpoint, now);
+    const token = await this.createClient(profile.routeContext, normalizedIdToken).requestSmartToken({
+      ...profile.routeContext,
+      actorDid: profile.actorDid,
+      subjectDid: session.subjectDid,
+      clientId: profile.clientId,
+      issuer: profile.clientId,
+      audience: smartTokenEndpoint,
+      idToken: normalizedIdToken,
+      vpToken,
+      vpTokenFallback: vpToken ? undefined : 'omit',
+      clientAssertion: assertion,
+      clientAssertionType: 'private_key_jwt',
+      smartTokenKind: 'openid-smart',
+      acrValues: profileSmartAcrValues(profile.actorKind),
+      scopes: unique(session.scopes),
+      tokenCacheKey: `profile-refresh:${sessionId}:${now.getTime()}`,
+    });
+    if (token.status !== 'fetched' || !token.accessToken) throw new Error('SMART token refresh failed.');
+    await this.options.store.putSession({
+      ...session,
+      sealedAccessToken: await this.options.sealer.seal(token.accessToken, `${sessionId}:access-token`),
+    });
+    return this.resolveSession(ownerId, sessionId);
   }
 
   public async resolveSession(ownerId: string, sessionId: string): Promise<ResolvedServerProfileSession> {

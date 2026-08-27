@@ -130,6 +130,59 @@ export type EmployeeDeviceActivationResult = {
   dcr: SubmitAndPollResult;
 };
 
+export type EmployeeDeviceOtpRecoveryInput = Readonly<{
+  idToken: string;
+  clientInstanceId: string;
+  pollOptions?: PollOptions;
+}>;
+
+export type EmployeeDeviceOtpRecoveryResult = Readonly<{
+  activationCode: string;
+  licenseId: string;
+  employeeRole: string;
+  employeeActorIdentifier: string;
+  recovery: SubmitAndPollResult;
+}>;
+
+/** Requests a fresh replacement credential for one OTP-authenticated installation. */
+export async function recoverEmployeeDeviceWithOtpWithDeps(deps: Readonly<{
+  routeCtx: RouteContext;
+  input: EmployeeDeviceOtpRecoveryInput;
+  identityEmployeeRecoveryPath: (ctx: RouteContext) => string;
+  identityEmployeeRecoveryPollPath: (ctx: RouteContext) => string;
+  submitAndPollWithBearerToken: (
+    bearerToken: string | undefined,
+    submitPath: string,
+    pollPath: string,
+    payload: { thid?: string } & Record<string, unknown>,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
+}>): Promise<EmployeeDeviceOtpRecoveryResult> {
+  const idToken = requiredText(deps.input.idToken, 'fresh OTP identity token');
+  const clientInstanceId = requiredText(deps.input.clientInstanceId, 'client instance id');
+  const recovery = await deps.submitAndPollWithBearerToken(
+    idToken,
+    deps.identityEmployeeRecoveryPath(deps.routeCtx),
+    deps.identityEmployeeRecoveryPollPath(deps.routeCtx),
+    { thid: `employee-recovery-${createRuntimeUuid()}`, client_instance_id: clientInstanceId },
+    deps.input.pollOptions,
+  );
+  const failedStatus = [recovery.submit.status, recovery.poll.status]
+    .find(status => status < 200 || status >= 300);
+  if (failedStatus !== undefined) {
+    throw new Error(`recoverEmployeeDeviceWithOtp: recovery failed (HTTP ${failedStatus}).`);
+  }
+  const terminal = responseBody(recovery.poll.body);
+  const activationCode = findResponseText(terminal, 'activation_code');
+  const licenseId = findResponseText(terminal, 'license_id');
+  const employeeRole = findResponseText(terminal, 'employee_role');
+  const employeeActorIdentifier = findResponseText(terminal, 'employee_same_as');
+  if (!activationCode || !licenseId || !employeeRole || !employeeActorIdentifier) {
+    throw new Error('recoverEmployeeDeviceWithOtp: incomplete recovery response.');
+  }
+  return { activationCode, licenseId, employeeRole, employeeActorIdentifier, recovery };
+}
+
 export type EmployeeDeviceRevocationInput = {
   licenseId: string;
   clientId: string;
@@ -301,6 +354,40 @@ function resolveDcrPayload(input: EmployeeDeviceActivationRequestInput): Record<
   }
   if (input.dcrPayload) return { ...input.dcrPayload };
   throw new Error('Device activation requires a device registration built by createProfileDeviceActivationRequest.');
+}
+
+function responseBody(value: unknown): Record<string, unknown> {
+  if (typeof value === 'string') {
+    try {
+      return responseBody(JSON.parse(value));
+    } catch {
+      return {};
+    }
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const record = value as Record<string, unknown>;
+  return record.body && typeof record.body === 'object' && !Array.isArray(record.body)
+    ? record.body as Record<string, unknown>
+    : record;
+}
+
+function findResponseText(value: unknown, key: string): string {
+  if (!value || typeof value !== 'object') return '';
+  if (Array.isArray(value)) {
+    for (const child of value) {
+      const found = findResponseText(child, key);
+      if (found) return found;
+    }
+    return '';
+  }
+  const record = value as Record<string, unknown>;
+  const direct = normalizedText(record[key]);
+  if (direct) return direct;
+  for (const child of Object.values(record)) {
+    const found = findResponseText(child, key);
+    if (found) return found;
+  }
+  return '';
 }
 
 function normalizedText(value: unknown): string {

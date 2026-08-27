@@ -8,6 +8,8 @@ import {
   buildIdentityDeviceDcrPollPath,
   buildIdentityDeviceRevokePath,
   buildIdentityDeviceRevokePollPath,
+  buildIdentityEmployeeRecoveryPath,
+  buildIdentityEmployeeRecoveryPollPath,
   buildIdentityLicenseIssuePath,
   buildIdentityLicenseIssuePollPath,
   buildIdentityOpenIdSmartTokenPath,
@@ -154,6 +156,8 @@ export class RuntimeClientPaths {
   public digitalTwinCommunicationPollPath(ctx: RouteContext, format: string): string { return this.v1Path(ctx, 'digitaltwin', format, 'Communication', '_batch-response'); }
   public identityTokenExchangePath(ctx: RouteContext): string { return buildIdentityTokenExchangePath(ctx); }
   public identityTokenExchangePollPath(ctx: RouteContext): string { return buildIdentityTokenExchangePollPath(ctx); }
+  public identityEmployeeRecoveryPath(ctx: RouteContext): string { return buildIdentityEmployeeRecoveryPath(ctx); }
+  public identityEmployeeRecoveryPollPath(ctx: RouteContext): string { return buildIdentityEmployeeRecoveryPollPath(ctx); }
   public identityDeviceDcrPath(ctx: RouteContext): string { return buildIdentityDeviceDcrPath(ctx); }
   public identityDeviceDcrPollPath(ctx: RouteContext): string { return buildIdentityDeviceDcrPollPath(ctx); }
   public identityDeviceRevokePath(ctx: RouteContext): string { return buildIdentityDeviceRevokePath(ctx); }

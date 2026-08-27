@@ -6,6 +6,13 @@
   `confirmIndividualOrganizationOrder(...)` and fail closed when GW omits it,
   so portal and telephone BFFs can continue into managed wallet activation and
   DCR without traversing Bundle internals or knowing schema.org claim paths.
+- Add OTP-authenticated employee wallet replacement. The SDK obtains a
+  server-only replacement activation credential from GW, replaces the same DCR
+  installation with newly generated keys, invalidates old profile sessions and
+  protects the replacement seed with the new PIN.
+- Add `ServerProfileSessionManager.refreshSession(...)` so a BFF can renew a
+  short SMART bearer with a fresh authenticated account token while retaining
+  the already-open wallet session. The PIN and wallet seed remain server-only.
 - Add typed MVP digital-twin basic search with one or more sections, inclusive
   `dateFrom`, optional `dateTo` and text. The SDK leaves an omitted upper bound
   for GW to resolve and keeps advanced resource filters as compatibility input.

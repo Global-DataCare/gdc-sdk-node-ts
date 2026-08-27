@@ -35,10 +35,19 @@ IAM must permit only the production service account and audit every decrypt.
 AAD binds each ciphertext to its profile, purpose and session so records cannot
 be copied between fields or users.
 
-After unlock, the server creates a short-lived HttpOnly session containing a
-host-sealed copy of the unlocked seed and SMART token. This deliberately lets
-normal requests proceed without resending the PIN. Lock or expiry deletes that
-copy; the durable profile remains PIN-and-host protected.
+After unlock, the server creates a bounded HttpOnly session containing a
+host-sealed copy of the unlocked seed and current SMART token. This deliberately
+lets normal requests proceed without resending the PIN. A BFF may call
+`refreshSession(ownerId, sessionId, idToken)` with a freshly authenticated
+account token to renew the shorter SMART bearer without reopening the durable
+PIN envelope. Lock or wallet-session expiry deletes the temporary seed copy;
+the durable profile remains PIN-and-host protected.
+
+An employee who loses the PIN cannot decrypt the old seed. A fresh email OTP
+may instead authorize replacement: GW verifies the exact employee email and
+existing installation, rotates an internal activation credential, DCR replaces
+the device keys, and the SDK deletes every old profile session before storing
+the new seed under the new PIN. The activation credential remains server-only.
 
 ## Authority
 

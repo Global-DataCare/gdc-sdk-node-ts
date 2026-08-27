@@ -49,9 +49,12 @@ import { requestSmartTokenWithDeps, type SmartTokenRequestInput } from './smart-
 import {
   activateEmployeeDeviceWithActivationCodeWithDeps,
   activateEmployeeDeviceWithActivationRequestWithDeps,
+  recoverEmployeeDeviceWithOtpWithDeps,
   revokeEmployeeDeviceWithDeps,
   type EmployeeDeviceActivationRequestInput,
   type EmployeeDeviceActivationResult,
+  type EmployeeDeviceOtpRecoveryInput,
+  type EmployeeDeviceOtpRecoveryResult,
   type EmployeeDeviceRevocationInput,
 } from './device-activation.js';
 import {
@@ -1459,6 +1462,20 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     input: EmployeeDeviceActivationRequestInput,
   ): Promise<EmployeeDeviceActivationResult> {
     return this.activateProfileDeviceWithActivationRequest(input);
+  }
+
+  /** Obtains a replacement activation credential after fresh OTP verification. */
+  public async recoverEmployeeDeviceWithOtp(
+    input: EmployeeDeviceOtpRecoveryInput & Partial<RouteContext>,
+  ): Promise<EmployeeDeviceOtpRecoveryResult> {
+    const routeCtx = this.paths.routeCtxFromInput(input);
+    return recoverEmployeeDeviceWithOtpWithDeps({
+      routeCtx,
+      input,
+      identityEmployeeRecoveryPath: this.paths.identityEmployeeRecoveryPath.bind(this.paths),
+      identityEmployeeRecoveryPollPath: this.paths.identityEmployeeRecoveryPollPath.bind(this.paths),
+      submitAndPollWithBearerToken: this.submitAndPollWithBearerToken.bind(this),
+    });
   }
 
   /**

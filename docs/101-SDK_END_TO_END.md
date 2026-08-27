@@ -1075,6 +1075,14 @@ recovery and rotation UX. In either design, `profilePin` must never be accepted
 as an authority claim: the controller VP/credential establishes the role, while
 the PIN only unlocks locally protected wallet material.
 
+For an organization employee whose PIN is unavailable, use
+`rotateEmployeeProfileWithOtp(...)` only after the portal has minted a fresh
+email-OTP-marked `idToken`. This is key replacement, not recovery of the old
+seed: the SDK calls the GW recovery action, performs DCR replacement for the
+stored `clientInstanceId`, deletes old sessions and persists new keys under the
+new PIN. The browser supplies the new PIN twice at the product layer and never
+receives the replacement activation credential.
+
 Where the values come from:
 
 - `controllerActivationCode`: the completed canonical or legacy registration,

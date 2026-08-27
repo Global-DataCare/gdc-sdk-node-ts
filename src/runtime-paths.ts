@@ -48,6 +48,16 @@ export function buildIdentityTokenExchangePollPath(ctx: RouteContext): string {
   return buildIdentityAuthPath(ctx, IdentityAuthActions.ExchangeResponse);
 }
 
+/** Fresh OTP-assisted replacement credential for one existing installation. */
+export function buildIdentityEmployeeRecoveryPath(ctx: RouteContext): string {
+  return buildIdentityAuthPath(ctx, '_recover');
+}
+
+/** Poll endpoint paired with employee wallet recovery. */
+export function buildIdentityEmployeeRecoveryPollPath(ctx: RouteContext): string {
+  return buildIdentityAuthPath(ctx, '_recover-response');
+}
+
 export function buildIdentityDeviceDcrPath(ctx: RouteContext): string {
   return buildIdentityAuthPath(ctx, IdentityAuthActions.Dcr);
 }

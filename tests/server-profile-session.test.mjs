@@ -1,3 +1,4 @@
+// Flow contract: server wallets remain open behind opaque sessions; fresh OTP recovery rotates keys, revokes prior sessions, and never needs the old PIN.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -41,6 +42,11 @@ function memoryDeps() {
       async getSession(id) { return sessions.get(id); },
       async putSession(value) { sessions.set(value.sessionId, value); },
       async deleteSession(id) { sessions.delete(id); },
+      async deleteSessionsForProfile(profileId) {
+        for (const [id, session] of sessions) {
+          if (session.profileId === profileId) sessions.delete(id);
+        }
+      },
     },
     sealer: {
       async seal(value, aad) { return `${aad}:${Buffer.from(value).toString('base64url')}`; },
@@ -165,6 +171,14 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
     await resolvedAgain.confidentialStorageAdapter.unprotect(protectedDocument),
     { id: 'health-1', content: { note: 'private' } },
   );
+  responses.push(
+    Response.json({}, { status: 202 }),
+    Response.json({ access_token: 'renewed-smart-access-token', token_type: 'Bearer', scope: 'patient/Composition.rs' }),
+  );
+  const refreshed = await manager.refreshSession(base.ownerId, unlocked.sessionId, 'fresh-firebase-id-token');
+  assert.equal(refreshed.sessionId, unlocked.sessionId);
+  assert.equal(refreshed.accessToken, 'renewed-smart-access-token');
+  assert.equal(deps.sessions.size, 1);
 });
 
 test('profile enrollment does not accept a controller VP as a replacement for the signed email id_token', async () => {
@@ -261,6 +275,90 @@ test('employee enrollment builds its signed role VP after DCR instead of copying
   assert.equal(payload.sub, 'did:web:clinic.example:employees:zStableActor');
   assert.equal(payload.vp.holder, 'employee-device-client');
   assert.equal(payload.vp.verifiableCredential[0].credentialSubject.hasOccupation, 'ISCO-08|2250');
+});
+
+test('fresh OTP recovery rotates employee wallet keys, invalidates old sessions and opens with the new PIN', async () => {
+  const deps = memoryDeps();
+  const oldProfile = {
+    profileId: 'employee-profile', ownerId: 'employee-owner',
+    actorKind: ActorKinds.OrganizationEmployee, actorMode: 'member',
+    actorDid: 'did:web:clinic.example:employees:zStableActor',
+    profileDid: 'did:web:clinic.example:employees:zStableActor',
+    providerDid: 'did:web:clinic.example',
+    routeContext: { tenantId: 'CA-BC-CLINIC', jurisdiction: 'CA-BC', sector: 'animal-care' },
+    allowedSubjectDids: ['did:web:clinic.example:employees:zStableActor'],
+    clientId: 'old-client', clientInstanceId: 'browser-installation', deviceDid: 'did:key:old-device',
+    publicJwks: [{ kid: 'old-signing-key' }],
+    protectedWalletSeed: await protectServerProfileSecret(
+      Buffer.alloc(32, 1).toString('base64url'), 'old-pin', 'employee-profile:wallet-seed', deps.sealer, { cost: 1_024 },
+    ),
+    failedUnlocks: 3,
+    createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z',
+  };
+  deps.profiles.set(oldProfile.profileId, oldProfile);
+  deps.sessions.set('old-session', {
+    sessionId: 'old-session', ownerId: oldProfile.ownerId, profileId: oldProfile.profileId,
+    subjectDid: oldProfile.actorDid, scopes: ['patient/Composition.rs'],
+    sealedUnlockedWalletSeed: 'old', sealedAccessToken: 'old', expiresAt: '2099-01-01T00:00:00.000Z',
+  });
+  const calls = [];
+  const responses = [
+    Response.json({}, { status: 202 }),
+    Response.json({
+      activation_code: 'lic-replacement',
+      license_id: 'license-1',
+      employee_role: 'ISCO-08|3344',
+      employee_same_as: 'urn:multibase:zStableActor',
+    }),
+    Response.json({}, { status: 202 }),
+    Response.json({ access_token: 'replacement-initial-access-token' }),
+    Response.json({}, { status: 202 }),
+    Response.json({ client_id: 'new-client', device_did: 'did:key:new-device' }),
+    Response.json({}, { status: 202 }),
+    Response.json({ access_token: 'new-smart-access-token', token_type: 'Bearer', scope: 'patient/Composition.rs' }),
+  ];
+  const manager = new ServerProfileSessionManager({
+    ...deps,
+    gatewayBaseUrl: 'https://gw.example',
+    resolveRecipientJwk: async () => ({}),
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return responses.shift();
+    },
+    profileProtection: { cost: 1_024 },
+  });
+
+  const rotatedProfile = await manager.rotateEmployeeProfileWithOtp({
+    ownerId: oldProfile.ownerId,
+    profileId: oldProfile.profileId,
+    idToken: 'fresh-marked-email-otp-id-token',
+    newPin: '654321',
+    redirectUris: ['https://professional.vetchain.example/auth/callback'],
+    clientName: 'VetChain Professional',
+  });
+  const rotatedSession = await manager.unlock({
+    ownerId: oldProfile.ownerId,
+    profileId: oldProfile.profileId,
+    subjectDid: oldProfile.actorDid,
+    scopes: ['patient/Composition.rs'],
+    pin: '654321',
+    idToken: 'fresh-marked-email-otp-id-token',
+  });
+
+  assert.match(calls[0].url, /\/identity\/auth\/_recover$/);
+  assert.equal(JSON.parse(String(calls[0].init.body)).client_instance_id, 'browser-installation');
+  assert.equal(rotatedProfile.clientId, 'new-client');
+  assert.equal(rotatedProfile.deviceDid, 'did:key:new-device');
+  assert.notDeepEqual(rotatedProfile.publicJwks, oldProfile.publicJwks);
+  assert.equal(rotatedSession.accessToken, 'new-smart-access-token');
+  assert.equal(deps.sessions.has('old-session'), false);
+  assert.equal(deps.profiles.get(oldProfile.profileId).failedUnlocks, 0);
+  await assert.rejects(openServerProfileSecret(
+    rotatedProfile.protectedWalletSeed, 'old-pin', 'employee-profile:wallet-seed', deps.sealer,
+  ), /PIN rejected/);
+  await assert.doesNotReject(openServerProfileSecret(
+    rotatedProfile.protectedWalletSeed, '654321', 'employee-profile:wallet-seed', deps.sealer,
+  ));
 });
 
 test('server-only bootstrap seed and stable derivation id reproduce controller public keys', async () => {
