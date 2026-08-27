@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 2.4.43 - 2026-08-27
+
+- Add `replaceProfilePinFromAuthorizedSecrets(...)` for passkey, active-session
+  or recovery-envelope authorization. It verifies the supplied seed against
+  the registered public keys, rewraps the same wallet and optional VP under
+  the new PIN, clears lockout state and invalidates all prior profile sessions
+  without calling GW or changing DCR identity.
+- Add the versioned `gdc-portable-profile-recovery-v1` envelope. It exports one
+  wallet seed plus its public derivation identity under scrypt and AES-256-GCM,
+  rejects short numeric PINs as the only offline protection and returns no raw
+  private JWK material.
+
 ## 2.4.42 - 2026-08-26
 
 - Add `ServerProfileSessionManager.openProfessional(...)` for BFF-authorized

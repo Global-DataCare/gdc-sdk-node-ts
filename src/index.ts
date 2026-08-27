@@ -6,6 +6,7 @@ export * from './identity-bootstrap.js';
 export * from './async-polling.js';
 export * from './backend-profile-runtime.js';
 export * from './server-profile-session.js';
+export * from './profile-recovery-envelope.js';
 export * from './server-profile-protection.js';
 export * from './backend-profile-workspace.js';
 export * from './individual-controller-backend-runtime.js';
