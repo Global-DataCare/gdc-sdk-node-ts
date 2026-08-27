@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.4.37 - 2026-08-26
+
 - Return the opaque individual-controller `activationCode` directly from
   `confirmIndividualOrganizationOrder(...)` and fail closed when GW omits it,
   so portal and telephone BFFs can continue into managed wallet activation and
