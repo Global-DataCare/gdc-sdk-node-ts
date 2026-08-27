@@ -114,6 +114,16 @@ export type ServerEmployeeProfileOtpRotationInput = Readonly<{
 
 export type ServerEmployeeProfileOtpRotationResult = ServerProfileRecord;
 
+export type ServerProfilePinReplacementInput = Readonly<{
+  ownerId: string;
+  profileId: string;
+  /** Server-authorized seed obtained from a passkey, active wallet session or recovery envelope. */
+  authorizedWalletSeed: string;
+  /** Required when the durable profile still carries a separately protected legacy VP. */
+  authorizedVpToken?: string;
+  newPin: string;
+}>;
+
 export type ServerProfileEnrollmentInput = Readonly<{
   /** Stable confidential id of the authenticated portal account that owns and lists this profile. */
   ownerId: string;
@@ -596,6 +606,56 @@ export class ServerProfileSessionManager {
 
   public listProfiles(ownerId: string): Promise<ServerProfileRecord[]> {
     return this.options.store.listProfiles(ownerId);
+  }
+
+  /**
+   * Rewraps the exact registered wallet under a new PIN after a separate
+   * server-authorized recovery factor has released its secrets. No GW call or
+   * DCR occurs because proof-of-possession and every public key remain intact.
+   */
+  public async replaceProfilePinFromAuthorizedSecrets(
+    input: ServerProfilePinReplacementInput,
+  ): Promise<ServerProfileRecord> {
+    const profile = await this.requireOwnedProfile(input.ownerId, input.profileId);
+    const seed = String(input.authorizedWalletSeed || '').trim();
+    requireBase64UrlSeed32(seed);
+    if (!this.options.store.deleteSessionsForProfile) {
+      throw new Error('Profile PIN replacement requires profile-session invalidation support.');
+    }
+    if (profile.protectedVpToken && !String(input.authorizedVpToken || '').trim()) {
+      throw new Error('Profile PIN replacement requires the authorized VP token.');
+    }
+    const walletKeyDerivationId = normalizedWalletKeyDerivationId(
+      profile.walletKeyDerivationId,
+      profile.profileId,
+    );
+    const wallet = await this.createWallet(walletKeyDerivationId, seed);
+    await requireRegisteredProfileKeys(wallet, walletContext(walletKeyDerivationId), profile);
+    const updated: ServerProfileRecord = {
+      ...profile,
+      protectedWalletSeed: await protectServerProfileSecret(
+        seed,
+        input.newPin,
+        `${profile.profileId}:wallet-seed`,
+        this.options.sealer,
+        this.options.profileProtection,
+      ),
+      ...(profile.protectedVpToken ? {
+        protectedVpToken: await protectServerProfileSecret(
+          String(input.authorizedVpToken),
+          input.newPin,
+          `${profile.profileId}:vp-token`,
+          this.options.sealer,
+          this.options.profileProtection,
+        ),
+      } : {}),
+      failedUnlocks: 0,
+      lockedUntil: undefined,
+      updatedAt: this.now().toISOString(),
+    };
+    await this.options.store.putProfile(updated);
+    await this.options.store.deleteSessionsForProfile(profile.profileId);
+    return updated;
   }
 
   public async unlock(input: ServerProfileUnlockInput): Promise<ResolvedServerProfileSession> {

@@ -1,4 +1,4 @@
-// Flow contract: server wallets remain open behind opaque sessions; fresh OTP recovery rotates keys, revokes prior sessions, and never needs the old PIN.
+// Flow contract: server wallets remain open behind opaque sessions; authorized PIN replacement preserves keys, while fresh OTP recovery rotates keys, revokes prior sessions, and never needs the old PIN.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -181,6 +181,87 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   assert.equal(refreshed.sessionId, unlocked.sessionId);
   assert.equal(refreshed.accessToken, 'renewed-smart-access-token');
   assert.equal(deps.sessions.size, 1);
+});
+
+test('authorized wallet material replaces the PIN without rotating keys or contacting GW', async () => {
+  const deps = memoryDeps();
+  const manager = new ServerProfileSessionManager({
+    ...deps,
+    gatewayBaseUrl: 'https://gw.example',
+    fetchImpl: async () => { throw new Error('PIN replacement must not call GW.'); },
+    profileProtection: { cost: 1_024 },
+  });
+  const walletSeed = Buffer.alloc(32, 21).toString('base64url');
+  const walletKeyDerivationId = 'profile-pin-replacement';
+  const wallet = new NodeManagedWallet();
+  const walletContext = {
+    profile: { profileId: walletKeyDerivationId },
+    runtime: { runtimeId: `${walletKeyDerivationId}:server-runtime`, runtimeType: 'backend-service' },
+  };
+  await wallet.provisionManagedKeys(walletContext, {
+    ownerScope: 'profile', purposes: ['actor-signing', 'document-at-rest'], mode: 'deterministic', seedMaterial: walletSeed,
+  });
+  await wallet.provisionManagedKeys(walletContext, {
+    ownerScope: 'runtime', purposes: ['openid-id-token-signing', 'vp-token-signing', 'comm-signing', 'comm-encryption'], mode: 'deterministic', seedMaterial: walletSeed,
+  });
+  const publicJwks = (await wallet.getPublicJwks(walletContext, {}))
+    .filter(entry => entry.purpose !== 'document-at-rest')
+    .map(entry => entry.publicJwk);
+  const profile = {
+    profileId: 'profile-pin-replacement', walletKeyDerivationId, ownerId: 'owner-1',
+    actorKind: ActorKinds.IndividualController, actorMode: 'self',
+    actorDid: 'did:web:actor.example', profileDid: 'did:web:actor.example', providerDid: 'did:web:provider.example',
+    routeContext: { tenantId: 'tenant-1', jurisdiction: 'ES', sector: 'health-care' },
+    allowedSubjectDids: ['did:web:actor.example'], clientId: 'client-1',
+    deviceDid: 'did:key:device-1', publicJwks,
+    protectedWalletSeed: await protectServerProfileSecret(walletSeed, '123456', 'profile-pin-replacement:wallet-seed', deps.sealer, { cost: 1_024 }),
+    failedUnlocks: 4, lockedUntil: '2099-01-01T00:00:00.000Z',
+    createdAt: '2026-08-27T00:00:00.000Z', updatedAt: '2026-08-27T00:00:00.000Z',
+  };
+  deps.profiles.set(profile.profileId, profile);
+  deps.sessions.set('old-session', {
+    sessionId: 'old-session', ownerId: profile.ownerId, profileId: profile.profileId,
+    subjectDid: profile.profileDid, scopes: [], sealedUnlockedWalletSeed: 'old', sealedAccessToken: 'old',
+    expiresAt: '2099-01-01T00:00:00.000Z',
+  });
+
+  const replaced = await manager.replaceProfilePinFromAuthorizedSecrets({
+    ownerId: profile.ownerId,
+    profileId: profile.profileId,
+    authorizedWalletSeed: walletSeed,
+    newPin: '654321',
+  });
+
+  assert.deepEqual(replaced.publicJwks, publicJwks);
+  assert.equal(replaced.clientId, profile.clientId);
+  assert.equal(replaced.deviceDid, profile.deviceDid);
+  assert.equal(replaced.failedUnlocks, 0);
+  assert.equal(replaced.lockedUntil, undefined);
+  assert.equal(deps.sessions.size, 0);
+  assert.equal(
+    await openServerProfileSecret(replaced.protectedWalletSeed, '654321', `${profile.profileId}:wallet-seed`, deps.sealer),
+    walletSeed,
+  );
+  await assert.rejects(
+    openServerProfileSecret(replaced.protectedWalletSeed, '123456', `${profile.profileId}:wallet-seed`, deps.sealer),
+    /Profile PIN rejected/,
+  );
+});
+
+test('PIN replacement rejects a seed that does not match the registered device keys', async () => {
+  const deps = memoryDeps();
+  const manager = new ServerProfileSessionManager({ ...deps, gatewayBaseUrl: 'https://gw.example', profileProtection: { cost: 1_024 } });
+  deps.profiles.set('profile-1', {
+    profileId: 'profile-1', ownerId: 'owner-1', actorKind: ActorKinds.IndividualController, actorMode: 'self',
+    actorDid: 'did:web:actor.example', profileDid: 'did:web:actor.example', providerDid: 'did:web:provider.example',
+    routeContext: { tenantId: 'tenant-1', jurisdiction: 'ES', sector: 'health-care' }, allowedSubjectDids: [],
+    clientId: 'client-1', deviceDid: 'did:key:device-1', publicJwks: [{ kid: 'registered-key' }],
+    protectedWalletSeed: await protectServerProfileSecret(Buffer.alloc(32, 1).toString('base64url'), '123456', 'profile-1:wallet-seed', deps.sealer, { cost: 1_024 }),
+    failedUnlocks: 0, createdAt: '2026-08-27T00:00:00.000Z', updatedAt: '2026-08-27T00:00:00.000Z',
+  });
+  await assert.rejects(manager.replaceProfilePinFromAuthorizedSecrets({
+    ownerId: 'owner-1', profileId: 'profile-1', authorizedWalletSeed: Buffer.alloc(32, 2).toString('base64url'), newPin: '654321',
+  }), /does not match registered profile keys/);
 });
 
 test('profile enrollment does not accept a controller VP as a replacement for the signed email id_token', async () => {

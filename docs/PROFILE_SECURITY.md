@@ -49,6 +49,13 @@ existing installation, rotates an internal activation credential, DCR replaces
 the device keys, and the SDK deletes every old profile session before storing
 the new seed under the new PIN. The activation credential remains server-only.
 
+When a user-verifying passkey, active wallet session or valid recovery envelope
+still releases the exact registered seed, `replaceProfilePinFromAuthorizedSecrets(...)`
+verifies it against the durable public key set and rewraps that same seed under
+the new PIN. This path makes no GW request, preserves the DCR client/device and
+invalidates every older profile session. A separately protected legacy VP must
+also be supplied; silently leaving it under the old PIN is forbidden.
+
 ## Authority
 
 Actor and subject fields are not arbitrary request data:
@@ -86,9 +93,12 @@ For offline delivery:
 6. Require a fresh/valid SMART authorization when synchronizing with GW; local
    unlock does not extend an expired remote authorization.
 
-Key import/export is a separate recovery feature. Export an encrypted envelope,
-never a plaintext seed, and require explicit re-registration when imported on a
-new device.
+Key import/export uses `gdc-portable-profile-recovery-v1`, never plaintext JWK
+or seed material. Its public profile and derivation identifiers are AEAD-bound;
+the seed is encrypted with a key derived through scrypt from a high-entropy
+recovery secret. A six-digit PIN is deliberately rejected as the only offline
+factor. Import on a new device still requires explicit registration and DCR;
+opening the envelope alone grants no remote identity or clinical authority.
 
 ## Production checks
 
