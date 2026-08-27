@@ -263,6 +263,13 @@ keys against the durable DCR profile, owns encrypted DIDComm and returns an
 `OrganizationControllerSdk`. The BFF must not rebuild the wallet, HTTP client,
 transport adapter, `iss`, `aud` or `client_id` itself.
 
+For an already-enrolled organization employee/professional, use
+`ServerProfileSessionManager.openProfessional(...)`. The returned runtime owns
+registered-key reconstruction, the professional VP, `private_key_jwt`, SMART
+audience and encrypted resource transport. Product code supplies the authorized
+profile/seed, fresh signed OIDC account proof and business role/purpose/scopes;
+it does not handle private keys, JWT assembly or `NodeHttpClient`.
+
 Legacy exception: when `activateOrganizationInGatewayFromIcaProof(...)` submits
 the historical representative's `controllerBinding`, `_activate` binds that
 professional-role public signing key and its optional public communication JWKS

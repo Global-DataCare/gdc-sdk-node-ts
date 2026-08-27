@@ -26,6 +26,10 @@ import {
 import { NodeManagedWallet } from './node-managed-wallet.js';
 import { NodeHttpClient } from './node-runtime-client.js';
 import { OrganizationControllerSdk } from './orchestration/organization-controller-sdk.js';
+import { ProfessionalSdk } from './orchestration/professional-sdk.js';
+import { DigitalTwinSdk } from './orchestration/digital-twin-sdk.js';
+import type { SmartTokenExchangeResult } from './smart-token.js';
+import type { DigitalTwinSearchInput, DigitalTwinSearchResult } from './digital-twin.js';
 import type { RouteContext } from './individual-onboarding.js';
 import type { HostRouteContext } from './host-onboarding.js';
 import { buildIdentityOpenIdSmartTokenPath } from './runtime-paths.js';
@@ -268,6 +272,51 @@ export type ServerOrganizationControllerOpenInput = Readonly<{
 export type OpenedServerOrganizationController = Readonly<{
   profile: ServerProfileRecord;
   sdk: OrganizationControllerSdk;
+}>;
+
+/** Server-owned role evidence used to sign a fresh professional VP. */
+export type ServerProfessionalProofInput = Readonly<{
+  role: string;
+  email?: string;
+  sameAs?: string | readonly string[];
+  telephone?: string;
+  credentialMaterial?: string;
+}>;
+
+/** Reopens one enrolled employee/professional profile behind the BFF boundary. */
+export type ServerProfessionalOpenInput = Readonly<{
+  ownerId: string;
+  profileId: string;
+  /** Fresh signed OIDC id_token proving the authenticated account/email. */
+  idToken: string;
+  /** Role evidence signed by the managed DCR wallet, independently of idToken. */
+  professionalProof: ServerProfessionalProofInput;
+  /** Manager-owned PIN path; mutually exclusive with authorizedWalletSeed. */
+  pin?: string;
+  /** Server-only seed already authorized by a product passkey/session policy. */
+  authorizedWalletSeed?: string;
+}>;
+
+/** Business authorization requested from SMART; OpenID/JWT fields stay SDK-owned. */
+export type ServerProfessionalSmartTokenInput = Readonly<{
+  subjectDid?: string;
+  purpose?: string;
+  scopes: string[];
+  acrValues?: string;
+  requestBodyClaims?: Record<string, unknown>;
+  tokenCacheKey?: string;
+  timeoutSeconds?: number;
+  intervalSeconds?: number;
+}>;
+
+/** Role-scoped professional facades with managed SMART proof methods. */
+export type OpenedServerProfessional = Readonly<{
+  profile: ServerProfileRecord;
+  sdk: ProfessionalSdk;
+  digitalTwin: DigitalTwinSdk;
+  requestSmartToken(input: ServerProfessionalSmartTokenInput): Promise<SmartTokenExchangeResult>;
+  requestDigitalTwinSmartToken(input: ServerProfessionalSmartTokenInput): Promise<SmartTokenExchangeResult>;
+  searchDigitalTwins(input: Omit<DigitalTwinSearchInput, 'accessToken'>): Promise<DigitalTwinSearchResult>;
 }>;
 
 export type ServerProfileSessionManagerOptions = Readonly<{
@@ -763,6 +812,123 @@ export class ServerProfileSessionManager {
       secureTransportAdapter,
     });
     return { profile, sdk: new OrganizationControllerSdk(client) };
+  }
+
+  /**
+   * Opens one registered organization employee/professional without exposing
+   * wallet reconstruction, private_key_jwt, VP or transport plumbing.
+   *
+   * The product authorizes the PIN/passkey/session and supplies business role
+   * evidence. The SDK revalidates the registered key set, signs a fresh role
+   * VP independently from the OIDC account proof, derives the SMART endpoint
+   * from the durable profile route and owns the client assertion.
+   */
+  public async openProfessional(input: ServerProfessionalOpenInput): Promise<OpenedServerProfessional> {
+    const profile = await this.requireOwnedProfile(input.ownerId, input.profileId);
+    const isProfessional = profile.actorKind === ActorKinds.OrganizationEmployee
+      || profile.actorKind === ActorKinds.Professional;
+    if (!isProfessional || profile.actorMode !== 'member') {
+      throw new Error('Profile is not an organization employee or professional.');
+    }
+    const idToken = String(input.idToken || '').trim();
+    const role = String(input.professionalProof?.role || '').trim();
+    if (!idToken) throw new Error('Opening a professional requires a signed OIDC idToken.');
+    if (!role) throw new Error('Opening a professional requires role proof.');
+    const hasPin = Boolean(String(input.pin || '').trim());
+    const hasAuthorizedSeed = Boolean(String(input.authorizedWalletSeed || '').trim());
+    if (hasPin === hasAuthorizedSeed) {
+      throw new Error('Opening a professional requires exactly one of pin or authorizedWalletSeed.');
+    }
+    const seed = hasAuthorizedSeed
+      ? String(input.authorizedWalletSeed)
+      : await openServerProfileSecret(
+        profile.protectedWalletSeed,
+        String(input.pin),
+        `${profile.profileId}:wallet-seed`,
+        this.options.sealer,
+      );
+    requireBase64UrlSeed32(seed);
+    const walletKeyDerivationId = normalizedWalletKeyDerivationId(
+      profile.walletKeyDerivationId,
+      profile.profileId,
+    );
+    const wallet = await this.createWallet(walletKeyDerivationId, seed);
+    const context = walletContext(walletKeyDerivationId);
+    await requireRegisteredProfileKeys(wallet, context, profile);
+    const secureTransportAdapter: SecureDidcommTransportAdapter = {
+      pack: (message) => wallet.packForRecipientWithContext!(
+        bindOrganizationControllerTransport(message, profile),
+        profile.providerDid,
+        { context },
+      ),
+      unpack: async (jwe) => (await wallet.unpackWithContext!(jwe, { context })).content,
+    };
+    const operationalClient = new NodeHttpClient({
+      baseUrl: this.options.gatewayBaseUrl,
+      ctx: profile.routeContext,
+      bearerToken: idToken,
+      fetchImpl: this.options.fetchImpl,
+      appInfo: this.options.appInfo,
+      transportProfile: TransportProfiles.DidcommEncryptedForm,
+      secureTransportAdapter,
+    });
+    // SMART/OpenID uses its own JSON/form protocol and must not be wrapped in
+    // the encrypted resource transport selected for later business actions.
+    const sdk = new ProfessionalSdk(this.createClient(profile.routeContext, idToken));
+    const digitalTwin = new DigitalTwinSdk(operationalClient, profile.actorDid);
+    let digitalTwinAccessToken: string | undefined;
+    const request = async (smart: ServerProfessionalSmartTokenInput): Promise<SmartTokenExchangeResult> => {
+      if (!smart.scopes?.length) throw new Error('Professional SMART request requires scopes.');
+      const now = this.now();
+      const audience = [
+        this.options.gatewayBaseUrl.replace(/\/+$/, ''),
+        buildIdentityOpenIdSmartTokenPath(profile.routeContext),
+      ].join('');
+      const clientAssertion = await buildWalletClientAssertion(wallet, profile, audience, now);
+      const vpToken = await buildManagedProfessionalVp(wallet, context, {
+        clientId: profile.clientId,
+        actorDid: profile.actorDid,
+        profileDid: profile.profileDid,
+        ...input.professionalProof,
+        role,
+      });
+      return sdk.requestSmartToken({
+        ...profile.routeContext,
+        actorDid: profile.actorDid,
+        subjectDid: String(smart.subjectDid || '').trim() || undefined,
+        clientId: profile.clientId,
+        issuer: profile.clientId,
+        audience,
+        idToken,
+        vpToken,
+        vpTokenFallback: 'omit',
+        clientAssertion,
+        clientAssertionType: 'private_key_jwt',
+        smartTokenKind: 'openid-smart',
+        acrValues: smart.acrValues || profileSmartAcrValues(profile.actorKind),
+        purpose: smart.purpose,
+        scopes: unique(smart.scopes),
+        requestBodyClaims: smart.requestBodyClaims,
+        tokenCacheKey: smart.tokenCacheKey,
+        timeoutSeconds: smart.timeoutSeconds,
+        intervalSeconds: smart.intervalSeconds,
+      });
+    };
+    return {
+      profile,
+      sdk,
+      digitalTwin,
+      requestSmartToken: request,
+      requestDigitalTwinSmartToken: async (smart) => {
+        const result = await request(smart);
+        if (result.accessToken) digitalTwinAccessToken = result.accessToken;
+        return result;
+      },
+      searchDigitalTwins: (search) => {
+        if (!digitalTwinAccessToken) throw new Error('Digital twin SMART token has not been granted.');
+        return digitalTwin.search(profile.routeContext, { ...search, accessToken: digitalTwinAccessToken });
+      },
+    };
   }
 
   public async lock(ownerId: string, sessionId: string): Promise<void> {
