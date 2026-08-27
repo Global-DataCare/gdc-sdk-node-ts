@@ -54,8 +54,12 @@ const authorizedSubjects = await directoryClient.listAuthorizedIndividualSubject
 );
 ```
 
-The SDK authors and polls the required provider requests internally. The BFF
-does not construct OpenID, schema.org or asynchronous GW payloads and does not
+The SDK authors and polls the required provider requests internally. It keeps
+the accepted relationship and occupation claims together in `grantClaims`, so
+applications do not collapse a caregiver relationship into an ISCO occupation
+or infer compensation from the relationship alone. These remain descriptive
+grant metadata, not action authority. The BFF does not construct OpenID,
+schema.org or asynchronous GW payloads and does not
 parse response bundles. It receives only exact subject identifiers, provider
 claims and accepted-grant metadata for its product-specific presentation
 filter.

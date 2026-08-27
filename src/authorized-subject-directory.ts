@@ -34,6 +34,8 @@ export type AuthorizedIndividualSubjectDirectoryInput = Readonly<{
 export type AuthorizedIndividualSubject = Readonly<{
   subjectDid: string;
   role?: string;
+  /** Accepted provider grant claims; descriptive metadata, never action authority. */
+  grantClaims: Readonly<Record<string, unknown>>;
   authorizationEvidenceId?: string;
   issuerDid?: string;
   subjectClaims: Readonly<Record<string, unknown>>;
@@ -55,6 +57,7 @@ type DirectoryDeps = Readonly<{
 type AcceptedLicenseRow = Readonly<{
   subjectDid: string;
   role?: string;
+  grantClaims: Readonly<Record<string, unknown>>;
   authorizationEvidenceId?: string;
   issuerDid?: string;
 }>;
@@ -132,6 +135,7 @@ export async function listAuthorizedIndividualSubjectsWithDeps(
     return {
       subjectDid: license.subjectDid,
       ...(license.role ? { role: license.role } : {}),
+      grantClaims: license.grantClaims,
       ...(license.authorizationEvidenceId
         ? { authorizationEvidenceId: license.authorizationEvidenceId }
         : {}),
@@ -160,6 +164,7 @@ function readAcceptedLicenses(result: SubmitAndPollResult): AcceptedLicenseRow[]
     return [{
       subjectDid,
       ...(role ? { role } : {}),
+      grantClaims: claims,
       ...(meta.identifier ? { authorizationEvidenceId: String(meta.identifier) } : {}),
       ...(meta.issuerDid ? { issuerDid: String(meta.issuerDid) } : {}),
     }];

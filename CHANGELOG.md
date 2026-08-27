@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2.4.39 - 2026-08-26
+
+- Preserve the accepted License `grantClaims` beside each authorized subject,
+  keeping relationship roles and ISCO occupation independent without turning
+  either value into VP, SMART or action authority.
+
 ## 2.4.38 - 2026-08-26
 
 - Add `HttpRuntimeClient.listAuthorizedIndividualSubjects(...)` as the
