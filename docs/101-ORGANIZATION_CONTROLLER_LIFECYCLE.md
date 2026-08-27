@@ -253,6 +253,16 @@ facades:
 
 If you are building a BFF, these are the methods to copy conceptually.
 
+For a modern controller that already completed managed profile enrollment,
+start those operations with
+`ServerProfileSessionManager.openOrganizationController(...)`. It returns the
+role-scoped `OrganizationControllerSdk` after reconstructing and validating the
+registered key set. The BFF supplies the stored profile selection, fresh signed
+OIDC `id_token`, and exactly one server-side unlock mechanism (`pin` or an
+already-authorized wallet seed); it does not assemble wallet/DIDComm/client
+plumbing. The historical representative bound by legacy `_activate` remains
+the explicit exception and must not be enrolled through DCR a second time.
+
 ### Host route, tenant keys
 
 `confirmOrganizationLicenseOrder(...)` is intentionally a high-level method:
