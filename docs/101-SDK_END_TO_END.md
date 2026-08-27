@@ -833,6 +833,38 @@ Where each value comes from:
 - `employeeClaims`
   flattened claim view expected by the current runtime
 
+#### 6.4.1 Reopen an employee/professional without OpenID plumbing
+
+After that employee completes managed activation/DCR, the BFF authorizes its
+PIN, passkey or short-lived server wallet session and opens the role runtime:
+
+```ts
+const professional = await profileSessions.openProfessional({
+  ownerId: authenticatedPortalAccount.id,
+  profileId: selectedProfessionalProfile.id,
+  idToken: signedPortalIdToken,
+  authorizedWalletSeed: seedUnsealedAfterPortalSessionAuthorization,
+  professionalProof: {
+    role: selectedProfessionalProfile.role,
+    email: authenticatedPortalAccount.verifiedEmail,
+  },
+});
+
+const smart = await professional.requestSmartToken({
+  subjectDid: selectedSubjectDid,
+  purpose: selectedPurpose,
+  scopes: requestedCapabilities,
+});
+```
+
+The BFF does not calculate a SMART audience, sign `private_key_jwt`, build a
+professional VP, provision wallet keys or instantiate `NodeHttpClient`.
+`requestDigitalTwinSmartToken(...)` retains the granted token inside the opened
+runtime so `searchDigitalTwins(...)` can perform the later governed search
+without returning that token to browser code. As with the controller method,
+choose exactly one unlock input: `pin` or the server-only
+`authorizedWalletSeed`.
+
 ### 6.5 Activate a modern controller or employee device without authoring DCR
 
 The portal does not initialize cryptographic keys, construct `dcrPayload`,

@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 
 import {
   ActorKinds,
+  DigitalTwinSdk,
   NodeManagedWallet,
+  ProfessionalSdk,
   ServerProfileSessionManager,
   openServerProfileSecret,
   protectServerProfileSecret,
@@ -548,6 +550,79 @@ test('high-level manager opens the organization-controller facade without transp
   assert.equal(message.iss, profile.actorDid);
   assert.equal(message.aud, profile.providerDid);
   assert.equal(message.client_id, profile.clientId);
+});
+
+test('high-level manager opens a professional and owns SMART proof plumbing', async () => {
+  const deps = memoryDeps();
+  const walletSeed = Buffer.alloc(32, 14).toString('base64url');
+  const walletKeyDerivationId = 'organization-employee:profile-1:wallet-v1';
+  const calls = [];
+  const manager = new ServerProfileSessionManager({
+    ...deps,
+    gatewayBaseUrl: 'https://gw.example',
+    appInfo: { appId: 'https://professional.example', appType: 'Organization', sector: 'animal-care' },
+    resolveRecipientJwk: async () => ({}),
+    fetchImpl: async (url, init) => {
+      calls.push({ url: String(url), init });
+      return calls.length === 1
+        ? Response.json({}, { status: 202 })
+        : Response.json({ access_token: 'professional-smart-token', token_type: 'Bearer', scope: 'patient/Composition.rs' });
+    },
+  });
+  const enrollmentKeys = await manager.prepareEnrollmentPublicKeys({ walletSeed, walletKeyDerivationId });
+  const profile = {
+    profileId: 'employee-profile-1',
+    walletKeyDerivationId,
+    ownerId: 'firebase-owner-1',
+    actorKind: ActorKinds.OrganizationEmployee,
+    actorMode: 'member',
+    actorDid: 'did:web:gw.example:tenant-1:employee:opaque:ISCO-08%7C2250',
+    profileDid: 'did:web:gw.example:tenant-1:employee:opaque:ISCO-08%7C2250',
+    providerDid: 'did:web:gw.example:tenant-1',
+    routeContext: { tenantId: 'tenant-1', jurisdiction: 'CA-BC', sector: 'animal-care' },
+    allowedSubjectDids: ['did:web:animal.example:subject-1'],
+    clientId: 'employee-dcr-client-1',
+    clientInstanceId: enrollmentKeys.find((entry) => entry.purpose === 'openid-id-token-signing').kid,
+    deviceDid: 'did:key:employee-device-1',
+    publicJwks: enrollmentKeys.filter((entry) => entry.purpose !== 'document-at-rest').map((entry) => entry.publicJwk),
+    storagePublicJwk: enrollmentKeys.find((entry) => entry.purpose === 'document-at-rest').publicJwk,
+    protectedWalletSeed: await protectServerProfileSecret(
+      walletSeed, '123456', 'employee-profile-1:wallet-seed', deps.sealer, { cost: 1_024 },
+    ),
+    failedUnlocks: 0,
+    createdAt: '2026-08-26T00:00:00.000Z',
+    updatedAt: '2026-08-26T00:00:00.000Z',
+  };
+  deps.profiles.set(profile.profileId, profile);
+
+  const opened = await manager.openProfessional({
+    ownerId: profile.ownerId,
+    profileId: profile.profileId,
+    idToken: 'fresh-signed-id-token',
+    authorizedWalletSeed: walletSeed,
+    professionalProof: { role: 'ISCO-08|2250', email: 'professional@example.test' },
+  });
+  const token = await opened.requestSmartToken({
+    subjectDid: profile.allowedSubjectDids[0],
+    purpose: 'emergency-treatment',
+    scopes: ['patient/Composition.rs'],
+    requestBodyClaims: { expires_in: 900, break_glass: { incident_id: 'incident-1' } },
+    tokenCacheKey: 'professional-profile-1:subject-1',
+  });
+
+  assert.ok(opened.sdk instanceof ProfessionalSdk);
+  assert.ok(opened.digitalTwin instanceof DigitalTwinSdk);
+  assert.equal(token.accessToken, 'professional-smart-token');
+  assert.equal(calls.length, 2);
+  assert.equal(new Headers(calls[0].init.headers).get('AppId'), 'example.professional');
+  const request = JSON.parse(String(calls[0].init.body));
+  assert.equal(request.body.id_token, 'fresh-signed-id-token');
+  assert.match(request.body.client_assertion, /^[^.]+\.[^.]+\.[^.]+$/);
+  assert.match(request.body.vp_token, /^[^.]+\.[^.]+\.[^.]+$/);
+  assert.equal(request.body.audience, undefined);
+  const assertionClaims = JSON.parse(Buffer.from(request.body.client_assertion.split('.')[1], 'base64url').toString());
+  assert.equal(assertionClaims.iss, profile.clientId);
+  assert.match(assertionClaims.aud, /\/tenant-1\/cds-CA-BC\/v1\/animal-care\/identity\/openid\/smart\/token$/);
 });
 
 test('server bootstrap builds the signed controller VP from ICA credentials without exposing private keys', async () => {

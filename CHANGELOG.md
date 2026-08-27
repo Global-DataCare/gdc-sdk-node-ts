@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 2.4.42 - 2026-08-26
+
+- Add `ServerProfileSessionManager.openProfessional(...)` for BFF-authorized
+  organization-employee profiles. It validates the registered wallet, signs
+  the independent professional VP and `private_key_jwt`, derives the SMART
+  audience from the durable route, retains Digital Twin SMART authority inside
+  the returned runtime, and removes wallet/OpenID/client plumbing from product
+  code.
+
 ## 2.4.41 - 2026-08-26
 
 - Add `ServerProfileSessionManager.openOrganizationController(...)` as the
