@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.4.38 - 2026-08-26
+
+- Add `HttpRuntimeClient.listAuthorizedIndividualSubjects(...)` as the
+  high-level signed-account directory operation. The SDK owns accepted-License
+  lookup, exact subject resolution and polling while keeping OpenID account
+  proof separate from role VP, wallet DCR and subject-scoped SMART authority.
+
 ## 2.4.37 - 2026-08-26
 
 - Return the opaque individual-controller `activationCode` directly from

@@ -43,6 +43,10 @@ import type { OrganizationLicenseOrderConfirmInput } from '../organization-licen
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type { DigitalTwinMaterializationInput, DigitalTwinSearchInput, DigitalTwinSelectionInput } from '../digital-twin.js';
 import type {
+  AuthorizedIndividualSubject,
+  AuthorizedIndividualSubjectDirectoryInput,
+} from '../authorized-subject-directory.js';
+import type {
   CommunicationIngestionInput,
   BlockchainArtifactRegistrationInput,
   CommunicationParticipantRuntimeSearchInput,
@@ -382,6 +386,11 @@ export type RuntimeClient = {
     ctx: RouteContext,
     input?: LicenseListRuntimeSearchInput,
   ) => Promise<SubmitAndPollResult>;
+  /** Lists exact subjects already authorized for one verified OpenID contact. */
+  listAuthorizedIndividualSubjects?: (
+    ctx: RouteContext,
+    input: AuthorizedIndividualSubjectDirectoryInput,
+  ) => Promise<AuthorizedIndividualSubject[]>;
   addFreeIndividualMemberLicenses?: (
     ctx: RouteContext,
     input: IndividualMemberLicenseAddInput,

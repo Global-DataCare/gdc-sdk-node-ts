@@ -11,6 +11,11 @@ const walletGuide = fs.readFileSync(
   'utf8',
 );
 
+const authorizedSubjectGuide = fs.readFileSync(
+  new URL('../docs/101-AUTHORIZED_SUBJECT_DIRECTORY.md', import.meta.url),
+  'utf8',
+);
+
 test('101 runtime bootstrap keeps participant identity and wallet custody out of deployment env', () => {
   // A participant DID belongs to one onboarded organization profile. A global
   // process variable would collapse every tenant onto one participant.
@@ -45,4 +50,13 @@ test('wallet custody 101 uses role-neutral user wallet names', () => {
     walletGuide,
     /not the actor's professional-role\/person signing key/,
   );
+});
+
+test('authorized-subject 101 separates signed OpenID discovery from VP and SMART authority', () => {
+  assert.match(authorizedSubjectGuide, /listAuthorizedIndividualSubjects/);
+  assert.match(authorizedSubjectGuide, /signed `id_token`/);
+  assert.match(authorizedSubjectGuide, /does not prove a professional role/i);
+  assert.match(authorizedSubjectGuide, /ServerProfileSessionManager/);
+  assert.doesNotMatch(authorizedSubjectGuide, /License\/_search/);
+  assert.doesNotMatch(authorizedSubjectGuide, /Organization\/_search/);
 });

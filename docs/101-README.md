@@ -12,9 +12,10 @@
 2. [101-SDK_INTEGRATION.md](./101-SDK_INTEGRATION.md)
 3. [101-SDK_END_TO_END.md](./101-SDK_END_TO_END.md)
 4. [101-WALLET_CONTEXT_AND_KEY_CUSTODY.md](./101-WALLET_CONTEXT_AND_KEY_CUSTODY.md)
-5. [101-DIGITAL_TWIN_SDK.md](./101-DIGITAL_TWIN_SDK.md)
-6. [101-ORGANIZATION_CONTROLLER_LIFECYCLE.md](./101-ORGANIZATION_CONTROLLER_LIFECYCLE.md)
-7. [101-FHIR-R5-SUBSCRIPTIONS-AND-DEVICE-PUSH.md](./101-FHIR-R5-SUBSCRIPTIONS-AND-DEVICE-PUSH.md)
+5. [101-AUTHORIZED_SUBJECT_DIRECTORY.md](./101-AUTHORIZED_SUBJECT_DIRECTORY.md)
+6. [101-DIGITAL_TWIN_SDK.md](./101-DIGITAL_TWIN_SDK.md)
+7. [101-ORGANIZATION_CONTROLLER_LIFECYCLE.md](./101-ORGANIZATION_CONTROLLER_LIFECYCLE.md)
+8. [101-FHIR-R5-SUBSCRIPTIONS-AND-DEVICE-PUSH.md](./101-FHIR-R5-SUBSCRIPTIONS-AND-DEVICE-PUSH.md)
 
 ## User Story Start
 
@@ -56,6 +57,10 @@ Current executable entrypoints:
   [tests/101-digital-twin-sdk.test.mjs](../tests/101-digital-twin-sdk.test.mjs)
 - wallet-backed backend/session jobs:
   [tests/101-wallet-backed-job-manager.test.mjs](../tests/101-wallet-backed-job-manager.test.mjs)
+- signed-account discovery of already-authorized subjects without VP/SMART
+  escalation:
+  [101-AUTHORIZED_SUBJECT_DIRECTORY.md](./101-AUTHORIZED_SUBJECT_DIRECTORY.md) and
+  [tests/authorized-subject-directory.test.mjs](../tests/authorized-subject-directory.test.mjs)
 
 Teaching rule:
 
