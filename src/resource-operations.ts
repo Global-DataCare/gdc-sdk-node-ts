@@ -334,7 +334,14 @@ type ClinicalUpdateRuntimeOptions = Readonly<{
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
 }>;
 
-/** Updates exactly one clinical section through a scoped batch/collection. */
+/**
+ * Updates exactly one clinical section through a scoped batch/collection.
+ * A `Bundle.type = batch` may mix typed create, update, and delete entries.
+ * A delete targets `ResourceType/id`, carries no resource body, and may use
+ * `ifMatch` for optimistic concurrency. GW authorizes it against the creator
+ * DID plus the caller's linked verified login identity; contact identifiers
+ * are never written into the clinical resource.
+ */
 export type ClinicalSectionUpdateInput =
   ClinicalSectionUpdateCommunicationInput & ClinicalUpdateRuntimeOptions;
 

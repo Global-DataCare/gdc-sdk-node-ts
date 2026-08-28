@@ -261,7 +261,12 @@ export class IndividualControllerSdk {
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
   }
 
-  /** Updates one exact clinical section through a section-scoped batch/collection. */
+  /**
+   * Updates one exact clinical section through a section-scoped batch.
+   * Entries choose their own operation, so one call may create one resource
+   * and delete another with `.delete()` and optional `.ifMatch(versionId)`.
+   * DELETE entries contain no resource body.
+   */
   public updateClinicalSection(ctx: RouteContext, input: ClinicalSectionUpdateInput): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualIngestCommunication, ActorKinds.IndividualController, 'updateClinicalSection');
     return requireClientMethod(this.client, 'updateClinicalSection')(ctx, input);

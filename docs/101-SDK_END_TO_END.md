@@ -1654,6 +1654,38 @@ Important:
 - individual resource `upsert*` calls are internal compatibility plumbing
 - this flow does not replace a multi-section IPS document
 
+The same section batch can create one fact and remove another. Each entry
+selects its own operation; a delete has no resource body:
+
+```ts
+const allergies = new BundleEditor().setBundleType(BundleTypes.batch);
+
+allergies
+  .newEntryAs(BundleEditableResourceTypes.allergyIntolerance, 'allergy-new')
+  .create()
+  .setSubject(subjectDid)
+  .ensureIdentifier();
+
+allergies
+  .newEntryAs(BundleEditableResourceTypes.allergyIntolerance, 'allergy-old')
+  .delete()
+  .ifMatch(currentVersionId);
+
+await individualControllerProfile.sdk.updateClinicalSection(tenantContext, {
+  subject: subjectDid,
+  sender: authenticatedControllerDid,
+  recipient: organizationDid,
+  section: HealthcareBasicSections.AllergiesAndIntolerances.attributeValue,
+  bundle: allergies.buildJsonApi(),
+  clinicalFormat: 'r4',
+});
+```
+
+GW permits deletion only for the resource creator and the same subject. If
+that person linked verified phone and email access, either login may authorize
+the operation without putting phone, email, or their hashes in the resource;
+the resource stores only the creator DID.
+
 ### 7.12 Update one or several summary sections
 
 ```ts
