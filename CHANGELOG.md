@@ -11,6 +11,14 @@
   provider, HRESCH purpose, DigitalTwinReader action and stable source
   reference, including contextualized FHIR Consent records.
 
+## 2.5.0 - 2026-08-28
+
+- Expose the typed mixed clinical `Bundle.type=batch` editor through the Node
+  SDK root, including per-entry create/delete selection and version-checked
+  DELETE entries with no resource body. Document that the resource retains
+  only its creator DID and that GW resolves linked verified login identities
+  outside the clinical resource when authorizing deletion.
+
 ## 2.4.44 - 2026-08-27
 
 - Use `organization/ResearchSubject.rs?subject=*` as the default SMART reader

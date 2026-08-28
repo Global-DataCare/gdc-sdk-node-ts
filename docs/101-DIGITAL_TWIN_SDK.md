@@ -53,6 +53,14 @@ correspondence, never the anonymous twin. A later enrollment creates a new
 `urn:uuid`; the old twin remains anonymous and cannot be reconnected or
 updated.
 
+Deleting one clinical fact is a third, independent operation. The subject BFF
+uses a typed `.delete()` entry inside the ordinary `updateClinicalSection`
+batch. GW removes that fact from the current operational summary and, while
+secondary-use publication is enabled, from the synchronized twin view. This
+does not deny consent and does not purge the subject-to-twin link. The clinical
+resource contains only its creator DID; linked verified login channels are
+checked during authorization rather than stored in the resource.
+
 ## 2. Subject BFF: read and change secondary-use consent
 
 The browser sends only the user's product-level choice, for example

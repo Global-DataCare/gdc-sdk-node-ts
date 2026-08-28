@@ -702,7 +702,8 @@ modules below.
 - [`NodeHttpClient.submitCommunicationAndPoll(...)`](src/node-runtime-client.ts)
 - [`NodeHttpClient.searchClinicalBundle(...)`](src/node-runtime-client.ts)
 - [`NodeHttpClient.updateClinicalSection(...)`](src/node-runtime-client.ts) for
-  one explicit section carried by a batch/collection Communication
+  one explicit section carried by a batch Communication; its typed entries may
+  mix `.create()`, `.update()` and exact authored `.delete()` operations
 - [`NodeHttpClient.updateClinicalSummary(...)`](src/node-runtime-client.ts) for
   a Composition-first multi-section document
 - [`NodeHttpClient.searchLatestIps(...)`](src/node-runtime-client.ts)
