@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Sign Test Network credentials whose environment scope lives exclusively in
+  `OrganizationTestNetworkCredential` or `TestNetworkCredential` within the
+  signed `type[]`; examples no longer add `targetNetwork` to schema.org
+  subjects.
+
 - Filter Digital Twin secondary-use status reads at GW by subject, index
   provider, HRESCH purpose, DigitalTwinReader action and stable source
   reference, including contextualized FHIR Consent records.

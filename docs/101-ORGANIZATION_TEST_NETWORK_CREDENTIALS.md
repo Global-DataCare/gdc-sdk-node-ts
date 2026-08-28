@@ -11,8 +11,9 @@ on `network`.
 
 Build the normal Organization, LegalRepresentative and ServiceController
 credential drafts with `buildTestNetworkOrganizationCredentialSet(...)`.
-Each includes `TestNetworkCredential`, `targetNetwork=test-network`, the PDF
-digest and its own domain bindings.
+Each includes `TestNetworkCredential` in its signed `type[]`, the PDF digest
+and its own domain bindings. Do not add `targetNetwork` to a schema.org
+credential subject: the credential type is the environment discriminator.
 
 ```ts
 const credentials = await Promise.all(drafts.map(credential =>

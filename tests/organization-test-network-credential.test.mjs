@@ -49,7 +49,7 @@ test('adds an ML-DSA-65 proof without exposing profile private material', async 
     ...credential,
     id: 'urn:uuid:organization',
     type: ['VerifiableCredential', 'OrganizationCredential', 'TestNetworkCredential'],
-    credentialSubject: { id: 'did:web:host.example:DSRC-001', targetNetwork: 'test-network' },
+    credentialSubject: { id: 'did:web:host.example:DSRC-001' },
   };
   const signedDomain = await signTestNetworkOrganizationCredential({
     credential: domainCredential,
