@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Prove that `updateClinicalSection(...)` preserves an attached mixed
+  `Bundle.type=batch` with independent create/delete requests inside the
+  canonical Communication outbox job. `request.ifMatch` remains optional.
+
 - Sign Test Network credentials whose environment scope lives exclusively in
   `OrganizationTestNetworkCredential` or `TestNetworkCredential` within the
   signed `type[]`; examples no longer add `targetNetwork` to schema.org

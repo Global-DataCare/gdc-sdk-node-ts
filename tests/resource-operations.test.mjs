@@ -1,3 +1,5 @@
+// Flow contract: Node clinical facades preserve Communication-carried FHIR batches,
+// including independent mixed create/delete entries and optional request.ifMatch.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -1549,19 +1551,38 @@ test('clinical update builders keep one-section and multi-section boundaries exp
   // Step 1. A section update carries one batch/collection plus its exact
   // The section-scoped batch/collection uses the canonical Communication
   // topic claim. Composition.section remains inside document graphs.
+  const mixedBatch = {
+    resourceType: 'Bundle',
+    type: 'batch',
+    data: [
+      {
+        type: 'Observation-create-request-v1.0',
+        request: { method: 'POST', url: 'Observation' },
+        resource: { resourceType: 'Observation', id: 'vital-sign-1' },
+      },
+      {
+        type: 'AllergyIntolerance-delete-request-v1.0',
+        request: { method: 'DELETE', url: 'AllergyIntolerance/allergy-1' },
+        resource: { resourceType: 'AllergyIntolerance', id: 'allergy-1' },
+      },
+    ],
+  };
   const sectionUpdate = buildClinicalSectionUpdateIngestion({
     subject: EXAMPLE_SUBJECT_DID,
     sender: EXAMPLE_SUBJECT_DID,
     section: HealthcareBasicSections.VitalSigns.attributeValue,
-    bundle: {
-      resourceType: 'Bundle',
-      type: 'collection',
-      data: [{ resource: { resourceType: 'Observation', id: 'vital-sign-1' } }],
-    },
+    bundle: mixedBatch,
   });
   const sectionClaims = sectionUpdate.communicationJob.payload.body.data[0].resource.meta.claims;
   assert.equal(sectionClaims['Communication.topic'], HealthcareBasicSections.VitalSigns.attributeValue);
   assert.equal('Composition.section' in sectionClaims, false);
+  const attachedMixedBatch = JSON.parse(Buffer.from(
+    sectionClaims['Communication.content-attachment-data'],
+    'base64',
+  ).toString('utf8'));
+  assert.deepEqual(attachedMixedBatch, mixedBatch);
+  assert.equal(attachedMixedBatch.type, 'batch');
+  assert.deepEqual(attachedMixedBatch.data.map((entry) => entry.request.method), ['POST', 'DELETE']);
 
   // Step 2. A summary update accepts only a Composition-first document.
   const summaryUpdate = buildClinicalSummaryUpdateIngestion({
