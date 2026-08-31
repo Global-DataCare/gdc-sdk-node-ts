@@ -218,6 +218,11 @@ The actor story above is the same for all channels.
 ### Backend / BFF / node
 
 - loads and unlocks protected profiles
+- enrolls a profile through `ServerProfileSessionManager.enroll(...)`; the BFF
+  supplies the authorized activation grant and application details, while the
+  SDK owns exchange, device registration and secure message formatting
+- never asks the browser or product UI to construct token-exchange or DIDComm
+  payloads
 - selects actor facade
 - performs submit/poll against GW
 - orchestrates several actor profiles in one business flow

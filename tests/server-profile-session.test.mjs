@@ -1,3 +1,4 @@
+// TDD: the server-owned profile sends activation and registration data inside the canonical DIDComm body.
 // Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 // Server wallets remain open behind opaque sessions; authorized PIN replacement preserves keys, while fresh OTP recovery rotates keys, revokes prior sessions, and never needs the old PIN.
 import test from 'node:test';
@@ -235,8 +236,8 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   assert.ok(dcrJwsHeader.jwk);
   const dcrRequest = JSON.parse(Buffer.from(compactDcrJws.split('.')[1], 'base64url').toString());
   assert.equal(dcrRequest.iss, base.actorDid);
-  assert.deepEqual(dcrRequest[IdentityDcrMetadataFields.RedirectUris], [EXAMPLE_DCR_REDIRECT_URI]);
-  assert.equal(dcrRequest[IdentityDcrMetadataFields.ClientName], EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME);
+  assert.deepEqual(dcrRequest.body[IdentityDcrMetadataFields.RedirectUris], [EXAMPLE_DCR_REDIRECT_URI]);
+  assert.equal(dcrRequest.body[IdentityDcrMetadataFields.ClientName], EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME);
 
   const unlocked = await manager.unlock({
     ownerId: base.ownerId,

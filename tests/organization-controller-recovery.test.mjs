@@ -1,3 +1,4 @@
+// TDD: controller recovery preserves the issued activation credential inside the DIDComm business body.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -108,7 +109,7 @@ test('recoverOrganizationControllerWithCredentialReissuanceWithDeps performs cre
   assert.equal(calls.length, 3);
   assert.equal(calls[0][0], 'submitLegalOrganizationCredentialReissuance');
   assert.equal(calls[1][1].bearerToken, 'controller-id-token-001');
-  assert.equal(calls[1][1].payload.subject_token, 'lic-reactivation-001');
+  assert.equal(calls[1][1].payload.body.subject_token, 'lic-reactivation-001');
   assert.equal(calls[2][1].bearerToken, 'initial-access-001');
   assert.equal(result.activationCode, 'lic-reactivation-001');
   assert.equal(result.activation.initialAccessToken, 'initial-access-001');

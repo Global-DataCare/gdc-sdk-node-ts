@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2.5.3 - 2026-08-31
+
+- Keep activation-code exchange and device registration business fields inside
+  the canonical DIDComm `body`, so the high-level server profile enrollment
+  works against GW without portal or BFF code authoring transport envelopes.
+
 ## 2.5.2 - 2026-08-31
 
 - Retain a fetched SMART access token inside the same high-level runtime for

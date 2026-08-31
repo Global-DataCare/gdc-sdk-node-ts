@@ -258,8 +258,10 @@ export async function activateEmployeeDeviceWithActivationCodeWithDeps(
   if (!clientInstanceId) throw new Error('Device activation requires a stable device, software, redirect, or key identifier.');
   const exchangePayload = {
     thid: `exchange-${createRuntimeUuid()}`,
-    [IdentityAuthRequestFields.SubjectToken]: deps.input.activationCode,
-    [IdentityAuthRequestFields.ClientInstanceId]: clientInstanceId,
+    body: {
+      [IdentityAuthRequestFields.SubjectToken]: deps.input.activationCode,
+      [IdentityAuthRequestFields.ClientInstanceId]: clientInstanceId,
+    },
   };
 
   const exchange = await deps.submitAndPollWithBearerToken(
@@ -294,8 +296,10 @@ export async function activateEmployeeDeviceWithActivationCodeWithDeps(
 
   const dcrPayload = {
     thid: `dcr-${createRuntimeUuid()}`,
-    [IdentityAuthRequestFields.Code]: deps.input.activationCode,
-    ...deps.input.dcrPayload,
+    body: {
+      [IdentityAuthRequestFields.Code]: deps.input.activationCode,
+      ...deps.input.dcrPayload,
+    },
   };
 
   const dcr = await deps.submitAndPollWithBearerToken(

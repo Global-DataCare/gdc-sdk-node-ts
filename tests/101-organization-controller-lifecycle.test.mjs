@@ -1,3 +1,4 @@
+// TDD: both organization-controller lifecycles send exchange and DCR fields in the canonical DIDComm body.
 /**
  * 101 note:
  * - `gdc-common-utils-ts` owns the canonical step-by-step editors/readers and payload examples.
@@ -271,14 +272,14 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
       if (submitPath.endsWith('_exchange')) {
         operations.push('organization-issue-exchange');
         assert.equal(bearerToken, EXAMPLE_EMPLOYEE_DEVICE_ACTIVATION_INPUT.idToken);
-        assert.equal(payload.subject_token, controllerSeatSerial);
+        assert.equal(payload.body.subject_token, controllerSeatSerial);
         assert.equal(pollPath, '/auth/_exchange-response');
         return cloneExample(EXAMPLE_EMPLOYEE_DEVICE_EXCHANGE_RESPONSE);
       }
 
       operations.push('organization-issue-dcr');
       assert.equal(bearerToken, EXAMPLE_EMPLOYEE_DEVICE_EXCHANGE_RESPONSE.poll.body.body.initial_access_token);
-      assert.equal(payload.code, controllerSeatSerial);
+      assert.equal(payload.body.code, controllerSeatSerial);
       assert.equal(pollPath, '/auth/_dcr-response');
       return cloneExample(EXAMPLE_EMPLOYEE_DEVICE_DCR_RESPONSE);
     },
