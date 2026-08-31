@@ -61,8 +61,14 @@ personal/family portal and `Organization` for a professional organization
 portal. `appId` is the stable application identity; neither field is the
 wallet's `runtimeId`, a tenant DID or a subject identifier.
 
-The SDK authors and polls the required provider requests internally. It keeps
-the accepted relationship and occupation claims together in `grantClaims`, so
+The SDK first recovers cards whose indexed `Organization.owner.email` or
+`Organization.owner.telephone` exactly matches the verified login contact.
+That covers legacy and self-created cards even when no accepted License row was
+written. It then merges accepted License grants and resolves each remaining
+subject by its exact card DID.
+
+The SDK authors and polls those provider requests internally. It keeps the
+accepted relationship and occupation claims together in `grantClaims`, so
 applications do not collapse a caregiver relationship into an ISCO occupation
 or infer compensation from the relationship alone. These remain descriptive
 grant metadata, not action authority. The BFF does not construct OpenID,

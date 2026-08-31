@@ -2,8 +2,8 @@
  * Flow contract:
  * 1. A BFF supplies only the verified email/telephone from a signed OpenID
  *    `id_token`; it never authors License or Organization search bundles.
- * 2. The SDK finds active accepted subject grants and resolves each exact
- *    subject record through the owning individual index.
+ * 2. The SDK recovers cards indexed to that verified owner contact, then
+ *    merges active accepted subject grants and resolves their exact records.
  * 3. Returned role/evidence metadata describes the accepted grant but never
  *    upgrades the account token into VP, SMART or action authority.
  */
@@ -82,14 +82,64 @@ test('authors and resolves the contact-bound authorized-subject directory inside
       'org.schema.Organization.legalName': 'Authorized subject',
     },
   }]);
-  assert.equal(submissions.length, 2);
+  assert.equal(submissions.length, 3);
   assert.equal(
-    submissions[0].payload.body.data[0].meta.claims['org.schema.Person.email'],
+    submissions[0].payload.body.data[0].meta.claims['org.schema.Organization.owner.email'],
     'person@example.org',
   );
   assert.equal(
-    submissions[1].payload.body.data[0].meta.claims['org.schema.Organization.sameAs'],
+    submissions[1].payload.body.data[0].meta.claims['org.schema.Person.email'],
+    'person@example.org',
+  );
+  assert.equal(
+    submissions[2].payload.body.data[0].meta.claims['org.schema.Organization.sameAs'],
     'did:web:index.example:card:1',
+  );
+});
+
+test('recovers owner-indexed cards even when a legacy card has no accepted License row', async () => {
+  const submissions = [];
+  const result = await listAuthorizedIndividualSubjectsWithDeps(routeContext, {
+    verifiedContact: { email: ' PERSON@Example.ORG ' },
+  }, {
+    individualLicenseSearchPath: () => '/tenant/individual/org.schema/License/_search',
+    individualLicenseSearchPollPath: () => '/tenant/individual/org.schema/License/_search-response',
+    individualOrganizationSearchPath: () => '/tenant/individual/org.schema/Organization/_search',
+    individualOrganizationSearchPollPath: () => '/tenant/individual/org.schema/Organization/_search-response',
+    submitAndPoll: async (submitPath, pollPath, payload) => {
+      submissions.push({ submitPath, pollPath, payload });
+      if (submitPath.endsWith('/Organization/_search')) {
+        return { poll: { body: { data: [{ resource: { resourceType: 'Bundle', entry: [{ resource: {
+          id: 'legacy-owner-card',
+          meta: { claims: {
+            '@context': 'org.schema',
+            'org.schema.Organization.sameAs': 'did:web:index.example:card:legacy',
+            'org.schema.Organization.alternateName': 'My legacy card',
+            'org.schema.Organization.member.role': 'ONESELF',
+            'org.schema.Organization.owner.email': 'person@example.org',
+          } },
+        } }] } }] } } };
+      }
+      return { poll: { body: { data: [{ resource: { data: [] } }] } } };
+    },
+  });
+
+  assert.deepEqual(result, [{
+    subjectDid: 'did:web:index.example:card:legacy',
+    role: 'ONESELF',
+    grantClaims: {},
+    subjectClaims: {
+      '@context': 'org.schema',
+      'org.schema.Organization.sameAs': 'did:web:index.example:card:legacy',
+      'org.schema.Organization.alternateName': 'My legacy card',
+      'org.schema.Organization.member.role': 'ONESELF',
+      'org.schema.Organization.owner.email': 'person@example.org',
+    },
+  }]);
+  assert.equal(submissions[0].submitPath, '/tenant/individual/org.schema/Organization/_search');
+  assert.equal(
+    submissions[0].payload.body.data[0].meta.claims['org.schema.Organization.owner.email'],
+    'person@example.org',
   );
 });
 
@@ -149,6 +199,10 @@ test('NodeHttpClient exposes the complete operation with no caller-authored path
 
   assert.equal(subjects[0].subjectDid, 'did:web:index.example:card:1');
   assert.deepEqual(calls.map((call) => call.slice(0, 2)), [
+    [
+      '/did:web:index.example/cds-ES/v1/health-care/individual/org.schema/Organization/_search',
+      '/did:web:index.example/cds-ES/v1/health-care/individual/org.schema/Organization/_search-response',
+    ],
     [
       '/did:web:index.example/cds-ES/v1/health-care/individual/org.schema/License/_search',
       '/did:web:index.example/cds-ES/v1/health-care/individual/org.schema/License/_search-response',
