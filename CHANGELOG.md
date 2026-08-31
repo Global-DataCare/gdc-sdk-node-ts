@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 2.5.2 - 2026-08-31
+
+- Retain a fetched SMART access token inside the same high-level runtime for
+  subsequent clinical writes and reads, while SMART acquisition and renewal
+  continue to use the original account bearer.
+
+- Document the strict provenance boundary for externally authored IPS data:
+  importing an external author URN grants the local controller no update or
+  delete authority, and repeating that URN is not source authentication.
+
 - Add repository-local release and test discipline covering branch/merge
   evidence, canonical shared fixtures and types, layered test boundaries,
   neutral shared artifacts and verified immutable package promotion.

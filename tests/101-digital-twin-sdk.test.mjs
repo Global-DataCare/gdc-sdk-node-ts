@@ -1,3 +1,4 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 /**
  * Flow contract:
  * 1. The subject controls secondary-use consent and operational IPS updates.
@@ -5,7 +6,8 @@
  * 3. A researcher searches, tags, reopens and materializes authorized data.
  * Authorization invariant: subject and researcher capabilities never merge.
  * Persistence invariant: deny freezes publication; provider purge removes only
- * the private link; exact authored clinical delete is neither operation.
+ * the private link; exact authored clinical delete is neither operation; an
+ * external IPS author remains provenance and grants no local mutation right.
  *
  * Teaching goal: show the complete application-level secondary-use and research journey.
  * The BFF uses actor facades only; no GW route, batch envelope or storage

@@ -264,6 +264,14 @@ export type IndividualMemberLifecycleInput = {
 };
 
 export type IpsOrFhirImportInput = {
+  /**
+   * Server-built IPS/FHIR payload whose original Composition author is
+   * preserved as provenance. Importing an external `urn:*` author never makes
+   * the authenticated controller that author and does not grant local update
+   * or delete authority. Repeating the same author URN is not proof that a
+   * correction came from the same source; unsigned/demo imports therefore
+   * remain locally immutable under the strict audit contract.
+   */
   compositionPayload: { thid?: string } & Record<string, unknown>;
   format?: 'api' | 'r4';
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
@@ -341,6 +349,8 @@ type ClinicalUpdateRuntimeOptions = Readonly<{
  * `ifMatch` for optimistic concurrency. GW authorizes it against the creator
  * DID plus the caller's linked verified login identity; contact identifiers
  * are never written into the clinical resource.
+ * An externally authored `urn:*` may be preserved on first import, but a local
+ * controller cannot subsequently update or delete that source-authored fact.
  */
 export type ClinicalSectionUpdateInput =
   ClinicalSectionUpdateCommunicationInput & ClinicalUpdateRuntimeOptions;

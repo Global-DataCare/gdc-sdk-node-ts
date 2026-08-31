@@ -191,6 +191,32 @@ the portal already uses for IPS/FHIR ingestion. The browser supplies the
 clinical document to its authenticated BFF; it does not select GW paths or
 author the digital-twin `Composition`.
 
+### External IPS provenance is not controller authorship
+
+When an imported IPS carries an external `Composition.author` URN, preserve it
+as source provenance. The authenticated controller or BFF that performs the
+import does not become that author and cannot edit or delete those imported
+facts. Repeating the same URN in another payload is not source authentication.
+
+```ts
+// The BFF may import this document once while preserving its external author.
+await individualController.importIpsOrFhirAndUpdateIndex(ctx, {
+  compositionPayload: externallyAuthoredIps,
+  format: 'r4',
+});
+
+// Do not expose local edit/delete actions for facts owned by that external
+// author. A corrected replacement requires verified source provenance, not a
+// controller login and not another payload that merely repeats the author URN.
+```
+
+An unsigned demo IPS has no independently verified source channel. Under the
+strict audit contract it is therefore locally immutable after import. A later
+document may be retained as a distinct version for review, but must not replace
+the original record under the same identifier. Support for a source-authorized
+replacement requires verified document/source proof and is not implied by the
+demo import route.
+
 ## 4. Projection and subject-identifier invariant
 
 Application code never posts the IPS or a canonical Composition to

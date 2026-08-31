@@ -118,7 +118,17 @@ Verify current branches, versions and published npm state before release claims.
 
 - Use `Bundle.type = batch`; each entry independently selects `.create()`, `.update()` or `.delete()`. Do not turn this flow into a transaction.
 - A typed delete addresses exactly `ResourceType/id`, has no resource body and may carry `.ifMatch(versionId)`.
-- Store only the creator DID in the clinical resource as `Composition.author`. Never store email, phone or their stable hashes in that resource.
+- For locally authored clinical data, store only the creator DID in
+  `Composition.author`. Never store email, phone or their stable hashes in the
+  clinical resource.
+- Treat an external `Composition.author = urn:*` on an imported IPS as
+  provenance, never as controller authority. The local controller/importing
+  BFF may import it once but cannot update or delete those source-authored
+  facts.
+- Never authorize a correction merely because a new payload repeats the same
+  external author URN. Require independently verified source provenance. When
+  that proof is unavailable, including unsigned demo imports, fail closed and
+  keep the imported record locally immutable under its identifier.
 - At delete time, authorize the exact subject and creator. Resolve linked verified email/phone login channels from private identity metadata outside the resource, so phone-created and email-created data remain manageable after account linking.
 - Remove the exact fact from later operational summaries and the synchronized research projection when enabled. This is neither secondary-use `deny` nor provider-offboarding link purge.
 - Keep 101 documentation at application level: typed batch entry, authorization result and visible summary behavior, without vault, queue or hashing plumbing.

@@ -235,6 +235,12 @@ export class IndividualControllerSdk {
 
   /**
    * Imports a FHIR/IPS payload and waits until it is indexed.
+   *
+   * The source `Composition.author` is provenance, not delegated authority.
+   * A controller that imports an IPS authored by an external URN does not gain
+   * permission to rewrite or delete it. A correction requires independently
+   * verified source provenance; merely resubmitting the same URN is
+   * insufficient and unsigned/demo imports remain locally immutable.
    */
   public importIpsOrFhirAndUpdateIndex(ctx: RouteContext, input: IpsOrFhirImportInput): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualImportIps, ActorKinds.IndividualController, 'importIpsOrFhirAndUpdateIndex');
