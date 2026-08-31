@@ -1,3 +1,4 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 /**
  * Flow contract: the trusted Node runtime resolves the concrete provider SMART
  * endpoint, uses it for both transport and JWT audience, and honors an explicit

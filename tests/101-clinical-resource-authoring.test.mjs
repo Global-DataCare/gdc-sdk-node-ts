@@ -1,4 +1,4 @@
-// Flow contract:
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 // 1. The subject BFF opens one section-scoped FHIR batch.
 // 2. One typed entry creates a fact and another deletes an exact ResourceType/id.
 // 3. The delete may bind the current version and carries no resource body.
