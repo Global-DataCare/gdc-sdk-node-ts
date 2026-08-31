@@ -1,4 +1,5 @@
-// Flow contract: server wallets remain open behind opaque sessions; authorized PIN replacement preserves keys, while fresh OTP recovery rotates keys, revokes prior sessions, and never needs the old PIN.
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
+// Server wallets remain open behind opaque sessions; authorized PIN replacement preserves keys, while fresh OTP recovery rotates keys, revokes prior sessions, and never needs the old PIN.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 

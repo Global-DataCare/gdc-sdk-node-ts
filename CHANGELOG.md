@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add repository-local release and test discipline covering branch/merge
+  evidence, canonical shared fixtures and types, layered test boundaries,
+  neutral shared artifacts and verified immutable package promotion.
+
 ## 2.5.1 - 2026-08-31
 
 - Encrypt the profile-enrollment activation-code exchange and DCR bootstrap
