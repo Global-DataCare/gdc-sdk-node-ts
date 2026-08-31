@@ -264,6 +264,7 @@ export type NodeHttpClientOptions = HttpRuntimeClientOptions;
 export class HttpRuntimeClient implements NodeRuntimeClient {
   private readonly baseUrl: string;
   private readonly bearerToken?: string;
+  private activeSmartBearerToken?: string;
   private readonly runtimeVpToken?: string;
   private readonly resolvedAppInfo?: ResolvedAppInfo;
   private readonly ctx?: RouteContext;
@@ -281,7 +282,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   private get transportConfig(): RuntimeTransportConfig {
     return {
       baseUrl: this.baseUrl,
-      bearerToken: this.bearerToken,
+      bearerToken: this.activeSmartBearerToken || this.bearerToken,
       defaultHeaders: this.defaultHeaders,
       requestTimeoutMs: this.requestTimeoutMs,
       httpTraceFile: this.httpTraceFile,
@@ -1447,10 +1448,14 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * Route details are resolved either from `input` compatibility fields
    * (`tenantId` / `jurisdiction` / `sector`) or from
    * the default client route context configured in the constructor.
+   * A fetched actor-scoped access token is retained by this runtime for later
+   * clinical operations. Token acquisition and renewal continue to use the
+   * original account bearer, so applications must not reconstruct the SDK or
+   * manually replace its transport after this method returns.
    */
   public async requestSmartToken(input: SmartTokenRequestInput): Promise<SmartTokenExchangeResult> {
     const routeCtx = this.paths.routeCtxFromInput(input);
-    return requestSmartTokenWithDeps({
+    const result = await requestSmartTokenWithDeps({
       input,
       routeCtx,
       baseUrl: this.baseUrl,
@@ -1461,9 +1466,16 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       identityOpenIdSmartTokenPath: this.paths.identityOpenIdSmartTokenPath.bind(this.paths),
       identityOpenIdSmartTokenPollPath: this.paths.identityOpenIdSmartTokenPollPath.bind(this.paths),
       resolveSmartTokenEndpoint: this.smartTokenEndpointResolver,
-      submitAndPoll: this.submitAndPoll.bind(this),
+      // Token acquisition and refresh remain authenticated by the original
+      // account bearer. A previously granted SMART token must not replace the
+      // OIDC proof used to request the next actor-scoped token.
+      submitAndPoll: this.submitAndPollWithBearerToken.bind(this, this.bearerToken),
       setTokenCache: (tokenCacheKey, token) => this.tokenCache.set(tokenCacheKey, token),
     });
+    if (result.status === 'fetched' && result.accessToken) {
+      this.activeSmartBearerToken = result.accessToken;
+    }
+    return result;
   }
 
   /**

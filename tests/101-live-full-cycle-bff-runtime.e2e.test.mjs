@@ -1,3 +1,4 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 /**
  * Live full-cycle `101` for a backend/BFF consuming `gdc-sdk-node-ts`.
  *
@@ -16,7 +17,14 @@
  * 7. professional profile is loaded and requests a SMART token
  * 8. the professional reads the allowed IPS document via FHIR params such as
  *    `Composition.section`
- * 9. cleanup closes consent, individual, employee, tenant, and host state
+ * 9. the same professional SDK instance creates one authored vital sign
+ * 10. that author deletes the exact fact through a typed batch entry
+ * 11. cleanup closes consent, individual, employee, tenant, and host state
+ *
+ * Authorization invariant: SMART `sub` is the clinical actor; sender and
+ * subject remain independent roles, and only that author may delete the fact.
+ * Persistence invariant: successful DELETE removes the current fact without
+ * converting consent revocation or profile cleanup into clinical operations.
  *
  * Run this suite from the user's real terminal/TTY.
  */
@@ -46,6 +54,8 @@ import {
   EXAMPLE_HEALTHCARE_ACTOR_ROLE_GENERALIST_MEDICAL_PRACTITIONER,
   EXAMPLE_HOSTED_PROVIDER_DID,
   EXAMPLE_JURISDICTION,
+  EXAMPLE_LEGAL_ORGANIZATION_SERVICE_TYPE,
+  EXAMPLE_LICENSE_ISSUE_INPUT,
   EXAMPLE_LIVE_CONSENT_GRANT_INPUT,
   EXAMPLE_LIVE_GW_BASE_URL_LOCAL,
   EXAMPLE_PROFILE_APP_TYPE_FAMILY,
@@ -77,7 +87,11 @@ import {
   buildIndividualDidWeb,
   buildProfessionalDidWeb,
   buildUnsignedProfessionalSmartVpJwt,
+  BundleEditableResourceTypes,
+  BundleEditor,
   BundleReader,
+  BundleTypes,
+  HealthcareBasicSections,
   HealthcareConsentActions,
   createJwtSigner,
   createVP,
@@ -103,7 +117,6 @@ import {
   loadBackendProfessionalProfile,
   NodeHttpClient,
   OrganizationControllerSdk,
-  ProfessionalSdk,
   prepareLoadProfile,
 } from '../dist/index.js';
 import { extractOfferIdFromResponseBody } from '../dist/order-offer-summary.js';
@@ -328,6 +341,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     .setControllerEmail(controllerEmail)
     .setControllerRole(controllerRole)
     .setServiceCategory(suiteSector)
+    .setServiceType(EXAMPLE_LEGAL_ORGANIZATION_SERVICE_TYPE)
     .setServiceIdentifier(serviceIdentifierDid)
     .setServiceUrl(serviceUrl);
   const tenantAliasValidation = { allowExplicitAlternateNameForTenantId: true };
@@ -519,16 +533,31 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     employeeIdentifier = env('EMPLOYEE_IDENTIFIER', employeeDraft.ensureEmployeeIdentifier());
 
     // Step 3: the tenant controller provisions the first professional account.
-    const employeeCreate = await profiler.run('organization-controller-create-professional', () => organizationControllerSdk.createOrganizationEmployee(
+    const employeeProvisioning = await profiler.run('organization-controller-provision-professional', () => organizationControllerSdk.provisionOrganizationEmployee(
       ctx,
       {
-        employeeClaims: employeeDraft
-          .setIdentifier(employeeIdentifier)
-          .toClaims(),
+        creation: {
+          employeeClaims: employeeDraft
+            .setIdentifier(employeeIdentifier)
+            .toClaims(),
+        },
+        invitation: {
+          ...cloneExample(EXAMPLE_LICENSE_ISSUE_INPUT),
+          email: employeeEmail,
+          role: employeeRole,
+          subjectDid: employeeIdentifier,
+          pollOptions,
+        },
+        licenseOrder: {
+          issuerDid: controllerSigner.getKid(),
+          hostNetwork: suiteHostSector,
+          timeoutSeconds: Math.round(pollOptions.timeoutMs / 1000),
+          intervalSeconds: pollOptions.intervalMs / 1000,
+        },
       },
-      pollOptions,
     ));
-    debug.record('organization-controller-create-professional', { response: employeeCreate });
+    debug.record('organization-controller-provision-professional', { response: employeeProvisioning });
+    const employeeCreate = employeeProvisioning.employee;
     assert.equal(employeeCreate.poll.status, 200);
     employeeCreated = true;
     const createdEmployeeResourceId = String(
@@ -712,13 +741,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     debug.record('professional-request-smart-token', { response: smart });
     assert.ok(smart.accessToken);
 
-    const smartProfessionalSdk = new ProfessionalSdk(new NodeHttpClient({
-      baseUrl,
-      ctx,
-      bearerToken: smart.accessToken,
-      requestTimeoutMs: 10_000,
-    }));
-    const professionalRead = await profiler.run('professional-read-latest-ips', () => smartProfessionalSdk.getLatestIps(
+    const professionalRead = await profiler.run('professional-read-latest-ips', () => professionalProfile.sdk.getLatestIps(
       ctx,
       {
         subject: suiteSubjectDid,
@@ -728,6 +751,58 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     debug.record('professional-read-latest-ips', { response: professionalRead });
     assert.equal(professionalRead.poll.status, 200);
     assert.ok(readFirstBundleResourceFromResponseBody(professionalRead.poll.body), 'The professional actor must receive one readable IPS bundle resource.');
+
+    // Steps 9-10: the SMART token obtained above remains active on this same
+    // high-level facade. Create and delete one exact author-owned fact without
+    // rebuilding the SDK or exposing transport plumbing in the 101 journey.
+    const professionalObservationId = `observation-${randomUUID()}`;
+    const authoredVitalSigns = new BundleEditor().setBundleType(BundleTypes.batch);
+    const authoredHeartRate = authoredVitalSigns
+      .newEntryAs(BundleEditableResourceTypes.observation, professionalObservationId)
+      .create()
+      .setSubject(suiteSubjectDid)
+      .setStatus('final')
+      .setDate(new Date().toISOString())
+      .setHeartRate(73);
+    authoredHeartRate.ensureIdentifier();
+
+    const professionalCreate = await profiler.run('professional-create-authored-vital-sign', () => professionalProfile.sdk.updateClinicalSection(
+      ctx,
+      {
+        subject: suiteSubjectDid,
+        sender: professionalActorDid,
+        recipient: EXAMPLE_PROFILE_PROVIDER_DID,
+        section: HealthcareBasicSections.VitalSigns.attributeValue,
+        bundle: authoredVitalSigns.buildJsonApi(),
+        clinicalFormat: 'r4',
+        pollOptions,
+      },
+    ));
+    debug.record('professional-create-authored-vital-sign', { response: professionalCreate });
+    assert.equal(professionalCreate.poll.status, 200);
+    assert.equal(new BundleReader(professionalCreate.poll.body).getResponseAnalysis().hasErrors, false);
+
+    const deleteVitalSign = new BundleEditor().setBundleType(BundleTypes.batch);
+    deleteVitalSign
+      .newEntryAs(BundleEditableResourceTypes.observation, professionalObservationId)
+      .delete();
+    const professionalDelete = await profiler.run('professional-delete-authored-vital-sign', () => professionalProfile.sdk.updateClinicalSection(
+      ctx,
+      {
+        subject: suiteSubjectDid,
+        sender: professionalActorDid,
+        recipient: EXAMPLE_PROFILE_PROVIDER_DID,
+        section: HealthcareBasicSections.VitalSigns.attributeValue,
+        bundle: deleteVitalSign.buildJsonApi(),
+        clinicalFormat: 'r4',
+        pollOptions,
+      },
+    ));
+    debug.record('professional-delete-authored-vital-sign', { response: professionalDelete });
+    assert.equal(professionalDelete.poll.status, 200);
+    const deleteAnalysis = new BundleReader(professionalDelete.poll.body).getResponseAnalysis();
+    assert.equal(deleteAnalysis.hasErrors, false);
+    assert.ok(deleteAnalysis.successfulOperations >= 1, 'The author-owned DELETE must return one successful batch operation.');
   } finally {
     // Cleanup runs in reverse business order so the suite can be used as a
     // real full-cycle tutorial without leaving live local state behind.
