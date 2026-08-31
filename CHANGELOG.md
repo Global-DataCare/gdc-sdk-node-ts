@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Recover authorized subjects by exact verified owner email or telephone before
+  merging accepted License grants, so shared BFFs surface legacy/self-created
+  cards without inventing a new relationship or parsing GW bundles.
+
 - Prove that `updateClinicalSection(...)` preserves an attached mixed
   `Bundle.type=batch` with independent create/delete requests inside the
   canonical Communication outbox job. `request.ifMatch` remains optional.

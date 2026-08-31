@@ -11,6 +11,9 @@ const CLAIM_ITEM_CONDITION = 'org.schema.IndividualProduct.itemCondition';
 const CLAIM_PERSON_EMAIL = 'org.schema.Person.email';
 const CLAIM_PERSON_TELEPHONE = 'org.schema.Person.telephone';
 const CLAIM_ORGANIZATION_SAME_AS = 'org.schema.Organization.sameAs';
+const CLAIM_ORGANIZATION_OWNER_EMAIL = 'org.schema.Organization.owner.email';
+const CLAIM_ORGANIZATION_OWNER_TELEPHONE = 'org.schema.Organization.owner.telephone';
+const CLAIM_ORGANIZATION_MEMBER_ROLE = 'org.schema.Organization.member.role';
 const CLAIM_RELATED_PERSON_ROLE = 'RelatedPerson.role';
 const CLAIM_OCCUPATION_IDENTIFIER = 'org.schema.Person.hasOccupation.identifier.value';
 
@@ -81,6 +84,30 @@ export async function listAuthorizedIndividualSubjectsWithDeps(
     throw new Error('A verified email or telephone is required to list authorized subjects.');
   }
 
+  const ownerResult = await deps.submitAndPoll(
+    deps.individualOrganizationSearchPath(routeContext),
+    deps.individualOrganizationSearchPollPath(routeContext),
+    {
+      thid: input.requestThid || createThreadId('authorized-subject-owner'),
+      body: {
+        resourceType: 'Bundle',
+        type: 'batch',
+        data: [{
+          type: 'Family-search-v1.0',
+          request: { method: 'POST' },
+          meta: { claims: {
+            '@context': SCHEMA_CONTEXT,
+            ...(email ? { [CLAIM_ORGANIZATION_OWNER_EMAIL]: email } : {}),
+            ...(telephone ? { [CLAIM_ORGANIZATION_OWNER_TELEPHONE]: telephone } : {}),
+          } },
+        }],
+      },
+    },
+    input.pollOptions,
+  );
+  const ownedSubjects = readOwnedSubjects(ownerResult, { email, telephone });
+  const subjectsByDid = new Map(ownedSubjects.map((subject) => [subject.subjectDid, subject]));
+
   const licenseClaims: Record<string, unknown> = {
     '@context': SCHEMA_CONTEXT,
     [CLAIM_AUDIENCE_TYPE]: INDIVIDUAL_AUDIENCE_TYPE,
@@ -106,7 +133,7 @@ export async function listAuthorizedIndividualSubjectsWithDeps(
   );
   const licenses = readAcceptedLicenses(licenseResult);
 
-  const resolved = await Promise.all(licenses.map(async (license) => {
+  const resolved = await Promise.all(licenses.filter((license) => !subjectsByDid.has(license.subjectDid)).map(async (license) => {
     const organizationClaims = {
       '@context': SCHEMA_CONTEXT,
       [CLAIM_ORGANIZATION_SAME_AS]: license.subjectDid,
@@ -144,7 +171,40 @@ export async function listAuthorizedIndividualSubjectsWithDeps(
     } satisfies AuthorizedIndividualSubject;
   }));
 
-  return resolved.filter((value): value is AuthorizedIndividualSubject => Boolean(value));
+  for (const subject of resolved.filter((value): value is AuthorizedIndividualSubject => Boolean(value))) {
+    subjectsByDid.set(subject.subjectDid, subject);
+  }
+  return [...subjectsByDid.values()];
+}
+
+function readOwnedSubjects(
+  result: SubmitAndPollResult,
+  verified: Readonly<{ email: string; telephone: string }>,
+): AuthorizedIndividualSubject[] {
+  const resources = readData(result).flatMap((entry: any) => {
+    if (entry?.resource?.resourceType === 'Bundle' && Array.isArray(entry.resource.entry)) {
+      return entry.resource.entry.map((item: any) => item?.resource).filter(Boolean);
+    }
+    return [];
+  });
+  return resources.flatMap((resource: any) => {
+    const claims = resource?.meta?.claims;
+    if (!claims || typeof claims !== 'object') return [];
+    const ownerEmail = String(claims[CLAIM_ORGANIZATION_OWNER_EMAIL] || '').trim().toLowerCase();
+    const ownerTelephone = String(claims[CLAIM_ORGANIZATION_OWNER_TELEPHONE] || '').trim();
+    if (!((verified.email && ownerEmail === verified.email) || (verified.telephone && ownerTelephone === verified.telephone))) {
+      return [];
+    }
+    const subjectDid = String(claims[CLAIM_ORGANIZATION_SAME_AS] || '').trim();
+    if (!subjectDid) return [];
+    const role = String(claims[CLAIM_ORGANIZATION_MEMBER_ROLE] || '').trim();
+    return [{
+      subjectDid,
+      ...(role ? { role } : {}),
+      grantClaims: {},
+      subjectClaims: claims as Readonly<Record<string, unknown>>,
+    }];
+  });
 }
 
 function readAcceptedLicenses(result: SubmitAndPollResult): AcceptedLicenseRow[] {
