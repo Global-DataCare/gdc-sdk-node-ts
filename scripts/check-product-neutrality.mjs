@@ -11,6 +11,8 @@ const forbidden = [
   new RegExp(`\\b${['U', 'HC'].join('')}\\b`, 'i'),
   new RegExp(`\\b${['U', 'NID'].join('')}\\b`, 'i'),
   new RegExp(['Universal', 'Health', 'Chain'].join('[- ]'), 'i'),
+  new RegExp(`\\b${['Vet', 'Chain'].join('')}\\b`, 'i'),
+  new RegExp(`\\b${['Pet', 'Chain'].join('')}\\b`, 'i'),
 ];
 const failures = [];
 

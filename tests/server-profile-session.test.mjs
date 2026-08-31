@@ -8,9 +8,23 @@ import {
   NodeManagedWallet,
   ProfessionalSdk,
   ServerProfileSessionManager,
+  TransportProfiles,
   openServerProfileSecret,
   protectServerProfileSecret,
 } from '../dist/index.js';
+import {
+  EXAMPLE_ACCOUNT_OWNER_ID,
+  EXAMPLE_DCR_REDIRECT_URI,
+  EXAMPLE_DEMO_PORTAL_ID_TOKEN,
+  EXAMPLE_EMPLOYEE_ACTIVATION_CODE,
+  EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
+  EXAMPLE_GENERIC_SUBJECT_DID,
+  EXAMPLE_PROFILE_ID,
+  EXAMPLE_PROFILE_PIN,
+  EXAMPLE_PROFILE_PROVIDER_DID,
+  EXAMPLE_TENANT_ROUTE_CONTEXT,
+} from 'gdc-common-utils-ts/examples/shared';
+import { IdentityDcrMetadataFields } from 'gdc-common-utils-ts/constants/identity-auth';
 
 /**
  * Flow contract exercised by this suite:
@@ -26,8 +40,9 @@ import {
  *    signed with the actor DID stored in the profile as its `iss` claim.
  * 6. The same protected seed deterministically restores a distinct ML-KEM
  *    document-at-rest key, while each document receives a fresh AES CEK.
- * 7. Enrollment uses two independent proofs: a trusted signed OIDC id_token
- *    binds the account/email, while the stored VP proves actor/role authority.
+ * 7. Enrollment uses encrypted DIDComm for activation-code exchange and DCR;
+ *    a trusted signed OIDC id_token binds the account/email, while the stored
+ *    VP proves actor/role authority.
  */
 function memoryDeps() {
   const profiles = new Map();
@@ -61,26 +76,78 @@ function memoryDeps() {
   };
 }
 
+async function createGatewayTransport(responses, calls = []) {
+  const wallet = new NodeManagedWallet();
+  const context = { runtime: { runtimeId: 'gateway-test-runtime', runtimeType: 'backend-service' } };
+  await wallet.provisionManagedKeys(context, {
+    ownerScope: 'runtime',
+    purposes: ['comm-signing', 'comm-encryption'],
+    mode: 'deterministic',
+    seedMaterial: 'gateway-test-seed',
+  });
+  const [recipientKey] = await wallet.getPublicJwks(context, {
+    ownerScope: 'runtime',
+    purpose: 'comm-encryption',
+  });
+  return {
+    calls,
+    resolveRecipientJwk: async () => recipientKey.publicJwk,
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      const response = responses.shift();
+      if (!response) throw new Error('Gateway test transport has no queued response.');
+      const isEncrypted = new Headers(init.headers).get('content-type') === TransportProfiles.DidcommEncryptedForm;
+      if (!isEncrypted || response.status === 202) return response;
+      const requestJwe = new URLSearchParams(String(init.body)).get('request');
+      assert.ok(requestJwe);
+      const requestHeader = JSON.parse(Buffer.from(requestJwe.split('.')[0], 'base64url').toString());
+      assert.ok(requestHeader.jwk);
+      const responseJwe = await wallet.packForRecipientWithContext(
+        await response.json(),
+        requestHeader.jwk,
+        { context },
+      );
+      return new Response(`response=${encodeURIComponent(responseJwe)}`, {
+        status: response.status,
+        headers: { 'content-type': TransportProfiles.DidcommEncryptedForm },
+      });
+    },
+  };
+}
+
 test('production profile flow enrolls DCR, unlocks with registered-key assertion and returns SMART session', async () => {
   const deps = memoryDeps();
   const calls = [];
   const recipientDids = [];
+  const walletSeed = Buffer.alloc(32, 7).toString('base64url');
   const recipientWallet = new NodeManagedWallet();
   const recipientContext = { runtime: { runtimeId: 'gw-recipient', runtimeType: 'backend-service' } };
   await recipientWallet.provisionManagedKeys(recipientContext, {
-    ownerScope: 'runtime', purposes: ['comm-encryption'], mode: 'deterministic', seedMaterial: 'gw-recipient-seed',
+    ownerScope: 'runtime', purposes: ['comm-signing', 'comm-encryption'], mode: 'deterministic', seedMaterial: 'gw-recipient-seed',
   });
   const [recipientKey] = await recipientWallet.getPublicJwks(recipientContext, {
     ownerScope: 'runtime', purpose: 'comm-encryption',
   });
   const recipientPublicJwk = recipientKey.publicJwk;
-  const responses = [
-    Response.json({}, { status: 202 }),
-    Response.json({ access_token: 'initial-access-token' }),
-    Response.json({}, { status: 202 }),
-    Response.json({ client_id: 'device-client-1', device_did: 'did:key:device-1' }),
-    Response.json({}, { status: 202 }),
-    Response.json({ access_token: 'smart-access-token', token_type: 'Bearer', scope: 'patient/Composition.rs' }),
+  const profileWalletReplica = new NodeManagedWallet();
+  const profileContext = {
+    profile: { profileId: EXAMPLE_PROFILE_ID },
+    runtime: { runtimeId: `${EXAMPLE_PROFILE_ID}:server-runtime`, runtimeType: 'backend-service' },
+  };
+  await profileWalletReplica.provisionManagedKeys(profileContext, {
+    ownerScope: 'profile', purposes: ['actor-signing', 'document-at-rest'], mode: 'deterministic', seedMaterial: walletSeed,
+  });
+  await profileWalletReplica.provisionManagedKeys(profileContext, {
+    ownerScope: 'runtime', purposes: ['openid-id-token-signing', 'vp-token-signing', 'comm-signing', 'comm-encryption'], mode: 'deterministic', seedMaterial: walletSeed,
+  });
+  const [profileEncryptionKey] = await profileWalletReplica.getPublicJwks(profileContext, {
+    ownerScope: 'runtime', purpose: 'comm-encryption',
+  });
+  const terminalResponses = [
+    { access_token: 'initial-access-token' },
+    { client_id: 'device-client-1', device_did: 'did:key:device-1' },
+    { access_token: 'smart-access-token', token_type: 'Bearer', scope: 'patient/Composition.rs' },
+    { access_token: 'renewed-smart-access-token', token_type: 'Bearer', scope: 'patient/Composition.rs' },
   ];
   const manager = new ServerProfileSessionManager({
     ...deps,
@@ -91,7 +158,20 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
     },
     fetchImpl: async (url, init) => {
       calls.push({ url, init });
-      return responses.shift();
+      if (calls.length % 2 === 1) return Response.json({}, { status: 202 });
+      const terminalResponse = terminalResponses.shift();
+      if (new Headers(init.headers).get('content-type') !== TransportProfiles.DidcommEncryptedForm) {
+        return Response.json(terminalResponse);
+      }
+      const compactResponse = await recipientWallet.packForRecipientWithContext(
+        terminalResponse,
+        profileEncryptionKey.publicJwk,
+        { context: recipientContext },
+      );
+      return new Response(`response=${encodeURIComponent(compactResponse)}`, {
+        status: 200,
+        headers: { 'content-type': TransportProfiles.DidcommEncryptedForm },
+      });
     },
     requiredConfidentialStorageProfile: 'confidential-pqc-v1',
     appInfo: {
@@ -102,20 +182,21 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
     profileProtection: { cost: 1_024 },
   });
   const base = {
-    ownerId: 'firebase-uid-1',
-    profileId: 'profile-1',
+    ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
+    profileId: EXAMPLE_PROFILE_ID,
     actorKind: ActorKinds.IndividualController,
     actorMode: 'self',
     actorDid: 'did:web:actor.example',
     profileDid: 'did:web:profile.example',
-    providerDid: 'did:web:provider.example',
-    routeContext: { tenantId: 'VATES-TEST', jurisdiction: 'ES', sector: 'health-care' },
-    allowedSubjectDids: ['did:web:subject.example'],
-    pin: '123456',
-    idToken: 'signed-email-proof-id-token',
-    activationCode: 'activation-code',
-    redirectUris: ['https://portal.example/__/auth/handler'],
-    clientName: 'Example Professional Portal',
+    providerDid: EXAMPLE_PROFILE_PROVIDER_DID,
+    routeContext: EXAMPLE_TENANT_ROUTE_CONTEXT,
+    allowedSubjectDids: [EXAMPLE_GENERIC_SUBJECT_DID],
+    pin: EXAMPLE_PROFILE_PIN,
+    idToken: EXAMPLE_DEMO_PORTAL_ID_TOKEN,
+    activationCode: EXAMPLE_EMPLOYEE_ACTIVATION_CODE,
+    redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
+    clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
+    walletSeed,
   };
   const enrolled = await manager.enroll(base);
   assert.equal(enrolled.clientId, 'device-client-1');
@@ -130,11 +211,31 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
     new Headers(calls[0].init.headers).get('authorization'),
     `Bearer ${base.idToken}`,
   );
+  assert.equal(
+    new Headers(calls[0].init.headers).get('content-type'),
+    TransportProfiles.DidcommEncryptedForm,
+  );
   assert.equal(new Headers(calls[0].init.headers).get('AppId'), 'example.portal');
   assert.equal(new Headers(calls[0].init.headers).get('AppVersion'), 'v1.0');
-  const dcrRequest = JSON.parse(String(calls[2].init.body));
-  assert.deepEqual(dcrRequest.redirect_uris, ['https://portal.example/__/auth/handler']);
-  assert.equal(dcrRequest.client_name, 'Example Professional Portal');
+  assert.equal(
+    new Headers(calls[2].init.headers).get('content-type'),
+    TransportProfiles.DidcommEncryptedForm,
+  );
+  const encryptedDcr = new URLSearchParams(String(calls[2].init.body)).get('request');
+  assert.ok(encryptedDcr);
+  const dcrJweHeader = JSON.parse(Buffer.from(encryptedDcr.split('.')[0], 'base64url').toString());
+  assert.deepEqual(dcrJweHeader.jwk, profileEncryptionKey.publicJwk);
+  const compactDcrJws = Buffer.from(await recipientWallet.decryptCompactJwe(
+    encryptedDcr,
+    recipientContext,
+    { key: { ownerScope: 'runtime', purpose: 'comm-encryption' } },
+  )).toString();
+  const dcrJwsHeader = JSON.parse(Buffer.from(compactDcrJws.split('.')[0], 'base64url').toString());
+  assert.ok(dcrJwsHeader.jwk);
+  const dcrRequest = JSON.parse(Buffer.from(compactDcrJws.split('.')[1], 'base64url').toString());
+  assert.equal(dcrRequest.iss, base.actorDid);
+  assert.deepEqual(dcrRequest[IdentityDcrMetadataFields.RedirectUris], [EXAMPLE_DCR_REDIRECT_URI]);
+  assert.equal(dcrRequest[IdentityDcrMetadataFields.ClientName], EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME);
 
   const unlocked = await manager.unlock({
     ownerId: base.ownerId,
@@ -165,17 +266,13 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
     iss: base.actorDid,
     client_id: unlocked.profile.clientId,
   });
-  assert.deepEqual(recipientDids, [base.providerDid]);
+  assert.deepEqual([...new Set(recipientDids)], [base.providerDid]);
   const protectedDocument = await unlocked.confidentialStorageAdapter.protect({ id: 'health-1', content: { note: 'private' } });
   assert.equal(typeof protectedDocument.jwe, 'string');
   const resolvedAgain = await manager.resolveSession(base.ownerId, unlocked.sessionId);
   assert.deepEqual(
     await resolvedAgain.confidentialStorageAdapter.unprotect(protectedDocument),
     { id: 'health-1', content: { note: 'private' } },
-  );
-  responses.push(
-    Response.json({}, { status: 202 }),
-    Response.json({ access_token: 'renewed-smart-access-token', token_type: 'Bearer', scope: 'patient/Composition.rs' }),
   );
   const refreshed = await manager.refreshSession(base.ownerId, unlocked.sessionId, 'fresh-firebase-id-token');
   assert.equal(refreshed.sessionId, unlocked.sessionId);
@@ -322,11 +419,12 @@ test('employee enrollment builds its signed role VP after DCR instead of copying
     Response.json({}, { status: 202 }),
     Response.json({ client_id: 'employee-device-client', device_did: 'did:key:employee-device' }),
   ];
+  const gateway = await createGatewayTransport(responses);
   const manager = new ServerProfileSessionManager({
     ...deps,
     gatewayBaseUrl: 'https://gw.example',
-    resolveRecipientJwk: async () => ({}),
-    fetchImpl: async () => responses.shift(),
+    resolveRecipientJwk: gateway.resolveRecipientJwk,
+    fetchImpl: gateway.fetchImpl,
     profileProtection: { cost: 1_024 },
   });
   const profile = await manager.enroll({
@@ -339,8 +437,8 @@ test('employee enrollment builds its signed role VP after DCR instead of copying
     allowedSubjectDids: ['did:web:clinic.example:employees:zStableActor'],
     pin: '123456', idToken: 'signed-oidc-email-token', activationCode: 'employee-activation-code',
     professionalProof: { role: 'ISCO-08|2250', sameAs: 'urn:multibase:zStableActor' },
-    redirectUris: ['https://professional.vetchain.example/auth/callback'],
-    clientName: 'VetChain Professional',
+    redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
+    clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
   });
   const vpToken = await openServerProfileSecret(
     profile.protectedVpToken,
@@ -400,14 +498,12 @@ test('fresh OTP recovery rotates employee wallet keys, invalidates old sessions 
     Response.json({}, { status: 202 }),
     Response.json({ access_token: 'new-smart-access-token', token_type: 'Bearer', scope: 'patient/Composition.rs' }),
   ];
+  const gateway = await createGatewayTransport(responses, calls);
   const manager = new ServerProfileSessionManager({
     ...deps,
     gatewayBaseUrl: 'https://gw.example',
-    resolveRecipientJwk: async () => ({}),
-    fetchImpl: async (url, init) => {
-      calls.push({ url, init });
-      return responses.shift();
-    },
+    resolveRecipientJwk: gateway.resolveRecipientJwk,
+    fetchImpl: gateway.fetchImpl,
     profileProtection: { cost: 1_024 },
   });
 
@@ -416,8 +512,8 @@ test('fresh OTP recovery rotates employee wallet keys, invalidates old sessions 
     profileId: oldProfile.profileId,
     idToken: 'fresh-marked-email-otp-id-token',
     newPin: '654321',
-    redirectUris: ['https://professional.vetchain.example/auth/callback'],
-    clientName: 'VetChain Professional',
+    redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
+    clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
   });
   const rotatedSession = await manager.unlock({
     ownerId: oldProfile.ownerId,
@@ -455,11 +551,12 @@ test('server-only bootstrap seed and stable derivation id reproduce controller p
       Response.json({}, { status: 202 }),
       Response.json({ client_id: `client-${profileId}` }),
     ];
+    const gateway = await createGatewayTransport(responses);
     const manager = new ServerProfileSessionManager({
       ...deps,
       gatewayBaseUrl: 'https://gw.example',
-      resolveRecipientJwk: async () => ({}),
-      fetchImpl: async () => responses.shift(),
+      resolveRecipientJwk: gateway.resolveRecipientJwk,
+      fetchImpl: gateway.fetchImpl,
       profileProtection: { cost: 1_024 },
     });
     return manager.enroll({

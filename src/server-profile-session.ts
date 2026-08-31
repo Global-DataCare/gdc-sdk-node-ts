@@ -373,7 +373,22 @@ export class ServerProfileSessionManager {
     if (!storagePublicJwk) throw new Error('Server profile enrollment requires a document-at-rest ML-KEM key.');
     const idToken = String(input.idToken || '').trim();
     if (!idToken) throw new Error('Profile enrollment requires a signed OIDC idToken for account/email binding.');
-    const client = this.createClient(input.routeContext, idToken);
+    const client = new NodeHttpClient({
+      baseUrl: this.options.gatewayBaseUrl,
+      ctx: input.routeContext,
+      bearerToken: idToken,
+      appInfo: this.options.appInfo,
+      fetchImpl: this.options.fetchImpl,
+      transportProfile: TransportProfiles.DidcommEncryptedForm,
+      secureTransportAdapter: {
+        pack: (message) => wallet.packProfileBootstrapForRecipientWithContext(
+          { ...message, iss: input.actorDid },
+          input.providerDid,
+          { context },
+        ),
+        unpack: async (jwe) => (await wallet.unpackWithContext!(jwe, { context })).content,
+      },
+    });
     const redirectUris = input.redirectUris || input.dcrRedirectUris || [];
     const clientName = String(input.clientName || input.dcrClientName || '').trim();
     const activationRequest = createProfileDeviceActivationRequest({

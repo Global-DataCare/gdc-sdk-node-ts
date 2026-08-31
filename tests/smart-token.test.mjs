@@ -6,6 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  EXAMPLE_GATEWAY_PUBLIC_ORIGIN,
   EXAMPLE_OPENID_SMART_TOKEN_INPUT,
   EXAMPLE_SMART_PRESENTATION_SUBMISSION,
   EXAMPLE_SMART_TOKEN_RESPONSE,
@@ -85,7 +86,7 @@ test('requestSmartTokenWithDeps keeps requester id_token separate and omits vp_t
       vpTokenFallback: 'omit',
     },
     routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
-    baseUrl: 'https://ca.vetchain.example',
+    baseUrl: EXAMPLE_GATEWAY_PUBLIC_ORIGIN,
     identityTokenExchangePath: () => '/unused',
     identityTokenExchangePollPath: () => '/unused',
     identityOpenIdSmartTokenPath: () => '/connecthealth-ca/cds-CA/v1/animal-care/identity/openid/smart/token',

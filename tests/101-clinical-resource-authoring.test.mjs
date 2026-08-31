@@ -12,10 +12,11 @@ import {
   BundleEditor,
   BundleEditableResourceTypes,
   BundleTypes,
-  HttpRequestMethods,
   NodeActorSession,
   toClinicalResourceCardView,
 } from '../dist/index.js';
+import { HttpRequestMethods } from 'gdc-common-utils-ts/constants/http';
+import { BundleOperations } from 'gdc-common-utils-ts/models/bundle-editor-types';
 
 test('Node SDK exposes the canonical coded clinical authoring/display surface', () => {
   assert.equal(typeof BundleEditor, 'function');
@@ -23,7 +24,9 @@ test('Node SDK exposes the canonical coded clinical authoring/display surface', 
 });
 
 test('Node SDK builds mixed POST and DELETE clinical batch entries', () => {
-  const editor = new BundleEditor().setBundleType(BundleTypes.batch);
+  const editor = new BundleEditor()
+    .setBundleType(BundleTypes.batch)
+    .setBundleOperation(BundleOperations.create);
   editor.newEntryAs(BundleEditableResourceTypes.allergyIntolerance, 'allergy-create-001').create();
   editor.newEntryAs(BundleEditableResourceTypes.allergyIntolerance, 'allergy-delete-001')
     .delete()

@@ -590,6 +590,51 @@ export class NodeManagedWallet implements IWallet {
   }
 
   /**
+   * Packs the first activation/DCR requests before GW can resolve this
+   * installation's communication keys from a registered DID document.
+   *
+   * The embedded public keys are bootstrap response and signature material;
+   * callers must still authenticate the HTTP request with the trusted OIDC
+   * token and one server-authorized activation code. Post-DCR operations must
+   * use `packForRecipientWithContext` so registered key custody is resolved.
+   */
+  public async packProfileBootstrapForRecipientWithContext(
+    content: any,
+    recipientDidOrJwk: string | JWK,
+    options: WalletPackOptions,
+  ): Promise<string> {
+    const recipientJwk = typeof recipientDidOrJwk === 'string'
+      ? await this.resolveRecipientPublicJwk(recipientDidOrJwk)
+      : recipientDidOrJwk;
+    const signingKey = this.requireManagedKey(options.context, {
+      ownerScope: 'runtime',
+      purpose: 'comm-signing',
+    }, 'sig');
+    const encryptionKey = this.requireManagedKey(options.context, {
+      ownerScope: 'runtime',
+      purpose: 'comm-encryption',
+    }, 'enc');
+    const compactJws = await this.signCompactJws(options.context, {
+      header: {
+        typ: 'JWS',
+        jwk: signingKey.descriptor.publicJwk,
+      },
+      claims: content,
+      key: { keyId: signingKey.descriptor.kid },
+    });
+    const senderEncryptionKey: MlkemPrivateJwk = {
+      ...(encryptionKey.descriptor.publicJwk as any),
+      dBytes: encryptionKey.privateMaterial as Uint8Array,
+    };
+    return this.cryptography.encryptJweToCompact(compactJws, {
+      enc: 'A256GCM',
+      skid: encryptionKey.descriptor.kid,
+      jwk: encryptionKey.descriptor.publicJwk,
+      cty: 'JWS',
+    }, senderEncryptionKey, recipientJwk as any);
+  }
+
+  /**
    * Legacy unpack shape retained for app compatibility.
    */
   public async unpack(packedMessage: string): Promise<{ content: any; meta: any }> {

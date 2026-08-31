@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 2.5.1 - 2026-08-31
+
+- Encrypt the profile-enrollment activation-code exchange and DCR bootstrap
+  with the newly provisioned server wallet, so enrollment works when GW runs
+  in `SECURITY_MODE=strict` without changing the accepted secure transport in
+  compatibility or demo deployments.
 
 - Recover authorized subjects by exact verified owner email or telephone before
   merging accepted License grants, so shared BFFs surface legacy/self-created
