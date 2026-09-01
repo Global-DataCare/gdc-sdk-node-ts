@@ -44,6 +44,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ActorCapabilities } from 'gdc-common-utils-ts/constants/actor-session';
 import {
+  ClaimsOrderSchemaorg,
   ClaimsPersonSchemaorg,
   ClaimsServiceSchemaorg,
 } from 'gdc-common-utils-ts/constants/schemaorg';
@@ -56,6 +57,8 @@ import {
   EXAMPLE_JURISDICTION,
   EXAMPLE_LEGAL_ORGANIZATION_SERVICE_TYPE,
   EXAMPLE_LICENSE_ISSUE_INPUT,
+  EXAMPLE_LICENSE_INVOICE_ID,
+  EXAMPLE_LICENSE_PAYMENT_METHOD_STRIPE,
   EXAMPLE_LIVE_CONSENT_GRANT_INPUT,
   EXAMPLE_LIVE_GW_BASE_URL_LOCAL,
   EXAMPLE_PROFILE_APP_TYPE_FAMILY,
@@ -551,6 +554,10 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         licenseOrder: {
           issuerDid: controllerSigner.getKid(),
           hostNetwork: suiteHostSector,
+          additionalClaims: {
+            [ClaimsOrderSchemaorg.paymentMethod]: EXAMPLE_LICENSE_PAYMENT_METHOD_STRIPE,
+            [ClaimsOrderSchemaorg.partOfInvoice]: EXAMPLE_LICENSE_INVOICE_ID,
+          },
           timeoutSeconds: Math.round(pollOptions.timeoutMs / 1000),
           intervalSeconds: pollOptions.intervalMs / 1000,
         },

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## 2.6.1 - 2026-09-01
+
+- Require Common Utils 2.7.1 and SDK Core 2.4.2 for the canonical transport
+  identity contract: DIDComm `from`, operational JWT `iss`, key `kid` and
+  SMART `sub` remain distinct, while a direct actor flow may deliberately use
+  the same actor DID for `from`, `iss` and `sub`.
+- Prove both DIDComm and legacy native-FHIR `Communication` ingestion against a
+  real local GW. Native FHIR carries no DIDComm identity fields; authorization
+  remains in the HTTP bearer and `Communication.sender` remains a business
+  participant reference.
+- Make selected live release journeys register only their requested tests, so
+  final evidence reports zero skipped cases instead of hiding unrelated
+  profiles behind successful omissions.
+- Correct the professional, individual, consent and clinical live fixtures to
+  use shared canonical actor identities and semantically distinct clinical
+  documents, preserving deterministic de-duplication behavior.
+
 ## 2.6.0 - 2026-09-01
 
 - Require SDK Core 2.4.1 so Node/BFF consumers read controller activation

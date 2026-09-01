@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-test('pins the SDK Core patch that reads activation licences from Order entry claims', () => {
+test('pins the shared identity and activation-licence contract patches', () => {
   const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-  assert.equal(packageJson.dependencies['gdc-sdk-core-ts'], '2.4.1');
-  assert.equal(packageJson.dependencies['gdc-common-utils-ts'], '2.7.0');
+  assert.equal(packageJson.dependencies['gdc-sdk-core-ts'], '2.4.2');
+  assert.equal(packageJson.dependencies['gdc-common-utils-ts'], '2.7.1');
 });

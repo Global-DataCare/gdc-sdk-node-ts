@@ -1,3 +1,12 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
+/**
+ * Journey: 1) submit organization verification, 2) confirm its Order,
+ * 3) reissue and activate the controller device, 4) disable and purge the
+ * tenant, and 5) remove the host after no tenant remains.
+ * Authorization invariant: only the reviewed controller proof authorizes the
+ * tenant lifecycle. Persistence invariant: purge removes tenant state before
+ * host cleanup is allowed.
+ */
 /**
  * 101 note:
  * - Teach the highest-level `sdk-node` actor/profile/runtime surface for this topic.
@@ -161,9 +170,9 @@ async function buildSignedControllerVpToken({
   tenantId,
   audience,
 }) {
-  // Canonical controller proof is a three-VC presentation. The legal
-  // representative VC proves legal capacity; the separate controller VC
-  // proves RESPRSN authority and binds the actor signing key.
+  // The first historical controller may still be the deployment-authorized
+  // legal representative and therefore has the two-VC compatibility proof.
+  // Later independent controllers must add their own ICA-issued controller VC.
   const vpPayload = createVP({
     iss: signer.getKid(),
     sub: tenantId,
@@ -174,7 +183,9 @@ async function buildSignedControllerVpToken({
   });
   addOrganizationCredential(vpPayload, organizationCredential);
   addLegalRepresentativeCredential(vpPayload, legalRepresentativeCredential);
-  addServiceControllerCredential(vpPayload, organizationControllerCredential);
+  if (organizationControllerCredential) {
+    addServiceControllerCredential(vpPayload, organizationControllerCredential);
+  }
   const prepared = signer.prepareJwt({
     payload: vpPayload,
     header: {
@@ -200,6 +211,10 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
   const controllerEmail = env('CONTROLLER_EMAIL', `controller+${runSlug}@example.com`);
   const serviceIdentifierDid = env('SERVICE_IDENTIFIER_DID', 'did:web:provider.example.org');
   const serviceUrl = env('SERVICE_URL', 'https://provider.example.org');
+  const serviceType = serializeServiceCapabilityTokens([
+    ServiceCapability.IndexProvider,
+    ServiceCapability.DigitalTwinReader,
+  ]);
   const controllerVpAudience = env('CONTROLLER_VP_AUDIENCE', `host:${suiteHostIdentifierValue}`);
   const controllerSigner = await createJwtSigner({
     alg: env('CONTROLLER_SIGNER_ALG', 'ES384'),
@@ -238,6 +253,7 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
     .setControllerRole(env('CONTROLLER_ROLE', 'RESPRSN'))
     .setServiceCategory(suiteSector)
     .setServiceIdentifier(serviceIdentifierDid)
+    .setServiceType(serviceType)
     .setServiceUrl(serviceUrl);
   const draft = onboarding.buildDraft({ allowExplicitAlternateNameForTenantId: true });
   assert.equal(draft.validation.ok, true, 'Controller live onboarding draft must be valid before submission.');
@@ -259,10 +275,7 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
       // employee seat. Organization/_issue can subsequently reissue that
       // same actor-bound seat for another device without consuming a new one.
       [ClaimsOrganizationSchemaorg.numberOfEmployees]: 1,
-      [ClaimsServiceSchemaorg.serviceType]: serializeServiceCapabilityTokens([
-        ServiceCapability.IndexProvider,
-        ServiceCapability.DigitalTwinReader,
-      ]),
+      [ClaimsServiceSchemaorg.serviceType]: serviceType,
     },
   };
 
@@ -288,10 +301,11 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
     const verificationPair = readLegalOrganizationVerificationCredentialPairFromResponseBody(verification.poll.body || {});
     const { organizationCredential, legalRepresentativeCredential } = verificationPair;
     const organizationControllerCredential = readServiceControllerCredentialFromResponseBody(verification.poll.body || {});
-    assert.ok(
-      organizationControllerCredential,
-      'ICA verification must return the controller-authority VC used in the signed controller VP.',
-    );
+    // A fixed signed-PDF fixture may designate a different future technical
+    // controller. ICA must not bind that actor to this representative's key.
+    // The legacy first representative remains usable only through the audited
+    // two-VC compatibility path; an independently enrolled controller requires
+    // its own ServiceControllerCredential.
     const resolvedTaxId = readLegalOrganizationVerificationTaxIdFromResponseBody(verification.poll.body || {});
     const offerId = extractOfferIdFromResponseBody(verification.poll.body);
     assert.ok(offerId, 'Host verification transaction must expose one offer identifier before order confirmation.');

@@ -1,4 +1,14 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 /**
+ * Journey:
+ * 1. Load one authenticated individual-controller profile on an existing tenant.
+ * 2. Register and confirm one individual organization.
+ * 3. Ingest one FHIR document through a Communication and read the subject index.
+ * 4. Disable and purge only the individual created by this scenario.
+ * 5. Close the profile and prove runtime state is no longer readable.
+ * Authorization invariant: the authenticated controller DID authors the clinical write.
+ * Persistence invariant: cleanup targets only this journey's individual and profile state.
+ *
  * Live actor-profile E2E for the current individual-controller runtime slice.
  *
  * This suite is intentionally different from the GW CORE platform lifecycle
@@ -52,6 +62,7 @@ import {
   createRuntimeClient,
   ensureLiveGwTraceFiles,
 } from './helpers/live-gw-runtime-helpers.mjs';
+import { buildUnsignedJwt } from './helpers/vp-token-fixture.mjs';
 
 function env(name, fallback = '') {
   return String(process.env[name] ?? fallback).trim();
@@ -136,7 +147,8 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
   const debug = createDebugLogger();
   const profiler = createStepProfiler(debug, 'profile-runtime-individual');
   const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
-  const bearerToken = env('AUTH_BEARER');
+  const profileDid = env('INDIVIDUAL_CONTROLLER_PROFILE_DID', EXAMPLE_PROFILE_PROVIDER_DID);
+  const bearerToken = env('AUTH_BEARER', buildUnsignedJwt({ sub: profileDid }));
   const ctx = {
     tenantId: suiteTenantRouteId,
     jurisdiction: suiteJurisdiction,
@@ -144,7 +156,6 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
   };
   const pollOptions = createLivePollOptions();
   const runtimeClient = createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutMs: 10_000 });
-  const profileDid = env('INDIVIDUAL_CONTROLLER_PROFILE_DID', EXAMPLE_PROFILE_PROVIDER_DID);
   const individualControllerEmail = env('INDIVIDUAL_CONTROLLER_EMAIL', `controller+${runSlug}@example.com`);
   const individualControllerRole = env('INDIVIDUAL_CONTROLLER_ROLE', 'RESPRSN');
   const individualAltName = env(
@@ -242,7 +253,7 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
   };
   const draft = addFhirResourceToDraft(createCommunicationDraft({
     subject: suiteSubjectDid,
-    sender: profile.descriptor.profileDid,
+    sender: profile.profile.descriptor.profileDid,
     sent: observedAt,
   }), documentBundle, {
     attachmentTitle: 'ips-document.json',
