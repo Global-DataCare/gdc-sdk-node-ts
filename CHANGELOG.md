@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.6.0 - 2026-09-01
+
 - Require SDK Core 2.4.1 so Node/BFF consumers read controller activation
   licences from real GW Order entry claims while leaving the FHIR Invoice
   resource unchanged. Portal code does not traverse DIDComm or Bundle
