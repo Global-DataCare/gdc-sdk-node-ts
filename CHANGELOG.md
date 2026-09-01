@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 2.6.2 - 2026-09-01
+
+- Persist `requestProfessionalAccess(...)` through a complete claims-first GW
+  `Communication` Bundle instead of passing the flat business draft as a
+  transport envelope. The high-level facade now carries the stable request
+  identifier, participant claims, `permission-request` category and note text
+  without requiring portal/BFF Bundle plumbing.
+
 ## 2.6.1 - 2026-09-01
 
 - Require Common Utils 2.7.1 and SDK Core 2.4.2 for the canonical transport
