@@ -356,9 +356,13 @@ const twinSubjectId =
 
 `search(...)` posts a FHIR `Parameters` resource to
 `digitaltwin/.../ResearchSubject/_search`. The public result is a
-`ResearchSubject`; its `composition` property is the canonical Composition GW
-uses internally to index that twin and connect its projected FHIR resources.
-There is no separate public `Composition/_search` flow.
+`ResearchSubject`. Claims-first responses may mix `ResearchSubject.*` and
+`Composition.*` inside one `meta.claims` map with
+`@context = org.hl7.fhir.api`. R4/R5 responses instead translate those claims
+and carry the canonical Composition in `ResearchSubject.contained[]`. The SDK
+normalizes either form into `match.composition`; application code does not
+navigate envelopes or claim maps. There is no separate public
+`Composition/_search` flow.
 
 The identifier retained in `Composition.subject` for compatibility is the research-safe,
 pseudonymous twin identifier. It is not the individual's DID and must not be

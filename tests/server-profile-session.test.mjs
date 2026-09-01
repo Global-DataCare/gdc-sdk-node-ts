@@ -1,4 +1,5 @@
-// TDD: the server-owned profile sends activation and registration data inside the canonical DIDComm body.
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
+// The server-owned profile sends activation and registration data inside the canonical DIDComm body.
 // Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 // Server wallets remain open behind opaque sessions; authorized PIN replacement preserves keys, while fresh OTP recovery rotates keys, revokes prior sessions, and never needs the old PIN.
 import test from 'node:test';
@@ -792,6 +793,11 @@ test('high-level manager opens a professional and owns SMART proof plumbing', as
 
   assert.ok(opened.sdk instanceof ProfessionalSdk);
   assert.ok(opened.digitalTwin instanceof DigitalTwinSdk);
+  // The opened professional authors clinical data with the registered employee
+  // wallet. Its high-level SDK must therefore use the same encrypted DIDComm
+  // transport as the Digital Twin facade; plain transport is never a fallback.
+  assert.equal(opened.sdk.client.transportProfile, TransportProfiles.DidcommEncryptedForm);
+  assert.equal(typeof opened.sdk.client.secureTransportAdapter?.pack, 'function');
   assert.equal(token.accessToken, 'professional-smart-token');
   assert.equal(calls.length, 2);
   assert.equal(new Headers(calls[0].init.headers).get('AppId'), 'example.professional');

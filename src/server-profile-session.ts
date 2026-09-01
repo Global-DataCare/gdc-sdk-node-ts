@@ -949,7 +949,11 @@ export class ServerProfileSessionManager {
     });
     // SMART/OpenID uses its own JSON/form protocol and must not be wrapped in
     // the encrypted resource transport selected for later business actions.
-    const sdk = new ProfessionalSdk(this.createClient(profile.routeContext, idToken));
+    // Professional business operations are authored by the registered employee
+    // wallet and therefore use the encrypted DIDComm client. SMART/OpenID below
+    // remains an independent JSON/form exchange through its dedicated method.
+    const sdk = new ProfessionalSdk(operationalClient);
+    const smartSdk = new ProfessionalSdk(this.createClient(profile.routeContext, idToken));
     const digitalTwin = new DigitalTwinSdk(operationalClient, profile.actorDid);
     let digitalTwinAccessToken: string | undefined;
     const request = async (smart: ServerProfessionalSmartTokenInput): Promise<SmartTokenExchangeResult> => {
@@ -967,7 +971,7 @@ export class ServerProfileSessionManager {
         ...input.professionalProof,
         role,
       });
-      return sdk.requestSmartToken({
+      return smartSdk.requestSmartToken({
         ...profile.routeContext,
         actorDid: profile.actorDid,
         subjectDid: String(smart.subjectDid || '').trim() || undefined,

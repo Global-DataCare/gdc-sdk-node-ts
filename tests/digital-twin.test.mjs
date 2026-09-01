@@ -1,3 +1,4 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 /**
  * Flow contract: an authenticated organization professional obtains SMART,
  * performs tenant-scoped basic discovery, saves a private working selection
@@ -64,7 +65,26 @@ test('DigitalTwinSdk is public and delegates token, search, tagged selection, an
         poll: {
           status: 200,
           attempts: 1,
-          body: { data: [{ resource: { total: 1, data: [{ [CompositionClaim.Subject]: twinSubjectId }] } }] },
+          body: {
+            type: 'https://didcomm.org/gdc/1.0/transaction-response',
+            body: {
+              resourceType: 'Bundle',
+              type: 'batch-response',
+              total: 1,
+              data: [{
+                type: 'ResearchSubject-search-response-v1.0',
+                resource: {
+                  resourceType: 'ResearchSubject',
+                  identifier: [{ value: twinSubjectId }],
+                  contained: [{
+                    resourceType: 'Composition',
+                    id: 'twin-composition',
+                    subject: { reference: twinSubjectId },
+                  }],
+                },
+              }],
+            },
+          },
         },
       };
     },
@@ -85,6 +105,7 @@ test('DigitalTwinSdk is public and delegates token, search, tagged selection, an
   assert.deepEqual(calls.map(([name]) => name), ['token', 'search', 'save-selection', 'materialize']);
   assert.equal(search.total, 1);
   assert.equal(search.matches[0][CompositionClaim.Subject], twinSubjectId);
+  assert.equal(search.matches[0].composition.resourceType, 'Composition');
   assert.equal(search.operation.poll.status, 200);
   assert.equal(calls[0][1][0].purpose, HealthcareConsentPurposes.Research);
   assert.deepEqual(calls[0][1][0].scopes, [`${ServiceCapability.DigitalTwinReader}?subject=*`]);
@@ -92,6 +113,54 @@ test('DigitalTwinSdk is public and delegates token, search, tagged selection, an
   assert.equal(calls[2][1][1].accessToken, 'smart');
   assert.equal(calls[2][1][1].authorDid, actorDid);
   assert.equal(calls[3][1][1].accessToken, 'smart');
+});
+
+test('DigitalTwinSdk normalizes a claims-first ResearchSubject with mixed Composition claims', async () => {
+  const sdk = new DigitalTwinSdk({
+    searchDigitalTwins: async () => ({
+      poll: {
+        body: {
+          total: 1,
+          data: [{
+            resource: {
+              resourceType: 'ResearchSubject',
+              meta: {
+                claims: {
+                  '@context': 'org.hl7.fhir.api',
+                  'ResearchSubject.identifier': twinSubjectId,
+                  [CompositionClaim.Subject]: twinSubjectId,
+                },
+              },
+            },
+          }],
+        },
+      },
+    }),
+  }, actorDid);
+
+  const search = await sdk.search(ctx, {
+    filters: { [DigitalTwinSearchParameter.Section]: medicationSection },
+  });
+
+  assert.equal(search.matches[0][CompositionClaim.Subject], twinSubjectId);
+  assert.equal(search.matches[0].composition.meta.claims['@context'], 'org.hl7.fhir.api');
+});
+
+test('DigitalTwinSdk reads the deprecated nested search envelope during rolling deployments', async () => {
+  const sdk = new DigitalTwinSdk({
+    searchDigitalTwins: async () => ({
+      poll: {
+        body: { data: [{ resource: { total: 1, data: [{ [CompositionClaim.Subject]: twinSubjectId }] } }] },
+      },
+    }),
+  }, actorDid);
+
+  const search = await sdk.search(ctx, {
+    filters: { [DigitalTwinSearchParameter.Section]: medicationSection },
+  });
+
+  assert.equal(search.total, 1);
+  assert.equal(search.matches[0][CompositionClaim.Subject], twinSubjectId);
 });
 
 test('DigitalTwinSdk completes an explicit bare ResearchSubject reader scope with the root query', async () => {

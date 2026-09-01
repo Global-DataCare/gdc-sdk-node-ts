@@ -341,7 +341,7 @@ Use this mental split for new developers:
 - `DigitalTwinSdk`
   - builds or forwards the VP carrying the contract VC
   - requests the SMART token from the provider tenant
-  - searches `digitaltwin/.../Composition/_search`
+  - searches `digitaltwin/.../ResearchSubject/_search`
   - saves one researcher-owned, custom-tagged working selection
   - reopens only the current employee's tagged saved selections through
     `searchSelections(...)`, using exact `Composition.meta-tag=system|code`
