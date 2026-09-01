@@ -1317,6 +1317,15 @@ test('requestProfessionalAccessWithDeps persists one canonical permission-reques
   assert.equal(result.communication.subject, 'did:web:subject.example');
   assert.match(result.communicationIdentifier, /^urn:uuid:/);
   assert.equal(calls[0][2].thid, result.thid);
+  assert.equal(calls[0][2].body.resourceType, 'Bundle');
+  assert.equal(calls[0][2].body.type, 'batch');
+  assert.equal(calls[0][2].body.data.length, 1);
+  assert.equal(calls[0][2].body.data[0].resource.resourceType, 'Communication');
+  assert.equal(calls[0][2].body.data[0].resource.id, result.communicationIdentifier);
+  assert.deepEqual(
+    calls[0][2].body.data[0].resource.meta.claims,
+    result.communication.claims,
+  );
 });
 
 test('requestProfessionalAccessWithDeps rejects an empty permission request', async () => {

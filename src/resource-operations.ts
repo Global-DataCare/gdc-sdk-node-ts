@@ -1561,12 +1561,38 @@ export async function requestProfessionalAccessWithDeps(
       ],
     },
   });
+  const communicationClaims = {
+    ...communication.claims,
+    [CommunicationClaim.Category]: 'permission-request',
+    [CommunicationClaim.NoteText]: communication.text,
+  };
+  const persistedCommunication = { ...communication, claims: communicationClaims };
+  const communicationPayload = {
+    thid,
+    body: {
+      resourceType: ResourceTypesFhirR4.Bundle,
+      type: 'batch',
+      data: [{
+        type: 'CommMsgExtended',
+        meta: { claims: communicationClaims },
+        resource: {
+          resourceType: ResourceTypesFhirR4.Communication,
+          id: communicationIdentifier,
+          status: 'completed',
+          meta: { claims: communicationClaims },
+        },
+      }],
+    },
+  };
   const delivery = await ingestCommunicationAndUpdateIndexWithDeps(routeCtx, {
-    communicationPayload: communication,
+    // The compatibility ingestion facade still declares the historical flat
+    // CommunicationInput even though its runtime contract accepts the GW
+    // Bundle envelope. Keep this high-level builder as the only cast boundary.
+    communicationPayload: communicationPayload as unknown as CommunicationInput & Record<string, unknown>,
     pathFormatSegment: 'r4',
     pollOptions: input.pollOptions,
   }, deps);
-  return { thid, communicationIdentifier, communication, delivery };
+  return { thid, communicationIdentifier, communication: persistedCommunication, delivery };
 }
 
 export async function searchCommunicationParticipantsWithDeps(
