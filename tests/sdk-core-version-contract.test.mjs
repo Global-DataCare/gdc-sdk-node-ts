@@ -7,5 +7,5 @@ import test from 'node:test';
 test('pins the SDK Core patch that reads activation licences from Order entry claims', () => {
   const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   assert.equal(packageJson.dependencies['gdc-sdk-core-ts'], '2.4.1');
-  assert.equal(packageJson.dependencies['gdc-common-utils-ts'], '2.6.6');
+  assert.equal(packageJson.dependencies['gdc-common-utils-ts'], '2.7.0');
 });
