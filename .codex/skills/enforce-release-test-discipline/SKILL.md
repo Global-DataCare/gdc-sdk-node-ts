@@ -49,6 +49,19 @@ description: Enforce branch, TDD, fixture, test-layer, product-neutrality, chang
   that proof to the correct lower-level suite and leave the high-level example
   copyable.
 
+## Preserve the release-gate order and identity boundary
+
+- Use `test -> local-network -> test-network -> network`. Finish package tests
+  and real-local-GW SDK E2E before building an image or exercising a staging
+  portal. Final release evidence must contain zero skipped live E2E cases;
+  selectors register only the journeys actually selected.
+- DIDComm `from` is a sender DID, JWT `iss` is the signing entity, `kid` is a
+  concrete key DID URL, and SMART `sub` is the authorized actor. They may share
+  one actor DID in a direct flow, but their roles never collapse.
+- Native FHIR `Communication` or `Bundle` input never receives DIDComm identity
+  fields. HTTP Authorization proves the caller and `Communication.sender`
+  remains a business participant reference.
+
 ## Preserve shared-package neutrality
 
 - Never place a product name, branded hostname, product route or product policy

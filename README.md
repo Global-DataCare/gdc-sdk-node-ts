@@ -132,6 +132,9 @@ If you need the shortest path:
   [docs/101-SDK_INTEGRATION.md](./docs/101-SDK_INTEGRATION.md)
 - dataspace discovery and fallback/cache boundary:
   [docs/101-DISCOVERY.md](./docs/101-DISCOVERY.md)
+- strict local-first release order, zero-skip live evidence and the
+  `from`/`iss`/`kid`/SMART `sub` plus native-FHIR boundary:
+  [docs/101-LIVE_GW_LOCAL.md](./docs/101-LIVE_GW_LOCAL.md)
 
 Current live teaching target:
 

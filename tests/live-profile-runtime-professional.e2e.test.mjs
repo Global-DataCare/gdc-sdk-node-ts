@@ -1,4 +1,13 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 /**
+ * Journey:
+ * 1. Load one authenticated professional profile on an existing tenant.
+ * 2. Materialize the professional actor facade from the plural session descriptor.
+ * 3. Request a subject-scoped SMART token through the high-level facade.
+ * 4. Close the runtime-owned profile state.
+ * Authorization invariant: the profile actor, SMART subject and device client remain distinct.
+ * Persistence invariant: closing the profile removes only runtime-owned in-memory state.
+ *
  * Live actor-profile E2E for the current professional runtime slice.
  *
  * This suite is intentionally different from the GW CORE platform lifecycle
@@ -195,9 +204,11 @@ test('LIVE professional profile runtime flow on existing tenant', {
     const profile = await profiler.run('load-profile', () => loadBackendProfile(profileRuntime, loadRequest));
     profileLoaded = true;
     debug.record('load-profile', { descriptor: profile.descriptor, session: profile.session });
-    assert.equal(profile.session.actorKind, ActorKinds.Professional);
+    assert.equal(profile.descriptor.actorKind, ActorKinds.Professional);
+    assert.ok(profile.session.actorKinds.includes(ActorKinds.Professional));
 
     const professionalSession = requireBackendActorSession(profile, ActorKinds.Professional);
+    assert.equal(professionalSession.actorKind, ActorKinds.Professional);
     const smart = await profiler.run('request-smart-token', () => professionalSession.asProfessional().requestSmartToken({
       tenantId: suiteTenantRouteId,
       jurisdiction: suiteJurisdiction,

@@ -1,4 +1,14 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 /**
+ * Journey:
+ * 1. Load the authenticated individual-controller profile on an existing tenant.
+ * 2. Register an individual and ingest its minimum FHIR clinical document.
+ * 3. Grant section-scoped consent to the professional actor DID.
+ * 4. Load that professional, obtain SMART access and read only the allowed section.
+ * 5. Revoke consent, disable and purge the scenario-owned individual, then close both profiles.
+ * Authorization invariant: controller, professional actor, device issuer and clinical subject remain distinct.
+ * Persistence invariant: consent and individual cleanup never purge tenant or unrelated subject state.
+ *
  * Live actor-dialogue E2E for controller-to-professional consent access.
  *
  * This suite is intentionally different from both:
@@ -182,7 +192,8 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
   const debug = createDebugLogger();
   const profiler = createStepProfiler(debug, 'dialogue-consent-professional-access');
   const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
-  const bearerToken = env('AUTH_BEARER');
+  const controllerProfileDid = env('INDIVIDUAL_CONTROLLER_PROFILE_DID', EXAMPLE_PROFILE_PROVIDER_DID);
+  const bearerToken = env('AUTH_BEARER', buildUnsignedJwt({ sub: controllerProfileDid }));
   const ctx = {
     tenantId: suiteTenantRouteId,
     jurisdiction: suiteJurisdiction,
@@ -256,7 +267,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
     keyAccessMode: EXAMPLE_PROFILE_KEY_ACCESS_MODE_SERVER,
     actorRole: individualControllerRole,
     profileId: individualControllerEmail,
-    profileDid: env('INDIVIDUAL_CONTROLLER_PROFILE_DID', EXAMPLE_PROFILE_PROVIDER_DID),
+    profileDid: controllerProfileDid,
     subjectDid: suiteSubjectDid,
     email: individualControllerEmail,
     appType: EXAMPLE_PROFILE_APP_TYPE_FAMILY,

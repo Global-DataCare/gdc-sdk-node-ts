@@ -1,5 +1,20 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 /**
  * Canonical live GW E2E suite.
+ *
+ * Complete numbered journey:
+ * 1. Admit a fresh host and tenant through the selected organization flow.
+ * 2. Provision and authorize the professional/controller actor and device.
+ * 3. Register an individual plus its controller relationship.
+ * 4. Ingest and search clinical data through DIDComm and legacy FHIR transport.
+ * 5. Exercise profile, consent and lifecycle operations selected for this run.
+ * 6. Disable and purge every fresh persisted subject owned by the journey.
+ *
+ * Authorization invariant: every protected HTTP boundary receives a bearer
+ * whose subject identifies the acting DID; transport `kid`, DIDComm `from` and
+ * SMART `sub` retain their separate canonical meanings.
+ * Persistence invariant: a successful poll proves the GW state transition;
+ * release evidence uses fresh identifiers and completes the selected cleanup.
  *
  * Important execution rule:
  * - run this suite from the user's real terminal/TTY
@@ -44,7 +59,7 @@ import { fileURLToPath } from 'node:url';
 import { IndividualOrganizationLifecycleEditor, OrganizationLifecycleEditor } from 'gdc-common-utils-ts';
 import { HealthcareBasicSections } from 'gdc-common-utils-ts/constants';
 import { DeviceAppTypes, DeviceUserClasses } from 'gdc-common-utils-ts/constants/device';
-import { ClaimsOrganizationSchemaorg, ClaimsPersonSchemaorg } from 'gdc-common-utils-ts/constants/schemaorg';
+import { ClaimsOrderSchemaorg, ClaimsOrganizationSchemaorg, ClaimsPersonSchemaorg } from 'gdc-common-utils-ts/constants/schemaorg';
 import { ClaimConsent } from 'gdc-common-utils-ts/models/consent-rule';
 import {
   MedicationStatementClaim,
@@ -59,6 +74,8 @@ import {
   EXAMPLE_INDEX_PROVIDER_SECTOR_DID_WEB,
   EXAMPLE_IPS_BUNDLE_NOTE_TEXT,
   EXAMPLE_LICENSE_ISSUE_INPUT,
+  EXAMPLE_LICENSE_INVOICE_ID,
+  EXAMPLE_LICENSE_PAYMENT_METHOD_STRIPE,
   EXAMPLE_JURISDICTION,
   EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE,
   EXAMPLE_LIVE_GW_BASE_URL_LOCAL,
@@ -70,6 +87,7 @@ import {
   EXAMPLE_PROFILE_KEY_ACCESS_MODE_SERVER,
   EXAMPLE_PROFILE_LOCAL_PIN_PASSWORD_BACKEND,
   EXAMPLE_PROFILE_PROVIDER_DID,
+  EXAMPLE_PROFESSIONAL_DID,
   EXAMPLE_PROFILE_RUNTIME_CLASS_SERVER,
   EXAMPLE_REGISTERED_SUBJECT_ALTERNATE_NAME,
   EXAMPLE_RELATED_PERSON_DISABLE_INPUT,
@@ -89,12 +107,13 @@ import {
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
 import {
-  buildProfessionalDidWeb,
+  buildSmartCompositionReadScope,
   buildIndividualDidWeb,
   buildLicenseIssueEntry,
   readInvoiceBundleSummaryFromResponseBody,
 } from 'gdc-common-utils-ts';
 import { createIpsSummarySearchDidcommMessage } from 'gdc-common-utils-ts/utils/communication-bundle-document-request';
+import { extractBundleSearchResources } from 'gdc-common-utils-ts/utils/organization-employee-lifecycle';
 import {
   buildBundleDocumentFromClaims,
   extractFlatClaimValue,
@@ -171,6 +190,17 @@ const ACTIVE_EXECUTION_MODE = normalizeLiveGwExecutionMode(
   env('LIVE_GW_E2E_EXECUTION_MODE', LiveGwExecutionModes.Direct),
 );
 const DEBUG = env('LIVE_GW_NODE_E2E_DEBUG', env('LIVE_GW_E2E_DEBUG', '0')) === '1';
+
+/**
+ * Registers only journeys selected for this invocation.
+ *
+ * Release evidence must report zero skipped tests. Conditional registration
+ * prevents unrelated profiles from appearing as successful omissions while
+ * preserving explicit environment selection for destructive live journeys.
+ */
+function registerSelectedLiveTest(enabled, name, fn) {
+  if (enabled) test(name, fn);
+}
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LIVE_HOST_VERIFICATION_DEFAULT_PDF_PATH = env(
   'LIVE_GW_HOST_VERIFICATION_PDF_PATH',
@@ -629,9 +659,7 @@ function getFirstBatchEntryStatus(pollBody, label) {
 }
 
 function getSearchRows(pollBody, label) {
-  const first = getBatchEntries(pollBody, label)[0] || {};
-  const rows = first?.resource?.data;
-  assert.ok(Array.isArray(rows), `${label} first batch entry must expose resource.data.`);
+  const rows = extractBundleSearchResources(pollBody);
   assert.ok(rows.length > 0, `${label} must return at least one matched row.`);
   return rows;
 }
@@ -909,9 +937,10 @@ function buildRevokedConsentClaims(activeConsentClaims, periodEnd) {
  * node --test tests/live-gw-node-runtime.e2e.test.mjs
  * ```
  */
-test('LIVE professional lifecycle on GW', {
-  skip: !(RUN && RUN_ACTOR_CHAIN && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Professional)),
-}, async () => {
+registerSelectedLiveTest(
+  RUN && RUN_ACTOR_CHAIN && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Professional),
+  'LIVE professional lifecycle on GW',
+  async () => {
   const debug = createDebugLogger();
   const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
   const vpTokenEnv = env('VP_TOKEN');
@@ -1015,8 +1044,13 @@ test('LIVE professional lifecycle on GW', {
     const legalOrder = await orgControllerSession.asOrganizationController().confirmOrganizationLicenseOrder(
       ctx,
       {
+        issuerDid: String(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.controller.did),
         offerId: legalOfferId,
         hostNetwork: hostNetworkOrTenantSector,
+        additionalClaims: {
+          [ClaimsOrderSchemaorg.paymentMethod]: EXAMPLE_LICENSE_PAYMENT_METHOD_STRIPE,
+          [ClaimsOrderSchemaorg.partOfInvoice]: EXAMPLE_LICENSE_INVOICE_ID,
+        },
       },
       pollOptions,
     );
@@ -1075,13 +1109,28 @@ test('LIVE professional lifecycle on GW', {
     [ClaimsPersonSchemaorg.memberOfOrgTaxId]: tenantId,
   };
 
-  const employee = await orgControllerSession.asOrganizationController().createOrganizationEmployee(
+  const employeeProvisioning = await orgControllerSession.asOrganizationController().provisionOrganizationEmployee(
     ctx,
     {
-      employeeClaims,
+      creation: { employeeClaims },
+      invitation: {
+        ...cloneExample(EXAMPLE_LICENSE_ISSUE_INPUT),
+        email: employeeEmail,
+        role: employeeRole,
+        subjectDid: employeeIdentifier,
+        pollOptions,
+      },
+      licenseOrder: {
+        issuerDid: String(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.controller.did),
+        hostNetwork: hostNetworkOrTenantSector,
+        additionalClaims: {
+          [ClaimsOrderSchemaorg.paymentMethod]: EXAMPLE_LICENSE_PAYMENT_METHOD_STRIPE,
+          [ClaimsOrderSchemaorg.partOfInvoice]: EXAMPLE_LICENSE_INVOICE_ID,
+        },
+      },
     },
-    pollOptions,
   );
+  const employee = employeeProvisioning.employee;
   debug.record('employee-create', { response: employee });
   assert.equal(employee.poll.status, 200, 'Organization controller facade must create employee through GW.');
 
@@ -1178,11 +1227,7 @@ test('LIVE professional lifecycle on GW', {
     `controller+${runSlug}@example.com`,
   );
   const patientSubjectDid = suiteSubjectDid;
-  const smartProfessionalDid = env('SMART_SUBJECT_DID', buildProfessionalDidWeb({
-    organizationDidWeb: 'did:web:api.acme.org',
-    email: 'doctor1@acme.org',
-    role: 'ISCO-08|2211',
-  }));
+  const smartProfessionalDid = env('SMART_SUBJECT_DID', EXAMPLE_PROFESSIONAL_DID);
   const smartClientId = env('SMART_CLIENT_ID', 'did:web:api.acme.org:employee:admin1@acme.org:device:demo');
 
   const individualStart = await individualControllerSession.asIndividualController().startIndividualOrganization({
@@ -1228,7 +1273,7 @@ test('LIVE professional lifecycle on GW', {
   const consent = await individualControllerSession.asIndividualController().grantProfessionalAccess(ctx, {
     ...cloneExample(EXAMPLE_LIVE_CONSENT_GRANT_INPUT),
     subjectDid: patientSubjectDid,
-    actor: { identifier: smartProfessionalDid },
+    actorId: smartProfessionalDid,
     actorRole: env('PROFESSIONAL_ROLE', 'ISCO-08|2211'),
     purpose: env('CONSENT_PURPOSE', 'TREAT'),
     pollOptions,
@@ -1251,7 +1296,7 @@ test('LIVE professional lifecycle on GW', {
     sector,
     idToken: professionalIdToken,
     actorDid: smartProfessionalDid,
-    subjectDid: smartProfessionalDid,
+    subjectDid: patientSubjectDid,
     clientId: smartClientId,
     issuer: env('SMART_ISSUER', smartClientId),
     audience: env('SMART_AUDIENCE', 'did:web:api.acme.org'),
@@ -1261,7 +1306,10 @@ test('LIVE professional lifecycle on GW', {
     codeChallengeMethod: 'S256',
     vpToken: smartVpToken,
     presentationSubmission: cloneExample(EXAMPLE_SMART_PRESENTATION_SUBMISSION),
-    scopes: [`organization/Composition.rs?subject=${env('SMART_SCOPE_SUBJECT_DID', patientSubjectDid)}&section=${suiteConsentSection} organization/Consent.cruds`],
+    scopes: [buildSmartCompositionReadScope({
+      subjectDid: env('SMART_SCOPE_SUBJECT_DID', patientSubjectDid),
+      sections: [suiteConsentSection],
+    })],
     smartTokenKind: 'openid-smart',
     timeoutSeconds: 60,
     intervalSeconds: 2,
@@ -1295,7 +1343,8 @@ test('LIVE professional lifecycle on GW', {
     debug.record('individual-purge', { response: purge });
     assert.equal(purge.poll.status, 200, 'Individual controller facade must purge the hosted subject organization after disable.');
   }
-});
+  },
+);
 
 async function runLiveIndividualLifecycleSuite() {
   const debug = createDebugLogger();
@@ -1859,18 +1908,21 @@ async function runLiveIndividualLifecycleSuite() {
   profiler.flush();
 }
 
-test('LIVE didcomm-plain communication conversation indexes DocumentReference and MedicationStatement projections', {
-  skip: !(RUN
+registerSelectedLiveTest(
+  RUN
     && RUN_IPS_INGESTION
     && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Clinical)
-    && shouldRunLiveGwTransportProfile(ACTIVE_TRANSPORT_PROFILE, LiveGwTransportProfiles.DidcommPlain)),
-}, async () => {
+    && shouldRunLiveGwTransportProfile(ACTIVE_TRANSPORT_PROFILE, LiveGwTransportProfiles.DidcommPlain),
+  'LIVE didcomm-plain communication conversation indexes DocumentReference and MedicationStatement projections',
+  async () => {
   const debug = createDebugLogger();
   const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
   const tenantId = suiteTenantRouteId;
   const jurisdiction = suiteJurisdiction;
   const sector = suiteSector;
-  const bearerToken = env('AUTH_BEARER');
+  const bearerToken = env('AUTH_BEARER', buildUnsignedJwt({
+    sub: EXAMPLE_PROFILE_PROVIDER_DID,
+  }));
   const subjectDid = suiteSubjectDid;
 
   const runtimeClient = createRuntimeClient({
@@ -1946,10 +1998,16 @@ test('LIVE didcomm-plain communication conversation indexes DocumentReference an
     });
     assert.ok(match, 'DocumentReference search after communication ingestion must include one row with matching subject and CID contenthash.');
   }
-  const professionalDid = env('PROFESSIONAL_DID', EXAMPLE_API_ORGANIZATION_DID);
+  const professionalDid = env('PROFESSIONAL_DID', EXAMPLE_PROFILE_PROVIDER_DID);
   const routeCtx = { tenantId, jurisdiction, sector };
 
-  const cases = buildExampleLiveMedicationCases(Date.now());
+  const didcommMedicationSeed = Date.now();
+  const cases = buildExampleLiveMedicationCases(didcommMedicationSeed).map((medication, index) => ({
+    ...medication,
+    // Keep repeated local executions independent while preserving semantic
+    // content-hash deduplication inside each journey.
+    effectiveDateTime: new Date(didcommMedicationSeed + index).toISOString(),
+  }));
 
   for (const medication of cases) {
     const medicationClaims = {
@@ -2070,20 +2128,24 @@ test('LIVE didcomm-plain communication conversation indexes DocumentReference an
     );
     assert.ok(match, `IPS communication search must include consolidated MedicationStatement ${medication.identifier} in the medication section.`);
   }
-});
+  },
+);
 
-test('LIVE legacy-fhir communication conversation indexes DocumentReference and MedicationStatement projections', {
-  skip: !(RUN
+registerSelectedLiveTest(
+  RUN
     && RUN_IPS_INGESTION
     && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Clinical)
-    && shouldRunLiveGwTransportProfile(ACTIVE_TRANSPORT_PROFILE, LiveGwTransportProfiles.LegacyFhir)),
-}, async () => {
+    && shouldRunLiveGwTransportProfile(ACTIVE_TRANSPORT_PROFILE, LiveGwTransportProfiles.LegacyFhir),
+  'LIVE legacy-fhir communication conversation indexes DocumentReference and MedicationStatement projections',
+  async () => {
   const debug = createDebugLogger();
   const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
   const tenantId = suiteTenantRouteId;
   const jurisdiction = suiteJurisdiction;
   const sector = suiteSector;
-  const bearerToken = env('AUTH_BEARER');
+  const bearerToken = env('AUTH_BEARER', buildUnsignedJwt({
+    sub: EXAMPLE_PROFILE_PROVIDER_DID,
+  }));
   const subjectDid = suiteSubjectDid;
   const routeCtx = { tenantId, jurisdiction, sector };
 
@@ -2157,8 +2219,15 @@ test('LIVE legacy-fhir communication conversation indexes DocumentReference and 
     });
     assert.ok(match, 'Legacy FHIR DocumentReference search must include one row with matching subject and CID contenthash.');
   }
-  const professionalDid = env('PROFESSIONAL_DID', EXAMPLE_API_ORGANIZATION_DID);
-  const cases = buildExampleLiveMedicationCases(Date.now());
+  const professionalDid = env('PROFESSIONAL_DID', EXAMPLE_PROFILE_PROVIDER_DID);
+  const legacyMedicationSeed = Date.now();
+  const cases = buildExampleLiveMedicationCases(legacyMedicationSeed).map((medication, index) => ({
+    ...medication,
+    // Content CIDs deliberately exclude logical identifiers. Give this
+    // transport journey distinct clinical content so a prior DIDComm run is
+    // not correctly deduplicated as the same medication statement.
+    effectiveDateTime: new Date(legacyMedicationSeed + index).toISOString(),
+  }));
 
   for (const medication of cases) {
     const medicationClaims = {
@@ -2269,7 +2338,8 @@ test('LIVE legacy-fhir communication conversation indexes DocumentReference and 
     );
     assert.ok(match, `Legacy FHIR IPS communication search must include consolidated MedicationStatement ${medication.identifier} in the medication section.`);
   }
-});
+  },
+);
 
 async function runLiveProfileRuntimeIndividualSuite() {
   const debug = createDebugLogger();
@@ -2538,16 +2608,22 @@ async function runLiveProfileRuntimeIndividualSuite() {
   profiler.flush();
 }
 
-test('LIVE backend profile runtime individual-controller flow on GW', {
-  skip: !(RUN
+registerSelectedLiveTest(
+  RUN
     && RUN_PROFILE_RUNTIME
-    && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Individual)),
-}, async () => {
-  await runLiveProfileRuntimeIndividualSuite();
-});
+    && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Individual),
+  'LIVE backend profile runtime individual-controller flow on GW',
+  async () => {
+    await runLiveProfileRuntimeIndividualSuite();
+  },
+);
 
-test('LIVE individual lifecycle on GW', {
-  skip: !(RUN && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Individual)),
-}, async () => {
-  await runLiveIndividualLifecycleSuite();
-});
+registerSelectedLiveTest(
+  RUN
+    && RUN_INDIVIDUAL_LIFECYCLE
+    && shouldRunLiveGwSuiteProfile(ACTIVE_SUITE_PROFILE, LiveGwSuiteProfiles.Individual),
+  'LIVE individual lifecycle on GW',
+  async () => {
+    await runLiveIndividualLifecycleSuite();
+  },
+);

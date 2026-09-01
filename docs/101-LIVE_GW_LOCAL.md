@@ -1,5 +1,21 @@
 # 101 Live GW Local
 
+Release validation is strictly ordered: `test` (in-memory/no blockchain), then
+`local-network`, then `test-network`, then `network`. Package tests and live
+SDK E2E against a real local GW must be green before building a container or
+opening any staging deployment gate. A final release invocation must report
+zero skipped tests; suite and transport selectors register only the requested
+journeys.
+
+Transport identity is not copied into native FHIR. DIDComm `from` is the
+sender DID, JWT `iss` is the signing entity, `kid` is the concrete signing-key
+DID URL, and SMART `sub` is the authorized actor. A direct actor flow may use
+the same actor DID for `from`, `iss` and `sub`; DCR normally uses the device or
+client DID for `from` and `iss` while SMART `sub` remains the person or
+professional. Legacy FHIR adapters receive a native `Communication` (or a
+FHIR `Bundle` containing it); HTTP Authorization carries the proof and
+`Communication.sender` keeps only its FHIR business meaning.
+
 > 101 note
 > - Teach here: the highest-level `sdk-node` actor/profile/runtime surface for this topic.
 > - Reuse lower-layer helpers from `sdk-core` and `common-utils` instead of re-teaching raw claims or low-level editors.
