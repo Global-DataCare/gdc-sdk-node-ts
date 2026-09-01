@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { HealthcareDocumentTypes } from 'gdc-common-utils-ts/constants';
 import { CompositionClaim } from 'gdc-common-utils-ts/models';
 import type { MetaTagCoding } from 'gdc-common-utils-ts/models/confidential-storage';
+import { extractBundleSearchResources } from 'gdc-common-utils-ts/utils/organization-employee-lifecycle';
 
 import type { RouteContext } from './individual-onboarding.js';
 import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
@@ -57,9 +58,11 @@ export type DigitalTwinSearchInput = {
 /**
  * One public ResearchSubject digital twin returned by search.
  *
- * `composition` is the canonical Composition GW uses as the aggregate's
- * internal index document. It joins the ResearchSubject to the projected
- * clinical resources later returned by `ResearchSubject/$summary`.
+ * `composition` is an SDK-only normalized view of the canonical Composition:
+ * it comes from mixed `meta.claims` in claims-first API responses or from
+ * `ResearchSubject.contained[]` in strict FHIR R4/R5. GW never emits an
+ * ad-hoc `ResearchSubject.composition` wire property. The canonical index joins
+ * the ResearchSubject to resources later returned by `$summary`.
  */
 export type DigitalTwinSearchMatch = Record<string, unknown> & {
   resourceType?: 'ResearchSubject';
@@ -164,6 +167,65 @@ export type DigitalTwinRuntimeDeps = {
   ) => Promise<SubmitAndPollResult>;
 };
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+/**
+ * Normalizes the public aggregate without leaking its wire representation.
+ * Claims-first responses mix ResearchSubject and Composition flat claims in
+ * `meta.claims`; versioned FHIR responses carry the translated Composition in
+ * `contained[]`. The ad-hoc `composition` property remains read-only legacy.
+ */
+function normalizeDigitalTwinSearchMatch(resource: Record<string, unknown>): DigitalTwinSearchMatch {
+  const metaClaims = asRecord(asRecord(resource.meta)?.claims);
+  const containedComposition = Array.isArray(resource.contained)
+    ? resource.contained.map(asRecord).find((candidate) => candidate?.resourceType === 'Composition')
+    : undefined;
+  const legacyComposition = asRecord(resource.composition);
+  const legacyCompositionClaims = asRecord(asRecord(legacyComposition?.meta)?.claims);
+  const containedSubject = asRecord(containedComposition?.subject)?.reference;
+  const subject = resource[CompositionClaim.Subject]
+    ?? metaClaims?.[CompositionClaim.Subject]
+    ?? containedSubject
+    ?? legacyComposition?.[CompositionClaim.Subject]
+    ?? legacyCompositionClaims?.[CompositionClaim.Subject];
+  assertDigitalTwinSubjectId(subject);
+
+  const composition = containedComposition
+    ?? legacyComposition
+    ?? (metaClaims ? { resourceType: 'Composition', meta: { claims: metaClaims } } : undefined);
+  return {
+    ...resource,
+    [CompositionClaim.Subject]: subject,
+    ...(composition ? { composition } : {}),
+  } as DigitalTwinSearchMatch;
+}
+
+/** Finds the primary-document Bundle inside a direct or decoded DIDComm response. */
+function findDigitalTwinSearchBundle(value: unknown): Record<string, unknown> | undefined {
+  const pending: unknown[] = [value];
+  const visited = new Set<object>();
+  while (pending.length > 0) {
+    const candidate = pending.shift();
+    if (!candidate || typeof candidate !== 'object' || visited.has(candidate)) continue;
+    visited.add(candidate);
+    if (Array.isArray(candidate)) {
+      pending.push(...candidate);
+      continue;
+    }
+    const record = candidate as Record<string, unknown>;
+    const hasEntries = Array.isArray(record.data) || Array.isArray(record.entry);
+    if (hasEntries && (record.resourceType === 'Bundle' || candidate === value)) {
+      return record;
+    }
+    pending.push(...Object.values(record));
+  }
+  return undefined;
+}
+
 function normalizeResearchTags(tags: readonly DigitalTwinWorksetTagInput[]): Array<Required<Pick<DigitalTwinResearchTag, 'id' | 'system' | 'code' | 'userSelected'>> & Pick<DigitalTwinResearchTag, 'version'>> {
   if (!Array.isArray(tags) || tags.length === 0) throw new Error('At least one research tag is required.');
   const normalized = tags.map((tag, index) => {
@@ -186,24 +248,21 @@ function normalizeResearchTags(tags: readonly DigitalTwinWorksetTagInput[]): Arr
 
 /** Opens the GW async response and exposes the matched ResearchSubjects directly. */
 export function readDigitalTwinSearchResult(operation: SubmitAndPollResult): DigitalTwinSearchResult {
-  const body = operation?.poll?.body as Record<string, unknown> | undefined;
-  const responseEntries = Array.isArray(body?.data)
-    ? body.data
-    : Array.isArray(body?.entry)
-      ? body.entry
-      : [];
-  const responseEntry = responseEntries.find((entry) => {
-    const resource = (entry as { resource?: unknown } | undefined)?.resource;
-    return Boolean(resource && typeof resource === 'object' && Array.isArray((resource as { data?: unknown }).data));
-  }) as { resource?: { total?: unknown; data?: unknown[] } } | undefined;
-  if (!responseEntry?.resource || !Array.isArray(responseEntry.resource.data)) {
-    throw new Error('Digital twin search did not return a Composition result set.');
+  const bundle = findDigitalTwinSearchBundle(operation?.poll?.body);
+  const entries = Array.isArray(bundle?.data)
+    ? bundle.data
+    : Array.isArray(bundle?.entry)
+      ? bundle.entry
+      : undefined;
+  if (!bundle || !entries) {
+    throw new Error('Digital twin search did not return a ResearchSubject result set.');
   }
-  const matches = responseEntry.resource.data as DigitalTwinSearchMatch[];
-  for (const match of matches) {
-    assertDigitalTwinSubjectId(match?.[CompositionClaim.Subject]);
-  }
-  const parsedTotal = Number(responseEntry.resource.total);
+  const matches = extractBundleSearchResources({ ...bundle, data: entries })
+    .map(normalizeDigitalTwinSearchMatch);
+  const legacyAggregate = entries
+    .map((entry) => (entry as { resource?: unknown } | undefined)?.resource)
+    .find((resource) => resource && typeof resource === 'object' && Array.isArray((resource as { data?: unknown }).data)) as { total?: unknown } | undefined;
+  const parsedTotal = Number(legacyAggregate?.total ?? bundle.total);
   return {
     total: Number.isFinite(parsedTotal) ? parsedTotal : matches.length,
     matches,

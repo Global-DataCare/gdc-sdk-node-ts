@@ -279,7 +279,11 @@ export function employeeActivationGrantMatchesEmail(grant: EmployeeActivationGra
   return grant.employeeActorIdentifier === buildStableActorIdentifier({ contactKind: 'email', contact: email });
 }
 
-/** Stable profile id derived from account, employee and provider identities. */
+/**
+ * Stable profile id derived from account, employee, provider and portal
+ * installation identities. The portal installation id only separates local
+ * profiles; it is not a cryptographic DCR key identifier.
+ */
 export function buildOrganizationEmployeeProfileId(input: Readonly<{
   ownerId: string;
   employeeDid: string;
@@ -324,7 +328,6 @@ export async function enrollInvitedOrganizationEmployeeWithDeps(input: Readonly<
     pin: input.pin,
     idToken: input.idToken,
     activationCode: input.activationCode,
-    clientInstanceId: input.clientInstanceId,
     dcrRedirectUris: input.dcrRedirectUris,
     dcrClientName: input.dcrClientName,
     // The grant contains the server-verified stable actor alias and role. The

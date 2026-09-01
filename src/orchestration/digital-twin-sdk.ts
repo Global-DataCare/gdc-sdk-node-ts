@@ -54,8 +54,9 @@ export class DigitalTwinSdk {
 
   /**
    * Searches the public `ResearchSubject/_search` aggregate with FHIR
-   * Parameters. Each match includes the canonical Composition GW uses
-   * internally to index that ResearchSubject and connect its resources.
+   * Parameters. The high-level match normalizes either mixed claims-first
+   * `meta.claims` or a versioned FHIR `contained[]` Composition. Callers never
+   * need to navigate either transport representation.
    *
    * MVP basic search supplies `sections`, `dateFrom`, optional `dateTo`, and
    * `text`. GW resolves an omitted `dateTo` to its current time, applies OR

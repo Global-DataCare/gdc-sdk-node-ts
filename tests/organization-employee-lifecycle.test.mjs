@@ -1,3 +1,4 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -290,5 +291,6 @@ test('enrollInvitedOrganizationEmployeeWithDeps reuses a product-neutral routing
     role: grant.employeeRoleCode,
     sameAs: grant.employeeActorIdentifier,
   });
+  assert.equal(enrollment.clientInstanceId, undefined);
   assert.notEqual(enrollment.professionalProof, enrollment.idToken);
 });

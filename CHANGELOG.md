@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Require SDK Core 2.4.1 so Node/BFF consumers read controller activation
+  licences from real GW Order entry claims while leaving the FHIR Invoice
+  resource unchanged. Portal code does not traverse DIDComm or Bundle
+  envelopes to recover this value.
+- Require Common Utils 2.6.6 so a real local `did:web:127.0.0.1%3Aport`
+  recipient resolves over HTTP; non-loopback DID authorities remain HTTPS.
+
 ## 2.5.3 - 2026-08-31
 
 - Keep activation-code exchange and device registration business fields inside
