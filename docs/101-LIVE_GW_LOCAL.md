@@ -7,6 +7,18 @@ opening any staging deployment gate. A final release invocation must report
 zero skipped tests; suite and transport selectors register only the requested
 journeys.
 
+Asynchronous success has two mandatory layers:
+
+1. HTTP `200`/`201` proves only that submit/poll transport completed.
+2. The terminal Bundle proves the business result. Read it with
+   `BundleReader.getResponseAnalysis()`, require `hasErrors === false`, and
+   check the expected `successfulOperations`/`totalOperations`. For a negative
+   journey, require the expected `OperationOutcome` diagnostics instead.
+
+Never make a GW, portal BFF, telephone backend or SDK E2E green from HTTP
+status alone. High-level code must not parse `data[]`, `entry[]` or
+`OperationOutcome.issue[]`; use the shared reader/assertion surface.
+
 Transport identity is not copied into native FHIR. DIDComm `from` is the
 sender DID, JWT `iss` is the signing entity, `kid` is the concrete signing-key
 DID URL, and SMART `sub` is the authorized actor. A direct actor flow may use

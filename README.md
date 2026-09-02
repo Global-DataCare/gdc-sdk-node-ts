@@ -816,6 +816,9 @@ Recovery-specific live rule:
   and cannot select another tenant
 - a failed poll `OperationOutcome` is surfaced before the helper checks for
   `initial_access_token`, preserving the real GW diagnostic
+- every asynchronous success test uses `BundleReader.getResponseAnalysis()`;
+  HTTP 200/201 alone is transport completion, not proof that the inner Bundle
+  entries succeeded
 - the bundled recovery runner generates a syntactically valid demo JWT if
   `CONTROLLER_ID_TOKEN` is not provided, but production/staging should use a
   real IdP-issued token

@@ -75,6 +75,7 @@ import {
   createRuntimeClient,
   ensureLiveGwTraceFiles,
 } from './helpers/live-gw-runtime-helpers.mjs';
+import { assertSuccessfulTerminalBundle } from './helpers/terminal-bundle-assertions.mjs';
 
 function env(name, fallback = '') {
   return String(process.env[name] ?? fallback).trim();
@@ -318,7 +319,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
       },
     ));
     debug.record('controller-individual-start', { response: individualStart });
-    assert.equal(individualStart.registration.poll.status, 200);
+    assertSuccessfulTerminalBundle(individualStart.registration, 'Individual registration');
 
     const individualOrder = await profiler.run('controller-individual-order', () => individualRuntime.confirmIndividualOrganizationOrder(
       controllerProfile,
@@ -332,7 +333,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
       },
     ));
     debug.record('controller-individual-order', { response: individualOrder });
-    assert.equal(individualOrder.poll.status, 200);
+    assertSuccessfulTerminalBundle(individualOrder, 'Individual Order confirmation');
     individualCreated = true;
 
     const medication = buildExampleLiveMedicationCases(Date.now())[0];
@@ -354,7 +355,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
       },
     ));
     debug.record('controller-medication-ingest', { response: ingestion });
-    assert.equal(ingestion.poll.status, 200);
+    assertSuccessfulTerminalBundle(ingestion, 'Individual clinical ingestion');
 
     const consent = await profiler.run('controller-grant-consent', () => controllerProfile.sdk.grantProfessionalAccess(
       ctx,
@@ -369,7 +370,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
       },
     ));
     debug.record('controller-grant-consent', { response: consent });
-    assert.equal(consent.consent.poll.status, 200);
+    assertSuccessfulTerminalBundle(consent.consent, 'Professional consent grant');
     consentClaims = consent.consentClaims;
 
     professionalProfile = await profiler.run('professional-load-profile', () => loadBackendProfile(
@@ -423,7 +424,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
       },
     ));
     debug.record('professional-read-latest-ips', { response: professionalRead });
-    assert.equal(professionalRead.poll.status, 200);
+    assertSuccessfulTerminalBundle(professionalRead, 'Professional IPS read');
     const readEntries = getBatchEntries(professionalRead.poll.body, 'Professional IPS read');
     assert.ok(readEntries[0]?.resource, 'Dialogue suite must return one readable clinical bundle/document resource for the professional actor.');
   } finally {
@@ -438,7 +439,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
         pollOptions,
       ));
       debug.record('controller-revoke-consent', { response: revokedConsent });
-      assert.equal(revokedConsent.poll.status, 200);
+      assertSuccessfulTerminalBundle(revokedConsent, 'Professional consent revocation');
     }
 
     if (individualCreated && controllerProfileLoaded) {
@@ -455,7 +456,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
         pollOptions,
       ));
       debug.record('controller-individual-disable', { response: disableIndividual });
-      assert.equal(disableIndividual.poll.status, 200);
+      assertSuccessfulTerminalBundle(disableIndividual, 'Individual organization disable');
 
       const purgeIndividual = await profiler.run('controller-individual-purge', () => controllerProfile.sdk.purgeIndividualOrganization(
         ctx,
@@ -465,7 +466,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
         pollOptions,
       ));
       debug.record('controller-individual-purge', { response: purgeIndividual });
-      assert.equal(purgeIndividual.poll.status, 200);
+      assertSuccessfulTerminalBundle(purgeIndividual, 'Individual organization purge');
     }
 
     if (professionalProfileLoaded) {

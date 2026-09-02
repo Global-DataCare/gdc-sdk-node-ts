@@ -14,6 +14,16 @@
 - Strengthen the live journey so an individual controller and professional use
   independent authenticated runtimes and every clinical or cleanup batch is
   rejected when its terminal Bundle contains an error OperationOutcome.
+- Add one reusable terminal-Bundle E2E assertion and a source contract that
+  prevents live suites from treating HTTP 200/201 alone as asynchronous
+  business success; expected negative journeys must prove their OperationOutcome.
+- Run the generic live stack with an isolated ICA and real public organization
+  transaction by default, keep official identifiers separate from route
+  aliases, authenticate clinical authors with their actor DID, and give each
+  destructive journey its own individual identifier.
+- Exercise caregiver seats through the high-level individual-controller
+  facade using the canonical organization owner, subject, RelatedPerson and
+  invitation identifiers.
 
 ## 2.6.2 - 2026-09-01
 

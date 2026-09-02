@@ -3,18 +3,22 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SDK_NODE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-WORKSPACE_DIR="$(cd "${SDK_NODE_DIR}/.." && pwd)"
-GW_DIR="${WORKSPACE_DIR}/gwtemplate-node-ts"
-ICA_DIR="${WORKSPACE_DIR}/dataspace-ica-ts"
+DEFAULT_WORKSPACE_DIR="$(cd "${SDK_NODE_DIR}/.." && pwd)"
+WORKSPACE_DIR="${GDC_WORKSPACE_DIR:-${DEFAULT_WORKSPACE_DIR}}"
+GW_DIR="${GW_DIR_OVERRIDE:-${WORKSPACE_DIR}/gwtemplate-node-ts}"
+ICA_DIR="${ICA_DIR_OVERRIDE:-${WORKSPACE_DIR}/dataspace-ica-ts}"
+GW_ENV_FILE="${GW_ENV_FILE:-${GW_DIR}/.env.local-demo}"
 
 RUN_ID="${LIVE_CONTROLLER_RUN_ID:-$(date -u +%Y%m%dt%H%M%S)}"
 HOST_ID_VALUE="${HOST_ID_VALUE:-live-controller-${RUN_ID}-host}"
 TENANT_ID="${TENANT_ID:-live-controller-${RUN_ID}}"
 TENANT_ROUTE_ID="${TENANT_ROUTE_ID:-${TENANT_ID}}"
 
-GW_BASE_URL="${BASE_URL:-http://127.0.0.1:3000}"
-ICA_BASE_URL="${ICA_BASE_URL:-http://127.0.0.1:3310}"
-GW_LOG_FILE="${LIVE_GW_LOG_FILE:-${SDK_NODE_DIR}/test-results/live-controller-gw-core-${RUN_ID}.log}"
+GW_PORT="${GW_PORT:-3000}"
+ICA_PORT="${ICA_PORT:-3310}"
+GW_BASE_URL="${BASE_URL:-http://127.0.0.1:${GW_PORT}}"
+ICA_BASE_URL="${ICA_BASE_URL:-http://127.0.0.1:${ICA_PORT}}"
+GW_LOG_FILE="${LIVE_GW_LOG_FILE:-${SDK_NODE_DIR}/test-results/live-controller-gw-${RUN_ID}.log}"
 ICA_LOG_FILE="${LIVE_ICA_LOG_FILE:-${SDK_NODE_DIR}/test-results/live-controller-ica-${RUN_ID}.log}"
 PDF_PATH="${LIVE_GW_HOST_VERIFICATION_PDF_PATH:-${WORKSPACE_DIR}/examples/TEST-A4-Antifraud.pdf}"
 
@@ -37,8 +41,8 @@ close_port_if_busy() {
 }
 
 cleanup() {
-  (cd "${GW_DIR}" && bash ./scripts/local-close.sh) >/dev/null 2>&1 || true
-  close_port_if_busy 3310
+  (cd "${GW_DIR}" && PORTS="${GW_PORT}" bash ./scripts/local-close.sh) >/dev/null 2>&1 || true
+  close_port_if_busy "${ICA_PORT}"
 }
 
 trap cleanup EXIT
@@ -50,11 +54,12 @@ echo "[live-controller] pdf_path=${PDF_PATH}"
 echo "[live-controller] ica_log=${ICA_LOG_FILE}"
 echo "[live-controller] gw_log=${GW_LOG_FILE}"
 
-(cd "${GW_DIR}" && bash ./scripts/local-close.sh)
-close_port_if_busy 3310
+(cd "${GW_DIR}" && PORTS="${GW_PORT}" bash ./scripts/local-close.sh)
+close_port_if_busy "${ICA_PORT}"
 
 (
   cd "${ICA_DIR}"
+  ICA_API_PORT="${ICA_PORT}" \
   SECURITY_MODE="${SECURITY_MODE:-demo}" \
   DEMO_ALLOW_INSECURE_BEARER="${DEMO_ALLOW_INSECURE_BEARER:-true}" \
   npm run api:local
@@ -86,8 +91,9 @@ fi
   HOST_ID_VALUE="${HOST_ID_VALUE}" \
   ICA_URL_INTERNAL="${ICA_BASE_URL}" \
   ICA_URL_EXTERNAL="${ICA_BASE_URL}" \
-  npx dotenv -e .env.local-demo -- \
+  npx dotenv -e "${GW_ENV_FILE}" -- \
   env \
+    PORT="${GW_PORT}" \
     HOST_ID_VALUE="${HOST_ID_VALUE}" \
     ICA_URL_INTERNAL="${ICA_BASE_URL}" \
     ICA_URL_EXTERNAL="${ICA_BASE_URL}" \
@@ -112,13 +118,13 @@ for _ in $(seq 1 120); do
 done
 
 if [ "${GW_READY}" != "1" ]; then
-  echo "[live-controller] GW CORE did not become ready. Last log lines:" >&2
+  echo "[live-controller] selected GW did not become ready. Last log lines:" >&2
   tail -n 80 "${GW_LOG_FILE}" >&2 || true
   exit 1
 fi
 
 echo "[live-controller] ICA is ready at ${ICA_BASE_URL}"
-echo "[live-controller] GW CORE is ready at ${GW_BASE_URL}"
+echo "[live-controller] selected GW is ready at ${GW_BASE_URL}"
 
 cd "${SDK_NODE_DIR}"
 RUN_LIVE_101_ORGANIZATION_CONTROLLER_LIFECYCLE_E2E=1 \

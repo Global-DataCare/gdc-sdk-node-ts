@@ -45,6 +45,13 @@ description: Enforce branch, TDD, fixture, test-layer, product-neutrality, chang
 - Put complete cross-system behavior in numbered E2E journeys with explicit
   authorization and persistence invariants. Mocks never count as boundary
   proof.
+- An asynchronous HTTP `200` or `201` proves only submit/poll transport
+  completion. It is never sufficient evidence of business success. Use
+  `BundleReader.getResponseAnalysis()` through the repository's shared test
+  assertion, require `hasErrors === false` and the expected successful
+  operation count. Negative journeys must instead require the exact terminal
+  `OperationOutcome`; never traverse `data[]`, `entry[]` or `issue[]` manually
+  in a high-level E2E, portal BFF or telephone-service test.
 - Do not make high-level examples green by embedding internal plumbing. Move
   that proof to the correct lower-level suite and leave the high-level example
   copyable.
@@ -55,6 +62,9 @@ description: Enforce branch, TDD, fixture, test-layer, product-neutrality, chang
   and real-local-GW SDK E2E before building an image or exercising a staging
   portal. Final release evidence must contain zero skipped live E2E cases;
   selectors register only the journeys actually selected.
+- Apply the terminal-Bundle rule identically in GWs, portal BFFs, Node
+  telephone services, SDKs and utils. Product skills may add resource/capability
+  boundaries but must never weaken this common template invariant.
 - DIDComm `from` is a sender DID, JWT `iss` is the signing entity, `kid` is a
   concrete key DID URL, and SMART `sub` is the authorized actor. They may share
   one actor DID in a direct flow, but their roles never collapse.
