@@ -13,13 +13,14 @@
  * 4. organization-controller facade provisions one professional employee
  * 5. individual-controller profile is loaded and boots one individual
  * 6. the individual controller ingests clinical data through document
- *    `Bundle` -> `Communication` -> DIDComm/plain and grants consent
- * 7. professional profile is loaded and requests a SMART token
- * 8. the professional reads the allowed IPS document via FHIR params such as
+ *    `Bundle` -> `Communication` -> DIDComm/plain
+ * 7. the professional requests missing permission as Communication plus draft Consent
+ * 8. the controller reads the inbox request and authors the active Consent
+ * 9. the professional requests a SMART token and reads the allowed IPS via
  *    `Composition.section`
- * 9. the same professional SDK instance creates one authored vital sign
- * 10. that author deletes the exact fact through a typed batch entry
- * 11. cleanup closes consent, individual, employee, tenant, and host state
+ * 10. the same professional SDK instance creates one authored vital sign
+ * 11. that author deletes the exact fact through a typed batch entry
+ * 12. cleanup closes consent, individual, employee, tenant, and host state
  *
  * Authorization invariant: SMART `sub` is the clinical actor; sender and
  * subject remain independent roles, and only that author may delete the fact.
@@ -59,7 +60,6 @@ import {
   EXAMPLE_LICENSE_ISSUE_INPUT,
   EXAMPLE_LICENSE_INVOICE_ID,
   EXAMPLE_LICENSE_PAYMENT_METHOD_STRIPE,
-  EXAMPLE_LIVE_CONSENT_GRANT_INPUT,
   EXAMPLE_LIVE_GW_BASE_URL_LOCAL,
   EXAMPLE_PROFILE_APP_TYPE_FAMILY,
   EXAMPLE_PROFILE_KEY_ACCESS_MODE_SERVER,
@@ -95,7 +95,9 @@ import {
   BundleReader,
   BundleTypes,
   HealthcareBasicSections,
+  HealthcareConsentPurposes,
   HealthcareConsentActions,
+  ConsentStatuses,
   createJwtSigner,
   createVP,
   createLegalOrganizationOnboardingEditor,
@@ -126,6 +128,7 @@ import { extractOfferIdFromResponseBody } from '../dist/order-offer-summary.js';
 import {
   ensureLiveGwTraceFiles,
 } from './helpers/live-gw-runtime-helpers.mjs';
+import { assertSuccessfulTerminalBundle } from './helpers/terminal-bundle-assertions.mjs';
 
 function env(name, fallback = '') {
   return String(process.env[name] ?? fallback).trim();
@@ -399,6 +402,15 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     appType: EXAMPLE_PROFILE_APP_TYPE_FAMILY,
     localPinPassword: EXAMPLE_PROFILE_LOCAL_PIN_PASSWORD_BACKEND,
   });
+  const individualControllerIdToken = env(
+    'INDIVIDUAL_CONTROLLER_ID_TOKEN',
+    buildUnsignedJwt({
+      sub: individualControllerLoadRequest.profileDid,
+      tenant_id: suiteTenantId,
+      email: individualControllerEmail,
+      email_verified: true,
+    }),
+  );
 
   const professionalIdToken = env(
     'PROFESSIONAL_ID_TOKEN',
@@ -452,6 +464,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
   let runtimeClient;
   let organizationControllerSdk;
   let profileRuntime;
+  let individualControllerProfileRuntime;
   let controllerOrganizationTaxId = DEFAULT_LIVE_CONTROLLER_ORGANIZATION_TAX_ID;
   let employeeDraft;
   let employeeIdentifier = '';
@@ -466,7 +479,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       pollOptions,
     ));
     debug.record('organization-controller-submit-legal-organization-verification', { response: verification });
-    assert.equal(verification.poll.status, 200);
+    assertSuccessfulTerminalBundle(verification, 'Legal-organization verification transaction');
     const verificationResponseReader = new BundleReader(verification.poll.body || {});
     const verificationResponseAnalysis = verificationResponseReader.getResponseAnalysis();
     debug.record('organization-controller-submit-legal-organization-verification-analysis', verificationResponseAnalysis);
@@ -507,7 +520,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       pollOptions,
     ));
     debug.record('host-confirm-legal-order', { response: legalOrder, offerId: legalOfferId });
-    assert.equal(legalOrder.poll.status, 200);
+    assertSuccessfulTerminalBundle(legalOrder, 'Legal-organization Order confirmation');
     hostActivated = true;
 
     // Controller lifecycle later reuses the same signed VP as
@@ -527,6 +540,15 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     ]);
     profileRuntime = new DirectBackendProfileRuntime({
       facadeClient: runtimeClient,
+      defaultRouteContext: ctx,
+    });
+    individualControllerProfileRuntime = new DirectBackendProfileRuntime({
+      facadeClient: new NodeHttpClient({
+        baseUrl,
+        ctx,
+        bearerToken: individualControllerIdToken,
+        requestTimeoutMs: 10_000,
+      }),
       defaultRouteContext: ctx,
     });
     employeeDraft = new EmployeeDraft()
@@ -565,7 +587,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     ));
     debug.record('organization-controller-provision-professional', { response: employeeProvisioning });
     const employeeCreate = employeeProvisioning.employee;
-    assert.equal(employeeCreate.poll.status, 200);
+    assertSuccessfulTerminalBundle(employeeCreate, 'Professional employee provisioning');
     employeeCreated = true;
     const createdEmployeeResourceId = String(
       employeeCreate?.poll?.body?.data?.[0]?.resource?.id
@@ -580,7 +602,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       },
     ));
     debug.record('organization-controller-search-professional', { response: employeeSearch });
-    assert.equal(employeeSearch.poll.status, 200);
+    assertSuccessfulTerminalBundle(employeeSearch, 'Professional employee search');
     const employeeSearchResults = readEmployeeSearchResults(employeeSearch.poll.body);
     const employeeRecord = findEmployeeSearchResult(employeeSearch.poll.body, employeeIdentifier) || employeeSearchResults[0];
     assert.ok(employeeRecord, 'Employee search must return one provisioned professional record.');
@@ -590,7 +612,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     // Step 4: the backend loads the individual-controller profile and runs the
     // individual registration and order flow.
     individualControllerProfile = await profiler.run('individual-controller-load-profile', () => loadBackendIndividualControllerProfile(
-      profileRuntime,
+      individualControllerProfileRuntime,
       individualControllerLoadRequest,
     ));
     individualControllerProfileLoaded = true;
@@ -613,7 +635,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       intervalSeconds: pollOptions.intervalMs / 1000,
     }));
     debug.record('individual-controller-start-individual', { response: individualStart });
-    assert.equal(individualStart.registration.poll.status, 200);
+    assertSuccessfulTerminalBundle(individualStart.registration, 'Individual registration');
     assert.ok(
       individualStart.offerId.startsWith(`urn:cds:${suiteJurisdiction.toUpperCase()}:v1:${suiteSector}:`),
       'Individual Offer URN must identify the jurisdiction/network selected by the route.',
@@ -629,7 +651,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       intervalSeconds: pollOptions.intervalMs / 1000,
     }));
     debug.record('individual-controller-confirm-order', { response: individualOrder });
-    assert.equal(individualOrder.poll.status, 200);
+    assertSuccessfulTerminalBundle(individualOrder, 'Individual Order confirmation');
     individualCreated = true;
     {
       const invoiceSummary = readInvoiceBundleSummaryFromResponseBody(individualOrder.poll.body);
@@ -638,8 +660,9 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       assert.ok(invoiceSummary.structuredDocumentId);
     }
 
-    // Step 5: the individual controller ingests clinical data and grants the
-    // professional consent required for later SMART/IPS access.
+    // Step 5: the individual controller ingests clinical data. No professional
+    // access exists yet, so the following request must remain independent from
+    // SMART and must not be made green by pre-granting Consent.
     const observedAt = new Date().toISOString();
     const heartRate = createHeartRateObservation({
       subject: suiteSubjectDid,
@@ -657,6 +680,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
             id: `composition-${randomUUID()}`,
             status: 'final',
             subject: { reference: suiteSubjectDid },
+            author: [{ reference: individualControllerLoadRequest.profileDid }],
             date: observedAt,
             type: { coding: [{ system: 'http://loinc.org', code: '60591-5' }] },
             section: [{
@@ -690,26 +714,8 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       },
     ));
     debug.record('individual-controller-ingest-clinical-data', { response: ingestion });
-    assert.equal(ingestion.poll.status, 200);
+    assertSuccessfulTerminalBundle(ingestion, 'Clinical ingestion');
 
-    const grantedConsent = await profiler.run('individual-controller-grant-professional-consent', () => individualControllerSdk.grantProfessionalAccess(
-      ctx,
-      {
-        ...cloneExample(EXAMPLE_LIVE_CONSENT_GRANT_INPUT),
-        subjectDid: suiteSubjectDid,
-        actorId: professionalActorDid,
-        actorRole: employeeRole,
-        purpose: env('CONSENT_PURPOSE', 'TREAT'),
-        actions: [consentSection],
-        pollOptions,
-      },
-    ));
-    debug.record('individual-controller-grant-professional-consent', { response: grantedConsent });
-    assert.equal(grantedConsent.consent.poll.status, 200);
-    grantedConsentClaims = grantedConsent.consentClaims;
-
-    // Step 6: the professional profile requests a SMART token and then reads
-    // the latest IPS through the high-level professional facade.
     const professionalProfile = await profiler.run('professional-load-profile', () => loadBackendProfessionalProfile(
       professionalProfileRuntime,
       professionalLoadRequest,
@@ -717,6 +723,58 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     professionalProfileLoaded = true;
     assert.equal(professionalProfile.session.actorKind, ActorKinds.Professional);
 
+    const accessRequest = await profiler.run('professional-request-subject-permission', () => professionalProfile.sdk.requestProfessionalAccess(
+      ctx,
+      {
+        subject: suiteSubjectDid,
+        requester: { actorKind: 'professional', did: professionalActorDid, email: employeeEmail },
+        requesterRole: employeeRole,
+        purpose: env('CONSENT_PURPOSE', HealthcareConsentPurposes.Treatment),
+        missing: {
+          sections: [consentSection],
+          resourceTypes: [],
+          pairs: [{ section: consentSection, reason: 'missing-consent' }],
+        },
+        sender: professionalActorDid,
+        recipient: suiteSubjectDid,
+        pollOptions,
+      },
+    ));
+    debug.record('professional-request-subject-permission', { response: accessRequest });
+    assertSuccessfulTerminalBundle(accessRequest.delivery, 'Professional permission request');
+    assert.equal(accessRequest.communication.payload.data[0].resource.status, ConsentStatuses.Draft);
+
+    const permissionInbox = await profiler.run('individual-controller-read-permission-inbox', () => individualControllerSdk.listProfessionalAccessRequests(
+      ctx,
+      {
+        subject: suiteSubjectDid,
+        recipientActorId: suiteSubjectDid,
+        pollOptions,
+      },
+    ));
+    debug.record('individual-controller-read-permission-inbox', { response: permissionInbox });
+    assertSuccessfulTerminalBundle(permissionInbox, 'Controller permission inbox search');
+
+    const grantedConsent = await profiler.run('individual-controller-answer-permission-request', () => individualControllerSdk.respondToProfessionalAccessRequest(
+      ctx,
+      {
+        requestThid: accessRequest.thid,
+        requestCommunicationIdentifier: accessRequest.communicationIdentifier,
+        subjectDid: suiteSubjectDid,
+        actorId: professionalActorDid,
+        actorRole: employeeRole,
+        purpose: env('CONSENT_PURPOSE', HealthcareConsentPurposes.Treatment),
+        actions: [consentSection],
+        decision: 'permit',
+        pollOptions,
+      },
+    ));
+    debug.record('individual-controller-answer-permission-request', { response: grantedConsent });
+    assertSuccessfulTerminalBundle(grantedConsent.consent, 'Controller permission approval');
+    grantedConsentClaims = grantedConsent.consentClaims;
+
+    // Step 9: the same professional profile now requests a SMART token and reads
+    // the latest IPS through the high-level professional facade.
     const requestedScope = env(
       'PROFESSIONAL_SMART_SCOPE',
       buildSmartCompositionReadScope({
@@ -756,7 +814,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       },
     ));
     debug.record('professional-read-latest-ips', { response: professionalRead });
-    assert.equal(professionalRead.poll.status, 200);
+    assertSuccessfulTerminalBundle(professionalRead, 'Professional IPS read');
     assert.ok(readFirstBundleResourceFromResponseBody(professionalRead.poll.body), 'The professional actor must receive one readable IPS bundle resource.');
 
     // Steps 9-10: the SMART token obtained above remains active on this same
@@ -786,8 +844,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       },
     ));
     debug.record('professional-create-authored-vital-sign', { response: professionalCreate });
-    assert.equal(professionalCreate.poll.status, 200);
-    assert.equal(new BundleReader(professionalCreate.poll.body).getResponseAnalysis().hasErrors, false);
+    assertSuccessfulTerminalBundle(professionalCreate, 'Professional vital-sign create');
 
     const deleteVitalSign = new BundleEditor().setBundleType(BundleTypes.batch);
     deleteVitalSign
@@ -806,9 +863,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       },
     ));
     debug.record('professional-delete-authored-vital-sign', { response: professionalDelete });
-    assert.equal(professionalDelete.poll.status, 200);
-    const deleteAnalysis = new BundleReader(professionalDelete.poll.body).getResponseAnalysis();
-    assert.equal(deleteAnalysis.hasErrors, false);
+    const deleteAnalysis = assertSuccessfulTerminalBundle(professionalDelete, 'Professional vital-sign delete');
     assert.ok(deleteAnalysis.successfulOperations >= 1, 'The author-owned DELETE must return one successful batch operation.');
   } finally {
     // Cleanup runs in reverse business order so the suite can be used as a
@@ -823,7 +878,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         },
       ));
       debug.record('individual-controller-revoke-professional-consent', { response: revokedConsent });
-      assert.equal(revokedConsent.consent.poll.status, 200);
+      assertSuccessfulTerminalBundle(revokedConsent.consent, 'Professional consent revocation');
     }
 
     if (professionalProfileLoaded) {
@@ -850,7 +905,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         pollOptions,
       ));
       debug.record('individual-controller-disable-individual', { response: disableIndividual });
-      assert.equal(disableIndividual.poll.status, 200);
+      assertSuccessfulTerminalBundle(disableIndividual, 'Individual organization disable');
 
       const individualPurgeEditor = individualLifecycle
         .setIdentifier(
@@ -868,12 +923,12 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         pollOptions,
       ));
       debug.record('individual-controller-purge-individual', { response: purgeIndividual });
-      assert.equal(purgeIndividual.poll.status, 200);
+      assertSuccessfulTerminalBundle(purgeIndividual, 'Individual organization purge');
     }
 
     if (individualControllerProfileLoaded) {
       await profiler.run('individual-controller-close-profile', () => closeBackendProfile(
-        profileRuntime,
+        individualControllerProfileRuntime,
         individualControllerLoadRequest.profileDid,
       ));
     }
@@ -888,7 +943,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         pollOptions,
       ));
       debug.record('organization-controller-disable-professional', { response: disableEmployee });
-      assert.equal(disableEmployee.poll.status, 200);
+      assertSuccessfulTerminalBundle(disableEmployee, 'Professional employee disable');
 
       const purgeEmployee = await profiler.run('organization-controller-purge-professional', () => organizationControllerSdk.purgeEmployee(
         ctx,
@@ -899,12 +954,12 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         pollOptions,
       ));
       debug.record('organization-controller-purge-professional', { response: purgeEmployee });
-      assert.equal(purgeEmployee.poll.status, 200);
+      assertSuccessfulTerminalBundle(purgeEmployee, 'Professional employee purge');
     }
 
     if (hostActivated) {
       const tenantLifecycleEditor = new OrganizationLifecycleEditor()
-        .setIdentifierValue(controllerOrganizationTaxId)
+        .setIdentifierValue(DEFAULT_LIVE_CONTROLLER_ORGANIZATION_TAX_ID)
         .setTaxId(controllerOrganizationTaxId);
 
       const disableTenant = await profiler.run('organization-controller-disable-tenant', () => organizationControllerSdk.disableTenant(
@@ -915,7 +970,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         pollOptions,
       ));
       debug.record('organization-controller-disable-tenant', { response: disableTenant });
-      assert.equal(disableTenant.poll.status, 200);
+      assertSuccessfulTerminalBundle(disableTenant, 'Hosted tenant disable');
 
       const purgeTenant = await profiler.run('organization-controller-purge-tenant', () => organizationControllerSdk.purgeTenant(
         hostCtx,
@@ -925,7 +980,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         pollOptions,
       ));
       debug.record('organization-controller-purge-tenant', { response: purgeTenant });
-      assert.equal(purgeTenant.poll.status, 200);
+      assertSuccessfulTerminalBundle(purgeTenant, 'Hosted tenant purge');
 
       const hostLifecycleEditor = new OrganizationLifecycleEditor()
         .setIdentifierValue(suiteHostIdentifierValue);
@@ -938,7 +993,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         pollOptions,
       ));
       debug.record('host-disable', { response: disableHost });
-      assert.equal(disableHost.poll.status, 200);
+      assertSuccessfulTerminalBundle(disableHost, 'Host disable');
 
       const purgeHost = await profiler.run('host-purge', () => hostSdk.purgeHost(
         hostCtx,
@@ -948,7 +1003,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         pollOptions,
       ));
       debug.record('host-purge', { response: purgeHost });
-      assert.equal(purgeHost.poll.status, 200);
+      assertSuccessfulTerminalBundle(purgeHost, 'Host purge');
     }
 
     profiler.flush();

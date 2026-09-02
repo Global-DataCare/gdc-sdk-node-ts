@@ -427,13 +427,16 @@ data ingestion/search.
 
 `ProfessionalSdk.requestProfessionalAccess(...)` is the bootstrap operation
 for the inverse flow: it persists a subject-scoped permission-request
-`Communication` using the configured HTTP bearer and transport profile, without
-requiring SMART. The subject later answers through
+`Communication` with an attached batch Bundle of normal
+`Consent.status = draft` resources, using the configured HTTP bearer and
+transport profile without requiring SMART. A draft is inbox evidence and
+cannot authorize access. The subject later answers through
 `respondToProfessionalAccessRequest(...)`; that facade uses the normal Consent
 grant/deny operation and retains the original Communication identifier/thread.
 `listProfessionalAccessRequests(...)` provides the subject/requester inbox view,
 and `GatewayActiveConsentProvider` supplies `evaluateRequestedAccess(...)` from
 the GW Consent source of truth rather than a parallel application table.
+There is no `AccessRequest` FHIR resource or `AccessRequest.*` claim family.
 
 ## Main Flows
 
@@ -813,6 +816,9 @@ Recovery-specific live rule:
   and cannot select another tenant
 - a failed poll `OperationOutcome` is surfaced before the helper checks for
   `initial_access_token`, preserving the real GW diagnostic
+- every asynchronous success test uses `BundleReader.getResponseAnalysis()`;
+  HTTP 200/201 alone is transport completion, not proof that the inner Bundle
+  entries succeeded
 - the bundled recovery runner generates a syntactically valid demo JWT if
   `CONTROLLER_ID_TOKEN` is not provided, but production/staging should use a
   real IdP-issued token

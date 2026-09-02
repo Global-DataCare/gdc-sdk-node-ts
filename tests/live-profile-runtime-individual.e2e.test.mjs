@@ -62,6 +62,7 @@ import {
   createRuntimeClient,
   ensureLiveGwTraceFiles,
 } from './helpers/live-gw-runtime-helpers.mjs';
+import { assertSuccessfulTerminalBundle } from './helpers/terminal-bundle-assertions.mjs';
 import { buildUnsignedJwt } from './helpers/vp-token-fixture.mjs';
 
 function env(name, fallback = '') {
@@ -207,7 +208,7 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
     },
   ));
   debug.record('individual-start', { response: individualStart });
-  assert.equal(individualStart.registration.poll.status, 200);
+  assertSuccessfulTerminalBundle(individualStart.registration, 'Individual registration');
 
   const individualOrder = await profiler.run('individual-order', () => individualRuntime.confirmIndividualOrganizationOrder(
     profile,
@@ -221,7 +222,7 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
     },
   ));
   debug.record('individual-order', { response: individualOrder });
-  assert.equal(individualOrder.poll.status, 200);
+  assertSuccessfulTerminalBundle(individualOrder, 'Individual Order confirmation');
 
   const observedAt = new Date().toISOString();
   const observation = createHeartRateObservation({
@@ -268,7 +269,7 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
     },
   ));
   debug.record('medication-ingest', { response: ingestion });
-  assert.equal(ingestion.poll.status, 200);
+  assertSuccessfulTerminalBundle(ingestion, 'Individual clinical ingestion');
 
   const connection = await profiler.run('connect-subject-index', () => connectBackendToSubjectIndex(
     profileRuntime,
@@ -307,7 +308,7 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
     pollOptions,
   ));
   debug.record('individual-disable', { response: disableIndividual });
-  assert.equal(disableIndividual.poll.status, 200);
+  assertSuccessfulTerminalBundle(disableIndividual, 'Individual organization disable');
 
   const purgeIndividual = await profiler.run('individual-purge', () => profile.sdk.purgeIndividualOrganization(
     ctx,
@@ -317,7 +318,7 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
     pollOptions,
   ));
   debug.record('individual-purge', { response: purgeIndividual });
-  assert.equal(purgeIndividual.poll.status, 200);
+  assertSuccessfulTerminalBundle(purgeIndividual, 'Individual organization purge');
 
   await profiler.run('close-profile', () => closeBackendProfile(profileRuntime, profileDid));
   await assert.rejects(

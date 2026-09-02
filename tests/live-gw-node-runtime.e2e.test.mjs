@@ -13,8 +13,12 @@
  * Authorization invariant: every protected HTTP boundary receives a bearer
  * whose subject identifies the acting DID; transport `kid`, DIDComm `from` and
  * SMART `sub` retain their separate canonical meanings.
- * Persistence invariant: a successful poll proves the GW state transition;
- * release evidence uses fresh identifiers and completes the selected cleanup.
+ * Persistence invariant: HTTP 200 only proves polling completed. Every
+ * asynchronous business success must also pass
+ * `BundleReader.getResponseAnalysis()` with no errors and at least one
+ * successful operation; negative journeys must assert the expected terminal
+ * OperationOutcome. Release evidence uses fresh identifiers and completes the
+ * selected cleanup.
  *
  * Important execution rule:
  * - run this suite from the user's real terminal/TTY
@@ -58,13 +62,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { IndividualOrganizationLifecycleEditor, OrganizationLifecycleEditor } from 'gdc-common-utils-ts';
 import { HealthcareBasicSections } from 'gdc-common-utils-ts/constants';
-import { DeviceAppTypes, DeviceUserClasses } from 'gdc-common-utils-ts/constants/device';
+import { DeviceAppTypes } from 'gdc-common-utils-ts/constants/device';
 import { ClaimsOrderSchemaorg, ClaimsOrganizationSchemaorg, ClaimsPersonSchemaorg } from 'gdc-common-utils-ts/constants/schemaorg';
 import { ClaimConsent } from 'gdc-common-utils-ts/models/consent-rule';
 import {
   MedicationStatementClaim,
   MedicationStatementClaimsFhirApiExtended,
 } from 'gdc-common-utils-ts/models/interoperable-claims/medication-statement-claims';
+import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
 import {
   EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT,
   EXAMPLE_API_ORGANIZATION_DID,
@@ -109,7 +114,6 @@ import {
 import {
   buildSmartCompositionReadScope,
   buildIndividualDidWeb,
-  buildLicenseIssueEntry,
   readInvoiceBundleSummaryFromResponseBody,
 } from 'gdc-common-utils-ts';
 import { createIpsSummarySearchDidcommMessage } from 'gdc-common-utils-ts/utils/communication-bundle-document-request';
@@ -145,6 +149,10 @@ import {
   createRuntimeClient,
   ensureLiveGwTraceFiles,
 } from './helpers/live-gw-runtime-helpers.mjs';
+import {
+  assertSuccessfulTerminalBundle,
+  assertTerminalBundleFailure,
+} from './helpers/terminal-bundle-assertions.mjs';
 import {
   LiveGwSuiteProfiles,
   normalizeLiveGwSuiteProfile,
@@ -244,9 +252,17 @@ const suiteTenantRouteId = env('TENANT_ROUTE_ID', suiteTenantId);
  */
 const suiteJurisdiction = env(ENV_JURISDICTION, EXAMPLE_JURISDICTION);
 const suiteSector = env(ENV_SECTOR, EXAMPLE_SECTOR);
-const suiteSubjectDid = env('SUBJECT_DID', buildIndividualDidWeb({
+const suiteProfessionalSubjectDid = env('SUBJECT_DID', buildIndividualDidWeb({
   providerDidWeb: EXAMPLE_HOSTED_PROVIDER_DID,
   individualId: defaultSuiteSubjectId || EXAMPLE_SUBJECT_DID,
+}));
+const suiteProfileSubjectDid = env('PROFILE_SUBJECT_DID', buildIndividualDidWeb({
+  providerDidWeb: EXAMPLE_HOSTED_PROVIDER_DID,
+  individualId: `${defaultSuiteSubjectId}profile`,
+}));
+const suiteLifecycleSubjectDid = env('LIFECYCLE_SUBJECT_DID', buildIndividualDidWeb({
+  providerDidWeb: EXAMPLE_HOSTED_PROVIDER_DID,
+  individualId: `${defaultSuiteSubjectId}lifecycle`,
 }));
 const suiteHostIdentifierValue = env('HOST_ID_VALUE', `host-${runSlug}`);
 /**
@@ -448,7 +464,7 @@ function createLivePollOptions(overrides = {}) {
 }
 
 function buildLiveLegalOrganizationVerificationTransactionInput({
-  tenantId,
+  officialOrganizationIdentifier,
   tenantRouteId,
   jurisdiction,
   sector,
@@ -464,9 +480,9 @@ function buildLiveLegalOrganizationVerificationTransactionInput({
       'org.schema.Organization.alternateName': tenantRouteId,
       'org.schema.Organization.legalName': env('ORG_LEGAL_NAME', 'TEST LEGAL ORGANIZATION SL'),
       'org.schema.Organization.identifier.additionalType': env('ORG_IDENTIFIER_TYPE', 'taxID'),
-      'org.schema.Organization.identifier.value': tenantId,
+      'org.schema.Organization.identifier.value': officialOrganizationIdentifier,
       'org.schema.Organization.address.addressCountry': jurisdiction,
-      'org.schema.Organization.taxID': tenantId,
+      'org.schema.Organization.taxID': officialOrganizationIdentifier,
       'org.schema.Person.email': controllerEmail,
       'org.schema.Person.hasOccupation.identifier.value': controllerRole,
       'org.schema.Service.category': sector,
@@ -500,6 +516,7 @@ async function maybeSubmitHostVerificationTransaction({
   serviceUrl,
   stage,
 }) {
+  const officialOrganizationIdentifier = env('LIVE_CONTROLLER_ORGANIZATION_TAX_ID', tenantId);
   /**
    * Compatibility branch selector for the legal organization onboarding suite.
    *
@@ -522,7 +539,7 @@ async function maybeSubmitHostVerificationTransaction({
   const verification = await profiler.run(stage, () => orgControllerSession.asOrganizationController().submitLegalOrganizationVerificationTransaction(
     hostCtx,
     buildLiveLegalOrganizationVerificationTransactionInput({
-      tenantId,
+      officialOrganizationIdentifier,
       tenantRouteId,
       jurisdiction,
       sector,
@@ -534,9 +551,8 @@ async function maybeSubmitHostVerificationTransaction({
     pollOptions,
   ));
   debug.record(stage, { response: verification });
-  assert.equal(
-    verification.poll.status,
-    200,
+  assertSuccessfulTerminalBundle(
+    verification,
     'Host verification transaction must complete successfully when the new host flow is enabled.',
   );
   assert.ok(
@@ -548,6 +564,39 @@ async function maybeSubmitHostVerificationTransaction({
     'Host verification transaction must return an inner verification response.status of 200/201.',
   );
   return verification;
+}
+
+async function confirmSubmittedLegalOrganizationOrder({
+  verification,
+  orgControllerSession,
+  ctx,
+  pollOptions,
+  hostNetworkOrTenantSector,
+  debug,
+}) {
+  if (!verification) return null;
+  const legalOfferId = extractOfferIdFromResponseBody(verification.poll.body);
+  assert.ok(legalOfferId, 'Host verification transaction must expose one offer identifier before order confirmation.');
+  const legalOrder = await orgControllerSession.asOrganizationController().confirmOrganizationLicenseOrder(
+    ctx,
+    {
+      issuerDid: String(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.controller.did),
+      offerId: legalOfferId,
+      hostNetwork: hostNetworkOrTenantSector,
+      additionalClaims: {
+        [ClaimsOrderSchemaorg.paymentMethod]: EXAMPLE_LICENSE_PAYMENT_METHOD_STRIPE,
+        [ClaimsOrderSchemaorg.partOfInvoice]: EXAMPLE_LICENSE_INVOICE_ID,
+      },
+    },
+    pollOptions,
+  );
+  debug.record('legal-order-confirmation', { response: legalOrder, offerId: legalOfferId });
+  assertSuccessfulTerminalBundle(legalOrder, 'Organization controller facade must confirm the legal organization order after _transaction.');
+  assert.ok(
+    ['200', '201'].includes(getFirstBatchEntryStatus(legalOrder.poll.body, 'Legal organization order')),
+    'Legal organization order must return an inner response.status of 200/201.',
+  );
+  return legalOrder;
 }
 
 async function maybeActivateOrganizationFromLegacyIcaProof({
@@ -594,7 +643,7 @@ async function maybeActivateOrganizationFromLegacyIcaProof({
     pollOptions,
   ));
   debug.record(stage, { response: activation });
-  assert.equal(activation.poll.status, 200, 'Legacy host onboarding facade must complete organization activation.');
+  assertSuccessfulTerminalBundle(activation, 'Legacy host onboarding facade must complete organization activation.');
   assertLatestActivateTraceHasPlaintextTransportMeta({
     jurisdiction: hostCtx.jurisdiction,
     hostNetworkOrTenantSector: hostCtx.hostNetworkOrTenantSector,
@@ -870,29 +919,6 @@ async function submitAndPollDirect({ baseUrl, path: submitPath, payload, bearerT
   }
 }
 
-function buildLicenseIssueDidcommPayload({ ctx, email, role, userClass, deviceType }) {
-  return {
-    jti: `jti-${runtimeUuid()}`,
-    iss: ctx.tenantId,
-    aud: ctx.tenantId,
-    type: 'application/didcomm-plain+json',
-    thid: `license-issue-${runtimeUuid()}`,
-    body: {
-      resourceType: 'Bundle',
-      type: 'batch',
-      data: [
-        buildLicenseIssueEntry({
-          ...cloneExample(EXAMPLE_LICENSE_ISSUE_INPUT),
-          email,
-          role,
-          userClass,
-          type: deviceType,
-        }),
-      ],
-    },
-  };
-}
-
 function buildConsentLifecyclePayload({ consentClaims }) {
   return {
     thid: `consent-${runtimeUuid()}`,
@@ -1038,29 +1064,14 @@ registerSelectedLiveTest(
     stage: 'legal-verification-transaction',
   });
 
-  if (verification) {
-    const legalOfferId = extractOfferIdFromResponseBody(verification.poll.body);
-    assert.ok(legalOfferId, 'Host verification transaction must expose one offer identifier before order confirmation.');
-    const legalOrder = await orgControllerSession.asOrganizationController().confirmOrganizationLicenseOrder(
-      ctx,
-      {
-        issuerDid: String(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE.data[0].resource.controller.did),
-        offerId: legalOfferId,
-        hostNetwork: hostNetworkOrTenantSector,
-        additionalClaims: {
-          [ClaimsOrderSchemaorg.paymentMethod]: EXAMPLE_LICENSE_PAYMENT_METHOD_STRIPE,
-          [ClaimsOrderSchemaorg.partOfInvoice]: EXAMPLE_LICENSE_INVOICE_ID,
-        },
-      },
-      pollOptions,
-    );
-    debug.record('legal-order-confirmation', { response: legalOrder, offerId: legalOfferId });
-    assert.equal(legalOrder.poll.status, 200, 'Organization controller facade must confirm the legal organization order after _transaction.');
-    assert.ok(
-      ['200', '201'].includes(getFirstBatchEntryStatus(legalOrder.poll.body, 'Legal organization order')),
-      'Legal organization order must return an inner response.status of 200/201.',
-    );
-  }
+  await confirmSubmittedLegalOrganizationOrder({
+    verification,
+    orgControllerSession,
+    ctx,
+    pollOptions,
+    hostNetworkOrTenantSector,
+    debug,
+  });
 
   await maybeActivateOrganizationFromLegacyIcaProof({
     profiler: {
@@ -1092,7 +1103,7 @@ registerSelectedLiveTest(
     pollOptions,
   );
   debug.record('organization-did-binding', { response: didBinding });
-  assert.equal(didBinding.poll.status, 200, 'Organization controller facade must bind the tenant DID document aliases through GW.');
+  assertSuccessfulTerminalBundle(didBinding, 'Organization controller facade must bind the tenant DID document aliases through GW.');
   {
     const bindingEntries = getBatchEntries(didBinding.poll.body, 'Organization DID binding');
     assert.equal(String(bindingEntries[0]?.response?.status || ''), '200', 'Organization DID binding must return inner success 200.');
@@ -1132,7 +1143,7 @@ registerSelectedLiveTest(
   );
   const employee = employeeProvisioning.employee;
   debug.record('employee-create', { response: employee });
-  assert.equal(employee.poll.status, 200, 'Organization controller facade must create employee through GW.');
+  assertSuccessfulTerminalBundle(employee, 'Organization controller facade must create employee through GW.');
 
   const employeeSearch = await orgControllerSession.asOrganizationController().searchOrganizationEmployees(
     ctx,
@@ -1146,7 +1157,7 @@ registerSelectedLiveTest(
     },
   );
   debug.record('employee-search', { response: employeeSearch });
-  assert.equal(employeeSearch.poll.status, 200, 'Organization controller facade must search the created employee through GW.');
+  assertSuccessfulTerminalBundle(employeeSearch, 'Organization controller facade must search the created employee through GW.');
   const employeeRows = getSearchRows(employeeSearch.poll.body, 'Employee search after create');
   const employeeRow = employeeRows.find((row) =>
     extractFlatClaimValue(row, ClaimsPersonSchemaorg.identifier) === employeeIdentifier
@@ -1170,7 +1181,11 @@ registerSelectedLiveTest(
     pollOptions,
   );
   debug.record('employee-purge-active', { response: purgeWhileActive });
-  assert.equal(purgeWhileActive.poll.status, 200, 'Employee purge on active employee must still complete the async envelope.');
+  assertTerminalBundleFailure(
+    purgeWhileActive,
+    'Employee purge on active employee must fail inside the completed async envelope.',
+    /disabled before purge|not found/i,
+  );
   {
     const purgeEntries = getBatchEntries(purgeWhileActive.poll.body, 'Employee purge while active');
     const first = purgeEntries[0] || {};
@@ -1197,7 +1212,7 @@ registerSelectedLiveTest(
     pollOptions,
   );
   debug.record('employee-disable', { response: disableEmployee });
-  assert.equal(disableEmployee.poll.status, 200, 'Organization controller facade must disable employee through GW.');
+  assertSuccessfulTerminalBundle(disableEmployee, 'Organization controller facade must disable employee through GW.');
   {
     const disableEntries = getBatchEntries(disableEmployee.poll.body, 'Employee disable');
     assert.equal(String(disableEntries[0]?.response?.status || ''), '200', 'Employee disable must return inner success 200.');
@@ -1212,7 +1227,7 @@ registerSelectedLiveTest(
     pollOptions,
   );
   debug.record('employee-purge-disabled', { response: purgeDisabled });
-  assert.equal(purgeDisabled.poll.status, 200, 'Organization controller facade must purge an inactive employee through GW.');
+  assertSuccessfulTerminalBundle(purgeDisabled, 'Organization controller facade must purge an inactive employee through GW.');
   {
     const purgeEntries = getBatchEntries(purgeDisabled.poll.body, 'Employee purge after disable');
     assert.equal(String(purgeEntries[0]?.response?.status || ''), '200', 'Employee purge after disable must return inner success 200.');
@@ -1226,7 +1241,7 @@ registerSelectedLiveTest(
     'INDIVIDUAL_CONTROLLER_EMAIL',
     `controller+${runSlug}@example.com`,
   );
-  const patientSubjectDid = suiteSubjectDid;
+  const patientSubjectDid = suiteProfessionalSubjectDid;
   const smartProfessionalDid = env('SMART_SUBJECT_DID', EXAMPLE_PROFESSIONAL_DID);
   const smartClientId = env('SMART_CLIENT_ID', 'did:web:api.acme.org:employee:admin1@acme.org:device:demo');
 
@@ -1246,7 +1261,7 @@ registerSelectedLiveTest(
     intervalSeconds: pollOptions.intervalMs / 1000,
   });
   debug.record('individual-start', { response: individualStart });
-  assert.equal(individualStart.registration.poll.status, 200, 'Individual controller facade must start subject organization registration.');
+  assertSuccessfulTerminalBundle(individualStart.registration, 'Individual controller facade must start subject organization registration.');
   assert.ok(
     individualStart.offerId.startsWith(`urn:cds:${jurisdiction.toUpperCase()}:v1:${sector}:`),
     'Individual Offer URN must identify the jurisdiction/network selected by the route.',
@@ -1262,7 +1277,7 @@ registerSelectedLiveTest(
     intervalSeconds: pollOptions.intervalMs / 1000,
   });
   debug.record('individual-order', { response: individualOrder });
-  assert.equal(individualOrder.poll.status, 200, 'Individual controller facade must confirm subject order.');
+  assertSuccessfulTerminalBundle(individualOrder, 'Individual controller facade must confirm subject order.');
   {
     const invoiceSummary = readInvoiceBundleSummaryFromResponseBody(individualOrder.poll.body);
     assert.equal(invoiceSummary.invoiceId, individualStart.offerId, 'Individual order must return an invoice bundle with a reusable invoice identifier.');
@@ -1279,7 +1294,7 @@ registerSelectedLiveTest(
     pollOptions,
   });
   debug.record('consent', { response: consent });
-  assert.equal((consent.consent || consent).poll.status, 200, 'Individual controller facade must grant professional access.');
+  assertSuccessfulTerminalBundle(consent.consent || consent, 'Individual controller facade must grant professional access.');
 
   const smartVpToken = env(
     'SMART_VP_TOKEN',
@@ -1331,7 +1346,7 @@ registerSelectedLiveTest(
       pollOptions,
     );
     debug.record('individual-disable', { response: disable });
-    assert.equal(disable.poll.status, 200, 'Individual controller facade must disable the hosted subject organization.');
+    assertSuccessfulTerminalBundle(disable, 'Individual controller facade must disable the hosted subject organization.');
 
     const purge = await individualControllerSession.asIndividualController().purgeIndividualOrganization(
       ctx,
@@ -1341,7 +1356,7 @@ registerSelectedLiveTest(
       pollOptions,
     );
     debug.record('individual-purge', { response: purge });
-    assert.equal(purge.poll.status, 200, 'Individual controller facade must purge the hosted subject organization after disable.');
+    assertSuccessfulTerminalBundle(purge, 'Individual controller facade must purge the hosted subject organization after disable.');
   }
   },
 );
@@ -1360,7 +1375,11 @@ async function runLiveIndividualLifecycleSuite() {
   const jurisdiction = suiteJurisdiction;
   const sector = suiteSector;
   const hostNetworkOrTenantSector = resolveLiveHostNetworkOrTenantSector();
-  const bearerToken = env('AUTH_BEARER', 'dummy');
+  const individualControllerDid = env('INDIVIDUAL_CONTROLLER_DID', EXAMPLE_PROFILE_PROVIDER_DID);
+  const bearerToken = env('AUTH_BEARER', buildUnsignedJwt({
+    iss: individualControllerDid,
+    sub: individualControllerDid,
+  }));
   const doctorDid = env('INDIVIDUAL_TEST_DOCTOR_DID', EXAMPLE_API_ORGANIZATION_DID);
   const doctorEmail = env('INDIVIDUAL_TEST_DOCTOR_EMAIL', EXAMPLE_EMAIL_PROFESSIONAL);
   const memberEmail = env('INDIVIDUAL_MEMBER_EMAIL', `member+${runSlug}@example.com`);
@@ -1452,7 +1471,7 @@ async function runLiveIndividualLifecycleSuite() {
     'INDIVIDUAL_CONTROLLER_EMAIL',
     `controller+${runSlug}@example.com`,
   );
-  const subjectDid = suiteSubjectDid;
+  const subjectDid = suiteLifecycleSubjectDid;
   const individualStart = await profiler.run('individual-start', () => individualControllerSession.asIndividualController().startIndividualOrganization({
     tenantId: tenantRouteId,
     jurisdiction,
@@ -1469,7 +1488,7 @@ async function runLiveIndividualLifecycleSuite() {
     intervalSeconds: pollOptions.intervalMs / 1000,
   }));
   debug.record('individual-suite-start', { response: individualStart });
-  assert.equal(individualStart.registration.poll.status, 200, 'Individual lifecycle suite must create the hosted individual tenant.');
+  assertSuccessfulTerminalBundle(individualStart.registration, 'Individual lifecycle suite must create the hosted individual tenant.');
   assert.ok(
     individualStart.offerId.startsWith(`urn:cds:${jurisdiction.toUpperCase()}:v1:${sector}:`),
     'Individual Offer URN must identify the jurisdiction/network selected by the route.',
@@ -1485,7 +1504,7 @@ async function runLiveIndividualLifecycleSuite() {
     intervalSeconds: pollOptions.intervalMs / 1000,
   }));
   debug.record('individual-suite-order', { response: individualOrder });
-  assert.equal(individualOrder.poll.status, 200, 'Individual lifecycle suite must confirm the hosted individual order.');
+  assertSuccessfulTerminalBundle(individualOrder, 'Individual lifecycle suite must confirm the hosted individual order.');
   {
     const invoiceSummary = readInvoiceBundleSummaryFromResponseBody(individualOrder.poll.body);
     const resolvedInvoiceId = invoiceSummary.invoiceId || getAcceptedOfferIdentifierFromResponseBody(individualOrder.poll.body);
@@ -1542,7 +1561,7 @@ async function runLiveIndividualLifecycleSuite() {
       medicationIdentifier: medication.identifier,
       response: ingestion,
     });
-    assert.equal(ingestion.poll.status, 200, `Individual lifecycle suite must ingest medication ${medication.identifier}.`);
+    assertSuccessfulTerminalBundle(ingestion, `Individual lifecycle suite must ingest medication ${medication.identifier}.`);
   }
 
   const ipsSearchCommunicationPayload = createIpsSummarySearchDidcommMessage({
@@ -1560,7 +1579,7 @@ async function runLiveIndividualLifecycleSuite() {
     },
   ));
   debug.record('individual-suite-ips-search', { response: ipsSearch });
-  assert.equal(ipsSearch.poll.status, 200, 'Individual lifecycle suite must return the latest IPS document view.');
+  assertSuccessfulTerminalBundle(ipsSearch, 'Individual lifecycle suite must return the latest IPS document view.');
   const ipsIndexedBundle = getBatchEntries(
     ipsSearch.poll.body,
     'Individual lifecycle IPS communication search',
@@ -1581,6 +1600,17 @@ async function runLiveIndividualLifecycleSuite() {
     patient: { reference: subjectDid },
     name: [{ text: `${runSlug}-Doraemon` }],
     telecom: [{ value: `mailto:${memberEmail}` }],
+    meta: {
+      claims: {
+        ...cloneExample(EXAMPLE_RELATED_PERSON_DISABLE_INPUT.memberClaims),
+        [RelatedPersonClaim.IdentifierValue]: relatedPersonIdentifier,
+        [RelatedPersonClaim.Patient]: subjectDid,
+        [RelatedPersonClaim.Name]: `${runSlug}-Doraemon`,
+        [RelatedPersonClaim.Telecom]: `mailto:${memberEmail}`,
+        [RelatedPersonClaim.Relationship]: memberRole,
+        [RelatedPersonClaim.Active]: 'true',
+      },
+    },
   };
   const relatedPersonUpsert = await profiler.run('related-person-upsert', () => individualControllerSession.asIndividualController().upsertRelatedPersonAndPoll(
     ctx,
@@ -1590,23 +1620,32 @@ async function runLiveIndividualLifecycleSuite() {
     },
   ));
   debug.record('individual-suite-relatedperson-upsert', { response: relatedPersonUpsert });
-  assert.equal(relatedPersonUpsert.poll.status, 200, 'Individual lifecycle suite must upsert one family related person.');
+  assertSuccessfulTerminalBundle(relatedPersonUpsert, 'Individual lifecycle suite must upsert one family related person.');
 
-  const memberIssue = await profiler.run('member-license-issue', () => submitAndPollDirect({
-    baseUrl,
-    path: buildRoutePath(ctx, 'identity', 'openid', 'License', '_issue'),
-    bearerToken,
-    pollOptions,
-    payload: buildLicenseIssueDidcommPayload({
-      ctx,
+  const memberSeats = await profiler.run('member-license-list', () => individualControllerSession.asIndividualController().listLicenses(
+    ctx,
+    {
+      pollOptions,
+    },
+  ));
+  debug.record('individual-suite-member-license-list', { response: memberSeats });
+  assertSuccessfulTerminalBundle(memberSeats, 'Individual lifecycle suite must list the individual organization seat pool before invitation.');
+
+  const memberIssue = await profiler.run('member-license-issue', () => individualControllerSession.asIndividualController().issueMemberInvitationLicense(
+    ctx,
+    {
       email: memberEmail,
       role: memberRole,
-      userClass: DeviceUserClasses.Individual,
-      deviceType: DeviceAppTypes.Mobile,
-    }),
-  }));
+      type: DeviceAppTypes.Mobile,
+      ownerOrganizationId: individualStart.identity.resourceId,
+      subjectDid,
+      relatedPersonId: relatedPersonIdentifier,
+      invitationId: `invitation-${runtimeUuid()}`,
+      pollOptions,
+    },
+  ));
   debug.record('individual-suite-member-license-issue', { response: memberIssue });
-  assert.equal(memberIssue.poll.status, 200, 'Individual lifecycle suite must issue one member activation code from the individual seat pool.');
+  assertSuccessfulTerminalBundle(memberIssue, 'Individual lifecycle suite must issue one member activation code from the individual seat pool.');
 
   const memberConsent = await profiler.run('member-consent-grant', () => individualControllerSession.asIndividualController().grantProfessionalAccess(ctx, {
     ...cloneExample(EXAMPLE_LIVE_CONSENT_GRANT_INPUT),
@@ -1617,7 +1656,7 @@ async function runLiveIndividualLifecycleSuite() {
     pollOptions,
   }));
   debug.record('individual-suite-member-consent', { response: memberConsent });
-  assert.equal(memberConsent.consent.poll.status, 200, 'Individual lifecycle suite must create a consent for the invited member.');
+  assertSuccessfulTerminalBundle(memberConsent.consent, 'Individual lifecycle suite must create a consent for the invited member.');
 
   const doctorConsent = await profiler.run('doctor-consent-grant', () => individualControllerSession.asIndividualController().grantProfessionalAccess(ctx, {
     ...cloneExample(EXAMPLE_LIVE_CONSENT_GRANT_INPUT),
@@ -1628,7 +1667,7 @@ async function runLiveIndividualLifecycleSuite() {
     pollOptions,
   }));
   debug.record('individual-suite-doctor-consent', { response: doctorConsent });
-  assert.equal(doctorConsent.consent.poll.status, 200, 'Individual lifecycle suite must create a consent for the professional actor.');
+  assertSuccessfulTerminalBundle(doctorConsent.consent, 'Individual lifecycle suite must create a consent for the professional actor.');
 
   const revokedAt = env('REVOKED_CONSENT_PERIOD_END', '2026-06-01T00:00:00Z');
   const revokedMemberConsent = await profiler.run('member-consent-revoke', () => individualControllerSession.asIndividualController().submitAndPoll(
@@ -1640,7 +1679,7 @@ async function runLiveIndividualLifecycleSuite() {
     pollOptions,
   ));
   debug.record('individual-suite-member-consent-revoke', { response: revokedMemberConsent });
-  assert.equal(revokedMemberConsent.poll.status, 200, 'Individual lifecycle suite must revoke the member consent by closing its period.');
+  assertSuccessfulTerminalBundle(revokedMemberConsent, 'Individual lifecycle suite must revoke the member consent by closing its period.');
 
   const revokedDoctorConsent = await profiler.run('doctor-consent-revoke', () => individualControllerSession.asIndividualController().submitAndPoll(
     runtimeClient.individualConsentR4BatchPath(ctx),
@@ -1651,7 +1690,7 @@ async function runLiveIndividualLifecycleSuite() {
     pollOptions,
   ));
   debug.record('individual-suite-doctor-consent-revoke', { response: revokedDoctorConsent });
-  assert.equal(revokedDoctorConsent.poll.status, 200, 'Individual lifecycle suite must revoke the doctor consent by closing its period.');
+  assertSuccessfulTerminalBundle(revokedDoctorConsent, 'Individual lifecycle suite must revoke the doctor consent by closing its period.');
 
   const relatedPersonLifecycleClaims = {
     ...cloneExample(EXAMPLE_RELATED_PERSON_DISABLE_INPUT.memberClaims),
@@ -1669,7 +1708,7 @@ async function runLiveIndividualLifecycleSuite() {
     pollOptions,
   ));
   debug.record('individual-suite-member-disable', { response: disableMember });
-  assert.equal(disableMember.poll.status, 200, 'Individual lifecycle suite must disable the related-person/member relationship.');
+  assertSuccessfulTerminalBundle(disableMember, 'Individual lifecycle suite must disable the related-person/member relationship.');
 
   const purgeMember = await profiler.run('member-purge', () => individualControllerSession.asIndividualController().purgeIndividualMember(
     ctx,
@@ -1680,12 +1719,13 @@ async function runLiveIndividualLifecycleSuite() {
     pollOptions,
   ));
   debug.record('individual-suite-member-purge', { response: purgeMember });
-  assert.equal(purgeMember.poll.status, 200, 'Individual lifecycle suite must purge the related-person/member relationship after disable.');
+  assertSuccessfulTerminalBundle(purgeMember, 'Individual lifecycle suite must purge the related-person/member relationship after disable.');
 
+  const officialOrganizationIdentifier = env('LIVE_CONTROLLER_ORGANIZATION_TAX_ID', tenantId);
   const tenantLifecycleEditor = new OrganizationLifecycleEditor()
     .setIdentifier(String(cloneExample(EXAMPLE_TENANT_DISABLE_MESSAGE.claims)[ClaimsOrganizationSchemaorg.identifier]))
-    .setIdentifierValue(tenantId)
-    .setTaxId(tenantId);
+    .setIdentifierValue(officialOrganizationIdentifier)
+    .setTaxId(officialOrganizationIdentifier);
   const disableTenantWhileIndividualActive = await profiler.run('tenant-disable-while-individual-active', () => orgControllerSession.asOrganizationController().disableTenant(
     hostCtx,
     {
@@ -1752,7 +1792,7 @@ async function runLiveIndividualLifecycleSuite() {
     pollOptions,
   ));
   debug.record('individual-suite-disable', { response: disableIndividual });
-  assert.equal(disableIndividual.poll.status, 200, 'Individual lifecycle suite must disable the hosted individual organization for cleanup.');
+  assertSuccessfulTerminalBundle(disableIndividual, 'Individual lifecycle suite must disable the hosted individual organization for cleanup.');
 
   const purgeIndividual = await profiler.run('individual-purge', () => individualControllerSession.asIndividualController().purgeIndividualOrganization(
     ctx,
@@ -1762,7 +1802,7 @@ async function runLiveIndividualLifecycleSuite() {
     pollOptions,
   ));
   debug.record('individual-suite-purge', { response: purgeIndividual });
-  assert.equal(purgeIndividual.poll.status, 200, 'Individual lifecycle suite must purge the hosted individual organization for cleanup.');
+  assertSuccessfulTerminalBundle(purgeIndividual, 'Individual lifecycle suite must purge the hosted individual organization for cleanup.');
 
   const disableTenant = await profiler.run('tenant-disable', () => orgControllerSession.asOrganizationController().disableTenant(
     hostCtx,
@@ -1772,7 +1812,7 @@ async function runLiveIndividualLifecycleSuite() {
     pollOptions,
   ));
   debug.record('individual-suite-tenant-disable', { response: disableTenant });
-  assert.equal(disableTenant.poll.status, 200, 'Individual lifecycle suite must disable the hosted tenant after descendant cleanup.');
+  assertSuccessfulTerminalBundle(disableTenant, 'Individual lifecycle suite must disable the hosted tenant after descendant cleanup.');
 
   await assert.rejects(
     individualControllerSession.asIndividualController().startIndividualOrganization({
@@ -1818,7 +1858,7 @@ async function runLiveIndividualLifecycleSuite() {
     pollOptions,
   ));
   debug.record('individual-suite-tenant-purge', { response: purgeTenant });
-  assert.equal(purgeTenant.poll.status, 200, 'Individual lifecycle suite must purge the hosted tenant at the end of the lifecycle.');
+  assertSuccessfulTerminalBundle(purgeTenant, 'Individual lifecycle suite must purge the hosted tenant at the end of the lifecycle.');
 
   if (!runHostTeardown) {
     const hostCatalogAfterTenantPurge = await profiler.run('host-catalog-after-tenant-purge', () => fetchJsonOrText(baseUrl, hostCatalogArtifactPath, bearerToken));
@@ -1840,7 +1880,7 @@ async function runLiveIndividualLifecycleSuite() {
     pollOptions,
   ));
   debug.record('individual-suite-host-disable', { response: disableHost });
-  assert.equal(disableHost.poll.status, 200, 'Individual lifecycle suite must disable the host after all hosted tenants are purged.');
+  assertSuccessfulTerminalBundle(disableHost, 'Individual lifecycle suite must disable the host after all hosted tenants are purged.');
   {
     const disableEntries = getBatchEntries(disableHost.poll.body, 'Host disable');
     assert.equal(String(disableEntries[0]?.response?.status || ''), '200', 'Host disable must return an inner response.status of 200 after all hosted tenants are purged.');
@@ -1900,7 +1940,7 @@ async function runLiveIndividualLifecycleSuite() {
     pollOptions,
   ));
   debug.record('individual-suite-host-purge', { response: purgeHost });
-  assert.equal(purgeHost.poll.status, 200, 'Individual lifecycle suite must purge the disabled host after discovery publication is stopped.');
+  assertSuccessfulTerminalBundle(purgeHost, 'Individual lifecycle suite must purge the disabled host after discovery publication is stopped.');
   {
     const purgeEntries = getBatchEntries(purgeHost.poll.body, 'Host purge');
     assert.equal(String(purgeEntries[0]?.response?.status || ''), '200', 'Host purge must return an inner response.status of 200 after host discovery publication is stopped.');
@@ -1923,7 +1963,7 @@ registerSelectedLiveTest(
   const bearerToken = env('AUTH_BEARER', buildUnsignedJwt({
     sub: EXAMPLE_PROFILE_PROVIDER_DID,
   }));
-  const subjectDid = suiteSubjectDid;
+  const subjectDid = suiteProfessionalSubjectDid;
 
   const runtimeClient = createRuntimeClient({
     baseUrl,
@@ -1971,7 +2011,7 @@ registerSelectedLiveTest(
     );
   }
   debug.record('communication-ingest', { response: ingest });
-  assert.equal(ingest.poll.status, 200, 'Communication ingestion through facade must complete.');
+  assertSuccessfulTerminalBundle(ingest, 'Communication ingestion through facade must complete.');
   {
     const first = getBatchEntries(ingest.poll.body, 'Communication ingestion')[0] || {};
     const status = Number(first?.response?.status || 0);
@@ -1988,7 +2028,7 @@ registerSelectedLiveTest(
     createLivePollOptions(),
   );
   debug.record('documentreference-search', { response: search });
-  assert.equal(search.poll.status, 200, 'DocumentReference search through facade submitAndPoll must return 200.');
+  assertSuccessfulTerminalBundle(search, 'DocumentReference search through facade must complete successfully.');
   {
     const rows = getSearchRows(search.poll.body, 'DocumentReference search after communication ingestion');
     const match = rows.find((row) => {
@@ -2058,7 +2098,7 @@ registerSelectedLiveTest(
       medicationIdentifier: medication.identifier,
       response: ingest,
     });
-    assert.equal(ingest.poll.status, 200, `Communication ingestion for ${medication.identifier} must complete.`);
+    assertSuccessfulTerminalBundle(ingest, `Communication ingestion for ${medication.identifier} must complete.`);
     {
       const first = getBatchEntries(ingest.poll.body, `Communication ingestion for ${medication.identifier}`)[0] || {};
       const status = Number(first?.response?.status || 0);
@@ -2084,7 +2124,7 @@ registerSelectedLiveTest(
     payload: ipsSearchCommunicationPayload,
     response: ipsSearch,
   });
-  assert.equal(ipsSearch.poll.status, 200, 'IPS communication search must return 200.');
+  assertSuccessfulTerminalBundle(ipsSearch, 'IPS communication search must complete successfully.');
   // Important architecture note:
   // this request does not call Bundle/_search directly from the test.
   // The test sends a Communication whose content-reference asks for
@@ -2146,7 +2186,7 @@ registerSelectedLiveTest(
   const bearerToken = env('AUTH_BEARER', buildUnsignedJwt({
     sub: EXAMPLE_PROFILE_PROVIDER_DID,
   }));
-  const subjectDid = suiteSubjectDid;
+  const subjectDid = suiteProfessionalSubjectDid;
   const routeCtx = { tenantId, jurisdiction, sector };
 
   const runtimeClient = createRuntimeClient({
@@ -2192,7 +2232,7 @@ registerSelectedLiveTest(
     pollOptions: createLivePollOptions(),
   });
   debug.record('legacy-fhir-communication-ingest', { transportProfile: LiveGwTransportProfiles.LegacyFhir, response: ingest });
-  assert.equal(ingest.poll.status, 200, 'Legacy FHIR communication ingestion must complete.');
+  assertSuccessfulTerminalBundle(ingest, 'Legacy FHIR communication ingestion must complete.');
   {
     const first = getBatchEntries(ingest.poll.body, 'Legacy FHIR communication ingestion')[0] || {};
     const status = Number(first?.response?.status || 0);
@@ -2209,7 +2249,7 @@ registerSelectedLiveTest(
     createLivePollOptions(),
   );
   debug.record('legacy-fhir-documentreference-search', { response: search });
-  assert.equal(search.poll.status, 200, 'Legacy FHIR DocumentReference search must return 200.');
+  assertSuccessfulTerminalBundle(search, 'Legacy FHIR DocumentReference search must complete successfully.');
   {
     const rows = getSearchRows(search.poll.body, 'Legacy FHIR DocumentReference search after communication ingestion');
     const match = rows.find((row) => {
@@ -2273,7 +2313,7 @@ registerSelectedLiveTest(
       medicationIdentifier: medication.identifier,
       response: ingest,
     });
-    assert.equal(ingest.poll.status, 200, `Legacy FHIR communication ingestion for ${medication.identifier} must complete.`);
+    assertSuccessfulTerminalBundle(ingest, `Legacy FHIR communication ingestion for ${medication.identifier} must complete.`);
     {
       const first = getBatchEntries(ingest.poll.body, `Legacy FHIR communication ingestion for ${medication.identifier}`)[0] || {};
       const status = Number(first?.response?.status || 0);
@@ -2299,7 +2339,7 @@ registerSelectedLiveTest(
     payload: ipsSearchCommunicationPayload,
     response: ipsSearch,
   });
-  assert.equal(ipsSearch.poll.status, 200, 'Legacy FHIR IPS communication search must return 200.');
+  assertSuccessfulTerminalBundle(ipsSearch, 'Legacy FHIR IPS communication search must complete successfully.');
 
   const ipsSearchEntries = getBatchEntries(
     ipsSearch.poll.body,
@@ -2349,8 +2389,8 @@ async function runLiveProfileRuntimeIndividualSuite() {
     'VP_TOKEN_FILE',
     path.join(__dirname, 'fixtures', 'ica-vp-minimal.json'),
   );
-  const tenantId = `${suiteTenantId}-profile`;
-  const tenantRouteId = `${suiteTenantRouteId}-profile`;
+  const tenantId = suiteTenantId;
+  const tenantRouteId = suiteTenantRouteId;
   const jurisdiction = suiteJurisdiction;
   const sector = suiteSector;
   const hostNetworkOrTenantSector = resolveLiveHostNetworkOrTenantSector();
@@ -2358,7 +2398,11 @@ async function runLiveProfileRuntimeIndividualSuite() {
   const controllerRole = env('CONTROLLER_ROLE', 'RESPRSN');
   const serviceIdentifierDid = env('SERVICE_IDENTIFIER_DID', 'did:web:provider.example.org');
   const serviceUrl = env('SERVICE_URL', 'https://provider.example.org');
-  const bearerToken = env('AUTH_BEARER', 'dummy');
+  const profileDid = env('INDIVIDUAL_CONTROLLER_PROFILE_DID', EXAMPLE_PROFILE_PROVIDER_DID);
+  const bearerToken = env('AUTH_BEARER', buildUnsignedJwt({
+    iss: profileDid,
+    sub: profileDid,
+  }));
   const ctx = { tenantId: tenantRouteId, jurisdiction, sector };
   const hostCtx = { jurisdiction: suiteHostRouteJurisdiction, hostNetworkOrTenantSector };
   const pollOptions = createLivePollOptions();
@@ -2405,7 +2449,9 @@ async function runLiveProfileRuntimeIndividualSuite() {
   });
   const individualRuntime = new IndividualControllerBackendRuntime(profileRuntime);
 
-  await maybeSubmitHostVerificationTransaction({
+  const verification = ACTIVE_SUITE_PROFILE === LiveGwSuiteProfiles.All
+    ? null
+    : await maybeSubmitHostVerificationTransaction({
     profiler,
     debug,
     orgControllerSession,
@@ -2420,6 +2466,15 @@ async function runLiveProfileRuntimeIndividualSuite() {
     serviceIdentifierDid,
     serviceUrl,
     stage: 'profile-runtime-suite-legal-verification-transaction',
+    });
+
+  await confirmSubmittedLegalOrganizationOrder({
+    verification,
+    orgControllerSession,
+    ctx,
+    pollOptions,
+    hostNetworkOrTenantSector,
+    debug,
   });
 
   await maybeActivateOrganizationFromLegacyIcaProof({
@@ -2449,8 +2504,7 @@ async function runLiveProfileRuntimeIndividualSuite() {
     `controller+${runSlug}@example.com`,
   );
   const individualControllerRole = env('INDIVIDUAL_CONTROLLER_ROLE', 'RESPRSN');
-  const subjectDid = suiteSubjectDid;
-  const profileDid = env('INDIVIDUAL_CONTROLLER_PROFILE_DID', EXAMPLE_PROFILE_PROVIDER_DID);
+  const subjectDid = suiteProfileSubjectDid;
   const loadRequest = prepareLoadProfile({
     actorKind: ActorKinds.IndividualController,
     providerDid: EXAMPLE_PROFILE_PROVIDER_DID,
@@ -2490,7 +2544,7 @@ async function runLiveProfileRuntimeIndividualSuite() {
     },
   ));
   debug.record('profile-runtime-suite-start', { response: individualStart });
-  assert.equal(individualStart.registration.poll.status, 200, 'Profile runtime suite must start the hosted individual registration through the loaded profile facade.');
+  assertSuccessfulTerminalBundle(individualStart.registration, 'Profile runtime suite must start the hosted individual registration through the loaded profile facade.');
 
   const individualOrder = await profiler.run('individual-order', () => individualRuntime.confirmIndividualOrganizationOrder(
     profile,
@@ -2504,7 +2558,7 @@ async function runLiveProfileRuntimeIndividualSuite() {
     },
   ));
   debug.record('profile-runtime-suite-order', { response: individualOrder });
-  assert.equal(individualOrder.poll.status, 200, 'Profile runtime suite must confirm the hosted individual order through the loaded profile facade.');
+  assertSuccessfulTerminalBundle(individualOrder, 'Profile runtime suite must confirm the hosted individual order through the loaded profile facade.');
 
   const medication = buildExampleLiveMedicationCases(Date.now())[0];
   const medicationIpsBundle = buildExampleMedicationIpsDocumentBundle({
@@ -2525,7 +2579,7 @@ async function runLiveProfileRuntimeIndividualSuite() {
     },
   ));
   debug.record('profile-runtime-suite-ingest', { response: ingestion });
-  assert.equal(ingestion.poll.status, 200, 'Profile runtime suite must ingest one IPS payload before asserting the current index read helper.');
+  assertSuccessfulTerminalBundle(ingestion, 'Profile runtime suite must ingest one IPS payload before asserting the current index read helper.');
 
   const connection = await profiler.run('connect-subject-index', () => connectBackendToSubjectIndex(
     profileRuntime,
@@ -2569,7 +2623,7 @@ async function runLiveProfileRuntimeIndividualSuite() {
     pollOptions,
   ));
   debug.record('profile-runtime-suite-disable', { response: profileIndividualDisable });
-  assert.equal(profileIndividualDisable.poll.status, 200, 'Profile runtime suite must disable the hosted individual organization during cleanup.');
+  assertSuccessfulTerminalBundle(profileIndividualDisable, 'Profile runtime suite must disable the hosted individual organization during cleanup.');
 
   const profileIndividualPurge = await profiler.run('profile-individual-purge', () => individualControllerSession.asIndividualController().purgeIndividualOrganization(
     ctx,
@@ -2579,31 +2633,34 @@ async function runLiveProfileRuntimeIndividualSuite() {
     pollOptions,
   ));
   debug.record('profile-runtime-suite-purge', { response: profileIndividualPurge });
-  assert.equal(profileIndividualPurge.poll.status, 200, 'Profile runtime suite must purge the hosted individual organization during cleanup.');
+  assertSuccessfulTerminalBundle(profileIndividualPurge, 'Profile runtime suite must purge the hosted individual organization during cleanup.');
 
-  const profileTenantLifecycleEditor = new OrganizationLifecycleEditor()
-    .setIdentifier(String(cloneExample(EXAMPLE_TENANT_DISABLE_MESSAGE.claims)[ClaimsOrganizationSchemaorg.identifier]))
-    .setIdentifierValue(tenantId)
-    .setTaxId(tenantId);
-  const profileTenantDisable = await profiler.run('profile-tenant-disable', () => orgControllerSession.asOrganizationController().disableTenant(
-    hostCtx,
-    {
-      organizationEditor: profileTenantLifecycleEditor,
-    },
-    pollOptions,
-  ));
-  debug.record('profile-runtime-suite-tenant-disable', { response: profileTenantDisable });
-  assert.equal(profileTenantDisable.poll.status, 200, 'Profile runtime suite must disable the hosted tenant during cleanup.');
+  if (ACTIVE_SUITE_PROFILE !== LiveGwSuiteProfiles.All) {
+    const officialOrganizationIdentifier = env('LIVE_CONTROLLER_ORGANIZATION_TAX_ID', tenantId);
+    const profileTenantLifecycleEditor = new OrganizationLifecycleEditor()
+      .setIdentifier(String(cloneExample(EXAMPLE_TENANT_DISABLE_MESSAGE.claims)[ClaimsOrganizationSchemaorg.identifier]))
+      .setIdentifierValue(officialOrganizationIdentifier)
+      .setTaxId(officialOrganizationIdentifier);
+    const profileTenantDisable = await profiler.run('profile-tenant-disable', () => orgControllerSession.asOrganizationController().disableTenant(
+      hostCtx,
+      {
+        organizationEditor: profileTenantLifecycleEditor,
+      },
+      pollOptions,
+    ));
+    debug.record('profile-runtime-suite-tenant-disable', { response: profileTenantDisable });
+    assertSuccessfulTerminalBundle(profileTenantDisable, 'Profile runtime suite must disable the hosted tenant during cleanup.');
 
-  const profileTenantPurge = await profiler.run('profile-tenant-purge', () => orgControllerSession.asOrganizationController().purgeTenant(
-    hostCtx,
-    {
-      organizationEditor: profileTenantLifecycleEditor,
-    },
-    pollOptions,
-  ));
-  debug.record('profile-runtime-suite-tenant-purge', { response: profileTenantPurge });
-  assert.equal(profileTenantPurge.poll.status, 200, 'Profile runtime suite must purge the hosted tenant during cleanup.');
+    const profileTenantPurge = await profiler.run('profile-tenant-purge', () => orgControllerSession.asOrganizationController().purgeTenant(
+      hostCtx,
+      {
+        organizationEditor: profileTenantLifecycleEditor,
+      },
+      pollOptions,
+    ));
+    debug.record('profile-runtime-suite-tenant-purge', { response: profileTenantPurge });
+    assertSuccessfulTerminalBundle(profileTenantPurge, 'Profile runtime suite must purge the hosted tenant during cleanup.');
+  }
 
   profiler.flush();
 }

@@ -397,6 +397,13 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
 
   /**
    * Convenience wrapper that performs submit and poll in sequence.
+   *
+   * A terminal HTTP 200/201 means polling completed; it does not guarantee the
+   * business operation succeeded. Consumers and E2E tests must inspect
+   * `result.poll.body` with `BundleReader.getResponseAnalysis()` and reject
+   * error OperationOutcomes. High-level product code must not manually traverse
+   * DIDComm `body`, JSON-API `data[]`, FHIR `entry[]` or `issue[]` to decide
+   * success.
    */
   public async submitAndPoll(
     submitPath: string,
@@ -1565,8 +1572,10 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
 
   /**
    * Records a subject-scoped permission-request Communication before SMART
-   * authorization exists. The configured bearer authenticates HTTP and the
-   * configured secure transport adapter signs/encrypts DIDComm when enabled.
+   * authorization exists. The Communication carries a batch Bundle of
+   * `Consent.status = draft`; that draft grants nothing. The configured bearer
+   * authenticates HTTP and the configured secure transport adapter
+   * signs/encrypts DIDComm when enabled.
    */
   public async requestProfessionalAccess(
     ctx: RouteContext,

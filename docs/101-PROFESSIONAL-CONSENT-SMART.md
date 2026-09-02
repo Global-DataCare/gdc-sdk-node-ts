@@ -198,7 +198,11 @@ const request = await professionalSdk.requestProfessionalAccess(
 permission-request `Communication` through `Communication/_batch`; callers do
 not call `ingestClinicalCommunication` themselves. The operation requires no
 SMART token because it writes an auditable request, not clinical data access.
-Keep `request.thid` and `request.communicationIdentifier` for correlation.
+Its attachment is a batch Bundle of standard `Consent.status = draft`
+resources. Draft Consent never grants access, and neither an invented
+`AccessRequest` resource nor `AccessRequest.*` claims are valid here. Keep
+`request.thid`, `request.communicationIdentifier` and
+`request.consentIdentifier` for correlation.
 
 ## 3. Let the subject list and answer the request
 

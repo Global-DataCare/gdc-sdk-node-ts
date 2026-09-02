@@ -1,17 +1,36 @@
+/**
+ * Complete journey:
+ * 1. the professional selects a subject and the missing standard sections;
+ * 2. the subject provider records one Communication with an attached draft Consent;
+ * 3. the controller reads that Communication from the subject inbox;
+ * 4. the controller answers by authoring a separate active Consent correlated
+ *    to the original Communication identifiers.
+ *
+ * Authorization invariant: `Consent.status = draft` never grants access and
+ * the request does not require a SMART token.
+ * Persistence invariant: Communication `thid` and identifier survive inbox
+ * readback and are referenced by the controller's later decision.
+ */
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {
+  HealthcareActorRoles,
+  HealthcareBasicSections,
+  HealthcareConsentPurposes,
+} from 'gdc-common-utils-ts/constants/healthcare';
+import {
+  EXAMPLE_CONSENT_IDENTIFIER,
+  EXAMPLE_PROFESSIONAL_DID,
+  EXAMPLE_SUBJECT_DID,
+} from 'gdc-common-utils-ts/examples/shared';
+import { ClaimConsent, ConsentStatuses } from 'gdc-common-utils-ts/models/consent-rule';
 
 import {
   IndividualControllerSdk,
   ProfessionalSdk,
 } from '../dist/index.js';
 
-/**
- * Teaching goal:
- * Show the complete professional-to-subject access request lifecycle at the
- * public SDK facade: request before SMART, subject inbox, and a Consent
- * decision correlated to the original Communication.
- */
 test('101: professional requests access and the subject answers the same Communication', async () => {
   const calls = [];
   const employerContext = {
@@ -27,10 +46,10 @@ test('101: professional requests access and the subject answers the same Communi
   // Step 0. Current-MVP precondition: individual onboarding already created
   // this DID. Professional-created individual/controller onboarding is a
   // separate planned GW v2 flow and is deliberately not simulated here.
-  const subjectDid = 'did:web:subjects.example:individual:multibase:zSubject';
-  const professionalDid = 'did:web:clinic.example:member:zEmailHash:ISCO-08|2211';
-  const role = 'ISCO-08|2211';
-  const actions = ['LOINC|48765-2'];
+  const subjectDid = EXAMPLE_SUBJECT_DID;
+  const professionalDid = EXAMPLE_PROFESSIONAL_DID;
+  const role = HealthcareActorRoles.GeneralistMedicalPractitioner;
+  const actions = [HealthcareBasicSections.PatientSummaryDocument.attributeValue];
 
   const runtimeClient = {
     defaultRouteContext: employerContext,
@@ -39,15 +58,29 @@ test('101: professional requests access and the subject answers the same Communi
       return {
         thid: 'permission-request-thread-1',
         communicationIdentifier: 'urn:uuid:permission-request-1',
+        consentIdentifier: EXAMPLE_CONSENT_IDENTIFIER,
         communication: {
           thid: 'permission-request-thread-1',
           subject: input.subject,
           sender: input.sender,
           recipient: input.recipient,
           category: ['permission-request'],
-          claims: {
-            'AccessRequest.requester-target': input.requester.did,
-            'AccessRequest.missing-sections': input.missing.sections.join(','),
+          payload: {
+            resourceType: 'Bundle',
+            type: 'batch',
+            data: [{
+              resource: {
+                resourceType: 'Consent',
+                id: EXAMPLE_CONSENT_IDENTIFIER,
+                status: ConsentStatuses.Draft,
+                meta: { claims: {
+                  [ClaimConsent.status]: ConsentStatuses.Draft,
+                  [ClaimConsent.subject]: input.subject,
+                  [ClaimConsent.actorIdentifier]: input.requester.did,
+                  [ClaimConsent.action]: input.missing.sections.join(','),
+                } },
+              },
+            }],
           },
         },
         delivery: {
@@ -87,7 +120,7 @@ test('101: professional requests access and the subject answers the same Communi
     subject: subjectDid,
     requester: { actorKind: 'professional', did: professionalDid },
     requesterRole: role,
-    purpose: 'TREAT',
+    purpose: HealthcareConsentPurposes.Treatment,
     missing: {
       sections: actions,
       resourceTypes: [],
@@ -97,6 +130,8 @@ test('101: professional requests access and the subject answers the same Communi
     recipient: subjectDid,
   });
   assert.deepEqual(request.communication.category, ['permission-request']);
+  assert.equal(request.communication.payload.data[0].resource.status, ConsentStatuses.Draft);
+  assert.equal(JSON.stringify(request).includes('AccessRequest.'), false);
   assert.equal(request.delivery.poll.status, 201);
   assert.deepEqual(runtimeClient.defaultRouteContext, employerContext);
   assert.deepEqual(calls[0].routeContext, selectedSubjectContext);
@@ -118,7 +153,7 @@ test('101: professional requests access and the subject answers the same Communi
     subjectDid,
     actorId: professionalDid,
     actorRole: role,
-    purpose: 'TREAT',
+    purpose: HealthcareConsentPurposes.Treatment,
     actions,
     decision: 'permit',
   });

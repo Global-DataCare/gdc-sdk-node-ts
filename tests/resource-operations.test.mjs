@@ -40,7 +40,7 @@ import {
   ServiceCapability,
 } from 'gdc-common-utils-ts';
 import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
-import { ClaimConsent } from 'gdc-common-utils-ts/models/consent-rule';
+import { ClaimConsent, ConsentStatuses } from 'gdc-common-utils-ts/models/consent-rule';
 import { buildGrantProfessionalAccessClaimsWithCid } from '../dist/runtime-consent.js';
 
 import {
@@ -1322,9 +1322,22 @@ test('requestProfessionalAccessWithDeps persists one canonical permission-reques
   assert.equal(calls[0][2].body.data.length, 1);
   assert.equal(calls[0][2].body.data[0].resource.resourceType, 'Communication');
   assert.equal(calls[0][2].body.data[0].resource.id, result.communicationIdentifier);
+  assert.equal(JSON.stringify(calls[0][2]).includes('AccessRequest.'), false);
   assert.deepEqual(
     calls[0][2].body.data[0].resource.meta.claims,
     result.communication.claims,
+  );
+  const attachment = calls[0][2].body.data[0].resource.payload[0].contentAttachment;
+  const draftBundle = JSON.parse(Buffer.from(attachment.data, 'base64').toString('utf8'));
+  assert.equal(attachment.contentType, 'application/fhir+json');
+  assert.equal(draftBundle.resourceType, 'Bundle');
+  assert.equal(draftBundle.type, 'batch');
+  assert.equal(draftBundle.data.length, 1);
+  assert.equal(draftBundle.data[0].resource.resourceType, 'Consent');
+  assert.equal(draftBundle.data[0].resource.status, ConsentStatuses.Draft);
+  assert.equal(
+    draftBundle.data[0].resource.meta.claims[ClaimConsent.status],
+    ConsentStatuses.Draft,
   );
 });
 
