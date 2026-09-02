@@ -90,3 +90,14 @@ test('each destructive live journey owns a distinct individual identifier', () =
   assert.match(source, /const subjectDid = suiteProfileSubjectDid/);
   assert.match(source, /const subjectDid = suiteLifecycleSubjectDid/);
 });
+
+test('live wrappers never dirty a selected GW worktree by regenerating Swagger', () => {
+  for (const scriptName of [
+    'run-live-gw-clean.sh',
+    'run-live-101-full-cycle-clean.sh',
+    'run-live-controller-lifecycle.sh',
+  ]) {
+    const script = readFileSync(new URL(`../scripts/${scriptName}`, import.meta.url), 'utf8');
+    assert.doesNotMatch(script, /npm run build:swagger/);
+  }
+});

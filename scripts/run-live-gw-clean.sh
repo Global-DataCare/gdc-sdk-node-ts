@@ -96,7 +96,6 @@ fi
 
 (
   cd "${GW_DIR}"
-  npm run build:swagger >/dev/null
   if [ "${GW_START_SCRIPT}" = "direct" ]; then
     GOOGLE_CLOUD_PROJECT="${GOOGLE_CLOUD_PROJECT}" \
     HOST_ID_VALUE="${HOST_ID_VALUE}" \

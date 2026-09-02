@@ -93,7 +93,6 @@ fi
 
 (
   cd "${GW_DIR}"
-  npm run build:swagger >/dev/null
   HOST_ID_VALUE="${HOST_ID_VALUE}" \
   ICA_URL_INTERNAL="${ICA_BASE_URL}" \
   ICA_URL_EXTERNAL="${ICA_BASE_URL}" \
