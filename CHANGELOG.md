@@ -1,6 +1,19 @@
 # Changelog
 
-## Unreleased
+## 2.6.3 - 2026-09-01
+
+- Replace invented `AccessRequest.*` permission claims with the reusable
+  Communication plus attached `Consent.status = draft` Bundle contract from
+  SDK Core 2.4.3 and Common Utils 2.7.2.
+- Return both stable Communication and draft Consent identifiers while keeping
+  Bundle construction, attachment encoding and submit/poll plumbing inside the
+  high-level Node SDK.
+- Make the clean live 101 wrapper reusable with explicit workspace, GW, ICA,
+  env-file and port overrides, so product implementations run the same
+  contract without changing the shared SDK.
+- Strengthen the live journey so an individual controller and professional use
+  independent authenticated runtimes and every clinical or cleanup batch is
+  rejected when its terminal Bundle contains an error OperationOutcome.
 
 ## 2.6.2 - 2026-09-01
 

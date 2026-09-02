@@ -145,7 +145,8 @@ export class ProfessionalSdk {
 
   /**
    * Requests subject-controlled access without requiring a SMART token. The
-   * runtime persists one canonical permission-request Communication.
+   * runtime persists one canonical permission-request Communication carrying
+   * a draft Consent Bundle. The draft is auditable but never authorizes access.
    */
   public requestProfessionalAccess(
     ctx: RouteContext,

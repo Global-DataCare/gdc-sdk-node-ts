@@ -1565,8 +1565,10 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
 
   /**
    * Records a subject-scoped permission-request Communication before SMART
-   * authorization exists. The configured bearer authenticates HTTP and the
-   * configured secure transport adapter signs/encrypts DIDComm when enabled.
+   * authorization exists. The Communication carries a batch Bundle of
+   * `Consent.status = draft`; that draft grants nothing. The configured bearer
+   * authenticates HTTP and the configured secure transport adapter
+   * signs/encrypts DIDComm when enabled.
    */
   public async requestProfessionalAccess(
     ctx: RouteContext,

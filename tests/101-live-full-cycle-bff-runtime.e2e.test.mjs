@@ -13,13 +13,14 @@
  * 4. organization-controller facade provisions one professional employee
  * 5. individual-controller profile is loaded and boots one individual
  * 6. the individual controller ingests clinical data through document
- *    `Bundle` -> `Communication` -> DIDComm/plain and grants consent
- * 7. professional profile is loaded and requests a SMART token
- * 8. the professional reads the allowed IPS document via FHIR params such as
+ *    `Bundle` -> `Communication` -> DIDComm/plain
+ * 7. the professional requests missing permission as Communication plus draft Consent
+ * 8. the controller reads the inbox request and authors the active Consent
+ * 9. the professional requests a SMART token and reads the allowed IPS via
  *    `Composition.section`
- * 9. the same professional SDK instance creates one authored vital sign
- * 10. that author deletes the exact fact through a typed batch entry
- * 11. cleanup closes consent, individual, employee, tenant, and host state
+ * 10. the same professional SDK instance creates one authored vital sign
+ * 11. that author deletes the exact fact through a typed batch entry
+ * 12. cleanup closes consent, individual, employee, tenant, and host state
  *
  * Authorization invariant: SMART `sub` is the clinical actor; sender and
  * subject remain independent roles, and only that author may delete the fact.
@@ -59,7 +60,6 @@ import {
   EXAMPLE_LICENSE_ISSUE_INPUT,
   EXAMPLE_LICENSE_INVOICE_ID,
   EXAMPLE_LICENSE_PAYMENT_METHOD_STRIPE,
-  EXAMPLE_LIVE_CONSENT_GRANT_INPUT,
   EXAMPLE_LIVE_GW_BASE_URL_LOCAL,
   EXAMPLE_PROFILE_APP_TYPE_FAMILY,
   EXAMPLE_PROFILE_KEY_ACCESS_MODE_SERVER,
@@ -95,7 +95,9 @@ import {
   BundleReader,
   BundleTypes,
   HealthcareBasicSections,
+  HealthcareConsentPurposes,
   HealthcareConsentActions,
+  ConsentStatuses,
   createJwtSigner,
   createVP,
   createLegalOrganizationOnboardingEditor,
@@ -399,6 +401,15 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     appType: EXAMPLE_PROFILE_APP_TYPE_FAMILY,
     localPinPassword: EXAMPLE_PROFILE_LOCAL_PIN_PASSWORD_BACKEND,
   });
+  const individualControllerIdToken = env(
+    'INDIVIDUAL_CONTROLLER_ID_TOKEN',
+    buildUnsignedJwt({
+      sub: individualControllerLoadRequest.profileDid,
+      tenant_id: suiteTenantId,
+      email: individualControllerEmail,
+      email_verified: true,
+    }),
+  );
 
   const professionalIdToken = env(
     'PROFESSIONAL_ID_TOKEN',
@@ -452,6 +463,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
   let runtimeClient;
   let organizationControllerSdk;
   let profileRuntime;
+  let individualControllerProfileRuntime;
   let controllerOrganizationTaxId = DEFAULT_LIVE_CONTROLLER_ORGANIZATION_TAX_ID;
   let employeeDraft;
   let employeeIdentifier = '';
@@ -529,6 +541,15 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       facadeClient: runtimeClient,
       defaultRouteContext: ctx,
     });
+    individualControllerProfileRuntime = new DirectBackendProfileRuntime({
+      facadeClient: new NodeHttpClient({
+        baseUrl,
+        ctx,
+        bearerToken: individualControllerIdToken,
+        requestTimeoutMs: 10_000,
+      }),
+      defaultRouteContext: ctx,
+    });
     employeeDraft = new EmployeeDraft()
       .setEmail(employeeEmail)
       .setRole(employeeRole)
@@ -590,7 +611,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     // Step 4: the backend loads the individual-controller profile and runs the
     // individual registration and order flow.
     individualControllerProfile = await profiler.run('individual-controller-load-profile', () => loadBackendIndividualControllerProfile(
-      profileRuntime,
+      individualControllerProfileRuntime,
       individualControllerLoadRequest,
     ));
     individualControllerProfileLoaded = true;
@@ -638,8 +659,9 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       assert.ok(invoiceSummary.structuredDocumentId);
     }
 
-    // Step 5: the individual controller ingests clinical data and grants the
-    // professional consent required for later SMART/IPS access.
+    // Step 5: the individual controller ingests clinical data. No professional
+    // access exists yet, so the following request must remain independent from
+    // SMART and must not be made green by pre-granting Consent.
     const observedAt = new Date().toISOString();
     const heartRate = createHeartRateObservation({
       subject: suiteSubjectDid,
@@ -657,6 +679,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
             id: `composition-${randomUUID()}`,
             status: 'final',
             subject: { reference: suiteSubjectDid },
+            author: [{ reference: individualControllerLoadRequest.profileDid }],
             date: observedAt,
             type: { coding: [{ system: 'http://loinc.org', code: '60591-5' }] },
             section: [{
@@ -691,25 +714,12 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     ));
     debug.record('individual-controller-ingest-clinical-data', { response: ingestion });
     assert.equal(ingestion.poll.status, 200);
+    assert.equal(
+      new BundleReader(ingestion.poll.body).getResponseAnalysis().hasErrors,
+      false,
+      'Clinical ingestion must finish without an embedded OperationOutcome error.',
+    );
 
-    const grantedConsent = await profiler.run('individual-controller-grant-professional-consent', () => individualControllerSdk.grantProfessionalAccess(
-      ctx,
-      {
-        ...cloneExample(EXAMPLE_LIVE_CONSENT_GRANT_INPUT),
-        subjectDid: suiteSubjectDid,
-        actorId: professionalActorDid,
-        actorRole: employeeRole,
-        purpose: env('CONSENT_PURPOSE', 'TREAT'),
-        actions: [consentSection],
-        pollOptions,
-      },
-    ));
-    debug.record('individual-controller-grant-professional-consent', { response: grantedConsent });
-    assert.equal(grantedConsent.consent.poll.status, 200);
-    grantedConsentClaims = grantedConsent.consentClaims;
-
-    // Step 6: the professional profile requests a SMART token and then reads
-    // the latest IPS through the high-level professional facade.
     const professionalProfile = await profiler.run('professional-load-profile', () => loadBackendProfessionalProfile(
       professionalProfileRuntime,
       professionalLoadRequest,
@@ -717,6 +727,58 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     professionalProfileLoaded = true;
     assert.equal(professionalProfile.session.actorKind, ActorKinds.Professional);
 
+    const accessRequest = await profiler.run('professional-request-subject-permission', () => professionalProfile.sdk.requestProfessionalAccess(
+      ctx,
+      {
+        subject: suiteSubjectDid,
+        requester: { actorKind: 'professional', did: professionalActorDid, email: employeeEmail },
+        requesterRole: employeeRole,
+        purpose: env('CONSENT_PURPOSE', HealthcareConsentPurposes.Treatment),
+        missing: {
+          sections: [consentSection],
+          resourceTypes: [],
+          pairs: [{ section: consentSection, reason: 'missing-consent' }],
+        },
+        sender: professionalActorDid,
+        recipient: suiteSubjectDid,
+        pollOptions,
+      },
+    ));
+    debug.record('professional-request-subject-permission', { response: accessRequest });
+    assert.equal(accessRequest.delivery.poll.status, 200);
+    assert.equal(accessRequest.communication.payload.data[0].resource.status, ConsentStatuses.Draft);
+
+    const permissionInbox = await profiler.run('individual-controller-read-permission-inbox', () => individualControllerSdk.listProfessionalAccessRequests(
+      ctx,
+      {
+        subject: suiteSubjectDid,
+        recipientActorId: suiteSubjectDid,
+        pollOptions,
+      },
+    ));
+    debug.record('individual-controller-read-permission-inbox', { response: permissionInbox });
+    assert.equal(permissionInbox.poll.status, 200);
+
+    const grantedConsent = await profiler.run('individual-controller-answer-permission-request', () => individualControllerSdk.respondToProfessionalAccessRequest(
+      ctx,
+      {
+        requestThid: accessRequest.thid,
+        requestCommunicationIdentifier: accessRequest.communicationIdentifier,
+        subjectDid: suiteSubjectDid,
+        actorId: professionalActorDid,
+        actorRole: employeeRole,
+        purpose: env('CONSENT_PURPOSE', HealthcareConsentPurposes.Treatment),
+        actions: [consentSection],
+        decision: 'permit',
+        pollOptions,
+      },
+    ));
+    debug.record('individual-controller-answer-permission-request', { response: grantedConsent });
+    assert.equal(grantedConsent.consent.poll.status, 200);
+    grantedConsentClaims = grantedConsent.consentClaims;
+
+    // Step 9: the same professional profile now requests a SMART token and reads
+    // the latest IPS through the high-level professional facade.
     const requestedScope = env(
       'PROFESSIONAL_SMART_SCOPE',
       buildSmartCompositionReadScope({
@@ -873,7 +935,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
 
     if (individualControllerProfileLoaded) {
       await profiler.run('individual-controller-close-profile', () => closeBackendProfile(
-        profileRuntime,
+        individualControllerProfileRuntime,
         individualControllerLoadRequest.profileDid,
       ));
     }
@@ -889,6 +951,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       ));
       debug.record('organization-controller-disable-professional', { response: disableEmployee });
       assert.equal(disableEmployee.poll.status, 200);
+      assert.equal(new BundleReader(disableEmployee.poll.body).getResponseAnalysis().hasErrors, false);
 
       const purgeEmployee = await profiler.run('organization-controller-purge-professional', () => organizationControllerSdk.purgeEmployee(
         ctx,
@@ -900,11 +963,12 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       ));
       debug.record('organization-controller-purge-professional', { response: purgeEmployee });
       assert.equal(purgeEmployee.poll.status, 200);
+      assert.equal(new BundleReader(purgeEmployee.poll.body).getResponseAnalysis().hasErrors, false);
     }
 
     if (hostActivated) {
       const tenantLifecycleEditor = new OrganizationLifecycleEditor()
-        .setIdentifierValue(controllerOrganizationTaxId)
+        .setIdentifierValue(DEFAULT_LIVE_CONTROLLER_ORGANIZATION_TAX_ID)
         .setTaxId(controllerOrganizationTaxId);
 
       const disableTenant = await profiler.run('organization-controller-disable-tenant', () => organizationControllerSdk.disableTenant(
@@ -916,6 +980,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       ));
       debug.record('organization-controller-disable-tenant', { response: disableTenant });
       assert.equal(disableTenant.poll.status, 200);
+      assert.equal(new BundleReader(disableTenant.poll.body).getResponseAnalysis().hasErrors, false);
 
       const purgeTenant = await profiler.run('organization-controller-purge-tenant', () => organizationControllerSdk.purgeTenant(
         hostCtx,
@@ -926,6 +991,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       ));
       debug.record('organization-controller-purge-tenant', { response: purgeTenant });
       assert.equal(purgeTenant.poll.status, 200);
+      assert.equal(new BundleReader(purgeTenant.poll.body).getResponseAnalysis().hasErrors, false);
 
       const hostLifecycleEditor = new OrganizationLifecycleEditor()
         .setIdentifierValue(suiteHostIdentifierValue);
@@ -939,6 +1005,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       ));
       debug.record('host-disable', { response: disableHost });
       assert.equal(disableHost.poll.status, 200);
+      assert.equal(new BundleReader(disableHost.poll.body).getResponseAnalysis().hasErrors, false);
 
       const purgeHost = await profiler.run('host-purge', () => hostSdk.purgeHost(
         hostCtx,
@@ -949,6 +1016,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       ));
       debug.record('host-purge', { response: purgeHost });
       assert.equal(purgeHost.poll.status, 200);
+      assert.equal(new BundleReader(purgeHost.poll.body).getResponseAnalysis().hasErrors, false);
     }
 
     profiler.flush();

@@ -314,8 +314,9 @@ export type CommunicationIngestionInput = {
 /**
  * Canonical professional-to-subject permission request.
  *
- * This operation records a `Communication`; it never creates Consent or
- * requires a SMART token. HTTP authentication and optional secure DIDComm
+ * This operation records one `Communication` carrying a normal
+ * `Consent.status = draft`; it never creates an active grant and does not
+ * require a SMART token. HTTP authentication and optional secure DIDComm
  * transport remain concerns of the configured runtime client.
  */
 export type ProfessionalAccessRequestInput = Omit<PermissionRequestCommunicationInput, 'missing'> & Readonly<{
@@ -332,6 +333,7 @@ export type ProfessionalAccessRequestInput = Omit<PermissionRequestCommunication
 export type ProfessionalAccessRequestResult = Readonly<{
   thid: string;
   communicationIdentifier: string;
+  consentIdentifier: string;
   communication: CommunicationInput;
   delivery: SubmitAndPollResult;
 }>;
@@ -1513,7 +1515,8 @@ export async function ingestCommunicationAndUpdateIndexWithDeps(
 /**
  * Builds and persists one professional access request against the subject's
  * provider route. The request is deliberately independent from SMART because
- * no subject consent exists yet.
+ * no active subject consent exists yet. The auditable Communication carries a
+ * draft Consent Bundle; the draft itself never authorizes data access.
  */
 export async function requestProfessionalAccessWithDeps(
   routeCtx: RouteContext,
@@ -1547,11 +1550,14 @@ export async function requestProfessionalAccessWithDeps(
   const thid = String(input.thid || '').trim() || `permission-request-${createRuntimeUuid()}`;
   const communicationIdentifier = String(input.communicationIdentifier || '').trim()
     || `urn:uuid:${createRuntimeUuid()}`;
+  const consentIdentifier = String(input.consentIdentifier || '').trim()
+    || `urn:uuid:${createRuntimeUuid()}`;
   const communication = buildPermissionRequestCommunication({
     ...input,
     subject,
     thid,
     communicationIdentifier,
+    consentIdentifier,
     missing: {
       sections: missingSections,
       resourceTypes: missingResourceTypes,
@@ -1567,6 +1573,27 @@ export async function requestProfessionalAccessWithDeps(
     [CommunicationClaim.NoteText]: communication.text,
   };
   const persistedCommunication = { ...communication, claims: communicationClaims };
+  if (!communication.payload) {
+    throw new Error('Permission request requires one draft Consent Bundle.');
+  }
+  const communicationResource = addFhirResourceToCommunication(
+    createCommunicationResource({
+      subject,
+      sender: communication.sender,
+      recipient: communication.recipient,
+      category: Array.isArray(communication.category)
+        ? communication.category
+        : communication.category ? [communication.category] : undefined,
+      noteText: communication.text,
+      claims: communicationClaims,
+    }),
+    communication.payload,
+    {
+      attachmentTitle: 'draft-consent-request.json',
+      attachmentContentType: 'application/fhir+json',
+    },
+  );
+  communicationResource.id = communicationIdentifier;
   const communicationPayload = {
     thid,
     body: {
@@ -1575,12 +1602,7 @@ export async function requestProfessionalAccessWithDeps(
       data: [{
         type: 'CommMsgExtended',
         meta: { claims: communicationClaims },
-        resource: {
-          resourceType: ResourceTypesFhirR4.Communication,
-          id: communicationIdentifier,
-          status: 'completed',
-          meta: { claims: communicationClaims },
-        },
+        resource: communicationResource,
       }],
     },
   };
@@ -1592,7 +1614,13 @@ export async function requestProfessionalAccessWithDeps(
     pathFormatSegment: 'r4',
     pollOptions: input.pollOptions,
   }, deps);
-  return { thid, communicationIdentifier, communication: persistedCommunication, delivery };
+  return {
+    thid,
+    communicationIdentifier,
+    consentIdentifier,
+    communication: persistedCommunication,
+    delivery,
+  };
 }
 
 export async function searchCommunicationParticipantsWithDeps(

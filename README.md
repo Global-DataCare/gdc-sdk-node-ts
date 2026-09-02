@@ -427,13 +427,16 @@ data ingestion/search.
 
 `ProfessionalSdk.requestProfessionalAccess(...)` is the bootstrap operation
 for the inverse flow: it persists a subject-scoped permission-request
-`Communication` using the configured HTTP bearer and transport profile, without
-requiring SMART. The subject later answers through
+`Communication` with an attached batch Bundle of normal
+`Consent.status = draft` resources, using the configured HTTP bearer and
+transport profile without requiring SMART. A draft is inbox evidence and
+cannot authorize access. The subject later answers through
 `respondToProfessionalAccessRequest(...)`; that facade uses the normal Consent
 grant/deny operation and retains the original Communication identifier/thread.
 `listProfessionalAccessRequests(...)` provides the subject/requester inbox view,
 and `GatewayActiveConsentProvider` supplies `evaluateRequestedAccess(...)` from
 the GW Consent source of truth rather than a parallel application table.
+There is no `AccessRequest` FHIR resource or `AccessRequest.*` claim family.
 
 ## Main Flows
 
