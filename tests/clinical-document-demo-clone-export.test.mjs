@@ -17,6 +17,8 @@ test('exports the imported clinical document demo clone helper from the Node SDK
 });
 
 test('clones with the current actor session DID without accepting an author supplied by the portal', () => {
+  // Application contract: this session actorDid is the operational DID from
+  // the authenticated profile, never a stable multibase URN or portal alias.
   const session = new ActorSession({
     actorKind: ActorKinds.IndividualController,
     actorDid: EXAMPLE_CONTROLLER_DID,
@@ -37,6 +39,8 @@ test('clones with the current actor session DID without accepting an author supp
     createResourceId: () => 'demo-composition',
   });
 
+  // The helper sets Composition.author. A later direct update uses this same
+  // session actorDid as sender and the real hosted provider-tenant DID as recipient.
   assert.equal(cloned.entry[0].resource.author[0].reference, EXAMPLE_CONTROLLER_DID);
   assert.equal(bundle.entry[0].resource.author[0].reference, 'urn:uuid:external-author');
 });

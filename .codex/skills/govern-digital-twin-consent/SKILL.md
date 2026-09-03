@@ -120,6 +120,17 @@ Verify current branches, versions and published npm state before release claims.
 
 ## Preserve authored clinical deletion
 
+- For the current direct `updateClinicalSummary(...)` call, set `sender` to
+  the operational `ActorSession.actorDid` returned by the loaded profile
+  (`loadedProfile.session.actorDid`), never a stable multibase URN or a
+  DID/alias owned by the portal. Set `recipient` to the real provider-tenant
+  DID inside the host that accommodates that tenant, never the host DID or a
+  portal alias. The subject remains the individual DID.
+- To edit an imported IPS in a demo, first call
+  `cloneImportedClinicalDocumentForDemo(...)` with that same session `actorDid`.
+  The helper gives the copy new resource ids and sets
+  `Composition.author = ActorSession.actorDid`; it never rewrites the imported
+  source document.
 - Use `Bundle.type = batch`; each entry independently selects `.create()`, `.update()` or `.delete()`. Do not turn this flow into a transaction.
 - A typed delete addresses exactly `ResourceType/id`, has no resource body and may carry `.ifMatch(versionId)`.
 - For locally authored clinical data, store only the creator DID in
@@ -135,7 +146,10 @@ Verify current branches, versions and published npm state before release claims.
   keep the imported record locally immutable under its identifier.
 - At delete time, authorize the exact subject and creator. Resolve linked verified email/phone login channels from private identity metadata outside the resource, so phone-created and email-created data remain manageable after account linking.
 - Remove the exact fact from later operational summaries and the synchronized research projection when enabled. This is neither secondary-use `deny` nor provider-offboarding link purge.
-- Keep 101 documentation at application level: typed batch entry, authorization result and visible summary behavior, without vault, queue or hashing plumbing.
+- Keep 101 documentation at application level: actor, subject, hosted
+  provider-tenant recipient, typed batch entry, authorization result and
+  visible summary behavior, without DIDComm rendering, vault, queue or hashing
+  plumbing.
 
 ## Keep every artifact aligned
 

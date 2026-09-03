@@ -634,6 +634,14 @@ Backend/BFF SDK only:
 - `importIpsOrFhirAndUpdateIndex(...)`
 - `ingestCommunicationAndUpdateIndex(...)`
 
+For a direct `updateClinicalSummary(...)`, use the operational
+`loadedProfile.session.actorDid` as `sender`, the real provider-tenant DID
+inside its hosting host as `recipient`, and the individual's DID as `subject`.
+The loaded profile helper returns that `ActorSession`; do not substitute a
+stable multibase URN or a DID/alias owned by the portal. For an editable demo
+copy of an imported IPS, `cloneImportedClinicalDocumentForDemo(...)` sets
+`Composition.author` to that same session `actorDid`.
+
 ### Related person
 
 Browser authoring plus backend execution:

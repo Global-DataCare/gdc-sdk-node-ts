@@ -699,7 +699,9 @@ modules below.
 - draft/outbox helpers
 - document facade helpers
 - `cloneImportedClinicalDocumentForDemo(...)` for an explicit editable demo
-  copy owned by an authenticated profile `actorDid`
+  copy owned by an authenticated profile `actorDid`; direct summary updates
+  use that same value as `sender` and the real hosted provider-tenant DID as
+  `recipient`, never a portal alias
 - vital-sign helpers
 
 ### Node runtime client

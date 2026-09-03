@@ -582,6 +582,8 @@ test('101: backend profile runtime tells the complete high-level story for app, 
 
   assert.equal(organizationControllerProfile.session.actorKind, ActorKinds.OrganizationController);
   assert.equal(individualControllerProfile.session.actorKind, ActorKinds.IndividualController);
+  // The loaded session exposes the exact operational DID used by direct clinical writes.
+  assert.equal(individualControllerProfile.session.actorDid, individualControllerLoadRequest.profileDid);
   assert.equal(professionalProfile.session.actorKind, ActorKinds.Professional);
   assert.equal(licenseSummary.contracted, 2);
   assert.equal(licenseSummary.free, 1);

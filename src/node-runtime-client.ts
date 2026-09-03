@@ -1612,6 +1612,9 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    *
    * The attached payload must be `Bundle.type=document` with `Composition` in
    * `entry[0]`; its `section[].entry[]` references delimit the updated data.
+   * Direct callers pass the authenticated profile `actorDid` as `sender` and
+   * the real hosted provider-tenant DID as `recipient`. A stable multibase URN
+   * or portal DID/alias is never the authenticated clinical actor.
    */
   public async updateClinicalSummary(
     ctx: RouteContext,

@@ -45,6 +45,7 @@ export type DemoClinicalDocumentCloneOptions = Readonly<{
  */
 export class ActorSession {
   public readonly actorKind: ActorKind;
+  /** Operational DID returned with the loaded actor profile, including its role-bearing path. */
   public readonly actorDid?: string;
   public readonly subjectDid?: string;
   public readonly capabilities: NodeCapability[];
@@ -115,7 +116,11 @@ export class ActorSession {
     return new DigitalTwinSdk(this.requireClient(), this.actorDid);
   }
 
-  /** Creates an editable demo copy owned by this session's authenticated actor DID. */
+  /**
+   * Creates an editable demo copy whose `Composition.author` is this
+   * authenticated profile's operational `actorDid`. The actor is never taken
+   * from a stable multibase URN or a DID/alias supplied by a portal.
+   */
   public cloneImportedClinicalDocumentForDemo(
     bundle: Record<string, unknown>,
     options: DemoClinicalDocumentCloneOptions = {},

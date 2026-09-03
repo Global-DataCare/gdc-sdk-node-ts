@@ -2042,7 +2042,7 @@ registerSelectedLiveTest(
     });
     assert.ok(match, 'DocumentReference search after communication ingestion must include one row with matching subject and CID contenthash.');
   }
-  const professionalDid = env('PROFESSIONAL_DID', EXAMPLE_PROFILE_PROVIDER_DID);
+  const providerDid = env('PROFESSIONAL_DID', EXAMPLE_PROFILE_PROVIDER_DID);
   const routeCtx = { tenantId, jurisdiction, sector };
 
   const didcommMedicationSeed = Date.now();
@@ -2112,7 +2112,7 @@ registerSelectedLiveTest(
 
   const ipsSearchCommunicationPayload = createIpsSummarySearchDidcommMessage({
     subjectId: subjectDid,
-    requesterId: professionalDid,
+    requesterId: providerDid,
     thid: `ips-search-${Date.now()}`,
     sent: new Date().toISOString(),
   });
@@ -2175,12 +2175,14 @@ registerSelectedLiveTest(
 
   const editableDemoBundle = individualControllerSession
     .cloneImportedClinicalDocumentForDemo(ipsBundle);
+  // Direct update invariant: sender and Composition.author are the session's
+  // authenticated actorDid; recipient is the real tenant DID, not a portal alias.
   const demoUpdate = await individualControllerSession.asIndividualController().updateClinicalSummary(
     routeCtx,
     {
       subject: subjectDid,
       sender: individualControllerSession.actorDid,
-      recipient: professionalDid,
+      recipient: providerDid,
       bundle: editableDemoBundle,
       clinicalFormat: 'r4',
       pollOptions: createLivePollOptions(),

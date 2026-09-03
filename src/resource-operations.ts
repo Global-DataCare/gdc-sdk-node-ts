@@ -359,7 +359,14 @@ type ClinicalUpdateRuntimeOptions = Readonly<{
 export type ClinicalSectionUpdateInput =
   ClinicalSectionUpdateCommunicationInput & ClinicalUpdateRuntimeOptions;
 
-/** Updates one complete multi-section clinical summary document. */
+/**
+ * Updates one complete multi-section clinical summary document.
+ *
+ * For the direct call, `sender` is the authenticated profile's operational
+ * `actorDid`, and `recipient` is the real provider-tenant DID inside the host
+ * that accommodates it. Neither value is a portal alias. When the document is
+ * an editable demo clone, its `Composition.author` is that same `actorDid`.
+ */
 export type ClinicalSummaryUpdateInput =
   ClinicalUpdateCommunicationInput & ClinicalUpdateRuntimeOptions;
 
