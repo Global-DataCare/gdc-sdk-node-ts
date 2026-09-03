@@ -1,6 +1,5 @@
 // Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 // The server-owned profile sends activation and registration data inside the canonical DIDComm body.
-// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 // Server wallets remain open behind opaque sessions; authorized PIN replacement preserves keys, while fresh OTP recovery rotates keys, revokes prior sessions, and never needs the old PIN.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,10 +7,12 @@ import assert from 'node:assert/strict';
 import {
   ActorKinds,
   DigitalTwinSdk,
+  FhirIpsCreatorKinds,
   NodeManagedWallet,
   ProfessionalSdk,
   ServerProfileSessionManager,
   TransportProfiles,
+  exportServerProfileClinicalCreatorIps,
   openServerProfileSecret,
   protectServerProfileSecret,
 } from '../dist/index.js';
@@ -26,8 +27,12 @@ import {
   EXAMPLE_PROFILE_PIN,
   EXAMPLE_PROFILE_PROVIDER_DID,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
+  EXAMPLE_HEALTHCARE_ACTOR_ROLE_PHYSICIAN,
+  EXAMPLE_KYC_CONTROLLER_USER_UUID,
+  EXAMPLE_KYC_CONTROLLER_UUID,
 } from 'gdc-common-utils-ts/examples/shared';
 import { IdentityDcrMetadataFields } from 'gdc-common-utils-ts/constants/identity-auth';
+import { HealthcareActorRoles } from 'gdc-common-utils-ts/constants/healthcare';
 
 /**
  * Flow contract exercised by this suite:
@@ -432,15 +437,48 @@ test('organization and professional enrollment requires an independent signed VP
   }), /requires vpToken for this actor kind/);
 });
 
+test('professional profile rejects a creator assignment whose role differs from its proof', async () => {
+  const deps = memoryDeps();
+  const manager = new ServerProfileSessionManager({
+    store: deps.store,
+    sealer: deps.sealer,
+    gatewayBaseUrl: 'https://gw.example',
+    fetchImpl: async () => { throw new Error('GW must not be called for a mismatched role.'); },
+  });
+  await assert.rejects(manager.enroll({
+    ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
+    profileId: EXAMPLE_PROFILE_ID,
+    actorKind: ActorKinds.OrganizationEmployee,
+    actorMode: 'member',
+    actorDid: EXAMPLE_PROFILE_PROVIDER_DID,
+    profileDid: EXAMPLE_PROFILE_PROVIDER_DID,
+    providerDid: EXAMPLE_PROFILE_PROVIDER_DID,
+    routeContext: EXAMPLE_TENANT_ROUTE_CONTEXT,
+    allowedSubjectDids: [EXAMPLE_PROFILE_PROVIDER_DID],
+    pin: EXAMPLE_PROFILE_PIN,
+    activationCode: EXAMPLE_EMPLOYEE_ACTIVATION_CODE,
+    idToken: EXAMPLE_DEMO_PORTAL_ID_TOKEN,
+    professionalProof: { role: HealthcareActorRoles.Veterinarian },
+    clinicalCreatorBinding: {
+      kind: FhirIpsCreatorKinds.Professional,
+      actorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_USER_UUID}`,
+      authorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}`,
+      ownerIdentifier: EXAMPLE_PROFILE_PROVIDER_DID,
+      role: EXAMPLE_HEALTHCARE_ACTOR_ROLE_PHYSICIAN,
+    },
+  }), /creator binding role must equal professionalProof.role/);
+});
+
 test('employee enrollment builds its signed role VP after DCR instead of copying idToken', async () => {
   const deps = memoryDeps();
+  const calls = [];
   const responses = [
     Response.json({}, { status: 202 }),
     Response.json({ access_token: 'initial-access-token' }),
     Response.json({}, { status: 202 }),
     Response.json({ client_id: 'employee-device-client', device_did: 'did:key:employee-device' }),
   ];
-  const gateway = await createGatewayTransport(responses);
+  const gateway = await createGatewayTransport(responses, calls);
   const manager = new ServerProfileSessionManager({
     ...deps,
     gatewayBaseUrl: 'https://gw.example',
@@ -460,7 +498,33 @@ test('employee enrollment builds its signed role VP after DCR instead of copying
     professionalProof: { role: 'ISCO-08|2250', sameAs: 'urn:multibase:zStableActor' },
     redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
     clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
+    clinicalCreatorBinding: {
+      kind: FhirIpsCreatorKinds.Professional,
+      actorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_USER_UUID}`,
+      authorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}`,
+      ownerIdentifier: 'did:web:clinic.example',
+      role: HealthcareActorRoles.Veterinarian,
+    },
   });
+  assert.equal(profile.clinicalCreatorBinding.actorIdentifier, `urn:uuid:${EXAMPLE_KYC_CONTROLLER_USER_UUID}`);
+  assert.equal(profile.clinicalCreatorBinding.authorIdentifier, `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}`);
+  assert.deepEqual(profile.clinicalCreatorBinding.actorDids, [profile.actorDid]);
+  assert.ok(profile.clinicalCreatorBinding.dcrClientIds.includes(profile.clientId));
+  assert.ok(profile.clinicalCreatorBinding.dcrClientIds.includes(profile.clientInstanceId));
+  assert.ok(profile.clinicalCreatorBinding.keyIds.includes(profile.clientInstanceId));
+  const encryptedDcr = new URLSearchParams(String(calls[2].init.body)).get('request');
+  const compactDcrJws = Buffer.from(await gateway.recipientWallet.decryptCompactJwe(
+    encryptedDcr,
+    gateway.recipientContext,
+    { key: { ownerScope: 'runtime', purpose: 'comm-encryption' } },
+  )).toString();
+  const dcrRequest = JSON.parse(Buffer.from(compactDcrJws.split('.')[1], 'base64url').toString());
+  assert.deepEqual(
+    dcrRequest.body[IdentityDcrMetadataFields.ClinicalCreatorBinding],
+    clinicalCreatorStableFields(profile.clinicalCreatorBinding),
+  );
+  const ipsCreator = exportServerProfileClinicalCreatorIps(profile);
+  assert.equal(ipsCreator.author.authorReference, profile.clinicalCreatorBinding.authorIdentifier);
   const vpToken = await openServerProfileSecret(
     profile.protectedVpToken,
     '123456',
@@ -479,6 +543,16 @@ test('employee enrollment builds its signed role VP after DCR instead of copying
   assert.equal(payload.vp.verifiableCredential[0].credentialSubject.hasOccupation, 'ISCO-08|2250');
 });
 
+function clinicalCreatorStableFields(binding) {
+  return {
+    kind: binding.kind,
+    actorIdentifier: binding.actorIdentifier,
+    authorIdentifier: binding.authorIdentifier,
+    ownerIdentifier: binding.ownerIdentifier,
+    role: binding.role,
+  };
+}
+
 test('fresh OTP recovery rotates employee wallet keys, invalidates old sessions and opens with the new PIN', async () => {
   const deps = memoryDeps();
   const oldProfile = {
@@ -490,6 +564,16 @@ test('fresh OTP recovery rotates employee wallet keys, invalidates old sessions 
     routeContext: { tenantId: 'CA-BC-CLINIC', jurisdiction: 'CA-BC', sector: 'animal-care' },
     allowedSubjectDids: ['did:web:clinic.example:employees:zStableActor'],
     clientId: 'old-client', clientInstanceId: 'browser-installation', deviceDid: 'did:key:old-device',
+    clinicalCreatorBinding: {
+      kind: FhirIpsCreatorKinds.Professional,
+      actorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_USER_UUID}`,
+      authorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}`,
+      ownerIdentifier: 'did:web:clinic.example',
+      role: HealthcareActorRoles.MedicalSecretary,
+      actorDids: ['did:web:clinic.example:employees:zStableActor'],
+      dcrClientIds: ['old-client', 'browser-installation'],
+      keyIds: ['old-signing-key'],
+    },
     publicJwks: [{ kid: 'old-signing-key' }],
     protectedWalletSeed: await protectServerProfileSecret(
       Buffer.alloc(32, 1).toString('base64url'), 'old-pin', 'employee-profile:wallet-seed', deps.sealer, { cost: 1_024 },
@@ -551,6 +635,10 @@ test('fresh OTP recovery rotates employee wallet keys, invalidates old sessions 
   assert.equal(rotatedProfile.clientId, 'new-client');
   assert.equal(rotatedProfile.deviceDid, 'did:key:new-device');
   assert.notDeepEqual(rotatedProfile.publicJwks, oldProfile.publicJwks);
+  assert.equal(rotatedProfile.clinicalCreatorBinding.actorIdentifier, oldProfile.clinicalCreatorBinding.actorIdentifier);
+  assert.equal(rotatedProfile.clinicalCreatorBinding.authorIdentifier, oldProfile.clinicalCreatorBinding.authorIdentifier);
+  assert.ok(!rotatedProfile.clinicalCreatorBinding.dcrClientIds.includes('old-client'));
+  assert.ok(rotatedProfile.clinicalCreatorBinding.dcrClientIds.includes(rotatedProfile.clientId));
   assert.equal(rotatedSession.accessToken, 'new-smart-access-token');
   assert.equal(deps.sessions.has('old-session'), false);
   assert.equal(deps.profiles.get(oldProfile.profileId).failedUnlocks, 0);
