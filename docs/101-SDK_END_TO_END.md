@@ -1744,8 +1744,10 @@ immutable and create a separate local copy before calling
 `updateClinicalSummary(...)`:
 
 ```ts
-// loadBackendIndividualControllerProfile(...) returns this ActorSession.
-const actorDid = individualControllerProfile.session.actorDid;
+// Every role-specific loaded profile returns its ActorSession here. This may
+// be an individualControllerProfile, individualMemberProfile or professionalProfile.
+const actorSession = loadedActorProfile.session;
+const actorDid = actorSession.actorDid;
 if (!actorDid) throw new Error('The loaded actor session has no operational DID.');
 
 const editableCopy = cloneImportedClinicalDocumentForDemo({
@@ -1764,9 +1766,11 @@ await updateClinicalSummary(tenantContext, {
 });
 ```
 
-Here `individualControllerProfile.session.actorDid` is the operational DID
-returned by `loadBackendIndividualControllerProfile(...)`; it is never a
-multibase URN or a DID/alias owned by the portal. Use it as `sender`.
+Here `loadedActorProfile.session.actorDid` is the operational DID returned for
+the authenticated role. The same shape applies to
+`individualControllerProfile`, `individualMemberProfile` and
+`professionalProfile`; it is never a multibase URN or a DID/alias owned by the
+portal. Use it as `sender`.
 `recipient = providerDid` is the real tenant DID inside the host that
 accommodates it, never a portal alias. The helper sets
 `Composition.author` to that same session `actorDid`, assigns new FHIR logical ids and

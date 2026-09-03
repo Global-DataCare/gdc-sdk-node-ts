@@ -121,8 +121,9 @@ Verify current branches, versions and published npm state before release claims.
 ## Preserve authored clinical deletion
 
 - For the current direct `updateClinicalSummary(...)` call, set `sender` to
-  the operational `ActorSession.actorDid` returned by the loaded profile
-  (`loadedProfile.session.actorDid`), never a stable multibase URN or a
+  the operational `ActorSession.actorDid` returned by the role-specific loaded
+  profile wrapper (`loadedActorProfile.session.actorDid`), never a stable
+  multibase URN or a
   DID/alias owned by the portal. Set `recipient` to the real provider-tenant
   DID inside the host that accommodates that tenant, never the host DID or a
   portal alias. The subject remains the individual DID.

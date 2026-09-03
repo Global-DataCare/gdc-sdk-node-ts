@@ -89,12 +89,14 @@ export type BackendIndividualControllerProfile = {
 
 export type BackendPersonalProfile = {
   profile: BackendLoadedActorProfile;
+  /** Loaded actor session; its `actorDid` is the operational DID to use as a direct clinical sender. */
   session: ActorSession;
   sdk: PersonalSdk;
 };
 
 export type BackendIndividualMemberProfile = {
   profile: BackendLoadedActorProfile;
+  /** Loaded caregiver/member session; its `actorDid` is the operational DID for that relationship role. */
   session: ActorSession;
   sdk: IndividualMemberSdk;
 };
@@ -107,6 +109,7 @@ export type BackendOrganizationControllerProfile = {
 
 export type BackendProfessionalProfile = {
   profile: BackendLoadedActorProfile;
+  /** Loaded professional session; its `actorDid` is the operational professional DID. */
   session: ActorSession;
   sdk: ProfessionalSdk;
 };
