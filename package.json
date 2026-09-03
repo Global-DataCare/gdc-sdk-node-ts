@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "gdc-common-utils-ts": "2.7.7",
-    "gdc-sdk-core-ts": "2.4.7"
+    "gdc-sdk-core-ts": "2.4.8"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",
