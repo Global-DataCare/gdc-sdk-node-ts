@@ -78,6 +78,25 @@ test('requestSmartTokenWithDeps uses openid-smart flow when requested', async ()
   assert.equal(result.accessToken, 'smart-token-openid-001');
 });
 
+test('requestSmartTokenWithDeps reads the SMART token from the canonical DIDComm response body', async () => {
+  const exchange = cloneExample(EXAMPLE_SMART_TOKEN_RESPONSE);
+  exchange.poll.body = { body: exchange.poll.body };
+  const result = await requestSmartTokenWithDeps({
+    input: cloneExample(EXAMPLE_OPENID_SMART_TOKEN_INPUT),
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    baseUrl: 'http://localhost:3000',
+    identityTokenExchangePath: () => '/unused',
+    identityTokenExchangePollPath: () => '/unused',
+    identityOpenIdSmartTokenPath: () => '/identity/openid/smart/token',
+    identityOpenIdSmartTokenPollPath: () => '/identity/openid/smart/token-response',
+    submitAndPoll: async () => exchange,
+    setTokenCache: () => {},
+  });
+
+  assert.equal(result.status, 'fetched');
+  assert.equal(result.accessToken, 'smart-token-openid-001');
+});
+
 test('requestSmartTokenWithDeps keeps requester id_token separate and omits vp_token for an individual provider flow', async () => {
   const calls = [];
   await requestSmartTokenWithDeps({
@@ -132,7 +151,7 @@ test('requestSmartTokenWithDeps resolves the SMART audience from the subject pro
   );
   assert.equal(
     calls[0][1],
-    'https://resolved-provider.example/tenant/identity/openid/smart/_batch-response',
+    'https://resolved-provider.example/tenant/identity/openid/smart/token-response',
   );
   assert.equal(
     calls[0][2].aud,

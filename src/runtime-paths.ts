@@ -1,6 +1,15 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 import { buildGwCoreTenantResourceActionPath } from 'gdc-common-utils-ts/utils/gw-core-path';
-import { IdentityAuthActions, IdentityAuthRouteSegments } from 'gdc-common-utils-ts/constants/identity-auth';
+import {
+  IdentityAuthActions,
+  IdentityAuthResourceTypes,
+  IdentityAuthRouteSegments,
+  SmartPostDcrActions,
+} from 'gdc-common-utils-ts/constants/identity-auth';
+import {
+  GatewayRouteFormats,
+  GatewayRouteSections,
+} from 'gdc-common-utils-ts/constants/gateway-response';
 
 import type { HostRouteContext } from './host-onboarding.js';
 import type { RouteContext } from './individual-onboarding.js';
@@ -89,9 +98,21 @@ function buildIdentityAuthPath(ctx: RouteContext, action: string): string {
 }
 
 export function buildIdentityOpenIdSmartTokenPath(ctx: RouteContext): string {
-  return `/${encodeURIComponent(ctx.tenantId)}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/identity/openid/smart/token`;
+  return buildV1Path(
+    ctx,
+    GatewayRouteSections.Identity,
+    GatewayRouteFormats.OpenId,
+    IdentityAuthResourceTypes.Smart,
+    SmartPostDcrActions.Token,
+  );
 }
 
 export function buildIdentityOpenIdSmartTokenPollPath(ctx: RouteContext): string {
-  return `/${encodeURIComponent(ctx.tenantId)}/cds-${encodeURIComponent(ctx.jurisdiction)}/v1/${encodeURIComponent(ctx.sector)}/identity/openid/smart/_batch-response`;
+  return buildV1Path(
+    ctx,
+    GatewayRouteSections.Identity,
+    GatewayRouteFormats.OpenId,
+    IdentityAuthResourceTypes.Smart,
+    SmartPostDcrActions.TokenResponse,
+  );
 }
