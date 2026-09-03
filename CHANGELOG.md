@@ -14,6 +14,8 @@
 - Encrypt profile SMART token requests and polls with the already registered
   wallet during unlock, refresh and professional facade use, so strict GW
   never receives a post-DCR plaintext transport.
+- Make the recovery-envelope tamper gate mutate decoded ciphertext bytes so it
+  cannot accidentally preserve the original value through base64url padding.
 
 ## 2.6.6 - 2026-09-02
 
