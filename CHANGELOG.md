@@ -10,7 +10,7 @@
 - Keep SDK readers temporarily compatible with legacy entry-level claims,
   prefer the canonical resource placement when both exist, and add a
   source-level regression gate for all governed writers.
-- Consume `gdc-common-utils-ts@2.7.7` and `gdc-sdk-core-ts@2.4.8`, including
+- Consume `gdc-common-utils-ts@2.7.8` and `gdc-sdk-core-ts@2.4.9`, including
   the completed canonical onboarding and activation writer migration.
 - Encrypt profile SMART token requests and polls with the already registered
   wallet during unlock, refresh and professional facade use, so strict GW
