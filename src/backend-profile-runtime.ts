@@ -82,6 +82,7 @@ export type BackendLoadedActorProfile = LoadedActorProfile & {
 
 export type BackendIndividualControllerProfile = {
   profile: BackendLoadedActorProfile;
+  /** Loaded actor session; its `actorDid` is the operational DID to use as a direct clinical sender. */
   session: ActorSession;
   sdk: IndividualControllerSdk;
 };

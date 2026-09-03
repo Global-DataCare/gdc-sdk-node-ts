@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+## 2.6.6 - 2026-09-02
+
+- Clarify the direct clinical-summary identity contract across JSDoc, tests,
+  snippets, high-level guides and the repository skill: `sender` and an
+  editable demo copy's `Composition.author` use the authenticated profile
+  `actorDid`, while `recipient` is the real provider-tenant DID inside its
+  hosting host; portal aliases and stable multibase URNs are not substitutes.
+
 ## 2.6.5 - 2026-09-02
 
 - Re-export `cloneImportedClinicalDocumentForDemo(...)` from SDK Core so demo

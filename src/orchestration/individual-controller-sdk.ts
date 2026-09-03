@@ -278,7 +278,11 @@ export class IndividualControllerSdk {
     return requireClientMethod(this.client, 'updateClinicalSection')(ctx, input);
   }
 
-  /** Updates the multi-section summary through a Composition-first document. */
+  /**
+   * Updates the multi-section summary through a Composition-first document.
+   * On a direct call, use the authenticated profile `actorDid` as `sender` and
+   * the real hosted provider-tenant DID as `recipient`.
+   */
   public updateClinicalSummary(ctx: RouteContext, input: ClinicalSummaryUpdateInput): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualIngestCommunication, ActorKinds.IndividualController, 'updateClinicalSummary');
     return requireClientMethod(this.client, 'updateClinicalSummary')(ctx, input);

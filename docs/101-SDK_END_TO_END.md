@@ -1696,7 +1696,7 @@ const summaryDocumentEditor = new BundleEditor()
   .setCompositionType(HealthcareDocumentTypes.IPS.attributeValue)
   .setCompositionTitle('International Patient Summary')
   .setCompositionDate(new Date().toISOString())
-  .setCompositionAuthorList([professionalDid]);
+  .setCompositionAuthorList([individualControllerProfile.session.actorDid]);
 
 summaryDocumentEditor
   .newEntryAs(BundleEditableResourceTypes.allergyIntolerance)
@@ -1714,8 +1714,8 @@ const summaryDocument = summaryDocumentEditor.buildDocument();
 
 await individualControllerProfile.sdk.updateClinicalSummary(tenantContext, {
   subject: subjectDid,
-  sender: professionalDid,
-  recipient: organizationDid,
+  sender: individualControllerProfile.session.actorDid,
+  recipient: providerDid,
   bundle: summaryDocument,
   clinicalFormat: 'r4',
 });
@@ -1744,25 +1744,33 @@ immutable and create a separate local copy before calling
 `updateClinicalSummary(...)`:
 
 ```ts
-const editableDemoDocument = individualControllerSession
-  .cloneImportedClinicalDocumentForDemo(importedIps);
+// loadBackendIndividualControllerProfile(...) returns this ActorSession.
+const actorDid = individualControllerProfile.session.actorDid;
+if (!actorDid) throw new Error('The loaded actor session has no operational DID.');
 
-await individualControllerSession.asIndividualController().updateClinicalSummary(tenantContext, {
-  subject: subjectDid,
-  sender: individualControllerSession.actorDid,
-  recipient: organizationDid,
-  bundle: editableDemoDocument,
+const editableCopy = cloneImportedClinicalDocumentForDemo({
+  bundle: importedIps,
+  authenticatedActorDid: actorDid,
+});
+
+await updateClinicalSummary(tenantContext, {
+  subject: individualDid,
+  // Operational DID returned by the authenticated profile.
+  sender: actorDid,
+  // Real tenant DID inside the host that accommodates the tenant.
+  recipient: providerDid,
+  bundle: editableCopy,
   clinicalFormat: 'r4',
 });
 ```
 
-The session helper assigns new FHIR logical ids, rewrites internal references
-and sets the cloned `Composition.author` to the profile's authenticated
-operational `actorDid`; the portal cannot supply a replacement author. With a
-direct `updateClinicalSummary(...)` call, pass that same `actorDid` as
-`sender`, because the transport renderer projects it to DIDComm `from`/`iss`.
-It deliberately rejects a stable contact URN or a role-license URN:
-those values are aliases/assets, not the role-bearing actor DID. Source
+Here `individualControllerProfile.session.actorDid` is the operational DID
+returned by `loadBackendIndividualControllerProfile(...)`; it is never a
+multibase URN or a DID/alias owned by the portal. Use it as `sender`.
+`recipient = providerDid` is the real tenant DID inside the host that
+accommodates it, never a portal alias. The helper sets
+`Composition.author` to that same session `actorDid`, assigns new FHIR logical ids and
+rewrites internal references. Source
 business identifiers remain available for provenance, while later updates or
 typed `.delete()` entries address only the cloned resource ids. This helper is
 explicitly for demo preparation and is never applied during a normal import.
