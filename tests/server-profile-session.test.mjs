@@ -46,6 +46,8 @@ import { IdentityDcrMetadataFields } from 'gdc-common-utils-ts/constants/identit
  * 7. Enrollment uses encrypted DIDComm for activation-code exchange and DCR;
  *    a trusted signed OIDC id_token binds the account/email, while the stored
  *    VP proves actor/role authority.
+ * 8. Unlock requests and polls its first SMART token through the same
+ *    registered wallet and encrypted DIDComm boundary required by strict GW.
  */
 function memoryDeps() {
   const profiles = new Map();
@@ -80,6 +82,7 @@ function memoryDeps() {
 }
 
 async function createGatewayTransport(responses, calls = []) {
+  let responseRecipientJwk;
   const wallet = new NodeManagedWallet();
   const context = { runtime: { runtimeId: 'gateway-test-runtime', runtimeType: 'backend-service' } };
   await wallet.provisionManagedKeys(context, {
@@ -94,6 +97,9 @@ async function createGatewayTransport(responses, calls = []) {
   });
   return {
     calls,
+    recipientWallet: wallet,
+    recipientContext: context,
+    setResponseRecipientJwk(value) { responseRecipientJwk = value; },
     resolveRecipientJwk: async () => recipientKey.publicJwk,
     fetchImpl: async (url, init) => {
       calls.push({ url, init });
@@ -104,10 +110,11 @@ async function createGatewayTransport(responses, calls = []) {
       const requestJwe = new URLSearchParams(String(init.body)).get('request');
       assert.ok(requestJwe);
       const requestHeader = JSON.parse(Buffer.from(requestJwe.split('.')[0], 'base64url').toString());
-      assert.ok(requestHeader.jwk);
+      const recipientJwk = requestHeader.jwk || responseRecipientJwk;
+      assert.ok(recipientJwk);
       const responseJwe = await wallet.packForRecipientWithContext(
         await response.json(),
-        requestHeader.jwk,
+        recipientJwk,
         { context },
       );
       return new Response(`response=${encodeURIComponent(responseJwe)}`, {
@@ -250,7 +257,18 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   });
   assert.equal(unlocked.accessToken, 'smart-access-token');
   assert.equal(unlocked.profile.actorMode, 'self');
-  const smartRequest = JSON.parse(String(calls[4].init.body));
+  assert.equal(
+    new Headers(calls[4].init.headers).get('content-type'),
+    TransportProfiles.DidcommEncryptedForm,
+  );
+  const smartRequestJwe = new URLSearchParams(String(calls[4].init.body)).get('request');
+  assert.ok(smartRequestJwe);
+  const smartRequestJws = Buffer.from(await recipientWallet.decryptCompactJwe(
+    smartRequestJwe,
+    recipientContext,
+    { key: { ownerScope: 'runtime', purpose: 'comm-encryption' } },
+  )).toString();
+  const smartRequest = JSON.parse(Buffer.from(smartRequestJws.split('.')[1], 'base64url').toString());
   assert.match(smartRequest.body.client_assertion, /^[^.]+\.[^.]+\.[^.]+$/);
   const claims = JSON.parse(Buffer.from(smartRequest.body.client_assertion.split('.')[1], 'base64url').toString());
   assert.equal(claims.iss, 'device-client-1');
@@ -518,6 +536,7 @@ test('fresh OTP recovery rotates employee wallet keys, invalidates old sessions 
     redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
     clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
   });
+  gateway.setResponseRecipientJwk(rotatedProfile.publicJwks.find((jwk) => jwk.crv === 'ML-KEM-768'));
   const rotatedSession = await manager.unlock({
     ownerId: oldProfile.ownerId,
     profileId: oldProfile.profileId,
@@ -738,19 +757,19 @@ test('high-level manager opens a professional and owns SMART proof plumbing', as
   const walletSeed = Buffer.alloc(32, 14).toString('base64url');
   const walletKeyDerivationId = 'organization-employee:profile-1:wallet-v1';
   const calls = [];
+  const gateway = await createGatewayTransport([
+    Response.json({}, { status: 202 }),
+    Response.json({ access_token: 'professional-smart-token', token_type: 'Bearer', scope: 'patient/Composition.rs' }),
+  ], calls);
   const manager = new ServerProfileSessionManager({
     ...deps,
     gatewayBaseUrl: 'https://gw.example',
     appInfo: { appId: 'https://professional.example', appType: 'Organization', sector: 'animal-care' },
-    resolveRecipientJwk: async () => ({}),
-    fetchImpl: async (url, init) => {
-      calls.push({ url: String(url), init });
-      return calls.length === 1
-        ? Response.json({}, { status: 202 })
-        : Response.json({ access_token: 'professional-smart-token', token_type: 'Bearer', scope: 'patient/Composition.rs' });
-    },
+    resolveRecipientJwk: gateway.resolveRecipientJwk,
+    fetchImpl: gateway.fetchImpl,
   });
   const enrollmentKeys = await manager.prepareEnrollmentPublicKeys({ walletSeed, walletKeyDerivationId });
+  gateway.setResponseRecipientJwk(enrollmentKeys.find((entry) => entry.purpose === 'comm-encryption').publicJwk);
   const profile = {
     profileId: 'employee-profile-1',
     walletKeyDerivationId,
@@ -801,7 +820,18 @@ test('high-level manager opens a professional and owns SMART proof plumbing', as
   assert.equal(token.accessToken, 'professional-smart-token');
   assert.equal(calls.length, 2);
   assert.equal(new Headers(calls[0].init.headers).get('AppId'), 'example.professional');
-  const request = JSON.parse(String(calls[0].init.body));
+  assert.equal(
+    new Headers(calls[0].init.headers).get('content-type'),
+    TransportProfiles.DidcommEncryptedForm,
+  );
+  const requestJwe = new URLSearchParams(String(calls[0].init.body)).get('request');
+  assert.ok(requestJwe);
+  const requestJws = Buffer.from(await gateway.recipientWallet.decryptCompactJwe(
+    requestJwe,
+    gateway.recipientContext,
+    { key: { ownerScope: 'runtime', purpose: 'comm-encryption' } },
+  )).toString();
+  const request = JSON.parse(Buffer.from(requestJws.split('.')[1], 'base64url').toString());
   assert.equal(request.body.id_token, 'fresh-signed-id-token');
   assert.match(request.body.client_assertion, /^[^.]+\.[^.]+\.[^.]+$/);
   assert.match(request.body.vp_token, /^[^.]+\.[^.]+\.[^.]+$/);

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 2.6.7 - 2026-09-02
+## 2.6.7 - 2026-09-03
 
 - Emit licence search, purchase and issue, Order, onboarding, digital-twin,
   authorization-directory and internal runtime claims only at
@@ -11,6 +11,9 @@
   prefer the canonical resource placement when both exist, and add a
   source-level regression gate for all governed writers.
 - Consume `gdc-common-utils-ts@2.7.5` and `gdc-sdk-core-ts@2.4.7`.
+- Encrypt profile SMART token requests and polls with the already registered
+  wallet during unlock, refresh and professional facade use, so strict GW
+  never receives a post-DCR plaintext transport.
 
 ## 2.6.6 - 2026-09-02
 
