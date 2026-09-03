@@ -1,6 +1,14 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
 import { HealthcareConsentPurposes } from 'gdc-common-utils-ts/constants';
+import {
+  IdentityAuthResourceTypes,
+  SmartPostDcrActions,
+} from 'gdc-common-utils-ts/constants/identity-auth';
+import {
+  GatewayRouteFormats,
+  GatewayRouteSections,
+} from 'gdc-common-utils-ts/constants/gateway-response';
 import { buildClientAssertionJwt, type BuildClientAssertionJwtInput } from 'gdc-common-utils-ts/utils/client-assertion';
 import type { SmartTokenRequestContract } from 'gdc-sdk-core-ts';
 import { resolvePollOptionsFromSeconds } from './poll-options.js';
@@ -253,19 +261,20 @@ function normalizeResolvedSmartTokenEndpoint(value: string | undefined): string 
   if (!['http:', 'https:'].includes(endpoint.protocol)) {
     throw new Error('Resolved SMART token endpoint must use HTTP(S).');
   }
-  if (!endpoint.pathname.endsWith('/identity/openid/smart/token')) {
-    throw new Error('Resolved SMART token endpoint must target /identity/openid/smart/token.');
+  if (!endpoint.pathname.endsWith(smartTokenRouteSuffix(SmartPostDcrActions.Token))) {
+    throw new Error(`Resolved SMART token endpoint must target ${smartTokenRouteSuffix(SmartPostDcrActions.Token)}.`);
   }
   return endpoint.toString();
 }
 
 function smartTokenPollEndpointFromTokenEndpoint(tokenEndpoint: string): string {
   const endpoint = new URL(tokenEndpoint);
-  endpoint.pathname = endpoint.pathname.replace(
-    /\/identity\/openid\/smart\/token$/,
-    '/identity/openid/smart/_batch-response',
-  );
+  endpoint.pathname = `${endpoint.pathname.slice(0, -smartTokenRouteSuffix(SmartPostDcrActions.Token).length)}${smartTokenRouteSuffix(SmartPostDcrActions.TokenResponse)}`;
   return endpoint.toString();
+}
+
+function smartTokenRouteSuffix(action: string): string {
+  return `/${GatewayRouteSections.Identity}/${GatewayRouteFormats.OpenId}/${IdentityAuthResourceTypes.Smart}/${action}`;
 }
 
 async function resolveClientAssertion(input: {
@@ -290,7 +299,10 @@ function resolveTokenExchangeResult(
   tokenCacheKey: string,
   setTokenCache: (tokenCacheKey: string, token: CachedTokenWrite) => void,
 ): SmartTokenExchangeResult {
-  const exchangeBody = (exchange.poll.body as Record<string, unknown>) ?? {};
+  const pollBody = (exchange.poll.body as Record<string, unknown>) ?? {};
+  // Encrypted DIDComm returns the token in the authenticated message body;
+  // plain compatibility transports may still expose the token at the root.
+  const exchangeBody = (pollBody.body as Record<string, unknown> | undefined) || pollBody;
   const accessToken = String(exchangeBody.access_token || '').trim();
   if (exchange.poll.status >= 400 || !accessToken) {
     return {

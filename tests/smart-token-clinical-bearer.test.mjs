@@ -27,7 +27,7 @@ test('one high-level SDK instance sends its granted SMART bearer on the followin
     if (requestUrl.endsWith('/identity/openid/smart/token')) {
       return new Response('{}', { status: 202 });
     }
-    if (requestUrl.endsWith('/identity/openid/smart/_batch-response')) {
+    if (requestUrl.endsWith('/identity/openid/smart/token-response')) {
       return Response.json({
         access_token: smartBearer,
         token_type: 'Bearer',

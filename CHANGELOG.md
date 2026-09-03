@@ -10,10 +10,14 @@
 - Keep SDK readers temporarily compatible with legacy entry-level claims,
   prefer the canonical resource placement when both exist, and add a
   source-level regression gate for all governed writers.
-- Consume `gdc-common-utils-ts@2.7.5` and `gdc-sdk-core-ts@2.4.7`.
+- Consume `gdc-common-utils-ts@2.7.7` and `gdc-sdk-core-ts@2.4.7`.
 - Encrypt profile SMART token requests and polls with the already registered
   wallet during unlock, refresh and professional facade use, so strict GW
   never receives a post-DCR plaintext transport.
+- Poll SMART issuance through its canonical `smart/token-response` route
+  instead of the GW's temporary `_batch-response` compatibility alias.
+- Read SMART token fields from the canonical DIDComm response `body` while
+  retaining the temporary root-level response compatibility shape.
 - Make the recovery-envelope tamper gate mutate decoded ciphertext bytes so it
   cannot accidentally preserve the original value through base64url padding.
 
