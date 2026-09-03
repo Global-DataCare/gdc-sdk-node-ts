@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.6.8 - 2026-09-03
+
+- Return the normalized SMART business response from canonical encrypted
+  DIDComm polling envelopes, preserving emergency-consent and break-glass
+  evidence for portal authorization checks while retaining root-level legacy
+  response compatibility.
+
 ## 2.6.7 - 2026-09-03
 
 - Emit licence search, purchase and issue, Order, onboarding, digital-twin,
