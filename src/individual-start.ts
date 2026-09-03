@@ -180,7 +180,6 @@ export async function startIndividualOrganizationWithDeps(
     body: {
       data: [{
         type: GwCoreLifecycleRequestType.IndividualOrganizationRegistration,
-        meta: { claims },
         resource: { meta: { claims } },
       }],
     },

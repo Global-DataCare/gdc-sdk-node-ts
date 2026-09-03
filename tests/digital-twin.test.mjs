@@ -369,6 +369,11 @@ test('digital-twin API search wraps Parameters so GW reads coded and custom-tag 
 
   assert.deepEqual(call.payload.body.data[0].resource, {
     resourceType: 'Parameters',
+    meta: { claims: {
+      '@context': 'org.hl7.fhir.api',
+      [DigitalTwinSearchParameter.Section]: medicationSection,
+      [DigitalTwinSearchParameter.MetaTag]: `${worksetTag.system}|${worksetTag.code}`,
+    } },
     parameter: [
       { name: DigitalTwinSearchParameter.Section, valueString: medicationSection },
       { name: DigitalTwinSearchParameter.MetaTag, valueString: `${worksetTag.system}|${worksetTag.code}` },

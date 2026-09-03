@@ -1,4 +1,4 @@
-// TDD: controller recovery preserves the issued activation credential inside the DIDComm business body.
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -30,6 +30,15 @@ test('readLegalOrganizationCredentialReissuanceActivationCode still reads deprec
       'org.schema.IndividualProduct.serialNumber': 'legacy-entry-meta-code',
     } } }] } },
   }), 'legacy-entry-meta-code');
+});
+
+test('readLegalOrganizationCredentialReissuanceActivationCode prefers canonical claims when both placements exist', () => {
+  assert.equal(readLegalOrganizationCredentialReissuanceActivationCode({
+    poll: { body: { data: [{
+      meta: { claims: { 'org.schema.IndividualProduct.serialNumber': 'legacy-code' } },
+      resource: { meta: { claims: { 'org.schema.IndividualProduct.serialNumber': 'canonical-code' } } },
+    }] } },
+  }), 'canonical-code');
 });
 
 test('readLegalOrganizationCredentialReissuanceActivationCode accepts a wrapped legacy License response claim', () => {

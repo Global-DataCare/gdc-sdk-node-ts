@@ -147,7 +147,10 @@ export const recoverOrganizationControllerWithIssueWithDeps =
 export function readLegalOrganizationCredentialReissuanceActivationCode(result: SubmitAndPollResult): string {
   const pollBody = (result?.poll?.body || {}) as Record<string, unknown>;
   for (const candidate of nestedObjects(pollBody)) {
-    const claims = (candidate.meta as Record<string, unknown> | undefined)?.claims as Record<string, unknown> | undefined;
+    const resource = candidate.resource as Record<string, unknown> | undefined;
+    const resourceClaims = (resource?.meta as Record<string, unknown> | undefined)?.claims as Record<string, unknown> | undefined;
+    const legacyClaims = (candidate.meta as Record<string, unknown> | undefined)?.claims as Record<string, unknown> | undefined;
+    const claims = resourceClaims || legacyClaims;
     const activationCode = String(claims?.['org.schema.IndividualProduct.serialNumber'] || '').trim();
     if (activationCode) return activationCode;
 

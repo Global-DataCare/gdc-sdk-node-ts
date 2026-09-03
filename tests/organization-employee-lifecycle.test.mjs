@@ -52,6 +52,20 @@ test('readEmployeeLicenseOfferId exposes the asynchronous payment continuation w
   assert.equal(readEmployeeLicenseOfferId(response.poll.body), offerId);
 });
 
+test('readEmployeeLicenseOfferId prefers canonical resource claims while accepting legacy responses', () => {
+  const response = buildExampleSubmitAndPollResult({
+    resourceType: 'Bundle',
+    type: 'batch-response',
+    data: [{
+      type: 'Employee-license-offer-v1.0',
+      meta: { claims: { 'org.schema.Offer.identifier': 'legacy-offer' } },
+      resource: { meta: { claims: { 'org.schema.Offer.identifier': 'canonical-offer' } } },
+      response: { status: '200' },
+    }],
+  });
+  assert.equal(readEmployeeLicenseOfferId(response.poll.body), 'canonical-offer');
+});
+
 test('provisionOrganizationEmployeeWithDeps owns create plus license issue orchestration', async () => {
   const issuedInvitations = [];
   const result = await provisionOrganizationEmployeeWithDeps(

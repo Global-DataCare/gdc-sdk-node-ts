@@ -1,4 +1,5 @@
-// Flow contract: Node clinical facades preserve Communication-carried FHIR batches,
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
+// Node clinical facades preserve Communication-carried FHIR batches,
 // including independent mixed create/delete entries and optional request.ifMatch.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -469,7 +470,7 @@ test('disableIndividualOrganizationWithDeps still accepts deprecated organizatio
     },
   );
   assert.equal(calls[0][2].body.data[0].resource.id, 'individual-org-legacy');
-  assert.equal(calls[0][2].body.data[0].meta.claims[ClaimsOrganizationSchemaorg.identifier], organizationEditor.getIdentifier());
+  assert.equal(calls[0][2].body.data[0].resource.meta.claims[ClaimsOrganizationSchemaorg.identifier], organizationEditor.getIdentifier());
 });
 
 test('searchIndividualLicensesWithDeps builds canonical License bundle search payload for the subject side', async () => {
@@ -540,7 +541,7 @@ test('individual member license helpers keep add, FHIR-role issue and acceptance
     quantity: 1,
   }, deps);
   assert.equal(calls[0][0], INDIVIDUAL_LICENSE_ADD_PATH);
-  assert.equal(calls[0][2].body.data[0].meta.claims['org.schema.Offer.price'], 0);
+  assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Offer.price'], 0);
   assert.equal(calls[0][2].body.data[0].meta.ownerOrganizationId, 'individual-org-patricia');
 
   // Step 2. A family/representative invitation carries its public contact,
@@ -586,7 +587,7 @@ test('professional seat acquisition requests an Offer without inventing price or
   assert.equal(calls[0][0], gwV1Path('entity', 'org.schema', 'Offer', '_create'));
   assert.equal(calls[0][1], gwV1Path('entity', 'org.schema', 'Offer', '_create-response'));
   assert.equal(calls[0][2].iss, 'did:web:gw.example:tenant:controller:one');
-  const claims = calls[0][2].body.data[0].meta.claims;
+  const claims = calls[0][2].body.data[0].resource.meta.claims;
   assert.equal(claims['org.schema.Offer.eligibleQuantity.value'], 2);
   assert.equal(claims['org.schema.IndividualProduct.category'], 'professional');
   assert.equal(claims['org.schema.Offer.price'], undefined);
@@ -612,8 +613,8 @@ test('employee license issue binds one existing employee seat and does not inven
   assert.equal(calls[0][0], ORG_EMPLOYEE_LICENSE_ISSUE_PATH);
   assert.equal(calls[0][1], ORG_EMPLOYEE_LICENSE_ISSUE_POLL_PATH);
   const entry = calls[0][2].body.data[0];
-  assert.equal(entry.meta.claims['org.schema.Person.email'], 'doctor.one@example.org');
-  assert.equal(entry.meta.claims['org.schema.Person.hasOccupation.identifier.value'], 'ISCO-08|2211');
+  assert.equal(entry.resource.meta.claims['org.schema.Person.email'], 'doctor.one@example.org');
+  assert.equal(entry.resource.meta.claims['org.schema.Person.hasOccupation.identifier.value'], 'ISCO-08|2211');
   assert.equal(entry.meta.subjectDid, 'did:web:provider.example:employee:doctor-one');
   assert.equal(entry.meta.subjectId, EXAMPLE_LICENSE_ACTIVE_RECORD.subjectId);
   assert.equal(entry.meta.clientInstanceId, undefined);
@@ -854,7 +855,7 @@ test('disableIndividualMemberWithDeps sends identifier-first lifecycle resource 
   assert.deepEqual(calls[0][2].body.entry[0], cloneExample(EXAMPLE_RELATED_PERSON_DISABLE_BUNDLE_ENTRY));
   assert.equal(calls[0][2].body.entry[0].resource.identifier[0].value, EXAMPLE_RELATED_PERSON_IDENTIFIER);
   assert.equal(calls[0][2].body.entry[0].resource.meta.status, InteroperableLifecycleStatuses.Inactive);
-  assert.equal(calls[0][2].body.entry[0].meta.claims[RelatedPersonClaim.Active], undefined);
+  assert.equal(calls[0][2].body.entry[0].resource.meta.claims[RelatedPersonClaim.Active], undefined);
   assert.equal(calls[0][2].body.entry[0].resource.id, EXAMPLE_RELATED_PERSON_DISABLE_INPUT.resourceId);
 });
 
@@ -1216,7 +1217,7 @@ test('setDigitalTwinSecondaryUseConsentWithDeps authors the canonical research p
   assert.deepEqual(captured[0].actions, [ServiceCapability.DigitalTwinReader]);
   assert.equal(captured[0].actor, 'did:web:index-provider.example');
   assert.equal(captured[0].actorRole, '*');
-  const submittedClaims = submissions[0][2].body.data[0].meta.claims;
+  const submittedClaims = submissions[0][2].body.data[0].resource.meta.claims;
   assert.equal(submittedClaims[ClaimConsent.attachmentContentType], undefined);
   assert.equal(submittedClaims[ClaimConsent.attachmentData], undefined);
   assert.equal(submittedClaims[ClaimConsent.identifier], undefined);
@@ -1434,7 +1435,7 @@ test('revokeProfessionalAccessWithDeps closes consent by setting period end', as
     },
   );
   assert.equal(calls[0][0], INDIVIDUAL_CONSENT_R4_BATCH_PATH);
-  assert.equal(calls[0][2].body.data[0].meta.claims[ClaimConsent.periodEnd], '2026-06-18T00:00:00Z');
+  assert.equal(calls[0][2].body.data[0].resource.meta.claims[ClaimConsent.periodEnd], '2026-06-18T00:00:00Z');
   assert.equal(result.consent.poll.status, 200);
   assert.equal(result.consentClaims[ClaimConsent.periodEnd], '2026-06-18T00:00:00Z');
 });

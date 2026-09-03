@@ -95,11 +95,11 @@ export async function listAuthorizedIndividualSubjectsWithDeps(
         data: [{
           type: 'Family-search-v1.0',
           request: { method: 'POST' },
-          meta: { claims: {
-            '@context': SCHEMA_CONTEXT,
-            ...(email ? { [CLAIM_ORGANIZATION_OWNER_EMAIL]: email } : {}),
-            ...(telephone ? { [CLAIM_ORGANIZATION_OWNER_TELEPHONE]: telephone } : {}),
-          } },
+          resource: { meta: { claims: {
+              '@context': SCHEMA_CONTEXT,
+              ...(email ? { [CLAIM_ORGANIZATION_OWNER_EMAIL]: email } : {}),
+              ...(telephone ? { [CLAIM_ORGANIZATION_OWNER_TELEPHONE]: telephone } : {}),
+            } } },
         }],
       },
     },
@@ -125,7 +125,7 @@ export async function listAuthorizedIndividualSubjectsWithDeps(
         type: 'batch',
         data: [{
           request: { method: 'POST' },
-          meta: { status: 'active', claims: licenseClaims },
+          resource: { meta: { status: 'active', claims: licenseClaims } },
         }],
       },
     },
@@ -149,7 +149,7 @@ export async function listAuthorizedIndividualSubjectsWithDeps(
           data: [{
             type: 'Family-search-v1.0',
             request: { method: 'POST' },
-            meta: { claims: organizationClaims },
+            resource: { meta: { claims: organizationClaims } },
           }],
         },
       },
@@ -233,7 +233,7 @@ function readAcceptedLicenses(result: SubmitAndPollResult): AcceptedLicenseRow[]
 
 function readFirstClaims(result: SubmitAndPollResult): Record<string, unknown> {
   const entry = readData(result)[0];
-  const claims = entry?.meta?.claims || entry?.resource?.meta?.claims;
+  const claims = entry?.resource?.meta?.claims || entry?.meta?.claims;
   return claims && typeof claims === 'object' ? claims : {};
 }
 

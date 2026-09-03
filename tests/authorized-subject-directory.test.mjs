@@ -1,3 +1,4 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 /**
  * Flow contract:
  * 1. A BFF supplies only the verified email/telephone from a signed OpenID
@@ -84,15 +85,15 @@ test('authors and resolves the contact-bound authorized-subject directory inside
   }]);
   assert.equal(submissions.length, 3);
   assert.equal(
-    submissions[0].payload.body.data[0].meta.claims['org.schema.Organization.owner.email'],
+    submissions[0].payload.body.data[0].resource.meta.claims['org.schema.Organization.owner.email'],
     'person@example.org',
   );
   assert.equal(
-    submissions[1].payload.body.data[0].meta.claims['org.schema.Person.email'],
+    submissions[1].payload.body.data[0].resource.meta.claims['org.schema.Person.email'],
     'person@example.org',
   );
   assert.equal(
-    submissions[2].payload.body.data[0].meta.claims['org.schema.Organization.sameAs'],
+    submissions[2].payload.body.data[0].resource.meta.claims['org.schema.Organization.sameAs'],
     'did:web:index.example:card:1',
   );
 });
@@ -138,7 +139,7 @@ test('recovers owner-indexed cards even when a legacy card has no accepted Licen
   }]);
   assert.equal(submissions[0].submitPath, '/tenant/individual/org.schema/Organization/_search');
   assert.equal(
-    submissions[0].payload.body.data[0].meta.claims['org.schema.Organization.owner.email'],
+    submissions[0].payload.body.data[0].resource.meta.claims['org.schema.Organization.owner.email'],
     'person@example.org',
   );
 });

@@ -1,3 +1,4 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -584,7 +585,7 @@ test('NodeHttpClient confirms organization-side extra license activation through
   assert.equal(calls[0][1], '/host/cds-ES/v1/test/registry/org.schema/Order/_batch-response');
   assert.equal(calls[0][2].iss, 'did:web:gw.example.org:tenant:controller:one');
   assert.equal(calls[0][2].aud, EXAMPLE_TENANT_ROUTE_CONTEXT.tenantId);
-  assert.equal(calls[0][2].body.data[0].meta.claims['Order.paymentMethod'], 'invoice');
+  assert.equal(calls[0][2].body.data[0].resource.meta.claims['Order.paymentMethod'], 'invoice');
 });
 
 test('NodeHttpClient searches subject-side commercial offers and orders through Offer/_search and Order/_search', async () => {
@@ -673,7 +674,7 @@ test('NodeHttpClient disables individual-member relationships through identifier
   assert.deepEqual(calls[0][2].body.entry[0], cloneExample(EXAMPLE_RELATED_PERSON_DISABLE_BUNDLE_ENTRY));
   assert.equal(calls[0][2].body.entry[0].resource.identifier[0].value, EXAMPLE_RELATED_PERSON_IDENTIFIER);
   assert.equal(calls[0][2].body.entry[0].resource.meta.status, InteroperableLifecycleStatuses.Inactive);
-  assert.equal(calls[0][2].body.entry[0].meta.claims[RelatedPersonClaim.Active], undefined);
+  assert.equal(calls[0][2].body.entry[0].resource.meta.claims[RelatedPersonClaim.Active], undefined);
   assert.equal(calls[0][2].body.entry[0].resource.id, EXAMPLE_RELATED_PERSON_DISABLE_INPUT.resourceId);
 });
 

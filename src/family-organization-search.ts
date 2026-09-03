@@ -70,7 +70,6 @@ export async function searchFamilyOrganizationWithDeps(
     body: {
       data: [{
         type: 'Family-search-v1.0',
-        meta: { claims },
         resource: { meta: { claims } },
       }],
     },

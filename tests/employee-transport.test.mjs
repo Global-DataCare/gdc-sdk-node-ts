@@ -1,3 +1,4 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 /**
  * Teaching goal:
  * prove one BundleEditor-authored Employee licence is transported through the
@@ -135,8 +136,8 @@ test('OrganizationControllerSdk requests a professional Offer through secure tra
   assert.equal(packedMessages.length, 2);
   assert.equal(packedMessages[0].iss, 'did:web:gw.example:tenant:controller:one');
   assert.equal(packedMessages[1].iss, 'did:web:gw.example:tenant:controller:one');
-  assert.equal(packedMessages[0].body.data[0].meta.claims['org.schema.Offer.eligibleQuantity.value'], 2);
-  assert.equal(packedMessages[0].body.data[0].meta.claims['org.schema.IndividualProduct.category'], 'professional');
+  assert.equal(packedMessages[0].body.data[0].resource.meta.claims['org.schema.Offer.eligibleQuantity.value'], 2);
+  assert.equal(packedMessages[0].body.data[0].resource.meta.claims['org.schema.IndividualProduct.category'], 'professional');
 });
 
 test('OrganizationControllerSdk confirms the professional Order through the same secure transport', async () => {
@@ -168,7 +169,7 @@ test('OrganizationControllerSdk confirms the professional Order through the same
   assert.equal(packedMessages[0].iss, 'did:web:gw.example:tenant:controller:one');
   assert.equal(packedMessages[1].iss, 'did:web:gw.example:tenant:controller:one');
   assert.equal(
-    packedMessages[0].body.data[0].meta.claims['Order.acceptedOffer.identifier'],
+    packedMessages[0].body.data[0].resource.meta.claims['Order.acceptedOffer.identifier'],
     'urn:cds:ES:v1:onehealth-research:product:org.schema:Offer:example',
   );
 });

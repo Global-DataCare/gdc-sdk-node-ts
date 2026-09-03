@@ -47,9 +47,11 @@ test('portable recovery fails closed for a wrong secret or modified ciphertext',
     recoverySecret: 'correct horse battery staple 2026',
     protection: { cost: 1_024 },
   });
+  const modifiedCiphertext = Buffer.from(envelope.ciphertextBase64Url, 'base64url');
+  modifiedCiphertext[0] ^= 0x01;
   assert.throws(() => openPortableProfileRecoveryEnvelope({ envelope, recoverySecret: 'this is the wrong recovery secret' }), /could not be opened/);
   assert.throws(() => openPortableProfileRecoveryEnvelope({
-    envelope: { ...envelope, ciphertextBase64Url: `${envelope.ciphertextBase64Url.slice(0, -1)}A` },
+    envelope: { ...envelope, ciphertextBase64Url: modifiedCiphertext.toString('base64url') },
     recoverySecret: 'correct horse battery staple 2026',
   }), /could not be opened/);
 });

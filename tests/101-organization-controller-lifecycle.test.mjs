@@ -1,4 +1,5 @@
-// TDD: both organization-controller lifecycles send exchange and DCR fields in the canonical DIDComm body.
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
+// Both organization-controller lifecycles send exchange and DCR fields in the canonical DIDComm body.
 /**
  * 101 note:
  * - `gdc-common-utils-ts` owns the canonical step-by-step editors/readers and payload examples.
@@ -394,7 +395,7 @@ function buildTenantLifecycleInput(claims) {
 function buildExpandedLicenseListResponseBody() {
   const expanded = cloneExample(EXAMPLE_LICENSE_LIST_RESPONSE_BODY);
   const additionalSeat = cloneExample(expanded.data[expanded.data.length - 1]);
-  additionalSeat.meta.claims[ClaimsIndividualProductSchemaorg.serialNumber] = EXAMPLE_LICENSE_SEAT_UUID_SECONDARY;
+  additionalSeat.resource.meta.claims[ClaimsIndividualProductSchemaorg.serialNumber] = EXAMPLE_LICENSE_SEAT_UUID_SECONDARY;
   expanded.data.push(additionalSeat);
   return expanded;
 }

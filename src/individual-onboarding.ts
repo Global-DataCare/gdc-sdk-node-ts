@@ -81,7 +81,6 @@ export async function confirmIndividualOrganizationOrderWithDeps(
     body: {
       data: [{
         type: 'Family-order-request-v1.0',
-        meta: { claims: orderClaims },
         resource: { meta: { claims: orderClaims } },
       }],
     },

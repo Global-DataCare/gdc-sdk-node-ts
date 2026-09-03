@@ -136,7 +136,7 @@ Consent.action          = organization/ResearchSubject.rs
 Consent.decision        = permit | deny
 ```
 
-They are sent in `resource.meta.claims` and `entry.meta.claims` of one FHIR
+They are sent only in `entry.resource.meta.claims` of one FHIR
 `Consent`. This index-level setting has no ODRL attachment. The provider
 organization identified by `Consent.actor-identifier` is the tenant that owns
 and stores the individual's index; it is not a research organization selected

@@ -71,7 +71,7 @@ const controllerIdToken = process.env.CONTROLLER_ID_TOKEN || toDemoJwt({
 const pdfBase64 = fs.readFileSync(pdfPath).toString('base64');
 const baseBundle = cloneExample(EXAMPLE_LEGAL_ORGANIZATION_VERIFICATION_TRANSACTION_BUNDLE);
 const claims = {
-  ...baseBundle.data[0].meta.claims,
+  ...baseBundle.data[0].resource.meta.claims,
   'org.schema.Organization.alternateName': tenantId,
   'org.schema.Organization.identifier.value': tenantId,
   'org.schema.Organization.identifier.additionalType': 'TAX',
