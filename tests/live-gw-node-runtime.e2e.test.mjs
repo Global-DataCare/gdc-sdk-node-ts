@@ -1971,7 +1971,11 @@ registerSelectedLiveTest(
     bearerToken,
   });
   const individualControllerSession = new NodeActorSession(
-    { actorKind: ActorKinds.IndividualController, capabilities: [ActorCapabilities.IndividualIngestCommunication] },
+    {
+      actorKind: ActorKinds.IndividualController,
+      actorDid: EXAMPLE_PROFILE_PROVIDER_DID,
+      capabilities: [ActorCapabilities.IndividualIngestCommunication],
+    },
     runtimeClient,
   );
 
@@ -2168,6 +2172,25 @@ registerSelectedLiveTest(
     );
     assert.ok(match, `IPS communication search must include consolidated MedicationStatement ${medication.identifier} in the medication section.`);
   }
+
+  const editableDemoBundle = individualControllerSession
+    .cloneImportedClinicalDocumentForDemo(ipsBundle);
+  const demoUpdate = await individualControllerSession.asIndividualController().updateClinicalSummary(
+    routeCtx,
+    {
+      subject: subjectDid,
+      sender: individualControllerSession.actorDid,
+      recipient: professionalDid,
+      bundle: editableDemoBundle,
+      clinicalFormat: 'r4',
+      pollOptions: createLivePollOptions(),
+    },
+  );
+  debug.record('editable-demo-clinical-update', { response: demoUpdate });
+  assertSuccessfulTerminalBundle(
+    demoUpdate,
+    'The cloned imported document must be writable by the authenticated actor DID.',
+  );
   },
 );
 
