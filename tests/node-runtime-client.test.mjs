@@ -535,6 +535,7 @@ test('NodeHttpClient issues an employee activation credential through canonical 
     email: 'doctor@example.org',
     role: 'ISCO-08|2211',
     subjectDid: 'did:web:provider.example:employee:doctor',
+    subjectId: EXAMPLE_LICENSE_ACTIVE_RECORD.subjectId,
   });
 
   assert.equal(calls[0][0], '/host/cds-ES/v1/health-care/acme-id/identity/auth/_issue');

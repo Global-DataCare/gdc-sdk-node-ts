@@ -53,6 +53,7 @@ test('readEmployeeLicenseOfferId exposes the asynchronous payment continuation w
 });
 
 test('provisionOrganizationEmployeeWithDeps owns create plus license issue orchestration', async () => {
+  const issuedInvitations = [];
   const result = await provisionOrganizationEmployeeWithDeps(
     EXAMPLE_TENANT_ROUTE_CONTEXT,
     {
@@ -64,10 +65,14 @@ test('provisionOrganizationEmployeeWithDeps owns create plus license issue orche
     },
     {
       createEmployee: async () => buildExampleSubmitAndPollResult(EXAMPLE_EMPLOYEE_SEARCH_RESPONSE_BODY),
-      issueLicense: async () => buildExampleSubmitAndPollResult(EXAMPLE_LICENSE_ISSUE_RESPONSE_BODY),
+      issueLicense: async (_ctx, invitation) => {
+        issuedInvitations.push(invitation);
+        return buildExampleSubmitAndPollResult(EXAMPLE_LICENSE_ISSUE_RESPONSE_BODY);
+      },
     },
   );
   assert.equal(result.activationCode, EXAMPLE_EMPLOYEE_ACTIVATION_CODE);
+  assert.equal(issuedInvitations[0].subjectId, EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.resourceId);
 });
 
 test('provisionOrganizationEmployeeWithDeps exposes the allowance persisted by License/_issue', async () => {

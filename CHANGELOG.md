@@ -2,6 +2,9 @@
 
 ## 2.6.4 - 2026-09-02
 
+- Read the created employee resource id before `License/_issue` and carry it as
+  the seat `subjectId`, preventing DCR activation from producing a licence that
+  cannot be joined back to the employee inventory.
 - Require lockfile-authoritative npm ci, effective internal dependency
   verification with npm ls, and immediate E2E/Playwright termination after
   the first failed project before expanding to sibling browsers or journeys.

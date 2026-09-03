@@ -90,7 +90,14 @@ export async function provisionOrganizationEmployeeWithDeps(
       throw new Error('provisionOrganizationEmployee: employee creation still requires a licence after Order confirmation.');
     }
   }
-  const license = await deps.issueLicense(routeContext, input.invitation);
+  const employeeResourceId = readEmployeeResourceId(employee.poll.body);
+  if (!employeeResourceId) {
+    throw new Error('provisionOrganizationEmployee: GW response did not contain the created employee resource id.');
+  }
+  const license = await deps.issueLicense(routeContext, {
+    ...input.invitation,
+    subjectId: employeeResourceId,
+  });
   assertSuccessfulEmployeeOperation('licence issue', license);
   const activationCode = readEmployeeActivationCode(license.poll.body);
   if (!activationCode) {
@@ -104,6 +111,18 @@ export async function provisionOrganizationEmployeeWithDeps(
     activationCode,
     ...(maxDevices ? { maxDevices } : {}),
   };
+}
+
+/** Reads the technical employee id that must own the subsequently issued seat. */
+export function readEmployeeResourceId(value: unknown): string | undefined {
+  for (const candidate of nestedRecords(value)) {
+    const response = record(candidate.response);
+    const status = parseHttpStatus(response?.status);
+    if (status !== undefined && (status < 200 || status >= 300)) continue;
+    const resourceId = String(record(candidate.resource)?.id || '').trim();
+    if (resourceId) return resourceId;
+  }
+  return undefined;
 }
 
 /** Reads the effective positive installation allowance returned by `License/_issue`. */

@@ -230,6 +230,7 @@ test('staging professional flow keeps one encrypted profile from inventory throu
     email: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.email,
     role: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.role,
     subjectDid: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier,
+    subjectId: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.resourceId,
   });
 
   assert.equal(calls.length, 12);

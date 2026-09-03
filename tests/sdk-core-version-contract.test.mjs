@@ -7,5 +7,5 @@ import test from 'node:test';
 test('pins the shared identity, activation-licence and draft-Consent contracts', () => {
   const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   assert.equal(packageJson.dependencies['gdc-sdk-core-ts'], '2.4.3');
-  assert.equal(packageJson.dependencies['gdc-common-utils-ts'], '2.7.2');
+  assert.equal(packageJson.dependencies['gdc-common-utils-ts'], '2.7.3');
 });

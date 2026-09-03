@@ -104,6 +104,8 @@ export type OrganizationEmployeeLicenseInvitationInput = {
   email: string;
   role: string;
   subjectDid: string;
+  /** Technical employee resource id returned by Employee creation. */
+  subjectId?: string;
   type?: DeviceAppType;
   requestThid?: string;
   pollOptions?: { timeoutMs?: number; intervalMs?: number };
@@ -701,17 +703,20 @@ export async function issueOrganizationEmployeeLicenseWithDeps(
   const email = String(input.email || '').trim().toLowerCase();
   const role = String(input.role || '').trim();
   const subjectDid = String(input.subjectDid || '').trim();
+  const subjectId = String(input.subjectId || '').trim();
   if (!email) throw new Error('issueOrganizationEmployeeLicense: email is required.');
   if (!role) throw new Error('issueOrganizationEmployeeLicense: role is required.');
   if (!subjectDid) throw new Error('issueOrganizationEmployeeLicense: subjectDid is required.');
+  if (!subjectId) throw new Error('issueOrganizationEmployeeLicense: subjectId is required.');
 
   const entry = buildLicenseIssueEntry({
     email,
     role,
     userClass: DeviceUserClasses.Employee,
     type: input.type || DeviceAppTypes.Web,
+    subjectId,
+    subjectDid,
   });
-  (entry.meta as typeof entry.meta & { subjectDid: string }).subjectDid = subjectDid;
 
   return deps.submitAndPoll(
     deps.identityLicenseIssuePath(routeCtx),

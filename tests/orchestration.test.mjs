@@ -9,6 +9,7 @@ import {
   EXAMPLE_EMAIL_RELATED_PERSON,
   EXAMPLE_OTP_CODE,
   EXAMPLE_PROFESSIONAL_IDENTITY,
+  EXAMPLE_LICENSE_SUBJECT_ID_ACTIVE,
   IndividualCredentialTypes,
   ProfessionalCredentialTypes,
   W3cCredentialTypes,
@@ -377,7 +378,12 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   await sdk.submitLegalOrganizationCredentialReissuance({}, { claims: {}, controller: {} });
   await sdk.submitOrganizationDidBinding({}, { organization: { url: 'https://provider.example.org' } });
   await sdk.createOrganizationEmployee({}, {});
-  await sdk.issueOrganizationEmployeeLicense({}, { email: 'doctor@example.org', role: 'ISCO-08|2211', subjectDid: 'did:web:example:doctor' });
+  await sdk.issueOrganizationEmployeeLicense({}, {
+    email: 'doctor@example.org',
+    role: 'ISCO-08|2211',
+    subjectDid: 'did:web:example:doctor',
+    subjectId: EXAMPLE_LICENSE_SUBJECT_ID_ACTIVE,
+  });
   await sdk.revokeEmployeeDevice({}, { licenseId: 'license-1', clientId: 'client-1' });
   await sdk.searchOrganizationEmployees({}, {});
   await sdk.searchLicenses({}, {});

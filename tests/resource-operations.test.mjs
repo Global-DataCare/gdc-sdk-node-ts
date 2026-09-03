@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   EXAMPLE_LICENSE_ACTIVE_RECORD,
+  EXAMPLE_LICENSE_ISSUE_INPUT,
   EXAMPLE_EMPLOYEE_DISABLE_MESSAGE,
   EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_DISABLE_ENTRY,
@@ -598,6 +599,7 @@ test('employee license issue binds one existing employee seat and does not inven
     email: 'Doctor.One@Example.org',
     role: 'ISCO-08|2211',
     subjectDid: 'did:web:provider.example:employee:doctor-one',
+    subjectId: EXAMPLE_LICENSE_ACTIVE_RECORD.subjectId,
   }, {
     identityLicenseIssuePath: () => ORG_EMPLOYEE_LICENSE_ISSUE_PATH,
     identityLicenseIssuePollPath: () => ORG_EMPLOYEE_LICENSE_ISSUE_POLL_PATH,
@@ -613,7 +615,25 @@ test('employee license issue binds one existing employee seat and does not inven
   assert.equal(entry.meta.claims['org.schema.Person.email'], 'doctor.one@example.org');
   assert.equal(entry.meta.claims['org.schema.Person.hasOccupation.identifier.value'], 'ISCO-08|2211');
   assert.equal(entry.meta.subjectDid, 'did:web:provider.example:employee:doctor-one');
+  assert.equal(entry.meta.subjectId, EXAMPLE_LICENSE_ACTIVE_RECORD.subjectId);
   assert.equal(entry.meta.clientInstanceId, undefined);
+});
+
+test('employee license issue fails before transport when the created resource id is absent', async () => {
+  let calls = 0;
+  await assert.rejects(issueOrganizationEmployeeLicenseWithDeps(TEST_ROUTE_CTX, {
+    email: EXAMPLE_LICENSE_ISSUE_INPUT.email,
+    role: EXAMPLE_LICENSE_ISSUE_INPUT.role,
+    subjectDid: EXAMPLE_SUBJECT_DID,
+  }, {
+    identityLicenseIssuePath: () => ORG_EMPLOYEE_LICENSE_ISSUE_PATH,
+    identityLicenseIssuePollPath: () => ORG_EMPLOYEE_LICENSE_ISSUE_POLL_PATH,
+    submitAndPoll: async () => {
+      calls += 1;
+      return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+    },
+  }), /subjectId is required/);
+  assert.equal(calls, 0);
 });
 
 test('employee device revocation targets one client while keeping the seat separate', async () => {
