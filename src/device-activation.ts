@@ -8,6 +8,7 @@ import {
   IdentityDeviceInfoFields,
 } from 'gdc-common-utils-ts/constants/identity-auth';
 import { buildEmployeeDeviceRevocationBody } from 'gdc-common-utils-ts/utils/organization-employee-lifecycle';
+import type { ClinicalCreatorBinding } from 'gdc-common-utils-ts/utils/fhir-ips-creator-identity';
 import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
 import type { RouteContext } from './individual-onboarding.js';
 
@@ -45,6 +46,7 @@ export type ProfileDeviceRegistrationInput = Readonly<{
   deviceName?: string;
   actorDid?: string;
   profileDid?: string;
+  clinicalCreatorBinding?: ClinicalCreatorBinding;
 }>;
 
 /** Advanced typed editor used by SDK runtimes that already own profile keys. */
@@ -57,6 +59,7 @@ export interface ProfileDeviceActivationDraft {
   setDeviceName(value: string): ProfileDeviceActivationDraft;
   setActorDid(value: string): ProfileDeviceActivationDraft;
   setProfileDid(value: string): ProfileDeviceActivationDraft;
+  setClinicalCreatorBinding(value: ClinicalCreatorBinding): ProfileDeviceActivationDraft;
   setTimeoutSeconds(value: number): ProfileDeviceActivationDraft;
   setIntervalSeconds(value: number): ProfileDeviceActivationDraft;
   build(): EmployeeDeviceActivationRequestInput & { deviceRegistration: ProfileDeviceRegistrationInput };
@@ -86,6 +89,7 @@ export function createProfileDeviceActivationRequest(input: Readonly<{
   let deviceName = '';
   let actorDid = '';
   let profileDid = '';
+  let clinicalCreatorBinding: ClinicalCreatorBinding | undefined;
   let timeoutSeconds: number | undefined;
   let intervalSeconds: number | undefined;
 
@@ -98,6 +102,7 @@ export function createProfileDeviceActivationRequest(input: Readonly<{
     setDeviceName(value) { deviceName = normalizedText(value); return draft; },
     setActorDid(value) { actorDid = normalizedText(value); return draft; },
     setProfileDid(value) { profileDid = normalizedText(value); return draft; },
+    setClinicalCreatorBinding(value) { clinicalCreatorBinding = stableClinicalCreatorBinding(value); return draft; },
     setTimeoutSeconds(value) { timeoutSeconds = positiveNumber(value, 'timeout seconds'); return draft; },
     setIntervalSeconds(value) { intervalSeconds = positiveNumber(value, 'interval seconds'); return draft; },
     build() {
@@ -110,6 +115,7 @@ export function createProfileDeviceActivationRequest(input: Readonly<{
         ...(deviceName ? { deviceName } : {}),
         ...(actorDid ? { actorDid } : {}),
         ...(profileDid ? { profileDid } : {}),
+        ...(clinicalCreatorBinding ? { clinicalCreatorBinding } : {}),
       };
       return {
         ...input,
@@ -354,10 +360,23 @@ function resolveDcrPayload(input: EmployeeDeviceActivationRequestInput): Record<
       },
       ...(registration.actorDid ? { [IdentityDcrMetadataFields.ActorDid]: registration.actorDid } : {}),
       ...(registration.profileDid ? { [IdentityDcrMetadataFields.ProfileDid]: registration.profileDid } : {}),
+      ...(registration.clinicalCreatorBinding ? {
+        [IdentityDcrMetadataFields.ClinicalCreatorBinding]: stableClinicalCreatorBinding(registration.clinicalCreatorBinding),
+      } : {}),
     };
   }
   if (input.dcrPayload) return { ...input.dcrPayload };
   throw new Error('Device activation requires a device registration built by createProfileDeviceActivationRequest.');
+}
+
+function stableClinicalCreatorBinding(binding: ClinicalCreatorBinding): ClinicalCreatorBinding {
+  return {
+    kind: binding.kind,
+    actorIdentifier: binding.actorIdentifier,
+    authorIdentifier: binding.authorIdentifier,
+    ownerIdentifier: binding.ownerIdentifier,
+    role: binding.role,
+  };
 }
 
 function responseBody(value: unknown): Record<string, unknown> {

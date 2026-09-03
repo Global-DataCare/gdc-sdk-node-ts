@@ -743,6 +743,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Persist an optional stable clinical-creator binding with each server-owned
+  actor profile: member/Practitioner UUID, distinct role/relationship
+  assignment UUID, owner and governed role.
+- Attach operational actor DID and registered DCR client/key values as
+  replaceable aliases, preserve the stable assignment across PIN operations
+  and OTP wallet rotation, and expose its FHIR IPS/Consent projection without
+  changing direct `profile.actorDid` writes.
+- Carry the stable binding in the protected DCR request so GW CORE can attach
+  the newly registered client and keys to an already imported or authorized
+  assignment; channel enrollment cannot invent the stable identity.
+
 - Add the complete patient-side digital-twin lifecycle for server BFFs:
   canonical secondary-use `permit`/`deny`, active-status read, and
   provider-offboarding `purgeDigitalTwinSubjectLink(...)`. Disable preserves

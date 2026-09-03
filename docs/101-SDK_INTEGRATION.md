@@ -643,6 +643,20 @@ stable multibase URN or a DID/alias owned by the portal. For an editable demo
 copy of an imported IPS, `cloneImportedClinicalDocumentForDemo(...)` sets
 `Composition.author` to that same session `actorDid`.
 
+When the actor profile is created, the BFF may also supply a server-authorized
+`clinicalCreatorBinding`: the imported or generated member/Practitioner UUID,
+the UUID of the exact role/relationship assignment, its owner and governed
+role. The profile manager keeps verified contact, operational DID and DCR/key
+aliases attached to that binding as devices change.
+Enrollment carries only the stable fields through DCR. GW must already know
+the exact binding from an employee/member import or authorized onboarding;
+DCR may link its client and keys but cannot invent or change UUIDs or role.
+
+For FHIR IPS export call `exportServerProfileClinicalCreatorIps(profile)`.
+This projects the stable RelatedPerson or PractitionerRole/Practitioner author
+and the matching Consent actor. It does not change `updateClinicalSummary(...)`
+or expose phone, email, DCR client ids or signing keys in the IPS.
+
 ### Related person
 
 Browser authoring plus backend execution:

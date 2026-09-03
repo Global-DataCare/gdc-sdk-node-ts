@@ -22,6 +22,9 @@ import {
   type PollOptions,
   type SubmitAndPollResult,
   type WalletExecutionContext,
+  resolveClinicalCreatorIpsExport,
+  type ClinicalCreatorBinding,
+  type ClinicalCreatorIpsExport,
 } from 'gdc-sdk-core-ts';
 import { NodeManagedWallet } from './node-managed-wallet.js';
 import { NodeHttpClient } from './node-runtime-client.js';
@@ -64,6 +67,8 @@ export type ServerProfileRecord = Readonly<{
   clientId: string;
   /** Stable non-secret id of the browser/app installation registered by DCR. */
   clientInstanceId?: string;
+  /** Stable FHIR creator/permission identity; channel and device values are aliases only. */
+  clinicalCreatorBinding?: ClinicalCreatorBinding;
   deviceDid: string;
   publicJwks: Record<string, unknown>[];
   /** Public recipient key for local confidential storage; not a DCR communication key. */
@@ -163,6 +168,12 @@ export type ServerProfileEnrollmentInput = Readonly<{
    * derives the identity from the wallet key it creates for this profile.
    */
   clientInstanceId?: string;
+  /**
+   * Server-authorized stable creator identity imported from FHIR or generated
+   * locally. Enrollment adds the operational actor DID and registered DCR
+   * client/key aliases; it never derives UUIDs from those aliases.
+   */
+  clinicalCreatorBinding?: ClinicalCreatorBinding;
   /**
    * Signed actor/controller VP protected for later SMART operations. Required
    * for organization/professional/member actors. Individual-controller
@@ -391,7 +402,7 @@ export class ServerProfileSessionManager {
     });
     const redirectUris = input.redirectUris || input.dcrRedirectUris || [];
     const clientName = String(input.clientName || input.dcrClientName || '').trim();
-    const activationRequest = createProfileDeviceActivationRequest({
+    const activationDraft = createProfileDeviceActivationRequest({
       activationCode: input.activationCode,
       idToken,
       ...input.routeContext,
@@ -402,8 +413,11 @@ export class ServerProfileSessionManager {
       .setRedirectUris(redirectUris)
       .setPublicJwks(publicKeys.filter((entry) => entry.purpose !== 'document-at-rest').map((entry) => entry.publicJwk))
       .setActorDid(input.actorDid)
-      .setProfileDid(input.profileDid)
-      .build();
+      .setProfileDid(input.profileDid);
+    if (input.clinicalCreatorBinding) {
+      activationDraft.setClinicalCreatorBinding(input.clinicalCreatorBinding);
+    }
+    const activationRequest = activationDraft.build();
     const activation = await client.activateProfileDeviceWithActivationRequest(activationRequest);
     const dcrBody = terminalBody(activation.dcr.poll.body);
     const clientId = findText(dcrBody, ['client_id', 'clientId']);
@@ -418,6 +432,16 @@ export class ServerProfileSessionManager {
         ...input.professionalProof,
       })
       : undefined);
+    const clinicalCreatorBinding = input.clinicalCreatorBinding
+      ? bindClinicalCreatorChannels(input.clinicalCreatorBinding, {
+          actorDid: input.actorDid,
+          clientId,
+          clientInstanceId,
+          keyIds: publicKeys
+            .map((entry) => String(entry.publicJwk?.kid || entry.kid || '').trim())
+            .filter(Boolean),
+        })
+      : undefined;
     const record: ServerProfileRecord = {
       profileId: input.profileId,
       walletKeyDerivationId,
@@ -431,6 +455,7 @@ export class ServerProfileSessionManager {
       allowedSubjectDids: unique(input.allowedSubjectDids),
       clientId,
       clientInstanceId,
+      ...(clinicalCreatorBinding ? { clinicalCreatorBinding } : {}),
       deviceDid,
       publicJwks: publicKeys.filter((entry) => entry.purpose !== 'document-at-rest').map((entry) => entry.publicJwk as Record<string, unknown>),
       storagePublicJwk: storagePublicJwk as Record<string, unknown>,
@@ -491,6 +516,14 @@ export class ServerProfileSessionManager {
         role: replacement.employeeRole,
         sameAs: replacement.employeeActorIdentifier,
       },
+      ...(previous.clinicalCreatorBinding ? {
+        clinicalCreatorBinding: {
+          ...previous.clinicalCreatorBinding,
+          actorDids: [previous.actorDid],
+          dcrClientIds: [],
+          keyIds: [],
+        },
+      } : {}),
     });
     await this.options.store.deleteSessionsForProfile(profile.profileId);
     return profile;
@@ -1217,6 +1250,45 @@ function requireBase64UrlSeed32(seed: string): void {
   }
 }
 
+/**
+ * Exports the stable FHIR IPS creator attached to a server profile. Direct
+ * writes continue to use `profile.actorDid`; this function is export-only.
+ */
+export function exportServerProfileClinicalCreatorIps(
+  profile: ServerProfileRecord,
+): ClinicalCreatorIpsExport {
+  if (!profile.clinicalCreatorBinding) {
+    throw new Error('Server profile has no clinical creator binding.');
+  }
+  return resolveClinicalCreatorIpsExport({
+    bindings: [profile.clinicalCreatorBinding],
+    evidence: { actorDid: profile.actorDid },
+  });
+}
+
+function bindClinicalCreatorChannels(
+  binding: ClinicalCreatorBinding,
+  channel: Readonly<{
+    actorDid: string;
+    clientId: string;
+    clientInstanceId: string;
+    keyIds: readonly string[];
+  }>,
+): ClinicalCreatorBinding {
+  const stored: ClinicalCreatorBinding = {
+    ...binding,
+    actorDids: unique([...(binding.actorDids || []), channel.actorDid]),
+    dcrClientIds: unique([
+      ...(binding.dcrClientIds || []),
+      channel.clientId,
+      channel.clientInstanceId,
+    ]),
+    keyIds: unique([...(binding.keyIds || []), ...channel.keyIds]),
+  };
+  resolveClinicalCreatorIpsExport({ bindings: [stored], evidence: { actorDid: channel.actorDid } });
+  return stored;
+}
+
 function requireEnrollment(input: ServerProfileEnrollmentInput): void {
   for (const [name, value] of Object.entries({
     ownerId: input.ownerId,
@@ -1234,6 +1306,10 @@ function requireEnrollment(input: ServerProfileEnrollmentInput): void {
   }
   if (input.professionalProof && !String(input.professionalProof.role || '').trim()) {
     throw new Error('Profile enrollment professionalProof requires role.');
+  }
+  if (input.professionalProof && input.clinicalCreatorBinding
+    && String(input.professionalProof.role).trim() !== String(input.clinicalCreatorBinding.role).trim()) {
+    throw new Error('Clinical creator binding role must equal professionalProof.role.');
   }
   if (!input.allowedSubjectDids.length) throw new Error('Profile enrollment requires an allowed subject.');
 }
