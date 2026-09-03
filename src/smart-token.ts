@@ -299,16 +299,17 @@ function resolveTokenExchangeResult(
   tokenCacheKey: string,
   setTokenCache: (tokenCacheKey: string, token: CachedTokenWrite) => void,
 ): SmartTokenExchangeResult {
-  const pollBody = (exchange.poll.body as Record<string, unknown>) ?? {};
+  const pollResult = exchange.poll;
+  const pollPayload = (pollResult.body as Record<string, unknown>) ?? {};
   // Encrypted DIDComm returns the token in the authenticated message body;
   // plain compatibility transports may still expose the token at the root.
-  const exchangeBody = (pollBody.body as Record<string, unknown> | undefined) || pollBody;
+  const exchangeBody = (pollPayload.body as Record<string, unknown> | undefined) || pollPayload;
   const accessToken = String(exchangeBody.access_token || '').trim();
-  if (exchange.poll.status >= 400 || !accessToken) {
+  if (pollResult.status >= 400 || !accessToken) {
     return {
       status: 'failed',
-      statusCode: exchange.poll.status,
-      response: exchange.poll.body,
+      statusCode: pollResult.status,
+      response: exchangeBody,
     };
   }
 
@@ -328,8 +329,8 @@ function resolveTokenExchangeResult(
     accessToken,
     tokenType,
     scopes: resolvedScopes,
-    statusCode: exchange.poll.status,
-    response: exchange.poll.body,
+    statusCode: pollResult.status,
+    response: exchangeBody,
   };
 }
 

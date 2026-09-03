@@ -8,6 +8,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   EXAMPLE_GATEWAY_PUBLIC_ORIGIN,
+  EXAMPLE_BREAK_GLASS_INCIDENT_ID,
+  EXAMPLE_BREAK_GLASS_ISSUED_AT,
+  EXAMPLE_BREAK_GLASS_NOTIFICATION_ID,
   EXAMPLE_OPENID_SMART_TOKEN_INPUT,
   EXAMPLE_SMART_PRESENTATION_SUBMISSION,
   EXAMPLE_SMART_TOKEN_RESPONSE,
@@ -80,7 +83,13 @@ test('requestSmartTokenWithDeps uses openid-smart flow when requested', async ()
 
 test('requestSmartTokenWithDeps reads the SMART token from the canonical DIDComm response body', async () => {
   const exchange = cloneExample(EXAMPLE_SMART_TOKEN_RESPONSE);
-  exchange.poll.body = { body: exchange.poll.body };
+  const exchangeBody = {
+    ...exchange.poll.body,
+    emergency_consent_id: EXAMPLE_BREAK_GLASS_INCIDENT_ID,
+    emergency_consent_expires_at: EXAMPLE_BREAK_GLASS_ISSUED_AT,
+    break_glass_authorization_id: EXAMPLE_BREAK_GLASS_NOTIFICATION_ID,
+  };
+  exchange.poll.body = { body: exchangeBody };
   const result = await requestSmartTokenWithDeps({
     input: cloneExample(EXAMPLE_OPENID_SMART_TOKEN_INPUT),
     routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
@@ -95,6 +104,7 @@ test('requestSmartTokenWithDeps reads the SMART token from the canonical DIDComm
 
   assert.equal(result.status, 'fetched');
   assert.equal(result.accessToken, 'smart-token-openid-001');
+  assert.deepEqual(result.response, exchangeBody);
 });
 
 test('requestSmartTokenWithDeps keeps requester id_token separate and omits vp_token for an individual provider flow', async () => {
