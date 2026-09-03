@@ -11,6 +11,10 @@ import { OrganizationEmployeeSdk } from './orchestration/organization-employee-s
 import { ProfessionalSdk } from './orchestration/professional-sdk.js';
 import { DigitalTwinSdk } from './orchestration/digital-twin-sdk.js';
 import type { RuntimeClient } from './orchestration/client-port.js';
+import {
+  cloneImportedClinicalDocumentForDemo as cloneImportedClinicalDocumentForDemoWithActor,
+  type DemoClinicalDocumentResourceIdContext,
+} from 'gdc-sdk-core-ts';
 
 export type NodeCapability = Capability;
 
@@ -28,6 +32,10 @@ export type NodeActorSessionContext = {
  * converged across runtimes.
  */
 export type ActorSessionContext = NodeActorSessionContext;
+
+export type DemoClinicalDocumentCloneOptions = Readonly<{
+  createResourceId?: (context: DemoClinicalDocumentResourceIdContext) => string;
+}>;
 
 /**
  * Preferred neutral actor session abstraction for runtime packages.
@@ -107,6 +115,22 @@ export class ActorSession {
     return new DigitalTwinSdk(this.requireClient(), this.actorDid);
   }
 
+  /** Creates an editable demo copy owned by this session's authenticated actor DID. */
+  public cloneImportedClinicalDocumentForDemo(
+    bundle: Record<string, unknown>,
+    options: DemoClinicalDocumentCloneOptions = {},
+  ): Record<string, any> {
+    const actorDid = String(this.actorDid || '').trim();
+    if (!actorDid) {
+      throw new Error('ActorSession requires actorDid to clone an imported clinical document.');
+    }
+    return cloneImportedClinicalDocumentForDemoWithActor({
+      bundle,
+      authenticatedActorDid: actorDid,
+      ...options,
+    });
+  }
+
   private requireClient(): RuntimeClient {
     if (!this.client) {
       throw new Error('ActorSession requires a runtime client to materialize actor facades.');
@@ -139,4 +163,10 @@ export class NodeActorSession {
   public asIndividualMember(): IndividualMemberSdk { return this.inner.asIndividualMember(); }
   public asProfessional(): ProfessionalSdk { return this.inner.asProfessional(); }
   public asDigitalTwin(): DigitalTwinSdk { return this.inner.asDigitalTwin(); }
+  public cloneImportedClinicalDocumentForDemo(
+    bundle: Record<string, unknown>,
+    options: DemoClinicalDocumentCloneOptions = {},
+  ): Record<string, any> {
+    return this.inner.cloneImportedClinicalDocumentForDemo(bundle, options);
+  }
 }

@@ -1739,6 +1739,34 @@ displayed aggregate:
 Those are distinct searches. There is no generic reconciliation endpoint.
 The normalized result replaces only its corresponding local working copy.
 
+For a demonstration that must edit an imported IPS, keep the source document
+immutable and create a separate local copy before calling
+`updateClinicalSummary(...)`:
+
+```ts
+const editableDemoDocument = individualControllerSession
+  .cloneImportedClinicalDocumentForDemo(importedIps);
+
+await individualControllerSession.asIndividualController().updateClinicalSummary(tenantContext, {
+  subject: subjectDid,
+  sender: individualControllerSession.actorDid,
+  recipient: organizationDid,
+  bundle: editableDemoDocument,
+  clinicalFormat: 'r4',
+});
+```
+
+The session helper assigns new FHIR logical ids, rewrites internal references
+and sets the cloned `Composition.author` to the profile's authenticated
+operational `actorDid`; the portal cannot supply a replacement author. With a
+direct `updateClinicalSummary(...)` call, pass that same `actorDid` as
+`sender`, because the transport renderer projects it to DIDComm `from`/`iss`.
+It deliberately rejects a stable contact URN or a role-license URN:
+those values are aliases/assets, not the role-bearing actor DID. Source
+business identifiers remain available for provenance, while later updates or
+typed `.delete()` entries address only the cloned resource ids. This helper is
+explicitly for demo preparation and is never applied during a normal import.
+
 This is the converged runtime path for:
 
 - auditable `Communication`

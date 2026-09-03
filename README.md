@@ -698,6 +698,8 @@ modules below.
 - communication/document builders
 - draft/outbox helpers
 - document facade helpers
+- `cloneImportedClinicalDocumentForDemo(...)` for an explicit editable demo
+  copy owned by an authenticated profile `actorDid`
 - vital-sign helpers
 
 ### Node runtime client

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.5 - 2026-09-02
+
+- Re-export `cloneImportedClinicalDocumentForDemo(...)` from SDK Core so demo
+  BFFs can create a separately identified, locally authored and editable copy
+  without rewriting the imported source document in place.
+
 ## 2.6.4 - 2026-09-02
 
 - Read the created employee resource id before `License/_issue` and carry it as
