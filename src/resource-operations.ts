@@ -1239,11 +1239,11 @@ export async function transitionIndividualMemberLicenseWithDeps(
             ...(input.ownerOrganizationId ? { ownerOrganizationId: input.ownerOrganizationId } : {}),
             ...(input.subjectId ? { subjectId: input.subjectId } : {}),
             ...(input.verifiedActorIdentifier ? { verifiedActorIdentifier: input.verifiedActorIdentifier } : {}),
-            claims: {
+          },
+          resource: { meta: { claims: {
               '@context': 'org.schema',
               'org.schema.IndividualProduct.serialNumber': input.activationCode,
-            },
-          },
+            } } },
           request: { method: 'POST' },
         }],
       },
@@ -1392,7 +1392,6 @@ export async function disableIndividualMemberWithDeps(
       type: 'batch',
       entry: [{
         request: { method: GwCoreLifecycleRequestMethod.Post },
-        meta: { claims },
         resource: {
           ...resource,
           ...(input.resourceId ? { id: input.resourceId } : {}),
@@ -1442,7 +1441,6 @@ export async function purgeIndividualMemberWithDeps(
       entry: [{
         type: input.dataType || GwCoreLifecycleRequestType.IndividualMemberPurge,
         request: { method: GwCoreLifecycleRequestMethod.Post },
-        meta: { claims },
         resource: {
           ...resource,
           ...(input.resourceId ? { id: input.resourceId } : {}),
@@ -1613,7 +1611,6 @@ export async function requestProfessionalAccessWithDeps(
       type: 'batch',
       data: [{
         type: 'CommMsgExtended',
-        meta: { claims: communicationClaims },
         resource: communicationResource,
       }],
     },
@@ -1829,7 +1826,6 @@ export function buildBlockchainArtifactBundleFromSearchResponse(
 
     return {
       type: 'DocumentReference',
-      meta: { claims: artifact.documentReference.meta?.claims || {} },
       resource: artifact.documentReference,
       request: {
         method: 'POST' as const,
@@ -1916,7 +1912,6 @@ export async function registerBlockchainArtifactAndUpdateIndexWithDeps(
       type: 'batch',
       data: [{
         type: 'DocumentReference',
-        meta: { claims: artifact.documentReference.meta?.claims || {} },
         resource: artifact.documentReference,
         request: {
           method: 'POST',
@@ -2032,7 +2027,6 @@ export async function grantProfessionalAccessWithDeps(
     body: {
       data: [{
         type: input.dataType || 'Consent-grant-request-v1.0',
-        meta: { claims: built.consentClaims },
         resource: { resourceType: 'Consent', meta: { claims: built.consentClaims } },
       }],
     },
@@ -2260,7 +2254,6 @@ export async function revokeProfessionalAccessWithDeps(
     body: {
       data: [{
         type: input.dataType || 'Consent-grant-request-v1.0',
-        meta: { claims: revokedClaims },
         resource: { resourceType: 'Consent', meta: { claims: revokedClaims } },
       }],
     },
@@ -2415,7 +2408,6 @@ function buildIndividualOrganizationLifecyclePayload(input: {
     data: Array<{
       type: string;
       request: { method: string };
-      meta: { claims: Record<string, unknown> };
       resource: { id?: string; meta: { claims: Record<string, unknown> } };
     }>;
   };

@@ -144,8 +144,10 @@ export function readEmployeeLicenseMaxDevices(value: unknown): number | undefine
 export function readEmployeeLicenseOfferId(value: unknown): string | undefined {
   for (const candidate of nestedRecords(value)) {
     if (candidate.type !== 'Employee-license-offer-v1.0') continue;
-    const meta = record(candidate.meta);
-    const claims = record(meta?.claims);
+    const resource = record(candidate.resource);
+    const resourceMeta = record(resource?.meta);
+    const legacyMeta = record(candidate.meta);
+    const claims = record(resourceMeta?.claims) || record(legacyMeta?.claims);
     const offerId = String(claims?.[ClaimsOfferSchemaorg.identifier] || '').trim();
     if (offerId) return offerId;
   }

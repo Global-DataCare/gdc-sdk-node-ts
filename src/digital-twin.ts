@@ -372,12 +372,13 @@ export async function searchDigitalTwinsWithDeps(
     ? {
         data: [{
           type: `${resourceType}-search-request-v1.0`,
-          resource: { resourceType: 'Parameters', parameter: parameters },
-          meta: {
-            claims: Object.fromEntries([
+          resource: {
+            resourceType: 'Parameters',
+            parameter: parameters,
+            meta: { claims: Object.fromEntries([
               ['@context', format],
               ...parameters.map((parameter) => [parameter.name, parameter.valueString || parameter.valueDate || '']),
-            ]),
+            ]) },
           },
         }],
       }

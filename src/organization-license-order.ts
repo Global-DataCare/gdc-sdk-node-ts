@@ -82,7 +82,6 @@ export async function confirmOrganizationLicenseOrderWithDeps(
     body: {
       data: [{
         type: deps.input.dataType || 'Organization-order-request-v1.0',
-        meta: { claims },
         resource: { meta: { claims } },
       }],
     },

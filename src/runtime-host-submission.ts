@@ -159,13 +159,6 @@ export async function activateOrganizationInGatewayFromIcaProofWithDeps(input: {
       ...(input.activationInput.controller ? { controller: input.activationInput.controller } : {}),
       data: [{
         type: 'Organization-activation-request-v1.0',
-        meta: {
-          claims: {
-            '@context': 'org.schema',
-            ...serviceClaims,
-            ...(input.activationInput.additionalClaims || {}),
-          },
-        },
         resource: {
           meta: {
             claims: {

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 2.6.7 - 2026-09-02
+
+- Emit licence search, purchase and issue, Order, onboarding, digital-twin,
+  authorization-directory and internal runtime claims only at
+  `entry.resource.meta.claims`.
+- Keep SDK readers temporarily compatible with legacy entry-level claims,
+  prefer the canonical resource placement when both exist, and add a
+  source-level regression gate for all governed writers.
+- Consume `gdc-common-utils-ts@2.7.5` and `gdc-sdk-core-ts@2.4.7`.
+
 ## 2.6.6 - 2026-09-02
 
 - Clarify the direct clinical-summary identity contract across JSDoc, tests,

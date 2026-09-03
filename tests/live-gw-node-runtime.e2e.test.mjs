@@ -925,7 +925,6 @@ function buildConsentLifecyclePayload({ consentClaims }) {
     body: {
       data: [{
         type: 'Consent-grant-request-v1.0',
-        meta: { claims: consentClaims },
         resource: { resourceType: 'Consent', meta: { claims: consentClaims } },
       }],
     },

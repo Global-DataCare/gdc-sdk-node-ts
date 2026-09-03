@@ -1,3 +1,4 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 /**
  * 101 note:
  * - `gdc-common-utils-ts` owns the canonical step-by-step editors/readers and payload examples.
@@ -231,7 +232,7 @@ test('101: backend profile runtime tells the complete high-level story for app, 
         assert.equal(ctx.tenantId, EXAMPLE_TENANT_ROUTE_CONTEXT.tenantId);
         return {
           submit: { status: 202, body: { accepted: true, claims: input.employeeClaims } },
-          poll: { status: 200, body: { data: [{ meta: { claims: input.employeeClaims } }] }, attempts: 1 },
+          poll: { status: 200, body: { data: [{ resource: { meta: { claims: input.employeeClaims } } }] }, attempts: 1 },
         };
       },
       async searchOrganizationEmployees(ctx) {
@@ -588,14 +589,14 @@ test('101: backend profile runtime tells the complete high-level story for app, 
   assert.equal(licenseSummary.contracted, 2);
   assert.equal(licenseSummary.free, 1);
   assert.equal(licenseSummary.used, 1);
-  assert.equal(licenseOffers.poll.body.data[0].resource.total, 1);
-  assert.equal(licenseOrders.poll.body.data[0].resource.total, 1);
+  assert.equal(licenseOffers.poll.body.data.length, 1);
+  assert.equal(licenseOrders.poll.body.data.length, 1);
   assert.equal(confirmedLicenseOrder.poll.body.status, 'activated');
   assert.deepEqual(
-    controllerEmployeeCreation.poll.body.data[0].meta.claims,
+    controllerEmployeeCreation.poll.body.data[0].resource.meta.claims,
     EXAMPLE_ORGANIZATION_EMPLOYEE_INPUT.employeeClaims,
   );
-  assert.equal(doctorEmployeeCreation.poll.body.data[0].meta.claims['org.schema.Person.identifier'], EXAMPLE_EMPLOYEE_DOCTOR_ACTIVE.identifier);
+  assert.equal(doctorEmployeeCreation.poll.body.data[0].resource.meta.claims['org.schema.Person.identifier'], EXAMPLE_EMPLOYEE_DOCTOR_ACTIVE.identifier);
   assert.equal(employeeRows.length, 2);
   assert.equal(employeeRows[0].identifier, EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.identifier);
   assert.equal(employeeRows[1].identifier, EXAMPLE_EMPLOYEE_DOCTOR_ACTIVE.identifier);
