@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Encrypt profile SMART token requests and polls with the already registered
+  wallet during unlock, refresh and professional facade use, so strict GW
+  never receives a post-DCR plaintext transport.
+
 ## 2.6.6 - 2026-09-02
 
 - Clarify the direct clinical-summary identity contract across JSDoc, tests,

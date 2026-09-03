@@ -700,12 +700,13 @@ export class ServerProfileSessionManager {
     profile = await this.ensureRequiredStorageProfile(profile, seed);
     const walletKeyDerivationId = profile.walletKeyDerivationId || profile.profileId;
     const wallet = await this.createWallet(walletKeyDerivationId, seed);
+    const context = walletContext(walletKeyDerivationId);
     const smartTokenEndpoint = [
       this.options.gatewayBaseUrl.replace(/\/+$/, ''),
       buildIdentityOpenIdSmartTokenPath(profile.routeContext),
     ].join('');
     const assertion = await buildWalletClientAssertion(wallet, profile, smartTokenEndpoint, now);
-    const token = await this.createClient(profile.routeContext, input.idToken).requestSmartToken({
+    const token = await this.createRegisteredProfileClient(profile, wallet, context, input.idToken).requestSmartToken({
       ...profile.routeContext,
       actorDid: profile.actorDid,
       subjectDid: input.subjectDid,
@@ -767,13 +768,14 @@ export class ServerProfileSessionManager {
       : undefined;
     const walletKeyDerivationId = profile.walletKeyDerivationId || profile.profileId;
     const wallet = await this.createWallet(walletKeyDerivationId, seed);
+    const context = walletContext(walletKeyDerivationId);
     const now = this.now();
     const smartTokenEndpoint = [
       this.options.gatewayBaseUrl.replace(/\/+$/, ''),
       buildIdentityOpenIdSmartTokenPath(profile.routeContext),
     ].join('');
     const assertion = await buildWalletClientAssertion(wallet, profile, smartTokenEndpoint, now);
-    const token = await this.createClient(profile.routeContext, normalizedIdToken).requestSmartToken({
+    const token = await this.createRegisteredProfileClient(profile, wallet, context, normalizedIdToken).requestSmartToken({
       ...profile.routeContext,
       actorDid: profile.actorDid,
       subjectDid: session.subjectDid,
@@ -947,13 +949,11 @@ export class ServerProfileSessionManager {
       transportProfile: TransportProfiles.DidcommEncryptedForm,
       secureTransportAdapter,
     });
-    // SMART/OpenID uses its own JSON/form protocol and must not be wrapped in
-    // the encrypted resource transport selected for later business actions.
-    // Professional business operations are authored by the registered employee
-    // wallet and therefore use the encrypted DIDComm client. SMART/OpenID below
-    // remains an independent JSON/form exchange through its dedicated method.
+    // Both SMART and later business operations are post-DCR profile actions.
+    // Strict GW therefore resolves the same registered employee wallet for the
+    // encrypted request and poll transport used by both facades.
     const sdk = new ProfessionalSdk(operationalClient);
-    const smartSdk = new ProfessionalSdk(this.createClient(profile.routeContext, idToken));
+    const smartSdk = sdk;
     const digitalTwin = new DigitalTwinSdk(operationalClient, profile.actorDid);
     let digitalTwinAccessToken: string | undefined;
     const request = async (smart: ServerProfessionalSmartTokenInput): Promise<SmartTokenExchangeResult> => {
@@ -1022,6 +1022,30 @@ export class ServerProfileSessionManager {
       bearerToken,
       fetchImpl: this.options.fetchImpl,
       appInfo: this.options.appInfo,
+    });
+  }
+
+  private createRegisteredProfileClient(
+    profile: ServerProfileRecord,
+    wallet: NodeManagedWallet,
+    context: WalletExecutionContext,
+    bearerToken: string,
+  ): NodeHttpClient {
+    return new NodeHttpClient({
+      baseUrl: this.options.gatewayBaseUrl,
+      ctx: profile.routeContext,
+      bearerToken,
+      fetchImpl: this.options.fetchImpl,
+      appInfo: this.options.appInfo,
+      transportProfile: TransportProfiles.DidcommEncryptedForm,
+      secureTransportAdapter: {
+        pack: (message) => wallet.packForRecipientWithContext!(
+          bindOrganizationControllerTransport(message, profile),
+          profile.providerDid,
+          { context },
+        ),
+        unpack: async (jwe) => (await wallet.unpackWithContext!(jwe, { context })).content,
+      },
     });
   }
 
