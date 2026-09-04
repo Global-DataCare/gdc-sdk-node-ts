@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.7.3 - 2026-09-04
+
+- Consume `gdc-common-utils-ts@2.8.2` and `gdc-sdk-core-ts@2.5.3` from their
+  verified registry releases.
+- Define the three-attempt npm authorization window and immutable local-tarball
+  fallback without weakening publication, merge or deployment gates.
+
 ## 2.7.2 - 2026-09-04
 
 - Add `ServerProfileSessionManager.openIndividualController(...)` so BFFs can

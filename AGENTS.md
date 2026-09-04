@@ -24,3 +24,14 @@ may advance only after `npm view`, integrity and clean-install verification of
 the exact dependency version. Then run `test -> local-network -> test-network
 -> network`; no later stage substitutes for an earlier one. Never defer a
 version, publication or consumer pin while starting the next branch.
+
+For interactive npm authorization, keep three attempts open for up to five
+minutes each and never end the turn while a window is pending. After all three
+fail, an immutable `npm pack` tarball may be used only to prepare a downstream
+consumer and continue local tests. Do not commit a `file:` dependency. The
+registry dependency must still publish and be installed and reverified before
+the consumer may publish, merge to `main`, build an image, or deploy.
+
+The final order is mandatory: push the branch, run `npm publish` from the
+branch, verify the registry artifact and clean installation, merge to `main`,
+push `main`, and delete the branch.
