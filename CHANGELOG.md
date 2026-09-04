@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 2.7.2 - 2026-09-04
+
+- Add `ServerProfileSessionManager.openIndividualController(...)` so BFFs can
+  reopen an enrolled individual controller from its opaque SMART session
+  without reconstructing HTTP or encrypted-transport plumbing.
+- Expose IPS import, Communication ingestion, clinical-section update and
+  Composition-first summary update through
+  `IndividualControllerBackendRuntime`.
+- Make patch publication, exact downstream pinning and ordered environment
+  promotion indivisible branch-closure gates in repository instructions.
+
 ## 2.7.1 - 2026-09-03
 
 - Consume `gdc-sdk-core-ts@2.5.2` so server-side portal and telephone BFFs can

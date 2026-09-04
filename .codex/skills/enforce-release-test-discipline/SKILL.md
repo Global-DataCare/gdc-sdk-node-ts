@@ -13,6 +13,10 @@ description: Enforce branch, TDD, fixture, test-layer, product-neutrality, chang
    and create a named branch before editing.
 4. Never implement or commit directly on `main`. If that already happened,
    disclose it; do not rewrite published history to manufacture a merge.
+5. Treat the branch as one indivisible patch release. Do not open the next fix
+   or feature branch until this branch has changelog, package and lockfile patch,
+   green no-skip gates, commit/push, verified npm publication, exact downstream
+   pins, explicit merge commit, pushed `main`, matching refs and a clean tree.
 
 ## Write the contract test first
 
@@ -62,6 +66,11 @@ description: Enforce branch, TDD, fixture, test-layer, product-neutrality, chang
   and real-local-GW SDK E2E before building an image or exercising a staging
   portal. Final release evidence must contain zero skipped live E2E cases;
   selectors register only the journeys actually selected.
+- Publish shared changes from the lowest dependency upward. Verify each exact
+  npm version and integrity from a clean install before pinning it in the next
+  package or deployable consumer. Never substitute local/workspace/Git source
+  for an unpublished registry release and never start another branch while
+  publication or a required consumer pin remains pending.
 - Apply the terminal-Bundle rule identically in GWs, portal BFFs, Node
   telephone services, SDKs and utils. Product skills may add resource/capability
   boundaries but must never weaken this common template invariant.

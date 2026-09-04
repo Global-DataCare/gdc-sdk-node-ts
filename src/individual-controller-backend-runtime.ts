@@ -9,8 +9,12 @@ import type { FamilyOrganizationSearchInput } from './family-organization-search
 import type {
   BlockchainArtifactRegistrationInput,
   ClinicalBundleSearchInput,
+  ClinicalSectionUpdateInput,
   ClinicalSummaryReadResult,
   ClinicalSummaryRequestInput,
+  ClinicalSummaryUpdateInput,
+  CommunicationIngestionInput,
+  IpsOrFhirImportInput,
 } from './resource-operations.js';
 import {
   loadBackendIndividualControllerProfile,
@@ -125,6 +129,42 @@ export class IndividualControllerBackendRuntime {
     input: Omit<ClinicalBundleSearchInput, 'includedTypes'>,
   ): Promise<SubmitAndPollResult> {
     return profile.sdk.getLatestIps(ctx, input);
+  }
+
+  /** Imports one IPS/FHIR payload and waits for its derived index update. */
+  public importIpsOrFhirAndUpdateIndex(
+    profile: BackendIndividualControllerProfile,
+    ctx: RouteContext,
+    input: IpsOrFhirImportInput,
+  ): Promise<SubmitAndPollResult> {
+    return profile.sdk.importIpsOrFhirAndUpdateIndex(ctx, input);
+  }
+
+  /** Ingests one controller-authored Communication and waits for indexing. */
+  public ingestCommunicationAndUpdateIndex(
+    profile: BackendIndividualControllerProfile,
+    ctx: RouteContext,
+    input: CommunicationIngestionInput,
+  ): Promise<SubmitAndPollResult> {
+    return profile.sdk.ingestCommunicationAndUpdateIndex(ctx, input);
+  }
+
+  /** Applies one explicit clinical-section batch. */
+  public updateClinicalSection(
+    profile: BackendIndividualControllerProfile,
+    ctx: RouteContext,
+    input: ClinicalSectionUpdateInput,
+  ): Promise<SubmitAndPollResult> {
+    return profile.sdk.updateClinicalSection(ctx, input);
+  }
+
+  /** Applies one Composition-first multi-section clinical update. */
+  public updateClinicalSummary(
+    profile: BackendIndividualControllerProfile,
+    ctx: RouteContext,
+    input: ClinicalSummaryUpdateInput,
+  ): Promise<SubmitAndPollResult> {
+    return profile.sdk.updateClinicalSummary(ctx, input);
   }
 
   /**

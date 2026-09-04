@@ -8,6 +8,7 @@ import {
   ActorKinds,
   DigitalTwinSdk,
   FhirIpsCreatorKinds,
+  IndividualControllerSdk,
   NodeManagedWallet,
   ProfessionalSdk,
   ServerProfileSessionManager,
@@ -262,6 +263,13 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   });
   assert.equal(unlocked.accessToken, 'smart-access-token');
   assert.equal(unlocked.profile.actorMode, 'self');
+  const openedIndividual = await manager.openIndividualController({
+    ownerId: base.ownerId,
+    sessionId: unlocked.sessionId,
+  });
+  assert.equal(openedIndividual.session.sessionId, unlocked.sessionId);
+  assert.equal(openedIndividual.profile, unlocked.profile);
+  assert.ok(openedIndividual.sdk instanceof IndividualControllerSdk);
   assert.equal(
     new Headers(calls[4].init.headers).get('content-type'),
     TransportProfiles.DidcommEncryptedForm,
