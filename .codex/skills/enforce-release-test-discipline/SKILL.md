@@ -68,9 +68,8 @@ description: Enforce branch, TDD, fixture, test-layer, product-neutrality, chang
   selectors register only the journeys actually selected.
 - Publish shared changes from the lowest dependency upward. Verify each exact
   npm version and integrity from a clean install before pinning it in the next
-  package or deployable consumer. Never substitute local/workspace/Git source
-  for an unpublished registry release and never start another branch while
-  publication or a required consumer pin remains pending.
+  package or deployable consumer. A local tarball may support only the bounded
+  provisional workflow below; it never satisfies a registry release gate.
 - Apply the terminal-Bundle rule identically in GWs, portal BFFs, Node
   telephone services, SDKs and utils. Product skills may add resource/capability
   boundaries but must never weaken this common template invariant.
@@ -91,17 +90,21 @@ description: Enforce branch, TDD, fixture, test-layer, product-neutrality, chang
 
 ## Release the complete change
 
+Mandatory final order: push the branch, run `npm publish` from that branch,
+verify the registry artifact and clean installation, merge to `main`, push
+`main`, and delete the branch.
+
 1. Update the owning changelog with tested behavior. Shared changelogs remain
    product-neutral.
 2. Run focused tests, affected integration/E2E tests, full tests, typecheck,
    build and neutrality/skill checks required by the repository.
 3. Commit on the branch and push the branch.
-4. Merge the reviewed branch into `main` with an explicit merge commit unless
-   repository policy requires a PR merge. Push `main` and verify both remote
-   refs and a clean worktree.
-5. For a reusable bug fix, publish the next immutable patch version from a real
-   TTY. Verify `npm view <package>@<version>`, integrity, the `latest` tag,
-   clean registry installation and exported surface.
+4. For a reusable bug fix, publish the next immutable patch version from that
+   branch in a real TTY. Verify `npm view <package>@<version>`, integrity, the
+   `latest` tag, clean registry installation and exported surface.
+5. Merge the verified branch into `main` with an explicit merge commit unless
+   repository policy requires a PR merge. Push `main`, delete the branch, and
+   verify both remote refs and a clean worktree.
 6. Pin deployable consumers to the exact registry version and update their
    lockfiles. Never substitute GitHub, `file:`, workspace or vendored tarball
    dependencies for a released package.
@@ -110,3 +113,17 @@ description: Enforce branch, TDD, fixture, test-layer, product-neutrality, chang
 
 Report separately: branch, commit, pushed branch, merge commit, pushed
 `main`, package version/integrity, consumer pin, deployment and live result.
+
+## Bounded npm authorization fallback
+
+1. Make at most three authorization attempts, keeping each command session and
+   browser window alive for up to five minutes. Never end the turn or imply
+   continued work while an authorization window is pending.
+2. Only after the third failure may `npm pack` create an immutable tarball for
+   preparing a downstream consumer and continuing local tests.
+3. Do not commit a `file:` dependency or publish the consumer. Tarball proof
+   does not permit merge to `main`, image creation, deployment, or reporting
+   the dependency chain complete.
+4. Resume at the registry gate: publish the dependency, install its exact npm
+   version in the consumer, regenerate the lockfile, and rerun affected tests.
+   Only after registry verification may the consumer publish, merge, and deploy.
