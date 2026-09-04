@@ -1639,6 +1639,7 @@ const clinicalBundle = clinicalBundleEditor.buildJsonApi();
 await individualControllerProfile.sdk.updateClinicalSection(tenantContext, {
   subject: subjectDid,
   sender: professionalDid,
+  author: professionalDid,
   recipient: organizationDid,
   section: HealthcareBasicSections.VitalSigns.attributeValue,
   bundle: clinicalBundle,
@@ -1650,6 +1651,10 @@ await individualControllerProfile.sdk.updateClinicalSection(tenantContext, {
 Important:
 
 - every resource in this Bundle belongs to the one declared section
+- `sender` is the authenticated submitter; `author` is selected by the BFF and
+  the SDK writes its canonical claims. Current self-authoring flows set both to
+  `profile.actorDid`. A distinct author is valid only when the gateway can
+  verify the corresponding author authorization evidence.
 - the GW must not infer a default section
 - individual resource `upsert*` calls are internal compatibility plumbing
 - this flow does not replace a multi-section IPS document
@@ -1674,6 +1679,7 @@ allergies
 await individualControllerProfile.sdk.updateClinicalSection(tenantContext, {
   subject: subjectDid,
   sender: authenticatedControllerDid,
+  author: authenticatedControllerDid,
   recipient: organizationDid,
   section: HealthcareBasicSections.AllergiesAndIntolerances.attributeValue,
   bundle: allergies.buildJsonApi(),
