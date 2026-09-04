@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2.7.1 - 2026-09-03
+
+- Consume `gdc-sdk-core-ts@2.5.2` so server-side portal and telephone BFFs can
+  declare a clinical-section author separately from the authenticated sender
+  without writing canonical claim paths themselves.
+
 ## 2.6.8 - 2026-09-03
 
 - Return the normalized SMART business response from canonical encrypted
