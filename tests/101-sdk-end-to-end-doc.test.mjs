@@ -1,3 +1,4 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -13,6 +14,10 @@ const walletGuide = fs.readFileSync(
 
 const authorizedSubjectGuide = fs.readFileSync(
   new URL('../docs/101-AUTHORIZED_SUBJECT_DIRECTORY.md', import.meta.url),
+  'utf8',
+);
+const clinicalWriteGuide = fs.readFileSync(
+  new URL('../docs/101-BFF_CLINICAL_WRITES.md', import.meta.url),
   'utf8',
 );
 
@@ -59,4 +64,30 @@ test('authorized-subject 101 separates signed OpenID discovery from VP and SMART
   assert.match(authorizedSubjectGuide, /ServerProfileSessionManager/);
   assert.doesNotMatch(authorizedSubjectGuide, /License\/_search/);
   assert.doesNotMatch(authorizedSubjectGuide, /Organization\/_search/);
+});
+
+test('BFF clinical-write 101 separates section CRUD from document import', () => {
+  assert.match(guide, /101-BFF_CLINICAL_WRITES\.md/);
+  assert.match(clinicalWriteGuide, /IndividualControllerBackendRuntime/);
+  assert.match(clinicalWriteGuide, /await individualControllerRuntime\.updateClinicalSection\(/);
+  assert.match(clinicalWriteGuide, /\.create\(\)/);
+  assert.match(clinicalWriteGuide, /\.update\(\)/);
+  assert.match(clinicalWriteGuide, /\.delete\(\)/);
+  assert.match(clinicalWriteGuide, /Communication\.topic/);
+  assert.match(clinicalWriteGuide, /await individualControllerRuntime\.importIpsOrFhirAndUpdateIndex\(/);
+  assert.match(clinicalWriteGuide, /Bundle\.type=document/);
+  assert.match(clinicalWriteGuide, /Composition.*entry\[0\]/);
+  assert.match(clinicalWriteGuide, /must not traverse|does not construct/i);
+  assert.match(clinicalWriteGuide, /IndividualMemberSdk/);
+  assert.match(clinicalWriteGuide, /ProfessionalSdk/);
+  assert.match(clinicalWriteGuide, /submitter, not as\s+an additional author/i);
+  assert.match(clinicalWriteGuide, /PractitionerRole -> organization/);
+  assert.match(clinicalWriteGuide, /CompositionClaim\.Custodian/);
+  assert.match(clinicalWriteGuide, /CompositionClaim\.Attester/);
+  assert.match(clinicalWriteGuide, /CompositionClaim\.AttesterMode/);
+  assert.match(clinicalWriteGuide, /CompositionClaim\.AttesterTime/);
+  assert.match(clinicalWriteGuide, /PractitionerRole.*Practitioner.*Organization/s);
+  assert.match(clinicalWriteGuide, /Composition\.date[\s\S]{0,80}strictly later/i);
+  assert.match(clinicalWriteGuide, /does not implement the CID-mapping/i);
+  assert.match(clinicalWriteGuide, /Playwright/);
 });

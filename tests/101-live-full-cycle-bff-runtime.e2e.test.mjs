@@ -19,11 +19,14 @@
  * 9. the professional requests a SMART token and reads the allowed IPS via
  *    `Composition.section`
  * 10. the same professional SDK instance creates one authored vital sign
- * 11. that author deletes the exact fact through a typed batch entry
- * 12. cleanup closes consent, individual, employee, tenant, and host state
+ * 11. the controller transports a second fact for that registered author
+ * 12. the controller is denied when trying to update or delete that fact
+ * 13. the exact professional author deletes both facts
+ * 14. cleanup closes consent, individual, employee, tenant, and host state
  *
  * Authorization invariant: SMART `sub` is the clinical actor; sender and
- * subject remain independent roles, and only that author may delete the fact.
+ * subject remain independent roles; a submitter is not an author and cannot
+ * gain update/delete authority by transporting the authored fact.
  * Persistence invariant: successful DELETE removes the current fact without
  * converting consent revocation or profile cleanup into clinical operations.
  *
@@ -128,7 +131,10 @@ import { extractOfferIdFromResponseBody } from '../dist/order-offer-summary.js';
 import {
   ensureLiveGwTraceFiles,
 } from './helpers/live-gw-runtime-helpers.mjs';
-import { assertSuccessfulTerminalBundle } from './helpers/terminal-bundle-assertions.mjs';
+import {
+  assertSuccessfulTerminalBundle,
+  assertTerminalBundleFailure,
+} from './helpers/terminal-bundle-assertions.mjs';
 
 function env(name, fallback = '') {
   return String(process.env[name] ?? fallback).trim();
@@ -418,6 +424,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       sub: env('PROFESSIONAL_SUB', 'professional'),
       tenant_id: suiteTenantId,
       email: employeeEmail,
+      email_verified: true,
     }),
   );
   const professionalVpToken = env(
@@ -744,14 +751,24 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     assertSuccessfulTerminalBundle(accessRequest.delivery, 'Professional permission request');
     assert.equal(accessRequest.communication.payload.data[0].resource.status, ConsentStatuses.Draft);
 
-    const permissionInbox = await profiler.run('individual-controller-read-permission-inbox', () => individualControllerSdk.listProfessionalAccessRequests(
-      ctx,
-      {
-        subject: suiteSubjectDid,
-        recipientActorId: suiteSubjectDid,
-        pollOptions,
-      },
-    ));
+    // The request write and its participant search index are separate live
+    // boundaries. Keep searching through the public facade until the stored
+    // request becomes visible, bounded by the same timeout as DIDComm polling.
+    const permissionInboxDeadline = Date.now() + pollOptions.timeoutMs;
+    let permissionInbox;
+    do {
+      permissionInbox = await profiler.run('individual-controller-read-permission-inbox', () => individualControllerSdk.listProfessionalAccessRequests(
+        ctx,
+        {
+          subject: suiteSubjectDid,
+          recipientActorId: suiteSubjectDid,
+          pollOptions,
+        },
+      ));
+      const inboxAnalysis = new BundleReader(permissionInbox.poll.body || {}).getResponseAnalysis();
+      if (!inboxAnalysis.hasErrors && inboxAnalysis.successfulOperations >= 1) break;
+      await new Promise((resolve) => setTimeout(resolve, pollOptions.intervalMs));
+    } while (Date.now() < permissionInboxDeadline);
     debug.record('individual-controller-read-permission-inbox', { response: permissionInbox });
     assertSuccessfulTerminalBundle(permissionInbox, 'Controller permission inbox search');
 
@@ -782,6 +799,36 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         sections: consentSection,
       }),
     );
+    // The verified professional account performs its first authored write
+    // before replacing the account bearer with the narrower SMART read token.
+    // This binds the pre-authorized creator assignment to the operational DID;
+    // later transport by the controller must not transfer authorship.
+    const professionalObservationId = `observation-${randomUUID()}`;
+    const authoredVitalSigns = new BundleEditor().setBundleType(BundleTypes.batch);
+    const authoredHeartRate = authoredVitalSigns
+      .newEntryAs(BundleEditableResourceTypes.observation, professionalObservationId)
+      .create()
+      .setSubject(suiteSubjectDid)
+      .setStatus('final')
+      .setDate(new Date().toISOString())
+      .setHeartRate(73);
+    authoredHeartRate.ensureIdentifier();
+
+    const professionalCreate = await profiler.run('professional-create-authored-vital-sign', () => professionalProfile.sdk.updateClinicalSection(
+      ctx,
+      {
+        subject: suiteSubjectDid,
+        sender: professionalActorDid,
+        recipient: EXAMPLE_PROFILE_PROVIDER_DID,
+        section: HealthcareBasicSections.VitalSigns.attributeValue,
+        bundle: authoredVitalSigns.buildJsonApi(),
+        clinicalFormat: 'r4',
+        pollOptions,
+      },
+    ));
+    debug.record('professional-create-authored-vital-sign', { response: professionalCreate });
+    assertSuccessfulTerminalBundle(professionalCreate, 'Professional vital-sign create');
+
     const smart = await profiler.run('professional-request-smart-token', () => professionalProfile.sdk.requestSmartToken({
       tenantId: suiteTenantRouteId,
       jurisdiction: suiteJurisdiction,
@@ -817,34 +864,74 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     assertSuccessfulTerminalBundle(professionalRead, 'Professional IPS read');
     assert.ok(readFirstBundleResourceFromResponseBody(professionalRead.poll.body), 'The professional actor must receive one readable IPS bundle resource.');
 
-    // Steps 9-10: the SMART token obtained above remains active on this same
-    // high-level facade. Create and delete one exact author-owned fact without
-    // rebuilding the SDK or exposing transport plumbing in the 101 journey.
-    const professionalObservationId = `observation-${randomUUID()}`;
-    const authoredVitalSigns = new BundleEditor().setBundleType(BundleTypes.batch);
-    const authoredHeartRate = authoredVitalSigns
-      .newEntryAs(BundleEditableResourceTypes.observation, professionalObservationId)
+    const delegatedObservationId = `observation-${randomUUID()}`;
+    const delegatedCreateBundle = new BundleEditor().setBundleType(BundleTypes.batch);
+    delegatedCreateBundle
+      .newEntryAs(BundleEditableResourceTypes.observation, delegatedObservationId)
       .create()
       .setSubject(suiteSubjectDid)
       .setStatus('final')
       .setDate(new Date().toISOString())
-      .setHeartRate(73);
-    authoredHeartRate.ensureIdentifier();
-
-    const professionalCreate = await profiler.run('professional-create-authored-vital-sign', () => professionalProfile.sdk.updateClinicalSection(
+      .setHeartRate(74)
+      .ensureIdentifier();
+    const delegatedCreate = await profiler.run('controller-submit-professional-authored-vital-sign', () => individualControllerSdk.updateClinicalSection(
       ctx,
       {
         subject: suiteSubjectDid,
-        sender: professionalActorDid,
+        sender: individualControllerLoadRequest.profileDid,
+        author: professionalActorDid,
         recipient: EXAMPLE_PROFILE_PROVIDER_DID,
         section: HealthcareBasicSections.VitalSigns.attributeValue,
-        bundle: authoredVitalSigns.buildJsonApi(),
+        bundle: delegatedCreateBundle.buildJsonApi(),
         clinicalFormat: 'r4',
         pollOptions,
       },
     ));
-    debug.record('professional-create-authored-vital-sign', { response: professionalCreate });
-    assertSuccessfulTerminalBundle(professionalCreate, 'Professional vital-sign create');
+    debug.record('controller-submit-professional-authored-vital-sign', { response: delegatedCreate });
+    assertSuccessfulTerminalBundle(delegatedCreate, 'Delegated professional vital-sign create');
+
+    const delegatedUpdateBundle = new BundleEditor().setBundleType(BundleTypes.batch);
+    delegatedUpdateBundle
+      .newEntryAs(BundleEditableResourceTypes.observation, delegatedObservationId)
+      .update()
+      .setSubject(suiteSubjectDid)
+      .setStatus('final')
+      .setDate(new Date().toISOString())
+      .setHeartRate(75)
+      .ensureIdentifier();
+    const delegatedUpdate = await profiler.run('controller-cannot-update-submitted-professional-fact', () => individualControllerSdk.updateClinicalSection(
+      ctx,
+      {
+        subject: suiteSubjectDid,
+        sender: individualControllerLoadRequest.profileDid,
+        author: professionalActorDid,
+        recipient: EXAMPLE_PROFILE_PROVIDER_DID,
+        section: HealthcareBasicSections.VitalSigns.attributeValue,
+        bundle: delegatedUpdateBundle.buildJsonApi(),
+        clinicalFormat: 'r4',
+        pollOptions,
+      },
+    ));
+    assertTerminalBundleFailure(delegatedUpdate, 'Delegated submitter update', /only the authenticated creator/i);
+
+    const delegatedDeleteBundle = new BundleEditor().setBundleType(BundleTypes.batch);
+    delegatedDeleteBundle
+      .newEntryAs(BundleEditableResourceTypes.observation, delegatedObservationId)
+      .delete();
+    const delegatedDelete = await profiler.run('controller-cannot-delete-submitted-professional-fact', () => individualControllerSdk.updateClinicalSection(
+      ctx,
+      {
+        subject: suiteSubjectDid,
+        sender: individualControllerLoadRequest.profileDid,
+        author: professionalActorDid,
+        recipient: EXAMPLE_PROFILE_PROVIDER_DID,
+        section: HealthcareBasicSections.VitalSigns.attributeValue,
+        bundle: delegatedDeleteBundle.buildJsonApi(),
+        clinicalFormat: 'r4',
+        pollOptions,
+      },
+    ));
+    assertTerminalBundleFailure(delegatedDelete, 'Delegated submitter delete', /only the authenticated creator/i);
 
     const deleteVitalSign = new BundleEditor().setBundleType(BundleTypes.batch);
     deleteVitalSign
@@ -865,6 +952,20 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     debug.record('professional-delete-authored-vital-sign', { response: professionalDelete });
     const deleteAnalysis = assertSuccessfulTerminalBundle(professionalDelete, 'Professional vital-sign delete');
     assert.ok(deleteAnalysis.successfulOperations >= 1, 'The author-owned DELETE must return one successful batch operation.');
+
+    const professionalDelegatedDelete = await profiler.run('professional-delete-delegated-fact', () => professionalProfile.sdk.updateClinicalSection(
+      ctx,
+      {
+        subject: suiteSubjectDid,
+        sender: professionalActorDid,
+        recipient: EXAMPLE_PROFILE_PROVIDER_DID,
+        section: HealthcareBasicSections.VitalSigns.attributeValue,
+        bundle: delegatedDeleteBundle.buildJsonApi(),
+        clinicalFormat: 'r4',
+        pollOptions,
+      },
+    ));
+    assertSuccessfulTerminalBundle(professionalDelegatedDelete, 'Professional deletes delegated fact');
   } finally {
     // Cleanup runs in reverse business order so the suite can be used as a
     // real full-cycle tutorial without leaving live local state behind.
@@ -959,7 +1060,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
 
     if (hostActivated) {
       const tenantLifecycleEditor = new OrganizationLifecycleEditor()
-        .setIdentifierValue(DEFAULT_LIVE_CONTROLLER_ORGANIZATION_TAX_ID)
+        .setIdentifierValue(controllerOrganizationTaxId)
         .setTaxId(controllerOrganizationTaxId);
 
       const disableTenant = await profiler.run('organization-controller-disable-tenant', () => organizationControllerSdk.disableTenant(

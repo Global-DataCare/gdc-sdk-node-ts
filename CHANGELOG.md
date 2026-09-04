@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 2.7.5 - 2026-09-04
+
+- Add a BFF-focused clinical-write 101 separating section batch CRUD from
+  Composition-first document import, with controller, member/caregiver and
+  professional high-level SDK examples.
+- Prove in the live full-cycle journey that an authorized controller may
+  transport a create for a registered professional author but cannot update or
+  delete that fact afterward.
+- Document the same-author-organization, strictly-later document successor
+  rule and the still-missing per-resource ledger transaction evidence.
+- Consume `gdc-common-utils-ts@2.8.5` for the canonical provenance contract
+  and lossless Composition author, custodian and attester claims projection.
+
 ## 2.7.4 - 2026-09-04
 
 - Require every repository skill to preserve bounded npm authorization
