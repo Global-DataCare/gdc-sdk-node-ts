@@ -29,6 +29,7 @@ import {
 import { NodeManagedWallet } from './node-managed-wallet.js';
 import { NodeHttpClient } from './node-runtime-client.js';
 import { OrganizationControllerSdk } from './orchestration/organization-controller-sdk.js';
+import { IndividualControllerSdk } from './orchestration/individual-controller-sdk.js';
 import { ProfessionalSdk } from './orchestration/professional-sdk.js';
 import { DigitalTwinSdk } from './orchestration/digital-twin-sdk.js';
 import type { SmartTokenExchangeResult } from './smart-token.js';
@@ -293,6 +294,19 @@ export type ServerOrganizationControllerOpenInput = Readonly<{
 export type OpenedServerOrganizationController = Readonly<{
   profile: ServerProfileRecord;
   sdk: OrganizationControllerSdk;
+}>;
+
+/** Opens the individual-controller facade from an authenticated SMART session. */
+export type ServerIndividualControllerOpenInput = Readonly<{
+  ownerId: string;
+  sessionId: string;
+}>;
+
+/** Session-bound individual-controller facade and its durable profile. */
+export type OpenedServerIndividualController = Readonly<{
+  session: ResolvedServerProfileSession;
+  profile: ServerProfileRecord;
+  sdk: IndividualControllerSdk;
 }>;
 
 /** Server-owned role evidence used to sign a fresh professional VP. */
@@ -864,6 +878,33 @@ export class ServerProfileSessionManager {
         unprotect: (document) => wallet.unprotectManagedConfidentialData!(document, context),
       },
     };
+  }
+
+  /**
+   * Opens a registered individual controller from an already unlocked SMART
+   * session. The session owns subject scope, access token and wallet transport;
+   * callers never reconstruct the HTTP client or expose those values to a
+   * browser.
+   */
+  public async openIndividualController(
+    input: ServerIndividualControllerOpenInput,
+  ): Promise<OpenedServerIndividualController> {
+    const session = await this.resolveSession(input.ownerId, input.sessionId);
+    const profile = session.profile;
+    if (profile.actorKind !== ActorKinds.IndividualController
+      || (profile.actorMode !== 'self' && profile.actorMode !== 'controller')) {
+      throw new Error('Profile is not an individual controller.');
+    }
+    const client = new NodeHttpClient({
+      baseUrl: this.options.gatewayBaseUrl,
+      ctx: profile.routeContext,
+      bearerToken: session.accessToken,
+      fetchImpl: this.options.fetchImpl,
+      appInfo: this.options.appInfo,
+      transportProfile: TransportProfiles.DidcommEncryptedForm,
+      secureTransportAdapter: session.secureTransportAdapter,
+    });
+    return { session, profile, sdk: new IndividualControllerSdk(client) };
   }
 
   /**
