@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 2.7.4 - 2026-09-04
+
+- Require every repository skill to preserve bounded npm authorization
+  retries, tarball-only local fallback, and registry verification before any
+  consumer publication, merge, image build, or deployment.
+- Prepare exact `gdc-common-utils-ts@2.8.3` and `gdc-sdk-core-ts@2.5.4`
+  consumption; release closure remains blocked until both are verified on npm.
+
 ## 2.7.3 - 2026-09-04
 
 - Consume `gdc-common-utils-ts@2.8.2` and `gdc-sdk-core-ts@2.5.3` from their

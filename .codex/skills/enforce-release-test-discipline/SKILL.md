@@ -114,16 +114,14 @@ verify the registry artifact and clean installation, merge to `main`, push
 Report separately: branch, commit, pushed branch, merge commit, pushed
 `main`, package version/integrity, consumer pin, deployment and live result.
 
-## Bounded npm authorization fallback
+## Mandatory release authorization continuity
 
-1. Make at most three authorization attempts, keeping each command session and
-   browser window alive for up to five minutes. Never end the turn or imply
-   continued work while an authorization window is pending.
-2. Only after the third failure may `npm pack` create an immutable tarball for
-   preparing a downstream consumer and continuing local tests.
-3. Do not commit a `file:` dependency or publish the consumer. Tarball proof
-   does not permit merge to `main`, image creation, deployment, or reporting
-   the dependency chain complete.
-4. Resume at the registry gate: publish the dependency, install its exact npm
-   version in the consumer, regenerate the lockfile, and rerun affected tests.
-   Only after registry verification may the consumer publish, merge, and deploy.
+For any release chain that requires npm authorization, make at most three
+attempts and keep each command session and browser window alive for up to five
+minutes. Never end the turn or imply continued work while a window is pending.
+After all three attempts fail, an immutable `npm pack` tarball may be used only
+to prepare a downstream consumer and continue local tests; never commit a
+`file:` dependency. The registry dependency must publish and its exact npm
+version must be reinstalled and verified before the consumer may publish, merge
+to `main`, build an image, or deploy. Final order remains: push the branch,
+run `npm publish` from it, verify, merge to `main`, push and delete the branch.
