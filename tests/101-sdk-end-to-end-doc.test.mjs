@@ -20,6 +20,10 @@ const clinicalWriteGuide = fs.readFileSync(
   new URL('../docs/101-BFF_CLINICAL_WRITES.md', import.meta.url),
   'utf8',
 );
+const multiActorIpsGuide = fs.readFileSync(
+  new URL('../docs/101-MULTI_ACTOR_IPS_EXPORT.md', import.meta.url),
+  'utf8',
+);
 const readme = fs.readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 
 test('101 runtime bootstrap keeps participant identity and wallet custody out of deployment env', () => {
@@ -88,12 +92,11 @@ test('BFF clinical-write 101 separates section CRUD from document import', () =>
   assert.match(clinicalWriteGuide, /CompositionClaim\.AttesterMode/);
   assert.match(clinicalWriteGuide, /CompositionClaim\.AttesterTime/);
   assert.match(clinicalWriteGuide, /profileManager\.exportClinicalCreatorIps\(/);
-  assert.match(clinicalWriteGuide, /provenance\.authorReference/);
-  assert.match(clinicalWriteGuide, /provenance\.attesters/);
-  assert.match(clinicalWriteGuide, /ClinicalSourceAuthorSelections\.Owner/);
+  assert.match(clinicalWriteGuide, /clinicalCreator: exportedCreator/);
   assert.match(clinicalWriteGuide, /ClinicalSourceAuthorSelections\.Creator/);
-  assert.match(clinicalWriteGuide, /RelatedPerson.*both.*author.*attester/is);
-  assert.match(clinicalWriteGuide, /PractitionerRole.*both.*author.*attester/is);
+  assert.match(clinicalWriteGuide, /RelatedPerson.*attester/is);
+  assert.match(clinicalWriteGuide, /PractitionerRole.*attester/is);
+  assert.match(clinicalWriteGuide, /RelatedPerson.*both author and attester/is);
   assert.match(clinicalWriteGuide, /browser.*must not.*author reference/is);
   assert.match(
     clinicalWriteGuide,
@@ -108,4 +111,25 @@ test('BFF clinical-write 101 separates section CRUD from document import', () =>
   assert.match(clinicalWriteGuide, /must not supply.*channel.*smart contract/is);
   assert.match(readme, /BFF.*never.*ledger routing/is);
   assert.match(clinicalWriteGuide, /Playwright/);
+});
+
+test('multi-actor IPS export 101 numbers the source, attester and aggregate-read journeys', () => {
+  assert.match(multiActorIpsGuide, /Journey 1.*external IPS import/is);
+  assert.match(multiActorIpsGuide, /Journey 2.*individual controller/is);
+  assert.match(multiActorIpsGuide, /Journey 3.*caregiver/is);
+  assert.match(multiActorIpsGuide, /Journey 4.*aggregated IPS export/is);
+  assert.match(multiActorIpsGuide, /LOINC.*29463-7/is);
+  assert.match(multiActorIpsGuide, /UCUM.*kg/is);
+  assert.match(multiActorIpsGuide, /Organization.*Practitioner.*PractitionerRole.*RelatedPerson/is);
+  assert.match(multiActorIpsGuide, /Composition\.author.*stable FHIR provenance/is);
+  assert.match(multiActorIpsGuide, /did:web:api\.acme\.org:employee:zW1pca8dQVVz2apBk8A1CWJ8VSHgheXpRZoZtqwhnkHjFkV:ISCO-08\|2211/);
+  assert.match(multiActorIpsGuide, /did:web:host\.example\.com:health-care:organization:taxid:ES-B00112233:individual:UUID:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee:member:zG9FEVaXcQgzppJZUe7WwnqbM1mqTLbktoPSbPvMj2T6fj121vncQCbKyqh4BTYtSh2Tj:RESPRSN/);
+  assert.match(multiActorIpsGuide, /urn:cds-es:v1:organization:tax:ES-B00112233/);
+  assert.match(multiActorIpsGuide, /urn:cds-es:v1:organization:tax:ES-B00112233:member:zG9Gjhm4F9WwjUbk4D2sAL1wDj5MWuXsJooWPYDG5XYKURBQa4Q7wXttzusFntw6tXH3F:ISCO-08\|2211/);
+  assert.match(multiActorIpsGuide, /urn:cds-<jurisdiction>.*role-license/is);
+  assert.match(multiActorIpsGuide, /names\s+a licensed seat, not the author organization/i);
+  assert.match(multiActorIpsGuide, /SHA3-384.*base58btc/is);
+  assert.match(multiActorIpsGuide, /cloneImportedClinicalDocumentForDemo[\s\S]*clinicalCreator/);
+  assert.match(multiActorIpsGuide, /Composition\.attester.*PractitionerRole.*RelatedPerson/is);
+  assert.match(multiActorIpsGuide, /sender.*audit.*transport/is);
 });

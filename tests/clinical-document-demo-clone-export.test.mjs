@@ -5,20 +5,26 @@ import test from 'node:test';
 import {
   ActorKinds,
   EXAMPLE_CONTROLLER_DID,
+  EXAMPLE_INDIVIDUAL_CONTROLLER_ROLE_VALUE,
+  EXAMPLE_KYC_CONTROLLER_USER_UUID,
+  EXAMPLE_KYC_CONTROLLER_UUID,
+  EXAMPLE_SUBJECT_DID,
+  FhirIpsCreatorKinds,
   ResourceTypesFhirR4,
 } from 'gdc-common-utils-ts';
 import {
   ActorSession,
   cloneImportedClinicalDocumentForDemo,
+  resolveClinicalCreatorIpsExport,
 } from '../dist/index.js';
 
 test('exports the imported clinical document demo clone helper from the Node SDK', () => {
   assert.equal(typeof cloneImportedClinicalDocumentForDemo, 'function');
 });
 
-test('clones with the current actor session DID without accepting an author supplied by the portal', () => {
-  // Application contract: this session actorDid is the operational DID from
-  // the authenticated profile, never a stable multibase URN or portal alias.
+test('clones with protected member provenance and keeps actorDid as transport identity only', () => {
+  // Application contract: the session actorDid is operational. The exact
+  // registered RelatedPerson urn:uuid is both FHIR author and attester.
   const session = new ActorSession({
     actorKind: ActorKinds.IndividualController,
     actorDid: EXAMPLE_CONTROLLER_DID,
@@ -36,11 +42,21 @@ test('clones with the current actor session DID without accepting an author supp
   };
 
   const cloned = session.cloneImportedClinicalDocumentForDemo(bundle, {
+    clinicalCreator: resolveClinicalCreatorIpsExport({
+      bindings: [{
+        kind: FhirIpsCreatorKinds.IndividualMember,
+        actorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_USER_UUID}`,
+        authorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}`,
+        ownerIdentifier: EXAMPLE_SUBJECT_DID,
+        role: EXAMPLE_INDIVIDUAL_CONTROLLER_ROLE_VALUE,
+        actorDids: [EXAMPLE_CONTROLLER_DID],
+      }],
+      evidence: { actorDid: EXAMPLE_CONTROLLER_DID },
+    }),
     createResourceId: () => 'demo-composition',
   });
 
-  // The helper sets Composition.author. A later direct update uses this same
-  // session actorDid as sender and the real hosted provider-tenant DID as recipient.
-  assert.equal(cloned.entry[0].resource.author[0].reference, EXAMPLE_CONTROLLER_DID);
+  assert.equal(cloned.entry[0].resource.author[0].reference, `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}`);
+  assert.equal(cloned.entry[0].resource.attester[0].party.reference, `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}`);
   assert.equal(bundle.entry[0].resource.author[0].reference, 'urn:uuid:external-author');
 });

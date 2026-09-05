@@ -4,6 +4,18 @@
 
 ## 2.9.0 - 2026-09-05
 
+- Use the jurisdictional CDS legal-organization URN as professional document
+  author with its PractitionerRole as attester; use one RelatedPerson urn:uuid
+  as both author and attester for member/controller-created content. Sender
+  remains transport/audit evidence.
+- Pass the complete protected `clinicalCreator` export into section updates and
+  editable demo clones so BFFs never reconstruct provenance from `actorDid`.
+- Add a numbered multi-actor aggregate IPS journey for an administrative import,
+  controller and caregiver body-weight observations, provenance graph readback,
+  and assignment-bound correction/deletion authorization.
+- Synchronize public JSDoc, executable documentation contracts, README and
+  repository skills with the corrected author/attester boundary.
+
 - Project the individual registration UUID as the canonical SHA3-384 hosted
   individual DID and expose
   `buildIndividualMemberDidWebFromPrivateIdentifiers(...)` for portals to build
