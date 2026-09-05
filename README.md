@@ -503,6 +503,29 @@ Those belong to:
 
 ## Minimal Examples
 
+### Build the individual-controller DCR actor DID
+
+The controller consumes the licensed member seat with role `RESPRSN`. A phone
+or email stored on the Individual Organization remains contact data and does
+not consume another seat. The role keeps its full type and value in protected
+data; only the value is appended to the DID.
+
+```ts
+import { buildIndividualMemberDidWebFromPrivateIdentifiers } from 'gdc-sdk-node-ts';
+
+const individualControllerDid = buildIndividualMemberDidWebFromPrivateIdentifiers({
+  providerDidWeb: 'did:web:host.example.org:health-care:organization:taxid:VATES-B00112233',
+  secureIdTypeIndividual: 'UUID',
+  privateIdValueIndividual: 'a87e5b15-aea4-4475-9c7c-40aa88354b6f',
+  secureIdTypeMember: 'EMAIL',
+  privateIdValueMember: 'controller@example.org',
+  roleType: 'http://terminology.hl7.org/CodeSystem/v3-RoleCode',
+  roleValue: 'RESPRSN',
+});
+
+// did:web:host.example.org:health-care:organization:taxid:VATES-B00112233:individual:UUID:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee:member:zG9DrMLpQW8eoCc9Ay9AFxuMGiswgJePpbUMz9svJCZ8tKjUd4xoExgCPA5jmHc6hPATJ:RESPRSN
+```
+
 ### Use shared invitation contract from Node
 
 ```ts

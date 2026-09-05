@@ -738,6 +738,8 @@ Use `gdc-common-utils-ts` for shared constants and semantic authoring helpers:
 - `buildOrganizationDidWeb(...)`
 - `buildProfessionalDidWeb(...)`
 - `buildIndividualDidWeb(...)`
+- `buildIndividualMemberDidWebFromPrivateIdentifiers(...)` for the exact
+  individual-controller/member DID accepted by DCR
 - healthcare constants and codings
 
 ## Discovery Status

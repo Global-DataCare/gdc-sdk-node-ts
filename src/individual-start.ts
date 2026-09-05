@@ -8,10 +8,12 @@ import {
 } from 'gdc-common-utils-ts/constants';
 import {
   buildIndividualDidWeb,
-  encodeHexToMultibase58btc,
+  buildSecureIdValueIndividual,
   extractPrimaryClaims,
   readFamilyOrganizationSummaryFromResponseBody,
+  SecureIdTypesIndividual,
 } from 'gdc-common-utils-ts';
+export { buildIndividualMemberDidWebFromPrivateIdentifiers } from 'gdc-common-utils-ts';
 import type { FamilyRegistrationStatus } from 'gdc-common-utils-ts/utils/family-organization-summary';
 import { GwCoreLifecycleRequestType } from './constants/lifecycle.js';
 import { resolvePollOptionsFromSeconds } from './poll-options.js';
@@ -96,8 +98,10 @@ export type IndividualOrganizationStartResult = {
 export type IndividualOrganizationBootstrapIdentity = {
   /** Technical UUID returned as `Bundle.data[0].resource.id`. */
   resourceId: string;
-  /** Stable UUID-byte identifier serialized as multibase base58btc. */
-  individualId: string;
+  /** Explicit governed identifier type serialized in the hosted DID path. */
+  secureIdTypeIndividual: typeof SecureIdTypesIndividual.Uuid;
+  /** SHA3-384 multihash of the UUID's canonical 16 bytes, as base58btc multibase. */
+  secureIdValueIndividual: string;
   /** Authoritative provider DID returned by GW in `Offer.offeredBy`. */
   providerDidWeb: string;
   /** Canonical child DID built beneath the exact provider DID returned by GW. */
@@ -249,18 +253,26 @@ export function readIndividualOrganizationBootstrapIdentity(
   const providerDidWeb = String(claims[ClaimsOfferSchemaorg.offeredBy] || '').trim();
   if (!resourceId || !providerDidWeb) return undefined;
 
-  let individualId: string;
+  let secureIdValueIndividual: string;
   try {
-    individualId = encodeHexToMultibase58btc(resourceId);
+    secureIdValueIndividual = buildSecureIdValueIndividual({
+      secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
+      privateIdValueIndividual: resourceId,
+    });
   } catch {
     return undefined;
   }
 
   return {
     resourceId,
-    individualId,
+    secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
+    secureIdValueIndividual,
     providerDidWeb,
-    subjectDid: buildIndividualDidWeb({ providerDidWeb, individualId }),
+    subjectDid: buildIndividualDidWeb({
+      providerDidWeb,
+      secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
+      secureIdValueIndividual,
+    }),
   };
 }
 
