@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 2.7.6 - 2026-09-04
+
+- Allow a server-authorized professional session to target a different tenant
+  while preserving the enrolled actor and DCR client identity.
+- Append verified access credentials after the canonical professional identity
+  credential in the managed VP, enabling the existing inter-tenant SMART
+  contract gate without exposing VP or wallet plumbing to product code.
+- Keep SMART issuance and subsequent Digital Twin search bound to the same
+  explicit provider route and encrypted DIDComm recipient.
+
 ## 2.7.5 - 2026-09-04
 
 - Add a BFF-focused clinical-write 101 separating section batch CRUD from

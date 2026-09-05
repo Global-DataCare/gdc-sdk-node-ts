@@ -330,6 +330,10 @@ export type ServerProfessionalOpenInput = Readonly<{
   pin?: string;
   /** Server-only seed already authorized by a product passkey/session policy. */
   authorizedWalletSeed?: string;
+  /** Provider tenant selected by a server-authorized inter-tenant workflow. */
+  target?: Readonly<{ providerDid: string; routeContext: RouteContext }>;
+  /** Verified access credentials appended to the managed professional VP. */
+  accessCredentials?: ReadonlyArray<object>;
 }>;
 
 /** Business authorization requested from SMART; OpenID/JWT fields stay SDK-owned. */
@@ -1006,17 +1010,20 @@ export class ServerProfileSessionManager {
     const wallet = await this.createWallet(walletKeyDerivationId, seed);
     const context = walletContext(walletKeyDerivationId);
     await requireRegisteredProfileKeys(wallet, context, profile);
+    const targetProviderDid = String(input.target?.providerDid || profile.providerDid).trim();
+    const targetRouteContext = input.target?.routeContext || profile.routeContext;
+    if (!targetProviderDid) throw new Error('Opening a professional requires a target provider DID.');
     const secureTransportAdapter: SecureDidcommTransportAdapter = {
       pack: (message) => wallet.packForRecipientWithContext!(
-        bindOrganizationControllerTransport(message, profile),
-        profile.providerDid,
+        bindOrganizationControllerTransport(message, { ...profile, providerDid: targetProviderDid }),
+        targetProviderDid,
         { context },
       ),
       unpack: async (jwe) => (await wallet.unpackWithContext!(jwe, { context })).content,
     };
     const operationalClient = new NodeHttpClient({
       baseUrl: this.options.gatewayBaseUrl,
-      ctx: profile.routeContext,
+      ctx: targetRouteContext,
       bearerToken: idToken,
       fetchImpl: this.options.fetchImpl,
       appInfo: this.options.appInfo,
@@ -1035,7 +1042,7 @@ export class ServerProfileSessionManager {
       const now = this.now();
       const audience = [
         this.options.gatewayBaseUrl.replace(/\/+$/, ''),
-        buildIdentityOpenIdSmartTokenPath(profile.routeContext),
+        buildIdentityOpenIdSmartTokenPath(targetRouteContext),
       ].join('');
       const clientAssertion = await buildWalletClientAssertion(wallet, profile, audience, now);
       const vpToken = await buildManagedProfessionalVp(wallet, context, {
@@ -1044,9 +1051,10 @@ export class ServerProfileSessionManager {
         profileDid: profile.profileDid,
         ...input.professionalProof,
         role,
+        additionalCredentials: input.accessCredentials,
       });
       return smartSdk.requestSmartToken({
-        ...profile.routeContext,
+        ...targetRouteContext,
         actorDid: profile.actorDid,
         subjectDid: String(smart.subjectDid || '').trim() || undefined,
         clientId: profile.clientId,
@@ -1079,7 +1087,7 @@ export class ServerProfileSessionManager {
       },
       searchDigitalTwins: (search) => {
         if (!digitalTwinAccessToken) throw new Error('Digital twin SMART token has not been granted.');
-        return digitalTwin.search(profile.routeContext, { ...search, accessToken: digitalTwinAccessToken });
+        return digitalTwin.search(targetRouteContext, { ...search, accessToken: digitalTwinAccessToken });
       },
     };
   }
@@ -1248,6 +1256,7 @@ async function buildManagedProfessionalVp(
     sameAs?: string | readonly string[];
     telephone?: string;
     credentialMaterial?: string;
+    additionalCredentials?: ReadonlyArray<object>;
   }>,
 ): Promise<string> {
   return wallet.signProfessionalIdentityVp(context, input);
