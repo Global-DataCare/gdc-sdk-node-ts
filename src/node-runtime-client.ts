@@ -1595,7 +1595,9 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * The attached payload must be a `Bundle.type=batch|collection`, and the
    * exact section is carried on the outer Communication. This flow is suitable
    * for vital-sign or other explicitly section-scoped updates; it does not
-   * replace a multi-section IPS document.
+   * replace a multi-section IPS document. The terminal result may include one
+   * transaction receipt with per-resource CID/version evidence. Callers never
+   * supply or configure ledger channel or smart-contract names.
    */
   public async updateClinicalSection(
     ctx: RouteContext,
@@ -1614,7 +1616,9 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * `entry[0]`; its `section[].entry[]` references delimit the updated data.
    * Direct callers pass the authenticated profile `actorDid` as `sender` and
    * the real hosted provider-tenant DID as `recipient`. A stable multibase URN
-   * or portal DID/alias is never the authenticated clinical actor.
+   * or portal DID/alias is never the authenticated clinical actor. GW owns all
+   * ledger routing; callers receive evidence but never select a channel or
+   * smart contract.
    */
   public async updateClinicalSummary(
     ctx: RouteContext,

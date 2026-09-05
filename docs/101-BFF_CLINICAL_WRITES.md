@@ -9,6 +9,9 @@ This guide shows the public Node SDK boundary for three different operations:
 
 The BFF selects one of these operations. It does not construct the outer
 FHIR `Communication`, DIDComm envelope, route or polling request itself.
+The BFF also never configures ledger routing. It must not supply a ledger
+channel or smart contract; GW resolves both from the authenticated operation's
+governed domain context.
 
 The matching gateway-side authorization contract is
 [Authenticated clinical authorship](https://github.com/Global-DataCare/gwtemplate-node-ts/blob/main/docs/01-OVERVIEW-AND-GUIDES/101-01.N-AUTHENTICATED-CLINICAL-AUTHOR.md).
@@ -314,11 +317,12 @@ strictly later. This is a narrow document-version successor rule. It never
 authorizes a delete and does not turn the submitter into an author.
 
 Each projected resource already receives a content-derived `meta.versionId`
-(CID/multihash). Ledger transaction evidence is not yet complete for this
-Communication flow: the Fabric adapter does not implement the CID-mapping
-write and the transaction result is not returned to this SDK. Do not display a
-transaction id until the gateway returns a canonical per-resource evidence
-array (and document/Composition evidence) from a committed ledger write.
+(CID/multihash). A successful Communication write returns one transaction id
+for the submitted Bundle plus per-resource CID and version evidence. The BFF
+may display or persist that receipt after the normal terminal-Bundle success
+analysis. It does not choose or expose the underlying ledger route. A local
+memory receipt is useful for application tests but is not on-chain evidence;
+only a Fabric-backed response proves a committed transaction.
 
 ## Evidence and current coverage
 
@@ -331,11 +335,10 @@ The repository currently proves these boundaries at different layers:
 | Controller document ingestion and subsequent index read | Live Node SDK E2E |
 | Professional SMART read, author-owned CRUD, delegated controller create and denied submitter update/delete | Full-cycle live Node SDK E2E |
 | Member/caregiver invitation, narrowed Consent and clinical read | Consumer Playwright journey |
-| Member/caregiver clinical write | Public SDK surface exists; no complete live or Playwright write journey currently proves it |
-| Per-entry `PUT` update against real GW | Typed editor/unit contract exists; no complete live or Playwright update journey currently proves it |
+| Member/caregiver clinical write | Public SDK surface and consumer Playwright journey |
+| Per-entry `PUT` update against real GW | Typed editor/unit contract and local GW clinical flow |
 
-Do not report the last two rows as end-to-end proven until those journeys have
-their own real boundary tests. A Playwright test that calls an SDK directly is
+Keep the proof label precise: a Playwright test that calls an SDK directly is
 SDK-to-GW evidence; it is not automatically proof of a browser UI -> BFF -> SDK
 journey.
 

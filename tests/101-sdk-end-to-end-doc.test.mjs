@@ -103,6 +103,9 @@ test('BFF clinical-write 101 separates section CRUD from document import', () =>
   assert.match(readme, /101-BFF_CLINICAL_WRITES\.md/);
   assert.match(clinicalWriteGuide, /PractitionerRole.*Practitioner.*Organization/s);
   assert.match(clinicalWriteGuide, /Composition\.date[\s\S]{0,80}strictly later/i);
-  assert.match(clinicalWriteGuide, /does not implement the CID-mapping/i);
+  assert.match(clinicalWriteGuide, /one transaction id.*per-resource.*CID.*version evidence/is);
+  assert.match(clinicalWriteGuide, /BFF.*never.*ledger routing/is);
+  assert.match(clinicalWriteGuide, /must not supply.*channel.*smart contract/is);
+  assert.match(readme, /BFF.*never.*ledger routing/is);
   assert.match(clinicalWriteGuide, /Playwright/);
 });
