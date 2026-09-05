@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Use the standard FHIR `notification` category for professional permission
+  request Communications and their normalized inbox search.
+- Document the claims-first R4/R5 projection, LOINC topics and the standard
+  `alert` plus `v3-ActReason|BTG` break-glass exception.
+- Consume `gdc-common-utils-ts@2.8.8` and `gdc-sdk-core-ts@2.5.7`.
+
 ## 2.7.8 - 2026-09-04
 
 - Add a closed `owner | creator` source-author choice to the protected-profile
