@@ -25,6 +25,7 @@ import {
   resolveClinicalCreatorIpsExport,
   type ClinicalCreatorBinding,
   type ClinicalCreatorIpsExport,
+  type ClinicalSourceAuthorSelection,
 } from 'gdc-sdk-core-ts';
 import { NodeManagedWallet } from './node-managed-wallet.js';
 import { NodeHttpClient } from './node-runtime-client.js';
@@ -391,10 +392,16 @@ export class ServerProfileSessionManager {
    * profile without exposing its protected wallet material to the portal.
    */
   public async exportClinicalCreatorIps(
-    input: Readonly<{ ownerId: string; profileId: string }>,
+    input: Readonly<{
+      ownerId: string;
+      profileId: string;
+      /** Closed BFF choice: content owner or authenticated registered creator. */
+      sourceAuthor?: ClinicalSourceAuthorSelection;
+    }>,
   ): Promise<ClinicalCreatorIpsExport> {
     return exportServerProfileClinicalCreatorIps(
       await this.requireOwnedProfile(input.ownerId, input.profileId),
+      { sourceAuthor: input.sourceAuthor },
     );
   }
 
@@ -1313,11 +1320,14 @@ function requireBase64UrlSeed32(seed: string): void {
 }
 
 /**
- * Exports the stable FHIR IPS creator attached to a server profile. Direct
- * writes continue to use `profile.actorDid`; this function is export-only.
+ * Exports the stable FHIR IPS creator attached to a server profile. The
+ * optional closed selection determines whether the owner or the authenticated
+ * registered creator authored the content. DIDComm sender and signing keys
+ * remain transport/audit evidence and never become FHIR provenance.
  */
 export function exportServerProfileClinicalCreatorIps(
   profile: ServerProfileRecord,
+  options: Readonly<{ sourceAuthor?: ClinicalSourceAuthorSelection }> = {},
 ): ClinicalCreatorIpsExport {
   if (!profile.clinicalCreatorBinding) {
     throw new Error('Server profile has no clinical creator binding.');
@@ -1325,6 +1335,7 @@ export function exportServerProfileClinicalCreatorIps(
   return resolveClinicalCreatorIpsExport({
     bindings: [profile.clinicalCreatorBinding],
     evidence: { actorDid: profile.actorDid },
+    sourceAuthor: options.sourceAuthor,
   });
 }
 

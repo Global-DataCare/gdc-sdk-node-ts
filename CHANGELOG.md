@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 2.7.8 - 2026-09-04
+
+- Add a closed `owner | creator` source-author choice to the protected-profile
+  clinical creator export. A registered RelatedPerson or PractitionerRole may
+  be both author and attester when that actor created the content; dictated or
+  organization-owned content retains its individual or organization author.
+- Reject arbitrary UI author references and document that DIDComm sender and
+  signing keys remain transport/audit evidence.
+- Synchronize public JSDoc, executable member/professional tests, BFF snippets,
+  README and repository skills with the linked GW CORE authorship contract.
+- Consume `gdc-common-utils-ts@2.8.7` and `gdc-sdk-core-ts@2.5.6` from their
+  verified registry releases.
+
 ## 2.7.7 - 2026-09-04
 
 - Add `ServerProfileSessionManager.exportClinicalCreatorIps(...)` so a portal

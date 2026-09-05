@@ -79,6 +79,14 @@ description: Enforce branch, TDD, fixture, test-layer, product-neutrality, chang
 - Native FHIR `Communication` or `Bundle` input never receives DIDComm identity
   fields. HTTP Authorization proves the caller and `Communication.sender`
   remains a business participant reference.
+- For generated clinical content, resolve `Composition.author` and attesters
+  from the protected registered creator binding. Accept only the closed
+  `owner | creator` BFF selection: owner is the individual/organization;
+  creator is the authenticated RelatedPerson/PractitionerRole and may be both
+  author and attester. Never accept an arbitrary author reference from a UI.
+- Keep `docs/101-BFF_CLINICAL_WRITES.md`, the GW CORE authenticated-authorship
+  101, public JSDoc, test flow comments, snippets, README summaries and the
+  repository-local provenance skill mutually linked and synchronized.
 
 ## Preserve shared-package neutrality
 

@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 
 import {
   ActorKinds,
+  ClinicalSourceAuthorSelections,
   DigitalTwinSdk,
   FhirIpsCreatorKinds,
   IndividualControllerSdk,
@@ -27,6 +28,9 @@ import {
   EXAMPLE_PROFILE_ID,
   EXAMPLE_PROFILE_PIN,
   EXAMPLE_PROFILE_PROVIDER_DID,
+  EXAMPLE_RELATED_PERSON_MEMBER_DID,
+  EXAMPLE_RELATED_PERSON_ROLE,
+  EXAMPLE_SUBJECT_DID,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
   EXAMPLE_HEALTHCARE_ACTOR_ROLE_PHYSICIAN,
   EXAMPLE_KYC_CONTROLLER_USER_UUID,
@@ -56,6 +60,9 @@ import { EXAMPLE_INTER_TENANT_ACCESS_CONTRACT_CREDENTIAL } from 'gdc-common-util
  *    VP proves actor/role authority.
  * 8. Unlock requests and polls its first SMART token through the same
  *    registered wallet and encrypted DIDComm boundary required by strict GW.
+ * 9. Clinical provenance selects only the owner or the authenticated registered
+ *    creator; browser identifiers, DIDComm sender and signing keys cannot become
+ *    Composition author or attester.
  */
 function memoryDeps() {
   const profiles = new Map();
@@ -545,6 +552,25 @@ test('employee enrollment builds its signed role VP after DCR instead of copying
     profileId: profile.profileId,
   });
   assert.deepEqual(managerIpsCreator.provenance, ipsCreator.provenance);
+  const personallyAuthored = await manager.exportClinicalCreatorIps({
+    ownerId: profile.ownerId,
+    profileId: profile.profileId,
+    sourceAuthor: ClinicalSourceAuthorSelections.Creator,
+  });
+  // The authenticated PractitionerRole created and attested the content.
+  assert.equal(
+    personallyAuthored.provenance.authorReference,
+    profile.clinicalCreatorBinding.authorIdentifier,
+  );
+  assert.equal(
+    personallyAuthored.provenance.attesters[0].party.reference,
+    profile.clinicalCreatorBinding.authorIdentifier,
+  );
+  await assert.rejects(() => manager.exportClinicalCreatorIps({
+    ownerId: profile.ownerId,
+    profileId: profile.profileId,
+    sourceAuthor: 'urn:uuid:browser-supplied-author',
+  }), /sourceAuthor/);
   const vpToken = await openServerProfileSecret(
     profile.protectedVpToken,
     '123456',
@@ -572,6 +598,39 @@ function clinicalCreatorStableFields(binding) {
     role: binding.role,
   };
 }
+
+test('member provenance keeps dictated subject authorship and permits registered member authorship', () => {
+  const clinicalCreatorBinding = {
+    kind: FhirIpsCreatorKinds.IndividualMember,
+    actorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_USER_UUID}`,
+    authorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}`,
+    ownerIdentifier: EXAMPLE_SUBJECT_DID,
+    role: EXAMPLE_RELATED_PERSON_ROLE,
+    actorDids: [EXAMPLE_RELATED_PERSON_MEMBER_DID],
+  };
+  const protectedProfile = {
+    actorDid: EXAMPLE_RELATED_PERSON_MEMBER_DID,
+    clinicalCreatorBinding,
+  };
+
+  // The member records content created or dictated by the individual.
+  const ownerAuthored = exportServerProfileClinicalCreatorIps(protectedProfile);
+  assert.equal(ownerAuthored.provenance.authorReference, EXAMPLE_SUBJECT_DID);
+  assert.equal(
+    ownerAuthored.provenance.attesters[0].party.reference,
+    clinicalCreatorBinding.authorIdentifier,
+  );
+
+  // The member created the content, so one RelatedPerson is author and attester.
+  const memberAuthored = exportServerProfileClinicalCreatorIps(protectedProfile, {
+    sourceAuthor: ClinicalSourceAuthorSelections.Creator,
+  });
+  assert.equal(memberAuthored.provenance.authorReference, clinicalCreatorBinding.authorIdentifier);
+  assert.equal(
+    memberAuthored.provenance.attesters[0].party.reference,
+    clinicalCreatorBinding.authorIdentifier,
+  );
+});
 
 test('fresh OTP recovery rotates employee wallet keys, invalidates old sessions and opens with the new PIN', async () => {
   const deps = memoryDeps();

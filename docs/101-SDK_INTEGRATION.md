@@ -653,14 +653,16 @@ the exact binding from an employee/member import or authorized onboarding;
 DCR may link its client and keys but cannot invent or change UUIDs or role.
 
 For FHIR IPS export, a BFF calls
-`profileManager.exportClinicalCreatorIps({ ownerId, profileId })`. Its
-`provenance.authorReference` is the source organization or subject, while
-`provenance.attesters` contains the stable RelatedPerson or
-PractitionerRole/Practitioner assignment. The returned `permissionActor`
-remains the matching Consent actor. This does not change
-`updateClinicalSummary(...)` or expose phone, email, DCR client ids or signing
-keys in the IPS. `exportServerProfileClinicalCreatorIps(profile)` remains the
-lower-level compatibility helper when the BFF already owns the loaded record.
+`profileManager.exportClinicalCreatorIps({ ownerId, profileId, sourceAuthor })`.
+`sourceAuthor` is the closed `ClinicalSourceAuthorSelections.Owner | Creator`
+choice, never a browser-supplied FHIR reference. Owner selects the organization
+or individual; Creator selects the registered PractitionerRole or RelatedPerson
+and that same assignment may then be both author and attester. The returned
+`permissionActor` remains the matching Consent actor. Phone, email, DIDComm
+sender, DCR client ids and signing keys never become IPS provenance.
+`exportServerProfileClinicalCreatorIps(profile, { sourceAuthor })` remains the
+lower-level helper when the BFF already owns the loaded record. See
+[101-BFF_CLINICAL_WRITES.md](./101-BFF_CLINICAL_WRITES.md).
 
 ### Related person
 

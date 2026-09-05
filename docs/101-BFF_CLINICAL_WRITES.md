@@ -10,6 +10,11 @@ This guide shows the public Node SDK boundary for three different operations:
 The BFF selects one of these operations. It does not construct the outer
 FHIR `Communication`, DIDComm envelope, route or polling request itself.
 
+The matching gateway-side authorization contract is
+[Authenticated clinical authorship](https://github.com/Global-DataCare/gwtemplate-node-ts/blob/main/docs/01-OVERVIEW-AND-GUIDES/101-01.N-AUTHENTICATED-CLINICAL-AUTHOR.md).
+Keep both guides synchronized when author, attester or update/delete rules
+change.
+
 ## Choose the operation first
 
 | Use case | Input | High-level method |
@@ -62,14 +67,25 @@ The examples below assume that `tenantContext`, `subjectDid`, `providerDid`
 and the resource drafts come from the authenticated BFF request and its
 authoritative read model.
 
-For a locally authored document, resolve the FHIR provenance from the protected
-profile through the manager. The browser supplies neither the organization
-author nor the member/professional attester:
+For locally authored content, resolve the FHIR provenance from the protected
+profile through the manager. The BFF chooses only whether the content came from
+the owner or from the authenticated registered creator. The browser must not
+submit an author reference, attester reference, role assignment or signing key:
 
 ```ts
+import { ClinicalSourceAuthorSelections } from 'gdc-sdk-node-ts';
+
+// Decide this from the authenticated workflow. For example, a BFF route for
+// "record what the individual dictated" selects Owner; a route for "my own
+// professional/member note" selects Creator.
+const sourceAuthor = requestRecordsOwnerContent
+  ? ClinicalSourceAuthorSelections.Owner
+  : ClinicalSourceAuthorSelections.Creator;
+
 const exportedCreator = await profileManager.exportClinicalCreatorIps({
   ownerId: authenticatedAccountId,
   profileId: selectedProfileId,
+  sourceAuthor,
 });
 
 composition.author = [{
@@ -79,11 +95,21 @@ composition.attester = [...exportedCreator.provenance.attesters];
 document.entry.push(...exportedCreator.provenance.entries);
 ```
 
-For a professional profile, the organization is the default author and its
-`PractitionerRole` is the professional attester. For a member/caregiver, the
-individual subject is the default author and the `RelatedPerson` assignment is
-the personal attester. The DIDComm sender and signing `kid` remain technical
-audit evidence and are not copied into these FHIR fields.
+The default is `ClinicalSourceAuthorSelections.Owner`. These are the complete
+high-level cases:
+
+| Authenticated profile and content source | Selection | `Composition.author` | `Composition.attester.party` |
+| --- | --- | --- | --- |
+| Individual records their own content | `Owner` | Individual subject | No role attester is inferred |
+| Member/caregiver records content created or dictated by the individual | `Owner` | Individual subject | Registered `RelatedPerson` assignment |
+| Member/caregiver creates the content | `Creator` | Registered `RelatedPerson` assignment | The same `RelatedPerson`; it is both author and attester |
+| Professional records organization-owned content | `Owner` | Provider organization | Registered `PractitionerRole` |
+| Professional creates the content personally | `Creator` | Registered `PractitionerRole` | The same `PractitionerRole`; it is both author and attester |
+
+The selection is closed: `Creator` resolves only the role/relationship already
+bound to the authenticated protected profile. It is not an escape hatch for an
+arbitrary identifier. DIDComm sender, JWT issuer and signing `kid` remain
+technical transport/audit evidence and are not copied into these FHIR fields.
 
 ## One section: create, update and delete in one batch
 
@@ -150,7 +176,7 @@ const sectionResult =
     {
       subject: subjectDid,
       sender: individualControllerProfile.session.actorDid,
-      author: individualControllerProfile.session.actorDid,
+      author: exportedCreator.provenance.authorReference,
       recipient: providerDid,
       section: HealthcareBasicSections.AllergiesAndIntolerances.attributeValue,
       bundle: allergyChanges.buildJsonApi(),
@@ -172,21 +198,30 @@ await individualMemberProfile.sdk.updateClinicalSection(tenantContext, input);
 await professionalProfile.sdk.updateClinicalSection(tenantContext, input);
 ```
 
-For self-authored calls, `sender` and `author` are the corresponding loaded
-session's `actorDid`. For a delegated create they are intentionally different:
+`sender` identifies the transport participant. `author` identifies the source
+of the clinical content and therefore comes from the protected projection. For
+a member/professional-created fact, select `Creator`; do not accept a role UUID
+from browser JSON:
 
 ```ts
-await individualControllerProfile.sdk.updateClinicalSection(tenantContext, {
+const creatorAuthored = await profileManager.exportClinicalCreatorIps({
+  ownerId: authenticatedAccountId,
+  profileId: selectedProfileId,
+  sourceAuthor: ClinicalSourceAuthorSelections.Creator,
+});
+
+await loadedActorProfile.sdk.updateClinicalSection(tenantContext, {
   ...input,
-  sender: individualControllerProfile.session.actorDid,
-  author: registeredProfessionalAuthor,
+  sender: loadedActorProfile.session.actorDid,
+  author: creatorAuthored.provenance.authorReference,
 });
 ```
 
-This may create a fact for `registeredProfessionalAuthor`; it does not let the
-controller update or delete that fact later. The member/caregiver or
-professional must already possess the subject-scoped authorization described
-in the actor table above.
+The member/caregiver or professional must already possess the subject-scoped
+authorization described in the actor table above. A different authorized
+submitter may transport a create, but cannot obtain its author by echoing an
+identifier and cannot update/delete it unless the stored author resolves back
+to that submitter's registered assignment.
 
 ## Multi-section document owned by the local actor
 
