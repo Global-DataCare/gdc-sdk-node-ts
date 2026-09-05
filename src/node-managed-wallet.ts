@@ -24,7 +24,10 @@ import type { JWK, JwkSet } from 'gdc-common-utils-ts/models/jwk';
 import { Content } from 'gdc-common-utils-ts/utils/content';
 import { createJwtSigner, type JWKLikePrivateMaterial } from 'gdc-common-utils-ts/utils/jwt-signer';
 import { buildJwtCompact, prepareJwtForSignature } from 'gdc-common-utils-ts/utils/jwt';
-import { buildProfessionalIdentityVpPayload } from 'gdc-common-utils-ts/utils/professional-smart';
+import {
+  buildProfessionalIdentityVpPayload,
+  getProfessionalIdentityVC,
+} from 'gdc-common-utils-ts/utils/professional-smart';
 import { NodeCryptoHelper } from './node-crypto-helper.js';
 
 type StoredManagedKey = {
@@ -56,6 +59,8 @@ export type NodeProfessionalIdentityVpInput = Readonly<{
   sameAs?: string | readonly string[];
   telephone?: string;
   credentialMaterial?: string;
+  /** Server-authorized credentials appended after the professional identity VC. */
+  additionalCredentials?: ReadonlyArray<object>;
 }>;
 
 export type NodeCommunicationWalletInitialization = {
@@ -475,6 +480,19 @@ export class NodeManagedWallet implements IWallet {
       ...(input.sameAs ? { sameAs: input.sameAs } : {}),
       ...(input.telephone ? { telephone: input.telephone } : {}),
       ...(input.credentialMaterial ? { credentialMaterial: input.credentialMaterial } : {}),
+      ...(input.additionalCredentials?.length ? {
+        verifiableCredential: [
+          getProfessionalIdentityVC({
+            actorDid: input.actorDid,
+            role: input.role,
+            ...(input.email ? { email: input.email } : {}),
+            ...(input.sameAs ? { sameAs: input.sameAs } : {}),
+            ...(input.telephone ? { telephone: input.telephone } : {}),
+            ...(input.credentialMaterial ? { credentialMaterial: input.credentialMaterial } : {}),
+          }),
+          ...input.additionalCredentials.map(credential => credential as Record<string, unknown>),
+        ],
+      } : {}),
     });
     return this.signCompactJws(context, {
       header: { typ: 'JWT', jwk: vpSigningKey.publicJwk },

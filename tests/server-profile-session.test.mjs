@@ -34,6 +34,7 @@ import {
 } from 'gdc-common-utils-ts/examples/shared';
 import { IdentityDcrMetadataFields } from 'gdc-common-utils-ts/constants/identity-auth';
 import { HealthcareActorRoles } from 'gdc-common-utils-ts/constants/healthcare';
+import { EXAMPLE_INTER_TENANT_ACCESS_CONTRACT_CREDENTIAL } from 'gdc-common-utils-ts/examples/inter-tenant-access-contract';
 
 /**
  * Flow contract exercised by this suite:
@@ -897,6 +898,11 @@ test('high-level manager opens a professional and owns SMART proof plumbing', as
     idToken: 'fresh-signed-id-token',
     authorizedWalletSeed: walletSeed,
     professionalProof: { role: 'ISCO-08|2250', email: 'professional@example.test' },
+    target: {
+      providerDid: 'did:web:gw.example:provider-tenant',
+      routeContext: { tenantId: 'provider-tenant', jurisdiction: 'CA-BC', sector: 'animal-care' },
+    },
+    accessCredentials: [EXAMPLE_INTER_TENANT_ACCESS_CONTRACT_CREDENTIAL],
   });
   const token = await opened.requestSmartToken({
     subjectDid: profile.allowedSubjectDids[0],
@@ -932,9 +938,15 @@ test('high-level manager opens a professional and owns SMART proof plumbing', as
   assert.match(request.body.client_assertion, /^[^.]+\.[^.]+\.[^.]+$/);
   assert.match(request.body.vp_token, /^[^.]+\.[^.]+\.[^.]+$/);
   assert.equal(request.body.audience, undefined);
+  const vpPayload = JSON.parse(Buffer.from(request.body.vp_token.split('.')[1], 'base64url').toString());
+  assert.equal(vpPayload.vp.verifiableCredential.length, 2);
+  assert.equal(vpPayload.vp.verifiableCredential[0].credentialSubject.hasOccupation, 'ISCO-08|2250');
+  assert.deepEqual(vpPayload.vp.verifiableCredential[1], EXAMPLE_INTER_TENANT_ACCESS_CONTRACT_CREDENTIAL);
+  assert.equal(request.aud, 'did:web:gw.example:provider-tenant');
   const assertionClaims = JSON.parse(Buffer.from(request.body.client_assertion.split('.')[1], 'base64url').toString());
   assert.equal(assertionClaims.iss, profile.clientId);
-  assert.match(assertionClaims.aud, /\/tenant-1\/cds-CA-BC\/v1\/animal-care\/identity\/openid\/smart\/token$/);
+  assert.match(assertionClaims.aud, /\/provider-tenant\/cds-CA-BC\/v1\/animal-care\/identity\/openid\/smart\/token$/);
+  assert.match(calls[0].url, /\/provider-tenant\/cds-CA-BC\/v1\/animal-care\/identity\/openid\/smart\/token$/);
 });
 
 test('server bootstrap builds the signed controller VP from ICA credentials without exposing private keys', async () => {
