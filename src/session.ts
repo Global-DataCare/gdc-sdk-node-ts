@@ -13,6 +13,7 @@ import { DigitalTwinSdk } from './orchestration/digital-twin-sdk.js';
 import type { RuntimeClient } from './orchestration/client-port.js';
 import {
   cloneImportedClinicalDocumentForDemo as cloneImportedClinicalDocumentForDemoWithActor,
+  type ClinicalCreatorIpsExport,
   type DemoClinicalDocumentResourceIdContext,
 } from 'gdc-sdk-core-ts';
 
@@ -34,6 +35,8 @@ export type NodeActorSessionContext = {
 export type ActorSessionContext = NodeActorSessionContext;
 
 export type DemoClinicalDocumentCloneOptions = Readonly<{
+  /** Protected profile projection; supplies stable FHIR author and attester. */
+  clinicalCreator?: ClinicalCreatorIpsExport;
   createResourceId?: (context: DemoClinicalDocumentResourceIdContext) => string;
 }>;
 
@@ -117,9 +120,9 @@ export class ActorSession {
   }
 
   /**
-   * Creates an editable demo copy whose `Composition.author` is this
-   * authenticated profile's operational `actorDid`. The actor is never taken
-   * from a stable multibase URN or a DID/alias supplied by a portal.
+   * Creates an editable demo copy whose stable FHIR author/attester come from
+   * `options.clinicalCreator`. This session's operational `actorDid` remains a
+   * compatibility fallback and belongs in the later write's sender field.
    */
   public cloneImportedClinicalDocumentForDemo(
     bundle: Record<string, unknown>,

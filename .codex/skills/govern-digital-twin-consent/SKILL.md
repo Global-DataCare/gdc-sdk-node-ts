@@ -129,19 +129,17 @@ Verify current branches, versions and published npm state before release claims.
   portal alias. The subject remains the individual DID.
 - To edit an imported IPS in a demo, first call
   `cloneImportedClinicalDocumentForDemo(...)` with that same session `actorDid`.
-  The helper gives the copy new resource ids and sets
-  `Composition.author = ActorSession.actorDid`; it never rewrites the imported
-  source document.
+  The helper receives the protected `clinicalCreator` export, gives the copy new
+  resource ids and applies stable FHIR provenance. `ActorSession.actorDid`
+  remains sender; the helper never rewrites the imported source document.
 - Use `Bundle.type = batch`; each entry independently selects `.create()`, `.update()` or `.delete()`. Do not turn this flow into a transaction.
 - A typed delete addresses exactly `ResourceType/id`, has no resource body and may carry `.ifMatch(versionId)`.
 - For generated clinical data, resolve provenance from the authenticated
-  protected profile with the closed `owner | creator` selection. Owner means
-  the individual subject or provider organization. Creator means the registered
-  RelatedPerson or PractitionerRole, which may be both `Composition.author` and
-  `Composition.attester.party` when that actor created the content.
-- A member recording content created or dictated by the individual selects
-  owner: the subject is author and the registered RelatedPerson is attester. A
-  member creating the content selects creator: the RelatedPerson is both.
+  protected profile. A member/controller uses its registered RelatedPerson as
+  both author and attester when it creates the content. A professional uses the
+  jurisdictional CDS legal-organization URN as author and its PractitionerRole
+  as attester. The legacy closed `owner | creator` selection is compatibility
+  only.
 - Never accept a FHIR author/attester reference from browser JSON. Never place
   email, phone, stable contact hashes, DIDComm sender, DCR client id or signing
   key in these provenance fields.

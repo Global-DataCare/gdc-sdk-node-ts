@@ -728,23 +728,26 @@ modules below.
 - draft/outbox helpers
 - document facade helpers
 - `cloneImportedClinicalDocumentForDemo(...)` for an explicit editable demo
-  copy owned by an authenticated profile `actorDid`; direct summary updates
-  use that same value as `sender` and the real hosted provider-tenant DID as
-  `recipient`, never a portal alias
+  copy whose stable FHIR author/attester come from the protected
+  `clinicalCreator` export; direct summary updates use profile `actorDid` only
+  as `sender` and the real hosted provider-tenant DID as `recipient`, never a
+  portal alias
 - vital-sign helpers
 
 ### Composition provenance in clinical Bundles
 
-A document Bundle keeps `Composition.author` (who created the content) separate
-from `Composition.attester` (the registered personal or professional assignment
-that submitted/attested it). For a member or professional, the protected BFF
-profile selects only `owner` or `creator`; a `RelatedPerson` or
-`PractitionerRole` may be both author and attester when that actor created the
-content. DIDComm sender and signing keys remain audit/transport identities.
+A document Bundle keeps `Composition.author` (the organization, EHR/patient
+portal or individual that supplies the document) separate from
+`Composition.attester` (the registered personal or professional assignment
+that attested its content). A `RelatedPerson` or `PractitionerRole` is an
+attester, never a shortcut for replacing the source author. The protected BFF
+profile resolves both from its registered binding. DIDComm sender and signing
+keys remain audit/transport identities.
 The BFF never configures ledger routing or supplies channel/smart-contract
 names. GW owns that decision and returns one transaction receipt with
 per-resource CID/version evidence for a successful clinical Bundle.
-See [Clinical writes from a Node BFF](./docs/101-BFF_CLINICAL_WRITES.md) and the
+See [Clinical writes from a Node BFF](./docs/101-BFF_CLINICAL_WRITES.md),
+[multi-actor IPS export](./docs/101-MULTI_ACTOR_IPS_EXPORT.md), and the
 [gateway authorship contract](https://github.com/Global-DataCare/gwtemplate-node-ts/blob/main/docs/01-OVERVIEW-AND-GUIDES/101-01.N-AUTHENTICATED-CLINICAL-AUTHOR.md).
 
 ### Node runtime client

@@ -39,16 +39,15 @@ For a document update or import, section membership comes from
 
 | Actor facade | Submit create for a registered author | Update/delete existing fact | Document import | Required authority |
 | --- | --- | --- | --- | --- |
-| `IndividualControllerSdk` | Yes | Only when it resolves to the stored author | Yes | Loaded controller profile for the subject |
-| `IndividualMemberSdk` (member/caregiver) | Yes | Only when it resolves to the stored author | No public import method | Accepted member relationship plus subject Consent and SMART authorization |
-| `ProfessionalSdk` (organization employee/professional) | Yes | Only when it resolves to the stored author | No public import method | Enrolled employee profile plus subject Consent and SMART authorization |
+| `IndividualControllerSdk` | Yes | When its registered assignment is the stored attester or owner policy permits it | Yes | Loaded controller profile for the subject |
+| `IndividualMemberSdk` (member/caregiver) | Yes | When its registered `RelatedPerson` is the stored attester | No public import method | Accepted member relationship plus subject Consent and SMART authorization |
+| `ProfessionalSdk` (organization employee/professional) | Yes | When its registered `PractitionerRole` is the stored attester or governed successor policy permits it | No public import method | Enrolled employee profile plus subject Consent and SMART authorization |
 
 Relationship, invitation or employee status alone never grants clinical
 access. GW evaluates the authenticated actor, subject, Consent, SMART scope and
-resource authorship. An authorized caller may transport a new fact for a
-different registered author. That caller is recorded as the submitter, not as
-an additional author, and may not update or delete the fact afterward.
-Repeating somebody else's author identifier in a payload is not proof.
+resource provenance. An authorized caller is recorded as the submitter, not as
+an additional author or attester. Repeating somebody else's identifier in a
+payload is not proof.
 
 ## BFF setup for an individual controller
 
@@ -70,48 +69,41 @@ The examples below assume that `tenantContext`, `subjectDid`, `providerDid`
 and the resource drafts come from the authenticated BFF request and its
 authoritative read model.
 
-For locally authored content, resolve the FHIR provenance from the protected
-profile through the manager. The BFF chooses only whether the content came from
-the owner or from the authenticated registered creator. The browser must not
+For locally supplied content, resolve the FHIR provenance from the protected
+profile through the manager. A professional uses the stable legal organization
+URN as author and its PractitionerRole as attester. A controller/member uses
+its RelatedPerson urn:uuid as both author and attester. The browser must not
 submit an author reference, attester reference, role assignment or signing key:
 
 ```ts
-import { ClinicalSourceAuthorSelections } from 'gdc-sdk-node-ts';
-
-// Decide this from the authenticated workflow. For example, a BFF route for
-// "record what the individual dictated" selects Owner; a route for "my own
-// professional/member note" selects Creator.
-const sourceAuthor = requestRecordsOwnerContent
-  ? ClinicalSourceAuthorSelections.Owner
-  : ClinicalSourceAuthorSelections.Creator;
-
 const exportedCreator = await profileManager.exportClinicalCreatorIps({
   ownerId: authenticatedAccountId,
   profileId: selectedProfileId,
-  sourceAuthor,
 });
 
-composition.author = [{
-  reference: exportedCreator.provenance.authorReference,
-}];
-composition.attester = [...exportedCreator.provenance.attesters];
-document.entry.push(...exportedCreator.provenance.entries);
+await loadedProfile.sdk.updateClinicalSection(tenantContext, {
+  subject: subjectDid,
+  sender: loadedProfile.session.actorDid,
+  recipient: providerDid,
+  section: selectedSection,
+  bundle: sectionBatch,
+  clinicalCreator: exportedCreator,
+});
 ```
 
-The default is `ClinicalSourceAuthorSelections.Owner`. These are the complete
-high-level cases:
+`ClinicalSourceAuthorSelections.Creator` remains accepted for compatibility but
+produces the same author/attester boundary. These are the complete cases:
 
-| Authenticated profile and content source | Selection | `Composition.author` | `Composition.attester.party` |
-| --- | --- | --- | --- |
-| Individual records their own content | `Owner` | Individual subject | No role attester is inferred |
-| Member/caregiver records content created or dictated by the individual | `Owner` | Individual subject | Registered `RelatedPerson` assignment |
-| Member/caregiver creates the content | `Creator` | Registered `RelatedPerson` assignment | The same `RelatedPerson`; it is both author and attester |
-| Professional records organization-owned content | `Owner` | Provider organization | Registered `PractitionerRole` |
-| Professional creates the content personally | `Creator` | Registered `PractitionerRole` | The same `PractitionerRole`; it is both author and attester |
+| Authenticated profile and content source | `Composition.author` | `Composition.attester.party` |
+| --- | --- | --- |
+| Individual records their own content without a member assignment | Stable individual author | Same reference as personal attester when omitted |
+| Controller/caregiver records content for an individual | Registered `RelatedPerson` urn:uuid | The same registered `RelatedPerson` urn:uuid |
+| Professional records provider content | Jurisdictional CDS legal organization URN (`urn:cds-<jurisdiction>:v1:organization:...`) | Registered `PractitionerRole` urn:uuid |
+| Administrative professional imports an external IPS | Preserved external organization/EHR/portal | Existing attester is preserved; importer is only submitter unless it truly attests |
 
-The selection is closed: `Creator` resolves only the role/relationship already
-bound to the authenticated protected profile. It is not an escape hatch for an
-arbitrary identifier. DIDComm sender, JWT issuer and signing `kid` remain
+The projection resolves only the role/relationship already bound to the
+authenticated protected profile. It is not an escape hatch for an arbitrary
+identifier. DIDComm sender, JWT issuer and signing `kid` remain
 technical transport/audit evidence and are not copied into these FHIR fields.
 
 ## One section: create, update and delete in one batch
@@ -202,29 +194,29 @@ await professionalProfile.sdk.updateClinicalSection(tenantContext, input);
 ```
 
 `sender` identifies the transport participant. `author` identifies the source
-of the clinical content and therefore comes from the protected projection. For
-a member/professional-created fact, select `Creator`; do not accept a role UUID
-from browser JSON:
+organization/individual and therefore comes from the protected projection. The
+role/relationship remains the attester; do not accept either UUID from browser
+JSON:
 
 ```ts
-const creatorAuthored = await profileManager.exportClinicalCreatorIps({
+const provenance = await profileManager.exportClinicalCreatorIps({
   ownerId: authenticatedAccountId,
   profileId: selectedProfileId,
-  sourceAuthor: ClinicalSourceAuthorSelections.Creator,
 });
 
 await loadedActorProfile.sdk.updateClinicalSection(tenantContext, {
   ...input,
   sender: loadedActorProfile.session.actorDid,
-  author: creatorAuthored.provenance.authorReference,
+  author: provenance.provenance.authorReference,
+  // Keep provenance.provenance.attesters on the section Bundle claims.
 });
 ```
 
 The member/caregiver or professional must already possess the subject-scoped
 authorization described in the actor table above. A different authorized
-submitter may transport a create, but cannot obtain its author by echoing an
-identifier and cannot update/delete it unless the stored author resolves back
-to that submitter's registered assignment.
+submitter may transport a create, but cannot obtain provenance by echoing an
+identifier and cannot update/delete it unless GW resolves its authenticated
+binding to the stored attester or an explicit owner/successor policy.
 
 ## Multi-section document owned by the local actor
 
@@ -335,7 +327,7 @@ The repository currently proves these boundaries at different layers:
 | Controller document ingestion and subsequent index read | Live Node SDK E2E |
 | Professional SMART read, author-owned CRUD, delegated controller create and denied submitter update/delete | Full-cycle live Node SDK E2E |
 | Member/caregiver invitation, narrowed Consent and clinical read | Consumer Playwright journey |
-| Member/caregiver clinical write | Public SDK surface and consumer Playwright journey |
+| Member/caregiver clinical write | Public SDK surface; live no-skip aggregate journey is a release gate, not yet substituted by Playwright |
 | Per-entry `PUT` update against real GW | Typed editor/unit contract and local GW clinical flow |
 
 Keep the proof label precise: a Playwright test that calls an SDK directly is
@@ -348,4 +340,5 @@ journey.
 - `tests/101-live-full-cycle-bff-runtime.e2e.test.mjs`
 - `tests/individual-controller-backend-runtime-writes.test.mjs`
 - `docs/101-SDK_END_TO_END.md`
+- `docs/101-MULTI_ACTOR_IPS_EXPORT.md`
 - `gdc-common-utils-ts/docs/101-BUNDLE_EDITOR_READER.md`

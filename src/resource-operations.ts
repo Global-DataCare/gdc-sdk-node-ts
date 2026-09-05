@@ -351,11 +351,12 @@ type ClinicalUpdateRuntimeOptions = Readonly<{
  * Updates exactly one clinical section through a scoped batch/collection.
  * A `Bundle.type = batch` may mix typed create, update, and delete entries.
  * A delete targets `ResourceType/id`, carries no resource body, and may use
- * `ifMatch` for optimistic concurrency. GW authorizes it against the creator
- * DID plus the caller's linked verified login identity; contact identifiers
- * are never written into the clinical resource.
+ * `ifMatch` for optimistic concurrency. GW authorizes it against the stored
+ * attester assignment plus the caller's registered clinical creator binding;
+ * contact identifiers are never written into the clinical resource.
  * An externally authored `urn:*` may be preserved on first import, but a local
- * controller cannot subsequently update or delete that source-authored fact.
+ * local actor cannot subsequently update or delete that source-authored fact
+ * unless an explicit successor policy applies.
  */
 export type ClinicalSectionUpdateInput =
   ClinicalSectionUpdateCommunicationInput & ClinicalUpdateRuntimeOptions;
@@ -365,8 +366,9 @@ export type ClinicalSectionUpdateInput =
  *
  * For the direct call, `sender` is the authenticated profile's operational
  * `actorDid`, and `recipient` is the real provider-tenant DID inside the host
- * that accommodates it. Neither value is a portal alias. When the document is
- * an editable demo clone, its `Composition.author` is that same `actorDid`.
+ * that accommodates it. Neither value is a portal alias. An editable demo
+ * clone obtains its stable FHIR author/attester from the protected
+ * `clinicalCreator` export, never from that `actorDid`.
  */
 export type ClinicalSummaryUpdateInput =
   ClinicalUpdateCommunicationInput & ClinicalUpdateRuntimeOptions;

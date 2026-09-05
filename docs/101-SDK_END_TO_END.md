@@ -1644,8 +1644,9 @@ const clinicalBundle = clinicalBundleEditor.buildJsonApi();
 await individualControllerProfile.sdk.updateClinicalSection(tenantContext, {
   subject: subjectDid,
   sender: professionalDid,
-  author: professionalDid,
   recipient: organizationDid,
+  // Protected export: CDS legal organization author + PractitionerRole attester.
+  clinicalCreator: professionalClinicalCreator,
   section: HealthcareBasicSections.VitalSigns.attributeValue,
   bundle: clinicalBundle,
   noteText: 'IPS update with vital signs',
@@ -1656,10 +1657,9 @@ await individualControllerProfile.sdk.updateClinicalSection(tenantContext, {
 Important:
 
 - every resource in this Bundle belongs to the one declared section
-- `sender` is the authenticated submitter; `author` is selected by the BFF and
-  the SDK writes its canonical claims. Current self-authoring flows set both to
-  `profile.actorDid`. A distinct author is valid only when the gateway can
-  verify the corresponding author authorization evidence.
+- `sender` is the authenticated submitter. The protected `clinicalCreator`
+  export supplies author/attester; `profile.actorDid` is never copied into
+  those FHIR fields. GW verifies the exact registered binding.
 - the GW must not infer a default section
 - individual resource `upsert*` calls are internal compatibility plumbing
 - this flow does not replace a multi-section IPS document
@@ -1761,9 +1761,16 @@ const actorSession = loadedActorProfile.session;
 const actorDid = actorSession.actorDid;
 if (!actorDid) throw new Error('The loaded actor session has no operational DID.');
 
+const clinicalCreator = await profileManager.exportClinicalCreatorIps({
+  ownerId: authenticatedAccountId,
+  profileId: loadedActorProfile.profile.id,
+});
+
 const editableCopy = cloneImportedClinicalDocumentForDemo({
   bundle: importedIps,
-  authenticatedActorDid: actorDid,
+  // The protected export supplies stable FHIR author and attester references.
+  // Never derive either field from actorDid in the browser or BFF.
+  clinicalCreator,
 });
 
 await updateClinicalSummary(tenantContext, {
@@ -1784,8 +1791,10 @@ the authenticated role. The same shape applies to
 portal. Use it as `sender`.
 `recipient = providerDid` is the real tenant DID inside the host that
 accommodates it, never a portal alias. The helper sets
-`Composition.author` to that same session `actorDid`, assigns new FHIR logical ids and
-rewrites internal references. Source
+professional `Composition.author` to the stable legal organization URN and its
+attester to the PractitionerRole urn:uuid. For an individual member/controller,
+the RelatedPerson urn:uuid is both author and attester. It assigns new FHIR
+logical ids and rewrites internal references. Source
 business identifiers remain available for provenance, while later updates or
 typed `.delete()` entries address only the cloned resource ids. This helper is
 explicitly for demo preparation and is never applied during a normal import.

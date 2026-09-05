@@ -640,8 +640,10 @@ provider-tenant DID inside its hosting host as `recipient`, and the individual's
 DID as `subject`. Controller, member/caregiver and professional loaded profiles
 all return that `ActorSession`; do not substitute a
 stable multibase URN or a DID/alias owned by the portal. For an editable demo
-copy of an imported IPS, `cloneImportedClinicalDocumentForDemo(...)` sets
-`Composition.author` to that same session `actorDid`.
+copy of an imported IPS, pass the complete protected
+`exportClinicalCreatorIps(...)` result to
+`cloneImportedClinicalDocumentForDemo(...)`; never turn that session
+`actorDid` into `Composition.author`.
 
 When the actor profile is created, the BFF may also supply a server-authorized
 `clinicalCreatorBinding`: the imported or generated member/Practitioner UUID,
@@ -655,14 +657,17 @@ DCR may link its client and keys but cannot invent or change UUIDs or role.
 For FHIR IPS export, a BFF calls
 `profileManager.exportClinicalCreatorIps({ ownerId, profileId, sourceAuthor })`.
 `sourceAuthor` is the closed `ClinicalSourceAuthorSelections.Owner | Creator`
-choice, never a browser-supplied FHIR reference. Owner selects the organization
-or individual; Creator selects the registered PractitionerRole or RelatedPerson
-and that same assignment may then be both author and attester. The returned
+compatibility choice, never a browser-supplied FHIR reference. High-level
+clone/section helpers use the stable legal organization URN plus
+PractitionerRole for professionals, or one RelatedPerson urn:uuid as both
+author and attester for a member/controller. The returned
 `permissionActor` remains the matching Consent actor. Phone, email, DIDComm
 sender, DCR client ids and signing keys never become IPS provenance.
 `exportServerProfileClinicalCreatorIps(profile, { sourceAuthor })` remains the
 lower-level helper when the BFF already owns the loaded record. See
 [101-BFF_CLINICAL_WRITES.md](./101-BFF_CLINICAL_WRITES.md).
+The complete numbered aggregate-export proof is
+[101-MULTI_ACTOR_IPS_EXPORT.md](./101-MULTI_ACTOR_IPS_EXPORT.md).
 
 ### Related person
 

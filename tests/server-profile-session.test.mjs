@@ -28,6 +28,7 @@ import {
   EXAMPLE_PROFILE_ID,
   EXAMPLE_PROFILE_PIN,
   EXAMPLE_PROFILE_PROVIDER_DID,
+  EXAMPLE_PROVIDER_ORGANIZATION_AUTHORIZATION_URN_CDS,
   EXAMPLE_RELATED_PERSON_MEMBER_DID,
   EXAMPLE_RELATED_PERSON_ROLE,
   EXAMPLE_SUBJECT_DID,
@@ -60,9 +61,9 @@ import { EXAMPLE_INTER_TENANT_ACCESS_CONTRACT_CREDENTIAL } from 'gdc-common-util
  *    VP proves actor/role authority.
  * 8. Unlock requests and polls its first SMART token through the same
  *    registered wallet and encrypted DIDComm boundary required by strict GW.
- * 9. Clinical provenance selects only the owner or the authenticated registered
- *    creator; browser identifiers, DIDComm sender and signing keys cannot become
- *    Composition author or attester.
+ * 9. Clinical provenance comes from the protected binding: CDS organization
+ *    plus PractitionerRole for professionals, or RelatedPerson for a member;
+ *    browser values and transport identities cannot select either field.
  */
 function memoryDeps() {
   const profiles = new Map();
@@ -480,7 +481,7 @@ test('professional profile rejects a creator assignment whose role differs from 
       kind: FhirIpsCreatorKinds.Professional,
       actorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_USER_UUID}`,
       authorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}`,
-      ownerIdentifier: EXAMPLE_PROFILE_PROVIDER_DID,
+      ownerIdentifier: EXAMPLE_PROVIDER_ORGANIZATION_AUTHORIZATION_URN_CDS,
       role: EXAMPLE_HEALTHCARE_ACTOR_ROLE_PHYSICIAN,
     },
   }), /creator binding role must equal professionalProof.role/);
@@ -519,7 +520,7 @@ test('employee enrollment builds its signed role VP after DCR instead of copying
       kind: FhirIpsCreatorKinds.Professional,
       actorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_USER_UUID}`,
       authorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}`,
-      ownerIdentifier: 'did:web:clinic.example',
+      ownerIdentifier: EXAMPLE_PROVIDER_ORGANIZATION_AUTHORIZATION_URN_CDS,
       role: HealthcareActorRoles.Veterinarian,
     },
   });
@@ -552,18 +553,18 @@ test('employee enrollment builds its signed role VP after DCR instead of copying
     profileId: profile.profileId,
   });
   assert.deepEqual(managerIpsCreator.provenance, ipsCreator.provenance);
-  const personallyAuthored = await manager.exportClinicalCreatorIps({
+  const professionallyAttested = await manager.exportClinicalCreatorIps({
     ownerId: profile.ownerId,
     profileId: profile.profileId,
     sourceAuthor: ClinicalSourceAuthorSelections.Creator,
   });
-  // The authenticated PractitionerRole created and attested the content.
+  // The provider is the document author; the authenticated PractitionerRole attests it.
   assert.equal(
-    personallyAuthored.provenance.authorReference,
-    profile.clinicalCreatorBinding.authorIdentifier,
+    professionallyAttested.provenance.authorReference,
+    profile.clinicalCreatorBinding.ownerIdentifier,
   );
   assert.equal(
-    personallyAuthored.provenance.attesters[0].party.reference,
+    professionallyAttested.provenance.attesters[0].party.reference,
     profile.clinicalCreatorBinding.authorIdentifier,
   );
   await assert.rejects(() => manager.exportClinicalCreatorIps({
@@ -599,7 +600,7 @@ function clinicalCreatorStableFields(binding) {
   };
 }
 
-test('member provenance keeps dictated subject authorship and permits registered member authorship', () => {
+test('member provenance projects the registered RelatedPerson as both author and attester', () => {
   const clinicalCreatorBinding = {
     kind: FhirIpsCreatorKinds.IndividualMember,
     actorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_USER_UUID}`,
@@ -613,21 +614,21 @@ test('member provenance keeps dictated subject authorship and permits registered
     clinicalCreatorBinding,
   };
 
-  // The member records content created or dictated by the individual.
-  const ownerAuthored = exportServerProfileClinicalCreatorIps(protectedProfile);
-  assert.equal(ownerAuthored.provenance.authorReference, EXAMPLE_SUBJECT_DID);
-  assert.equal(
-    ownerAuthored.provenance.attesters[0].party.reference,
-    clinicalCreatorBinding.authorIdentifier,
-  );
-
-  // The member created the content, so one RelatedPerson is author and attester.
-  const memberAuthored = exportServerProfileClinicalCreatorIps(protectedProfile, {
-    sourceAuthor: ClinicalSourceAuthorSelections.Creator,
-  });
+  // The member creates the content through its protected assignment.
+  const memberAuthored = exportServerProfileClinicalCreatorIps(protectedProfile);
   assert.equal(memberAuthored.provenance.authorReference, clinicalCreatorBinding.authorIdentifier);
   assert.equal(
     memberAuthored.provenance.attesters[0].party.reference,
+    clinicalCreatorBinding.authorIdentifier,
+  );
+
+  // Compatibility selection does not change the binding-derived result.
+  const memberAttested = exportServerProfileClinicalCreatorIps(protectedProfile, {
+    sourceAuthor: ClinicalSourceAuthorSelections.Creator,
+  });
+  assert.equal(memberAttested.provenance.authorReference, clinicalCreatorBinding.authorIdentifier);
+  assert.equal(
+    memberAttested.provenance.attesters[0].party.reference,
     clinicalCreatorBinding.authorIdentifier,
   );
 });
@@ -647,7 +648,7 @@ test('fresh OTP recovery rotates employee wallet keys, invalidates old sessions 
       kind: FhirIpsCreatorKinds.Professional,
       actorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_USER_UUID}`,
       authorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}`,
-      ownerIdentifier: 'did:web:clinic.example',
+      ownerIdentifier: EXAMPLE_PROVIDER_ORGANIZATION_AUTHORIZATION_URN_CDS,
       role: HealthcareActorRoles.MedicalSecretary,
       actorDids: ['did:web:clinic.example:employees:zStableActor'],
       dcrClientIds: ['old-client', 'browser-installation'],

@@ -395,7 +395,11 @@ export class ServerProfileSessionManager {
     input: Readonly<{
       ownerId: string;
       profileId: string;
-      /** Closed BFF choice: content owner or authenticated registered creator. */
+      /**
+       * Deprecated compatibility choice. The high-level clone/section helpers
+       * derive the final professional or individual-member author boundary
+       * from the returned protected binding.
+       */
       sourceAuthor?: ClinicalSourceAuthorSelection;
     }>,
   ): Promise<ClinicalCreatorIpsExport> {
@@ -1320,10 +1324,13 @@ function requireBase64UrlSeed32(seed: string): void {
 }
 
 /**
- * Exports the stable FHIR IPS creator attached to a server profile. The
- * optional closed selection determines whether the owner or the authenticated
- * registered creator authored the content. DIDComm sender and signing keys
- * remain transport/audit evidence and never become FHIR provenance.
+ * Exports the stable FHIR IPS source author and attester attached to a server
+ * profile. The returned protected binding lets high-level helpers use the
+ * stable legal organization URN plus PractitionerRole for professionals, or
+ * one RelatedPerson urn:uuid as both author and attester for individual
+ * members/controllers. The optional selection remains only for backwards
+ * compatibility. DIDComm sender and signing keys remain transport/audit
+ * evidence and never become FHIR provenance.
  */
 export function exportServerProfileClinicalCreatorIps(
   profile: ServerProfileRecord,
