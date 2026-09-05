@@ -1602,6 +1602,11 @@ Optional narrower facade:
 
 ### 7.11 Update exactly one clinical section
 
+For the complete Node BFF decision table, actor authorization matrix, mixed
+create/update/delete example, document import boundary and current test versus
+Playwright evidence, read
+[101-BFF_CLINICAL_WRITES.md](./101-BFF_CLINICAL_WRITES.md).
+
 Use `updateClinicalSection(...)` when every entry belongs to one section. The
 Bundle is `batch` or `collection`; the method puts the exact section on the
 outer Communication. Vital-sign measurement batches use this flow.
