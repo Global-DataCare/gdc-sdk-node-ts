@@ -34,6 +34,7 @@ import {
 } from 'gdc-common-utils-ts/examples/shared';
 import { IdentityDcrMetadataFields } from 'gdc-common-utils-ts/constants/identity-auth';
 import { HealthcareActorRoles } from 'gdc-common-utils-ts/constants/healthcare';
+import { CompositionAttesterModes } from 'gdc-common-utils-ts/models/interoperable-claims/composition-claims';
 import { EXAMPLE_INTER_TENANT_ACCESS_CONTRACT_CREDENTIAL } from 'gdc-common-utils-ts/examples/inter-tenant-access-contract';
 
 /**
@@ -533,7 +534,17 @@ test('employee enrollment builds its signed role VP after DCR instead of copying
     clinicalCreatorStableFields(profile.clinicalCreatorBinding),
   );
   const ipsCreator = exportServerProfileClinicalCreatorIps(profile);
+  assert.equal(ipsCreator.provenance.authorReference, profile.clinicalCreatorBinding.ownerIdentifier);
+  assert.deepEqual(ipsCreator.provenance.attesters, [{
+    mode: CompositionAttesterModes.Professional,
+    party: { reference: profile.clinicalCreatorBinding.authorIdentifier },
+  }]);
   assert.equal(ipsCreator.author.authorReference, profile.clinicalCreatorBinding.authorIdentifier);
+  const managerIpsCreator = await manager.exportClinicalCreatorIps({
+    ownerId: profile.ownerId,
+    profileId: profile.profileId,
+  });
+  assert.deepEqual(managerIpsCreator.provenance, ipsCreator.provenance);
   const vpToken = await openServerProfileSecret(
     profile.protectedVpToken,
     '123456',

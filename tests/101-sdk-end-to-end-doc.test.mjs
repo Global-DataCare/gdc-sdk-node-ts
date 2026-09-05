@@ -86,6 +86,9 @@ test('BFF clinical-write 101 separates section CRUD from document import', () =>
   assert.match(clinicalWriteGuide, /CompositionClaim\.Attester/);
   assert.match(clinicalWriteGuide, /CompositionClaim\.AttesterMode/);
   assert.match(clinicalWriteGuide, /CompositionClaim\.AttesterTime/);
+  assert.match(clinicalWriteGuide, /profileManager\.exportClinicalCreatorIps\(/);
+  assert.match(clinicalWriteGuide, /provenance\.authorReference/);
+  assert.match(clinicalWriteGuide, /provenance\.attesters/);
   assert.match(clinicalWriteGuide, /PractitionerRole.*Practitioner.*Organization/s);
   assert.match(clinicalWriteGuide, /Composition\.date[\s\S]{0,80}strictly later/i);
   assert.match(clinicalWriteGuide, /does not implement the CID-mapping/i);
