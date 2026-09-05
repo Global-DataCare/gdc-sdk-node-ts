@@ -28,6 +28,7 @@ import {
   EmployeeResourceTypes,
 } from 'gdc-common-utils-ts/utils/employee';
 import { DeviceAppTypes, DeviceUserClasses, type DeviceAppType } from 'gdc-common-utils-ts/constants/device';
+import { CommunicationCategoryCodes } from 'gdc-common-utils-ts/constants/communication';
 import {
   addFhirResourceToCommunication,
   createCommunicationResource,
@@ -471,7 +472,12 @@ export type CommunicationParticipantRuntimeSearchInput = {
 /** Subject/requester filters for canonical permission-request Communications. */
 export type ProfessionalAccessRequestSearchInput = CommunicationParticipantRuntimeSearchInput;
 
-/** Restricts a Communication participant search to permission requests. */
+/**
+ * Restricts a Communication participant search to standard notifications.
+ * A permission request is identified by its attached draft Consent contract;
+ * it is not an invented fifth FHIR category. See
+ * https://www.hl7.org/fhir/valueset-communication-category.html
+ */
 export function buildProfessionalAccessRequestSearchInput(
   input: ProfessionalAccessRequestSearchInput,
 ): CommunicationParticipantRuntimeSearchInput {
@@ -479,7 +485,7 @@ export function buildProfessionalAccessRequestSearchInput(
     ...input,
     searchParams: {
       ...input.searchParams,
-      [CommunicationClaim.Category]: 'permission-request',
+      [CommunicationClaim.Category]: CommunicationCategoryCodes.Notification.attributeValue,
     },
   };
 }
@@ -1579,7 +1585,7 @@ export async function requestProfessionalAccessWithDeps(
   });
   const communicationClaims = {
     ...communication.claims,
-    [CommunicationClaim.Category]: 'permission-request',
+    [CommunicationClaim.Category]: CommunicationCategoryCodes.Notification.attributeValue,
     [CommunicationClaim.NoteText]: communication.text,
   };
   const persistedCommunication = { ...communication, claims: communicationClaims };

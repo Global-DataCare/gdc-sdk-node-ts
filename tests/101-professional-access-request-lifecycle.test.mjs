@@ -1,3 +1,4 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 /**
  * Complete journey:
  * 1. the professional selects a subject and the missing standard sections;
@@ -25,6 +26,7 @@ import {
   EXAMPLE_SUBJECT_DID,
 } from 'gdc-common-utils-ts/examples/shared';
 import { ClaimConsent, ConsentStatuses } from 'gdc-common-utils-ts/models/consent-rule';
+import { CommunicationCategoryCodes } from 'gdc-common-utils-ts/constants/communication';
 
 import {
   IndividualControllerSdk,
@@ -64,7 +66,7 @@ test('101: professional requests access and the subject answers the same Communi
           subject: input.subject,
           sender: input.sender,
           recipient: input.recipient,
-          category: ['permission-request'],
+          category: [CommunicationCategoryCodes.Notification.attributeValue],
           payload: {
             resourceType: 'Bundle',
             type: 'batch',
@@ -93,7 +95,7 @@ test('101: professional requests access and the subject answers the same Communi
       calls.push({ operation: 'inbox', routeContext, input });
       return {
         submit: { status: 202, body: {} },
-        poll: { status: 200, body: { data: [{ category: ['permission-request'] }] }, attempts: 1 },
+        poll: { status: 200, body: { data: [{ category: [CommunicationCategoryCodes.Notification.attributeValue] }] }, attempts: 1 },
       };
     },
     async grantProfessionalAccess(routeContext, input) {
@@ -129,7 +131,7 @@ test('101: professional requests access and the subject answers the same Communi
     sender: professionalDid,
     recipient: subjectDid,
   });
-  assert.deepEqual(request.communication.category, ['permission-request']);
+  assert.deepEqual(request.communication.category, [CommunicationCategoryCodes.Notification.attributeValue]);
   assert.equal(request.communication.payload.data[0].resource.status, ConsentStatuses.Draft);
   assert.equal(JSON.stringify(request).includes('AccessRequest.'), false);
   assert.equal(request.delivery.poll.status, 201);
@@ -143,7 +145,10 @@ test('101: professional requests access and the subject answers the same Communi
     recipientActorId: subjectDid,
   });
   assert.equal(inbox.poll.status, 200);
-  assert.equal(calls[1].input.searchParams['Communication.category'], 'permission-request');
+  assert.equal(
+    calls[1].input.searchParams['Communication.category'],
+    CommunicationCategoryCodes.Notification.attributeValue,
+  );
 
   // Step 3. The subject approves through the normal Consent operation while
   // preserving both identifiers from the originating Communication.

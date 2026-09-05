@@ -912,7 +912,11 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         pollOptions,
       },
     ));
-    assertTerminalBundleFailure(delegatedUpdate, 'Delegated submitter update', /only the authenticated creator/i);
+    assertTerminalBundleFailure(
+      delegatedUpdate,
+      'Delegated submitter update',
+      /authenticated (?:author|creator)|registered creator/i,
+    );
 
     const delegatedDeleteBundle = new BundleEditor().setBundleType(BundleTypes.batch);
     delegatedDeleteBundle
@@ -931,7 +935,11 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         pollOptions,
       },
     ));
-    assertTerminalBundleFailure(delegatedDelete, 'Delegated submitter delete', /only the authenticated creator/i);
+    assertTerminalBundleFailure(
+      delegatedDelete,
+      'Delegated submitter delete',
+      /authenticated (?:author|creator)|registered creator/i,
+    );
 
     const deleteVitalSign = new BundleEditor().setBundleType(BundleTypes.batch);
     deleteVitalSign

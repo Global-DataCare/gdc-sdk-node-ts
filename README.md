@@ -437,6 +437,12 @@ grant/deny operation and retains the original Communication identifier/thread.
 and `GatewayActiveConsentProvider` supplies `evaluateRequestedAccess(...)` from
 the GW Consent source of truth rather than a parallel application table.
 There is no `AccessRequest` FHIR resource or `AccessRequest.*` claim family.
+The Communication itself uses the standard FHIR `notification` category;
+`permission-request` is workflow meaning carried by the attached draft Consent,
+not a custom category. See the
+[HL7 category value set](https://www.hl7.org/fhir/valueset-communication-category.html),
+[HL7 `v3-ActReason` BTG code system](http://terminology.hl7.org/CodeSystem/v3-ActReason),
+and the [IHE compound normal/break-glass Consent example](https://profiles.ihe.net/ITI/PCF/Consent-ex-consent-advanced-normal-break-glass-restricted.json.html).
 
 ## Main Flows
 

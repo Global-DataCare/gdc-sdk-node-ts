@@ -43,6 +43,7 @@ import {
 } from 'gdc-common-utils-ts';
 import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
 import { ClaimConsent, ConsentStatuses } from 'gdc-common-utils-ts/models/consent-rule';
+import { CommunicationCategoryCodes } from 'gdc-common-utils-ts/constants/communication';
 import { buildGrantProfessionalAccessClaimsWithCid } from '../dist/runtime-consent.js';
 
 import {
@@ -1334,7 +1335,10 @@ test('requestProfessionalAccessWithDeps persists one canonical permission-reques
       },
     },
   );
-  assert.equal(result.communication.category[0], 'permission-request');
+  assert.equal(
+    result.communication.category[0],
+    CommunicationCategoryCodes.Notification.attributeValue,
+  );
   assert.equal(result.communication.subject, 'did:web:subject.example');
   assert.match(result.communicationIdentifier, /^urn:uuid:/);
   assert.equal(calls[0][2].thid, result.thid);
@@ -1406,7 +1410,7 @@ test('buildProfessionalAccessRequestSearchInput preserves participant filters an
     senderActorId: 'did:web:clinic.example:member:zHash:ISCO-08|2211',
     searchParams: {
       'Communication.topic': 'clinical-access',
-      'Communication.category': 'permission-request',
+      'Communication.category': CommunicationCategoryCodes.Notification.attributeValue,
     },
   });
 });

@@ -204,6 +204,20 @@ resources. Draft Consent never grants access, and neither an invented
 `request.thid`, `request.communicationIdentifier` and
 `request.consentIdentifier` for correlation.
 
+The request uses the standard FHIR `notification` category from the
+[four-code Communication category value set](https://www.hl7.org/fhir/valueset-communication-category.html).
+`permission-request` describes the workflow and attached draft Consent; it is
+not a fifth category. Clinical section/document topics are governed LOINC
+codings. Break-glass is the explicit exception: category `alert`, topic
+[`v3-ActReason|BTG`](http://terminology.hl7.org/CodeSystem/v3-ActReason). The
+[IHE PCF example](https://profiles.ihe.net/ITI/PCF/Consent-ex-consent-advanced-normal-break-glass-restricted.json.html)
+is one compound policy whose nested provision adds the restricted-data
+emergency exception, not two unrelated Consent operations.
+
+The flat claims remain canonical across the Node runtime. FHIR R4/R5 are
+projections in and out of those claims, and searches accept only the normalized
+FHIR search parameter names and restrictions implemented by GW.
+
 ## 3. Let the subject list and answer the request
 
 ```ts
