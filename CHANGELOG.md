@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 2.7.7 - 2026-09-04
+
+- Add `ServerProfileSessionManager.exportClinicalCreatorIps(...)` so a portal
+  BFF can obtain canonical IPS author and attester resources from an owned
+  protected profile without exposing wallet material or accepting browser
+  supplied provenance.
+- Document organization/subject authors separately from professional/member
+  attesters and keep sender/signing-key identity as technical audit evidence.
+- Consume `gdc-common-utils-ts@2.8.6` and `gdc-sdk-core-ts@2.5.5` from their
+  verified registry releases.
+
 ## 2.7.6 - 2026-09-04
 
 - Allow a server-authorized professional session to target a different tenant

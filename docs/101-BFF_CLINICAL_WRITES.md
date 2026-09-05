@@ -62,6 +62,29 @@ The examples below assume that `tenantContext`, `subjectDid`, `providerDid`
 and the resource drafts come from the authenticated BFF request and its
 authoritative read model.
 
+For a locally authored document, resolve the FHIR provenance from the protected
+profile through the manager. The browser supplies neither the organization
+author nor the member/professional attester:
+
+```ts
+const exportedCreator = await profileManager.exportClinicalCreatorIps({
+  ownerId: authenticatedAccountId,
+  profileId: selectedProfileId,
+});
+
+composition.author = [{
+  reference: exportedCreator.provenance.authorReference,
+}];
+composition.attester = [...exportedCreator.provenance.attesters];
+document.entry.push(...exportedCreator.provenance.entries);
+```
+
+For a professional profile, the organization is the default author and its
+`PractitionerRole` is the professional attester. For a member/caregiver, the
+individual subject is the default author and the `RelatedPerson` assignment is
+the personal attester. The DIDComm sender and signing `kid` remain technical
+audit evidence and are not copied into these FHIR fields.
+
 ## One section: create, update and delete in one batch
 
 All entries must belong to the same section. Each entry chooses its own FHIR

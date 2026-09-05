@@ -386,6 +386,18 @@ export type ServerProfileSessionManagerOptions = Readonly<{
 export class ServerProfileSessionManager {
   public constructor(private readonly options: ServerProfileSessionManagerOptions) {}
 
+  /**
+   * Resolves the canonical IPS author/attester projection from one owned
+   * profile without exposing its protected wallet material to the portal.
+   */
+  public async exportClinicalCreatorIps(
+    input: Readonly<{ ownerId: string; profileId: string }>,
+  ): Promise<ClinicalCreatorIpsExport> {
+    return exportServerProfileClinicalCreatorIps(
+      await this.requireOwnedProfile(input.ownerId, input.profileId),
+    );
+  }
+
   public async enroll(input: ServerProfileEnrollmentInput): Promise<ServerProfileRecord> {
     requireEnrollment(input);
     const seed = input.walletSeed || randomBytes(32).toString('base64url');
