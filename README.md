@@ -718,6 +718,9 @@ that submitted/attested it). For a member or professional, the protected BFF
 profile selects only `owner` or `creator`; a `RelatedPerson` or
 `PractitionerRole` may be both author and attester when that actor created the
 content. DIDComm sender and signing keys remain audit/transport identities.
+The BFF never configures ledger routing or supplies channel/smart-contract
+names. GW owns that decision and returns one transaction receipt with
+per-resource CID/version evidence for a successful clinical Bundle.
 See [Clinical writes from a Node BFF](./docs/101-BFF_CLINICAL_WRITES.md) and the
 [gateway authorship contract](https://github.com/Global-DataCare/gwtemplate-node-ts/blob/main/docs/01-OVERVIEW-AND-GUIDES/101-01.N-AUTHENTICATED-CLINICAL-AUTHOR.md).
 

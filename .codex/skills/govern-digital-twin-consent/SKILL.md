@@ -159,6 +159,9 @@ Verify current branches, versions and published npm state before release claims.
   provider-tenant recipient, typed batch entry, authorization result and
   visible summary behavior, without DIDComm rendering, vault, queue or hashing
   plumbing.
+- Never expose ledger routing as an SDK/BFF input or deployment setting. GW
+  managers derive the governed channel and canonical contract internally; the
+  application sees only the authenticated operation and its returned evidence.
 
 ## Keep every artifact aligned
 

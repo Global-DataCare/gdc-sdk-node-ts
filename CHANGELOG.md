@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 2.7.10 - 2026-09-04
+
+- Document the completed clinical evidence receipt: one transaction id for a
+  submitted Bundle with per-resource CID/version evidence.
+- Make the public BFF contract explicit in the 101, README, JSDoc, tests and
+  repository skills: callers and deployment configuration never select ledger
+  channels or smart contracts; GW managers own that policy.
+
 - Use the standard FHIR `notification` category for professional permission
   request Communications and their normalized inbox search.
 - Document the claims-first R4/R5 projection, LOINC topics and the standard

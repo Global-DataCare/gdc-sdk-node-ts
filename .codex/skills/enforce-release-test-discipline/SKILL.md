@@ -87,6 +87,10 @@ description: Enforce branch, TDD, fixture, test-layer, product-neutrality, chang
 - Keep `docs/101-BFF_CLINICAL_WRITES.md`, the GW CORE authenticated-authorship
   101, public JSDoc, test flow comments, snippets, README summaries and the
   repository-local provenance skill mutually linked and synchronized.
+- Clinical evidence and consent ledger routing are GW manager policy. Node
+  SDKs, BFFs, portals and deployment environments never accept, expose or
+  configure channel or smart-contract names. Their high-level contract ends at
+  the authenticated operation and returned transaction/CID/version evidence.
 
 ## Preserve shared-package neutrality
 
