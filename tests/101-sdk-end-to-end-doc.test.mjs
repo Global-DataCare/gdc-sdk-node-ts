@@ -20,6 +20,7 @@ const clinicalWriteGuide = fs.readFileSync(
   new URL('../docs/101-BFF_CLINICAL_WRITES.md', import.meta.url),
   'utf8',
 );
+const readme = fs.readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 
 test('101 runtime bootstrap keeps participant identity and wallet custody out of deployment env', () => {
   // A participant DID belongs to one onboarded organization profile. A global
@@ -89,6 +90,17 @@ test('BFF clinical-write 101 separates section CRUD from document import', () =>
   assert.match(clinicalWriteGuide, /profileManager\.exportClinicalCreatorIps\(/);
   assert.match(clinicalWriteGuide, /provenance\.authorReference/);
   assert.match(clinicalWriteGuide, /provenance\.attesters/);
+  assert.match(clinicalWriteGuide, /ClinicalSourceAuthorSelections\.Owner/);
+  assert.match(clinicalWriteGuide, /ClinicalSourceAuthorSelections\.Creator/);
+  assert.match(clinicalWriteGuide, /RelatedPerson.*both.*author.*attester/is);
+  assert.match(clinicalWriteGuide, /PractitionerRole.*both.*author.*attester/is);
+  assert.match(clinicalWriteGuide, /browser.*must not.*author reference/is);
+  assert.match(
+    clinicalWriteGuide,
+    /gwtemplate-node-ts\/blob\/main\/docs\/01-OVERVIEW-AND-GUIDES\/101-01\.N-AUTHENTICATED-CLINICAL-AUTHOR\.md/,
+  );
+  assert.match(readme, /Composition.*Bundle.*author.*attester/is);
+  assert.match(readme, /101-BFF_CLINICAL_WRITES\.md/);
   assert.match(clinicalWriteGuide, /PractitionerRole.*Practitioner.*Organization/s);
   assert.match(clinicalWriteGuide, /Composition\.date[\s\S]{0,80}strictly later/i);
   assert.match(clinicalWriteGuide, /does not implement the CID-mapping/i);

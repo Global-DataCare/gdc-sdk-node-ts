@@ -134,9 +134,17 @@ Verify current branches, versions and published npm state before release claims.
   source document.
 - Use `Bundle.type = batch`; each entry independently selects `.create()`, `.update()` or `.delete()`. Do not turn this flow into a transaction.
 - A typed delete addresses exactly `ResourceType/id`, has no resource body and may carry `.ifMatch(versionId)`.
-- For locally authored clinical data, store only the creator DID in
-  `Composition.author`. Never store email, phone or their stable hashes in the
-  clinical resource.
+- For generated clinical data, resolve provenance from the authenticated
+  protected profile with the closed `owner | creator` selection. Owner means
+  the individual subject or provider organization. Creator means the registered
+  RelatedPerson or PractitionerRole, which may be both `Composition.author` and
+  `Composition.attester.party` when that actor created the content.
+- A member recording content created or dictated by the individual selects
+  owner: the subject is author and the registered RelatedPerson is attester. A
+  member creating the content selects creator: the RelatedPerson is both.
+- Never accept a FHIR author/attester reference from browser JSON. Never place
+  email, phone, stable contact hashes, DIDComm sender, DCR client id or signing
+  key in these provenance fields.
 - Treat an external `Composition.author = urn:*` on an imported IPS as
   provenance, never as controller authority. The local controller/importing
   BFF may import it once but cannot update or delete those source-authored
@@ -163,6 +171,8 @@ For any contract change, update together:
 - GW high-level lifecycle and SEDIA capability matrix;
 - README public-surface inventory and changelogs;
 - this skill in both repository-local copies.
+- Cross-link and synchronize `docs/101-BFF_CLINICAL_WRITES.md` with GW CORE
+  `docs/01-OVERVIEW-AND-GUIDES/101-01.N-AUTHENTICATED-CLINICAL-AUTHOR.md`.
 
 Search for stale claims before finishing, especially `researchOrganizationDid`, `secondaryUseClaimKey`, ODRL in the provider toggle, operational `Composition.subject`, one Composition per section, and portal calls to direct digitaltwin Composition batch.
 

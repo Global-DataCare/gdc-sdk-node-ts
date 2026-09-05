@@ -704,6 +704,17 @@ modules below.
   `recipient`, never a portal alias
 - vital-sign helpers
 
+### Composition provenance in clinical Bundles
+
+A document Bundle keeps `Composition.author` (who created the content) separate
+from `Composition.attester` (the registered personal or professional assignment
+that submitted/attested it). For a member or professional, the protected BFF
+profile selects only `owner` or `creator`; a `RelatedPerson` or
+`PractitionerRole` may be both author and attester when that actor created the
+content. DIDComm sender and signing keys remain audit/transport identities.
+See [Clinical writes from a Node BFF](./docs/101-BFF_CLINICAL_WRITES.md) and the
+[gateway authorship contract](https://github.com/Global-DataCare/gwtemplate-node-ts/blob/main/docs/01-OVERVIEW-AND-GUIDES/101-01.N-AUTHENTICATED-CLINICAL-AUTHOR.md).
+
 ### Node runtime client
 
 - [`NodeHttpClient`](src/node-runtime-client.ts)
