@@ -1,8 +1,8 @@
+// Flow contract: registration projects the SHA3-384 hosted individual DID and exposes the same member builder that GW validates during controller DCR.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   EXAMPLE_API_ORGANIZATION_DID,
-  EXAMPLE_INDIVIDUAL_MULTIBASE_ID,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_START_RESPONSE,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
@@ -10,6 +10,7 @@ import {
 } from 'gdc-common-utils-ts/examples';
 
 import {
+  buildIndividualMemberDidWebFromPrivateIdentifiers,
   readIndividualOrganizationBootstrapIdentity,
   startIndividualOrganizationWithDeps,
 } from '../dist/index.js';
@@ -58,9 +59,10 @@ test('startIndividualOrganizationWithDeps builds canonical registration payload 
   assert.equal(result.orderConfirmationRequired, true);
   assert.deepEqual(result.identity, {
     resourceId: 'a87e5b15-aea4-4475-9c7c-40aa88354b6f',
-    individualId: EXAMPLE_INDIVIDUAL_MULTIBASE_ID,
+    secureIdTypeIndividual: 'UUID',
+    secureIdValueIndividual: 'zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee',
     providerDidWeb: EXAMPLE_API_ORGANIZATION_DID,
-    subjectDid: `${EXAMPLE_API_ORGANIZATION_DID}:individual:multibase:${EXAMPLE_INDIVIDUAL_MULTIBASE_ID}`,
+    subjectDid: `${EXAMPLE_API_ORGANIZATION_DID}:individual:UUID:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee`,
   });
 });
 
@@ -122,5 +124,24 @@ test('readIndividualOrganizationBootstrapIdentity preserves the exact hosted pro
   });
 
   assert.equal(identity?.providerDidWeb, providerDidWeb);
-  assert.equal(identity?.subjectDid, `${providerDidWeb}:individual:multibase:${identity?.individualId}`);
+  assert.equal(identity?.secureIdTypeIndividual, 'UUID');
+  assert.equal(
+    identity?.subjectDid,
+    `${providerDidWeb}:individual:UUID:${identity?.secureIdValueIndividual}`,
+  );
+});
+
+test('buildIndividualMemberDidWebFromPrivateIdentifiers creates the exact DCR actor DID without a family path', () => {
+  assert.equal(
+    buildIndividualMemberDidWebFromPrivateIdentifiers({
+      providerDidWeb: 'did:web:host.example.org:health-care:organization:taxid:VATES-B00112233',
+      secureIdTypeIndividual: 'UUID',
+      privateIdValueIndividual: 'a87e5b15-aea4-4475-9c7c-40aa88354b6f',
+      secureIdTypeMember: 'EMAIL',
+      privateIdValueMember: 'controller@example.org',
+      roleType: 'http://terminology.hl7.org/CodeSystem/v3-RoleCode',
+      roleValue: 'RESPRSN',
+    }),
+    'did:web:host.example.org:health-care:organization:taxid:VATES-B00112233:individual:UUID:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee:member:zG9DrMLpQW8eoCc9Ay9AFxuMGiswgJePpbUMz9svJCZ8tKjUd4xoExgCPA5jmHc6hPATJ:RESPRSN',
+  );
 });

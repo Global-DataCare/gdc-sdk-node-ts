@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 2.9.0 - 2026-09-05
+
+- Project the individual registration UUID as the canonical SHA3-384 hosted
+  individual DID and expose
+  `buildIndividualMemberDidWebFromPrivateIdentifiers(...)` for portals to build
+  the exact contact-bound `RESPRSN` actor/profile DID accepted by GW DCR.
+- Document complete UUID, email, role and resulting DID test data without
+  placeholders while preserving the canonical `resource.meta.claims` response
+  reader and its legacy fallback.
+
 ## 2.7.10 - 2026-09-04
 
 - Document the completed clinical evidence receipt: one transaction id for a
