@@ -1300,7 +1300,7 @@ test('purgeDigitalTwinSubjectLinkWithDeps calls the provider-offboarding endpoin
   assert.deepEqual(calls[0][2].body.parameter, [{ name: 'subject', valueString: 'did:web:subject.example' }]);
 });
 
-test('runtime consent builder signs temporary expiry and request correlation claims together', () => {
+test('runtime authorization Consent is active and signs temporary expiry and request correlation claims together', () => {
   const built = buildGrantProfessionalAccessClaimsWithCid({
     ...cloneExample(EXAMPLE_CONSENT_GRANT_INPUT),
     periodEnd: '2026-08-31T18:30:00Z',
@@ -1308,6 +1308,8 @@ test('runtime consent builder signs temporary expiry and request correlation cla
     sourceReference: 'Communication/permission-request-1',
   }, () => 'temporary-consent-runtime-1');
 
+  assert.equal(built.consentClaims[ClaimConsent.status], ConsentStatuses.Active);
+  assert.notEqual(built.consentClaims[ClaimConsent.status], ConsentStatuses.Draft);
   assert.equal(built.consentClaims[ClaimConsent.periodEnd], '2026-08-31T18:30:00Z');
   assert.equal(built.consentClaims[ClaimConsent.eventBasedOn], 'urn:uuid:permission-request-1');
   assert.equal(built.consentClaims[ClaimConsent.sourceReference], 'Communication/permission-request-1');

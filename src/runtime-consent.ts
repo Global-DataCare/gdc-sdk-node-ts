@@ -2,6 +2,13 @@
 import { buildConsentClaimsSimpleWithCid } from 'gdc-common-utils-ts/utils/consent';
 import type { GrantProfessionalAccessInput } from './resource-operations.js';
 
+/**
+ * Builds the controller-approved authorization Consent sent to GW.
+ *
+ * The shared builder emits `Consent.status = active`; a professional access
+ * request uses the separate Communication attachment builder and keeps its
+ * Consent resources in `draft`, where they cannot authorize access.
+ */
 export function buildGrantProfessionalAccessClaimsWithCid(
   input: GrantProfessionalAccessInput,
   createRuntimeUuid: () => string,

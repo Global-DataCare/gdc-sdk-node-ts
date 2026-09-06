@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Require the shared active-Consent approval contract for professional and
+  secondary-use authorization writes. Draft Consent remains confined to the
+  separate Communication-carried permission-request flow and never grants
+  access.
+
 ## 2.9.0 - 2026-09-05
 
 - Use the jurisdictional CDS legal-organization URN as professional document
