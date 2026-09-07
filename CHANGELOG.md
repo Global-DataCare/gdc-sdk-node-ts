@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 2.9.2 - 2026-09-06
+
+- Pin `gdc-sdk-core-ts@2.9.2` and retain `gdc-common-utils-ts@2.9.4` so the
+  Node SDK installs one converged active-Consent and flat-claim contract.
+
 - Require the shared active-Consent approval contract for professional and
   secondary-use authorization writes. Draft Consent remains confined to the
   separate Communication-carried permission-request flow and never grants

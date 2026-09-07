@@ -25,3 +25,10 @@ test('pins the shared identity, activation-licence and draft-Consent contracts',
     assert.equal(readInstalledPackageVersion(packageName), declaredVersion);
   }
 });
+
+test('release pins the converged core and common contracts', () => {
+  const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.equal(packageJson.version, '2.9.2');
+  assert.equal(packageJson.dependencies['gdc-common-utils-ts'], '2.9.4');
+  assert.equal(packageJson.dependencies['gdc-sdk-core-ts'], '2.9.2');
+});
