@@ -658,7 +658,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     assert.equal(individualControllerProfile.session.actorKind, ActorKinds.IndividualController);
     individualControllerSdk = individualControllerProfile.sdk;
 
-    const individualOrganizationRegistration = await profiler.run('individual-controller-start-individual', () => individualControllerSdk.startIndividualOrganization({
+    const individualOrganizationRegistration = await profiler.run('individual-controller-start-individual', () => individualControllerSdk.registerIndividualOrganization({
       tenantId: suiteTenantRouteId,
       jurisdiction: suiteJurisdiction,
       sector: suiteSector,

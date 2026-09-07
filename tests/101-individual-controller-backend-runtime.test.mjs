@@ -1,3 +1,4 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 /**
  * 101 note:
  * - `gdc-common-utils-ts` owns the canonical step-by-step editors/readers and payload examples.
@@ -71,7 +72,7 @@ test('101: backend individual-controller runtime wraps the current CORE baseline
   const backendProfileRuntime = createBackendProfileRuntime({
     defaultRouteContext: EXAMPLE_TENANT_ROUTE_CONTEXT,
     facadeClient: {
-      async startIndividualOrganization(input) {
+      async registerIndividualOrganization(input) {
         assert.equal(input.alternateName, EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT.alternateName);
         return EXAMPLE_INDIVIDUAL_ORGANIZATION_START_RESPONSE;
       },
@@ -117,6 +118,10 @@ test('101: backend individual-controller runtime wraps the current CORE baseline
   const runtime = new IndividualControllerBackendRuntime(backendProfileRuntime);
 
   const profile = await runtime.loadProfile(protectedProfileLoadRequest);
+  const registration = await runtime.registerIndividualOrganization(
+    profile,
+    EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT,
+  );
   const familyRegistration = await runtime.ensureFamilyOrganizationRegistration(
     profile,
     EXAMPLE_TENANT_ROUTE_CONTEXT,
@@ -136,6 +141,7 @@ test('101: backend individual-controller runtime wraps the current CORE baseline
   );
 
   assert.equal(profile.session.actorKind, ActorKinds.IndividualController);
+  assert.equal(registration.offerId, EXAMPLE_INDIVIDUAL_ORGANIZATION_START_RESPONSE.offerId);
   assert.equal(familyRegistration.status, 'already_exists');
   assert.equal(familyRegistration.summary?.subjectInfo?.alternateName, EXAMPLE_FAMILY_ORGANIZATION_SEARCH_INPUT.usualname);
   assert.equal(orderResult.poll.status, EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_RESPONSE.poll.status);

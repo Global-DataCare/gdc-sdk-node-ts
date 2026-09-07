@@ -3,7 +3,7 @@
 import type { FamilyOrganizationSummary } from 'gdc-common-utils-ts/utils/family-organization-summary';
 import type { RouteContext } from './individual-onboarding.js';
 import {
-  startIndividualOrganizationWithDeps,
+  registerIndividualOrganizationWithDeps,
   type IndividualOrganizationBootstrapInput,
   type IndividualOrganizationStartResult,
 } from './individual-start.js';
@@ -73,7 +73,7 @@ export async function ensureFamilyOrganizationRegistrationWithDeps(
     };
   }
 
-  const started = await startIndividualOrganizationWithDeps({
+  const started = await registerIndividualOrganizationWithDeps({
     input: {
       serviceProviderDid: deps.input.serviceProviderDid,
       tenantId: deps.input.tenantId,

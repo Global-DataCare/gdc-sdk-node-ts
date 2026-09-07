@@ -407,7 +407,7 @@ Use:
 
 Main methods:
 
-- `startIndividualOrganization(...)`
+- `registerIndividualOrganization(...)`
 - `confirmIndividualOrganizationOrder(...)`
 - `grantProfessionalAccess(...)`
 - `importIpsOrFhirAndUpdateIndex(...)`
@@ -559,7 +559,7 @@ Local GW smoke note:
 
 SDK:
 
-- `startIndividualOrganization(...)`
+- `registerIndividualOrganization(...)`
 - `confirmIndividualOrganizationOrder(...)`
 - `disableIndividual(...)`
 - `purgeIndividual(...)`
@@ -587,7 +587,7 @@ Note:
 
 - The practical signed-PDF story is explained in the gateway docs and tests.
 - Use the end-to-end guide for the user journey, not this file.
-- `startIndividualOrganization(...)` now targets the current `_transaction` alias instead of the legacy `_batch` path.
+- `registerIndividualOrganization(...)` now targets the current `_transaction` alias instead of the legacy `_batch` path.
 - disable does not release licenses.
 - purge requires inactive status first and then releases/disassociates licenses while preserving traceability.
 - TODO `gw-core-lifecycle-target-patch-individual-disable`: migrate to `_batch + PATCH` only after GW CORE deploys it.
@@ -710,7 +710,7 @@ Use this mental model for current GW CORE:
   `purgeEmployee(...)` uses explicit `/_purge`.
   only `OrganizationControllerSdk` should expose these operations.
 - `individual/org.schema/Organization`:
-  `startIndividualOrganization(...)` uses `_transaction`.
+  `registerIndividualOrganization(...)` uses `_transaction`.
   `confirmIndividualOrganizationOrder(...)` confirms the returned order/offer.
   `disableIndividual(...)` uses explicit `/_disable`.
   `purgeIndividual(...)` uses explicit `/_purge`.

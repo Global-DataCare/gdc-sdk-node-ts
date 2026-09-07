@@ -83,9 +83,9 @@ Legacy consumer:
 
 Current SDK:
 
-- `startIndividualOrganizationWithDeps(...)`
+- `registerIndividualOrganizationWithDeps(...)`
 - [src/individual-start.ts](</Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts/src/individual-start.ts:96>)
-- `IndividualControllerBackendRuntime.startIndividualOrganization(...)`
+- `IndividualControllerBackendRuntime.registerIndividualOrganization(...)`
 - [src/individual-controller-backend-runtime.ts](</Users/fernando/GITS/gdc-workspace/gdc-sdk-node-ts/src/individual-controller-backend-runtime.ts:1>)
 
 Current GW CORE:
@@ -207,7 +207,7 @@ proves:
 
 1. `loadProfile(...)` backend still materializes the current individual-controller
    facade shape expected by the runtime wrappers
-2. `startIndividualOrganization(...)` still works against current GW CORE
+2. `registerIndividualOrganization(...)` still works against current GW CORE
 3. `confirmIndividualOrganizationOrder(...)` still works against current GW CORE
 4. the next subject-index / `Composition` read path still matches current GW CORE
    behavior

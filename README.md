@@ -678,7 +678,7 @@ modules below.
   - function: `confirmLegalOrganizationOrderWithDeps(...)`
 - [`src/individual-start.ts`](src/individual-start.ts)
   - types: `IndividualOrganizationBootstrapInput`, `OfferPreview`, `IndividualOrganizationStartResult`
-  - function: `startIndividualOrganizationWithDeps(...)`
+  - function: `registerIndividualOrganizationWithDeps(...)`
 - [`src/individual-onboarding.ts`](src/individual-onboarding.ts)
   - types: `RouteContext`, `IndividualOrganizationConfirmOrderInput`
   - function: `confirmIndividualOrganizationOrderWithDeps(...)`

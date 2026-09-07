@@ -12,12 +12,13 @@ import {
 import {
   buildIndividualMemberDidWebFromPrivateIdentifiers,
   readIndividualOrganizationBootstrapIdentity,
+  registerIndividualOrganizationWithDeps,
   startIndividualOrganizationWithDeps,
 } from '../dist/index.js';
 
-test('startIndividualOrganizationWithDeps builds canonical registration payload and extracts offer', async () => {
+test('registerIndividualOrganizationWithDeps builds canonical registration payload and extracts offer', async () => {
   const calls = [];
-  const result = await startIndividualOrganizationWithDeps({
+  const result = await registerIndividualOrganizationWithDeps({
     input: cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT),
     routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
     individualFamilyOrganizationBatchPath: (ctx) => `/${ctx.tenantId}/${ctx.jurisdiction}/${ctx.sector}/org/_batch`,
@@ -66,7 +67,7 @@ test('startIndividualOrganizationWithDeps builds canonical registration payload 
   });
 });
 
-test('startIndividualOrganizationWithDeps marks an already-active registration as not requiring Order confirmation', async () => {
+test('registerIndividualOrganizationWithDeps marks an already-active registration as not requiring Order confirmation', async () => {
   const response = cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_START_RESPONSE);
   response.poll.body = {
     data: [{
@@ -78,7 +79,7 @@ test('startIndividualOrganizationWithDeps marks an already-active registration a
     }],
   };
 
-  const result = await startIndividualOrganizationWithDeps({
+  const result = await registerIndividualOrganizationWithDeps({
     input: cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT),
     routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
     individualFamilyOrganizationBatchPath: () => '/submit',
@@ -92,7 +93,7 @@ test('startIndividualOrganizationWithDeps marks an already-active registration a
   assert.equal(result.orderConfirmationRequired, false);
 });
 
-test('startIndividualOrganizationWithDeps rejects missing offerId in registration response', async () => {
+test('deprecated startIndividualOrganizationWithDeps delegates and rejects an incomplete registration', async () => {
   await assert.rejects(
     startIndividualOrganizationWithDeps({
       input: {

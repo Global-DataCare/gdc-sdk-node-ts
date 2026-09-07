@@ -72,7 +72,8 @@ test('authorized-subject 101 separates signed OpenID discovery from VP and SMART
 });
 
 test('individual onboarding 101 separates registration, Order, enrollment, and profile opening', () => {
-  assert.match(guide, /const\s+individualOrganizationRegistration\s*=\s*await\s+individualSdk\.startIndividualOrganization/);
+  assert.match(guide, /const\s+individualOrganizationRegistration\s*=\s*await\s+individualSdk\.registerIndividualOrganization/);
+  assert.match(guide, /startIndividualOrganization\(\.\.\.\).*deprecated/is);
   assert.match(guide, /const\s+individualOrganizationOrder\s*=\s*await\s+individualSdk\.confirmIndividualOrganizationOrder/);
   assert.match(guide, /offerId:\s*individualOrganizationRegistration\.offerId/);
   assert.match(guide, /const\s+controllerActivationCode\s*=\s*individualOrganizationOrder\.activationCode/);

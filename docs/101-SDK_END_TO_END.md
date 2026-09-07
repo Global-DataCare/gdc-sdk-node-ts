@@ -729,7 +729,7 @@ In the legal organization journey, order confirmation is a separate step.
 
 Use the `offerId` returned by the accepted activation result. The current SDK
 does not expose a dedicated legal-organization helper equivalent to
-`startIndividualOrganization(...).offerId`, so this guide should treat that
+`registerIndividualOrganization(...).offerId`, so this guide should treat that
 value as part of the activation response contract rather than invent a wrapper.
 
 For the verification credentials returned by `_transaction`, do not copy local
@@ -1255,15 +1255,18 @@ created for the individual organization below.
 
 ### 7.2 Register the personal organization and subject index
 
-`startIndividualOrganization(...)` starts the asynchronous registration of the
-personal organization/index hosted by the selected provider. The word `start`
-means "submit and poll this registration phase". It does not initialize a UI
-profile, does not create a wallet, and does not register a DCR client or device.
-This is also not legal-organization activation.
+`registerIndividualOrganization(...)` submits and polls the asynchronous
+registration of the personal organization/index hosted by the selected
+provider. It does not initialize a UI profile, does not create a wallet, and
+does not register a DCR client or device. This is also not legal-organization
+activation.
+
+`startIndividualOrganization(...)` is deprecated compatibility syntax. New BFF
+code must use the explicit `registerIndividualOrganization(...)` name.
 
 ```ts
 const individualOrganizationRegistration =
-  await individualSdk.startIndividualOrganization({
+  await individualSdk.registerIndividualOrganization({
     tenantId: tenantContext.tenantId,
     jurisdiction: tenantContext.jurisdiction,
     sector: tenantContext.sector,
@@ -2111,7 +2114,7 @@ Employee today:
 
 Individual/family today:
 
-- `startIndividualOrganization(...)`
+- `registerIndividualOrganization(...)`
   uses the current `Organization/_transaction` alias
 - `confirmIndividualOrganizationOrder(...)`
   confirms the returned order/offer

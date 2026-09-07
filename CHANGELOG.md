@@ -4,6 +4,9 @@
 
 ## 2.9.3 - 2026-09-07
 
+- Add the explicit `registerIndividualOrganization()` API and result/input type
+  names across the Node client and high-level facades; retain
+  `startIndividualOrganization()` as a deprecated compatibility alias.
 - Add one type-checked, high-level clinical-write 101 for the professional,
   individual-controller and individual-member loaded-profile flows, including
   external IPS import and authoritative summary readback.

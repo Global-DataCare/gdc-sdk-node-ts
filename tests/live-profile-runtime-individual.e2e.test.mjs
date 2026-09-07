@@ -189,7 +189,7 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
   debug.record('load-profile', { descriptor: profile.profile.descriptor });
   assert.equal(profile.session.actorKind, ActorKinds.IndividualController);
 
-  const individualStart = await profiler.run('individual-start', () => individualRuntime.startIndividualOrganization(
+  const individualStart = await profiler.run('individual-start', () => individualRuntime.registerIndividualOrganization(
     profile,
     {
       tenantId: suiteTenantRouteId,
