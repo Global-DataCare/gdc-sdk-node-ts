@@ -62,7 +62,7 @@ import {
   extractOfferPreviewFromResponseBody,
 } from './order-offer-summary.js';
 import { confirmOrganizationLicenseOrderWithDeps, type OrganizationLicenseOrderConfirmInput } from './organization-license-order.js';
-import { startIndividualOrganizationWithDeps, type IndividualOrganizationBootstrapInput, type IndividualOrganizationStartResult } from './individual-start.js';
+import { registerIndividualOrganizationWithDeps, type IndividualOrganizationRegistrationInput, type IndividualOrganizationRegistrationResult } from './individual-start.js';
 import {
   createOrganizationEmployeeWithDeps,
   issueOrganizationEmployeeLicenseWithDeps,
@@ -1081,20 +1081,21 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
-   * Starts the onboarding flow for an individual-oriented tenant or index.
+   * Registers an individual-oriented personal organization/subject index.
    *
    * Commercial contract:
    * - this SDK method targets the family/individual commercial bootstrap flow
    * - the registration poll response is expected to return one Offer id
    * - callers should then confirm it through
    *   `confirmIndividualOrganizationOrder(...)`
+   * - this phase does not create a wallet, perform DCR, or open a profile
    *
    * This is distinct from embedded legacy individual registration helpers in
    * GW CORE that may persist an individual record without minting an Offer.
    */
-  public async startIndividualOrganization(input: IndividualOrganizationBootstrapInput): Promise<IndividualOrganizationStartResult> {
+  public async registerIndividualOrganization(input: IndividualOrganizationRegistrationInput): Promise<IndividualOrganizationRegistrationResult> {
     const routeCtx = this.paths.routeCtxFromInput(input);
-    return startIndividualOrganizationWithDeps({
+    return registerIndividualOrganizationWithDeps({
       input,
       routeCtx,
       individualFamilyOrganizationBatchPath: this.paths.individualFamilyOrganizationTransactionPath.bind(this.paths),
@@ -1103,6 +1104,11 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       getOfferIdFromResponse: (result) => extractOfferIdFromResponseBody(result.poll.body),
       getOfferPreviewFromResponse: (result) => extractOfferPreviewFromResponseBody(result.poll.body),
     });
+  }
+
+  /** @deprecated Use `registerIndividualOrganization`. */
+  public async startIndividualOrganization(input: IndividualOrganizationRegistrationInput): Promise<IndividualOrganizationRegistrationResult> {
+    return this.registerIndividualOrganization(input);
   }
 
   /**
@@ -1146,7 +1152,11 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
-   * Confirms the order returned by `startIndividualOrganization(...)`.
+   * Confirms the Offer returned by `registerIndividualOrganization(...)`, waits
+   * for the terminal Order, and exposes its controller `activationCode`.
+   * The caller passes that opaque value directly to
+   * `ServerProfileSessionManager.enroll(...)`; it does not traverse claims or
+   * call a separate licence reader.
    */
   public async confirmIndividualOrganizationOrder(input: IndividualOrganizationConfirmOrderInput): Promise<IndividualOrganizationOrderResult> {
     const routeCtx = this.paths.routeCtxFromInput(input);

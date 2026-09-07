@@ -299,7 +299,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
     debug.record('controller-load-profile', { descriptor: controllerProfile.profile.descriptor });
     assert.equal(controllerProfile.session.actorKind, ActorKinds.IndividualController);
 
-    const individualStart = await profiler.run('controller-individual-start', () => individualRuntime.startIndividualOrganization(
+    const individualStart = await profiler.run('controller-individual-start', () => individualRuntime.registerIndividualOrganization(
       controllerProfile,
       {
         tenantId: suiteTenantRouteId,

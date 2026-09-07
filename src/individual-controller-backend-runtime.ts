@@ -3,7 +3,7 @@
 import type { SubmitAndPollResult } from 'gdc-sdk-core-ts';
 import type { FamilyOrganizationSummary } from 'gdc-common-utils-ts/utils/family-organization-summary';
 import type { IndividualOrganizationConfirmOrderInput, IndividualOrganizationOrderResult, RouteContext } from './individual-onboarding.js';
-import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from './individual-start.js';
+import type { IndividualOrganizationRegistrationInput, IndividualOrganizationRegistrationResult } from './individual-start.js';
 import type { EnsureFamilyOrganizationRegistrationInput, EnsureFamilyOrganizationRegistrationResult } from './family-organization-registration.js';
 import type { FamilyOrganizationSearchInput } from './family-organization-search.js';
 import type {
@@ -31,7 +31,7 @@ import type { ProfileLoadRequest } from 'gdc-sdk-core-ts';
  * consumers need first:
  *
  * - load an individual-controller profile
- * - start individual registration/bootstrap
+ * - register an individual organization/subject index
  * - confirm the returned order/offer
  * - request the available subject clinical summary through Communication
  * - use direct index searches only for compatibility/specialized queries
@@ -52,13 +52,22 @@ export class IndividualControllerBackendRuntime {
   }
 
   /**
-   * Starts the current CORE individual/family bootstrap flow.
+   * Registers the personal organization/subject index and returns its Offer.
+   * This does not enroll a wallet or a DCR device.
    */
+  public registerIndividualOrganization(
+    profile: BackendIndividualControllerProfile,
+    input: IndividualOrganizationRegistrationInput,
+  ): Promise<IndividualOrganizationRegistrationResult> {
+    return profile.sdk.registerIndividualOrganization(input);
+  }
+
+  /** @deprecated Use `registerIndividualOrganization`. */
   public startIndividualOrganization(
     profile: BackendIndividualControllerProfile,
-    input: IndividualOrganizationBootstrapInput,
-  ): Promise<IndividualOrganizationStartResult> {
-    return profile.sdk.startIndividualOrganization(input);
+    input: IndividualOrganizationRegistrationInput,
+  ): Promise<IndividualOrganizationRegistrationResult> {
+    return this.registerIndividualOrganization(profile, input);
   }
 
   /**
@@ -86,7 +95,8 @@ export class IndividualControllerBackendRuntime {
   }
 
   /**
-   * Confirms the order returned by the individual bootstrap flow.
+   * Confirms the Offer returned by the individual registration and returns the
+   * opaque controller activation code for managed profile enrollment.
    */
   public confirmIndividualOrganizationOrder(
     profile: BackendIndividualControllerProfile,

@@ -111,7 +111,7 @@ That first actor-profile suite now has a standalone test file:
 It should validate, in order:
 
 1. `loadProfile(...)` backend
-2. `startIndividualOrganization(...)`
+2. `registerIndividualOrganization(...)`
 3. `confirmIndividualOrganizationOrder(...)`
 4. the current canonical index/`Composition` read path, after proving which
    runtime helper is the real source of truth today:
@@ -335,7 +335,7 @@ without rebuilding context from scratch.
    failures.
 2. Fix any contract drift found in:
    - `loadProfile(...)`
-   - `startIndividualOrganization(...)`
+   - `registerIndividualOrganization(...)`
    - `confirmIndividualOrganizationOrder(...)`
    - subject-index read helper
 3. Freeze which read helper is canonical for the actor-profile suite:

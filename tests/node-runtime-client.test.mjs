@@ -250,7 +250,7 @@ test('NodeHttpClient normalizes hosted serviceProviderDid route inputs to the te
       },
     );
 
-    const result = await client.startIndividualOrganization({
+    const result = await client.registerIndividualOrganization({
       serviceProviderDid,
       jurisdiction: 'ES',
       sector: 'health-care',

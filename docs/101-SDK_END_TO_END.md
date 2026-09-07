@@ -729,7 +729,7 @@ In the legal organization journey, order confirmation is a separate step.
 
 Use the `offerId` returned by the accepted activation result. The current SDK
 does not expose a dedicated legal-organization helper equivalent to
-`startIndividualOrganization(...).offerId`, so this guide should treat that
+`registerIndividualOrganization(...).offerId`, so this guide should treat that
 value as part of the activation response contract rather than invent a wrapper.
 
 For the verification credentials returned by `_transaction`, do not copy local
@@ -1236,7 +1236,7 @@ This journey starts after shared authoring in `gdc-common-utils-ts`.
 In a real backend, the Node runtime first loads one protected profile and then
 opens the actor facade from that loaded workspace.
 
-### 7.1 Load the profile and open the individual facade
+### 7.1 Open the already authenticated controller facade used for registration
 
 ```ts
 const workspace = await new ProfileRuntime(runtimeClient).loadProfile(loadRequest);
@@ -1249,20 +1249,32 @@ used in:
 - [tests/101-backend-profile-runtime.test.mjs](../tests/101-backend-profile-runtime.test.mjs)
 - [tests/live-profile-runtime-individual.e2e.test.mjs](../tests/live-profile-runtime-individual.e2e.test.mjs)
 
-### 7.2 Start the individual organization or subject index
+This workspace represents the already authenticated person or channel that is
+allowed to request registration. It is not the new durable wallet/DCR profile
+created for the individual organization below.
 
-This is not legal organization activation.
+### 7.2 Register the personal organization and subject index
+
+`registerIndividualOrganization(...)` submits and polls the asynchronous
+registration of the personal organization/index hosted by the selected
+provider. It does not initialize a UI profile, does not create a wallet, and
+does not register a DCR client or device. This is also not legal-organization
+activation.
+
+`startIndividualOrganization(...)` is deprecated compatibility syntax. New BFF
+code must use the explicit `registerIndividualOrganization(...)` name.
 
 ```ts
-const individualStart = await individualSdk.startIndividualOrganization({
-  tenantId: tenantContext.tenantId,
-  jurisdiction: tenantContext.jurisdiction,
-  sector: tenantContext.sector,
-  alternateName: 'ana',
-  controllerEmail: 'ana.parent@example.org',
-  timeoutSeconds: 7,
-  intervalSeconds: 2,
-});
+const individualOrganizationRegistration =
+  await individualSdk.registerIndividualOrganization({
+    tenantId: tenantContext.tenantId,
+    jurisdiction: tenantContext.jurisdiction,
+    sector: tenantContext.sector,
+    alternateName: 'ana',
+    controllerEmail: 'ana.parent@example.org',
+    timeoutSeconds: 7,
+    intervalSeconds: 2,
+  });
 ```
 
 Current CORE note:
@@ -1285,24 +1297,23 @@ What you get back:
   - `providerDidWeb`: exact `Offer.offeredBy` returned by GW
   - `subjectDid`: canonical individual DID beneath that exact provider DID
 
-### 7.3 Confirm the returned order or offer
+### 7.3 Confirm the Offer and consume the controller activation code
 
 ```ts
-if (individualStart.orderConfirmationRequired) {
-  const individualOrder = await individualSdk.confirmIndividualOrganizationOrder({
+const individualOrganizationOrder =
+  await individualSdk.confirmIndividualOrganizationOrder({
     tenantId: tenantContext.tenantId,
     jurisdiction: tenantContext.jurisdiction,
     sector: tenantContext.sector,
-    offerId: individualStart.offerId,
+    offerId: individualOrganizationRegistration.offerId,
     timeoutSeconds: 9,
     intervalSeconds: 2,
   });
 
-  // Opaque one-time input for the subsequent managed-wallet activation. The
-  // SDK reads it from the terminal Order response; the BFF must not traverse
-  // Bundle entries or know `IndividualProduct.serialNumber`.
-  const controllerActivationCode = individualOrder.activationCode;
-}
+// Opaque one-time input for the subsequent managed-wallet activation. The SDK
+// reads it from the terminal Order response; the BFF must not traverse Bundle
+// entries or know `IndividualProduct.serialNumber`.
+const controllerActivationCode = individualOrganizationOrder.activationCode;
 ```
 
 `confirmIndividualOrganizationOrder(...)` fails closed when a newly confirmed
@@ -1312,12 +1323,73 @@ Order does not contain `activationCode`. Pass that value server-side to
 the independent actor VP is optional; the `idToken` still remains mandatory
 because DCR must bind the device to the verified login identifier.
 
+The BFF does not need a `getLicense()` call and must not search or traverse the
+terminal Bundle. `confirmIndividualOrganizationOrder(...)` extracts
+`org.schema.IndividualProduct.serialNumber` internally and exposes only the
+high-level `activationCode` result.
+
+### 7.3a Enroll the wallet and DCR device, then open the profile
+
+Registration, Order confirmation, enrollment and profile opening are four
+different phases. Keep the activation code server-side and consume it directly
+in the managed profile enrollment:
+
+```ts
+const enrolledControllerProfile = await profileSessionManager.enroll({
+  ownerId: profileAccountId,
+  profileId: individualControllerProfileId,
+  actorKind: ActorKinds.IndividualController,
+  actorMode: 'controller',
+  actorDid: individualControllerDid,
+  profileDid: individualControllerDid,
+  providerDid: individualOrganizationRegistration.identity!.providerDidWeb,
+  routeContext: tenantContext,
+  allowedSubjectDids: [
+    individualOrganizationRegistration.identity!.subjectDid,
+  ],
+  pin: profilePin,
+  idToken,
+  activationCode: controllerActivationCode,
+  redirectUris,
+  clientName,
+});
+
+const unlockedControllerSession = await profileSessionManager.unlock({
+  ownerId: profileAccountId,
+  profileId: enrolledControllerProfile.profileId,
+  subjectDid: individualOrganizationRegistration.identity!.subjectDid,
+  scopes: individualControllerScopes,
+  pin: profilePin,
+  idToken,
+});
+
+const openedIndividualController =
+  await profileSessionManager.openIndividualController({
+    ownerId: profileAccountId,
+    sessionId: unlockedControllerSession.sessionId,
+  });
+
+const enrolledIndividualSdk = openedIndividualController.sdk;
+```
+
+`ServerProfileSessionManager.enroll(...)` owns the wallet and activation
+plumbing. It generates or restores the server-managed wallet, sends the
+one-time activation code through `Token/_exchange`, uses the returned initial
+access token for `Device/_dcr`, registers the wallet public keys, and persists
+the protected profile. The browser never receives the activation code, wallet
+seed, initial access token or private keys.
+
+`unlock(...)` is a later authenticated operation: it opens the protected wallet
+and obtains the subject-scoped SMART session. Only then does
+`openIndividualController(...)` return the enrolled high-level facade used for
+normal reads, writes and consent operations.
+
 An `already_exists` receipt refers to an active registration whose original
 Offer was already confirmed. Confirming that same Offer again correctly finds
 a non-pending record. For create-or-resume channel flows, prefer
 `ensureFamilyOrganizationRegistration(...)`, which searches before starting.
 
-### 7.3a Identity layers after individual bootstrap
+### 7.3b Identity layers after individual bootstrap
 
 Keep these two layers separate:
 
@@ -1338,7 +1410,7 @@ Practical rule:
 - do not reuse controller/person signing keys as if they were automatically the
   app/device/BFF transport keys
 
-### 7.3b Build controller and subject VC material
+### 7.3c Build controller and subject VC material
 
 Use the identity helpers according to which entity you need to prove:
 
@@ -1699,38 +1771,18 @@ the resource stores only the creator DID.
 
 ### 7.12 Update one or several summary sections
 
-```ts
-const summaryDocumentEditor = new BundleEditor()
-  .setBundleOperation(BundleOperations.create)
-  .setBundleType(BundleTypes.document)
-  .setCompositionSubject(subjectDid)
-  .setCompositionType(HealthcareDocumentTypes.IPS.attributeValue)
-  .setCompositionTitle('International Patient Summary')
-  .setCompositionDate(new Date().toISOString())
-  .setCompositionAuthorList([individualControllerProfile.session.actorDid]);
+The complete copyable loaded-profile journeys live in
+[101-HIGH_LEVEL_CLINICAL_PROFILE_WRITES](./101-HIGH_LEVEL_CLINICAL_PROFILE_WRITES.md).
+That focused 101 is a subset of this end-to-end guide and keeps these flows
+separate:
 
-summaryDocumentEditor
-  .newEntryAs(BundleEditableResourceTypes.allergyIntolerance)
-  .setSubject(subjectDid)
-  .ensureIdentifier();
+- a professional writes provider-authored content to an individual's index;
+- an individual controller/member writes personal content;
+- an individual controller imports one external IPS without rewriting its
+  source provenance.
 
-summaryDocumentEditor
-  .newEntryAs(BundleEditableResourceTypes.vitalSign)
-  .setSubject(subjectDid)
-  .setDate('2026-05-22T10:00:00Z')
-  .setHeartRate(72)
-  .ensureIdentifier();
-
-const summaryDocument = summaryDocumentEditor.buildDocument();
-
-await individualControllerProfile.sdk.updateClinicalSummary(tenantContext, {
-  subject: subjectDid,
-  sender: individualControllerProfile.session.actorDid,
-  recipient: providerDid,
-  bundle: summaryDocument,
-  clinicalFormat: 'r4',
-});
-```
+Use its linked TypeScript snippet instead of reconstructing a partial example
+from different sections of this larger guide.
 
 `updateClinicalSummary(...)` requires `Bundle.type=document`, Composition in
 `entry[0]`, and `Composition.section[].entry[]` references. It is the
@@ -1750,54 +1802,10 @@ displayed aggregate:
 Those are distinct searches. There is no generic reconciliation endpoint.
 The normalized result replaces only its corresponding local working copy.
 
-For a demonstration that must edit an imported IPS, keep the source document
-immutable and create a separate local copy before calling
-`updateClinicalSummary(...)`:
-
-```ts
-// Every role-specific loaded profile returns its ActorSession here. This may
-// be an individualControllerProfile, individualMemberProfile or professionalProfile.
-const actorSession = loadedActorProfile.session;
-const actorDid = actorSession.actorDid;
-if (!actorDid) throw new Error('The loaded actor session has no operational DID.');
-
-const clinicalCreator = await profileManager.exportClinicalCreatorIps({
-  ownerId: authenticatedAccountId,
-  profileId: loadedActorProfile.profile.id,
-});
-
-const editableCopy = cloneImportedClinicalDocumentForDemo({
-  bundle: importedIps,
-  // The protected export supplies stable FHIR author and attester references.
-  // Never derive either field from actorDid in the browser or BFF.
-  clinicalCreator,
-});
-
-await updateClinicalSummary(tenantContext, {
-  subject: individualDid,
-  // Operational DID returned by the authenticated profile.
-  sender: actorDid,
-  // Real tenant DID inside the host that accommodates the tenant.
-  recipient: providerDid,
-  bundle: editableCopy,
-  clinicalFormat: 'r4',
-});
-```
-
-Here `loadedActorProfile.session.actorDid` is the operational DID returned for
-the authenticated role. The same shape applies to
-`individualControllerProfile`, `individualMemberProfile` and
-`professionalProfile`; it is never a multibase URN or a DID/alias owned by the
-portal. Use it as `sender`.
-`recipient = providerDid` is the real tenant DID inside the host that
-accommodates it, never a portal alias. The helper sets
-professional `Composition.author` to the stable legal organization URN and its
-attester to the PractitionerRole urn:uuid. For an individual member/controller,
-the RelatedPerson urn:uuid is both author and attester. It assigns new FHIR
-logical ids and rewrites internal references. Source
-business identifiers remain available for provenance, while later updates or
-typed `.delete()` entries address only the cloned resource ids. This helper is
-explicitly for demo preparation and is never applied during a normal import.
+For an editable local copy of an imported IPS, the focused 101 shows the exact
+role-specific profile load, protected creator export, clone, write and
+authoritative readback. A normal external import deliberately skips the clone
+so the source author and attesters remain unchanged.
 
 This is the converged runtime path for:
 
@@ -2106,7 +2114,7 @@ Employee today:
 
 Individual/family today:
 
-- `startIndividualOrganization(...)`
+- `registerIndividualOrganization(...)`
   uses the current `Organization/_transaction` alias
 - `confirmIndividualOrganizationOrder(...)`
   confirms the returned order/offer

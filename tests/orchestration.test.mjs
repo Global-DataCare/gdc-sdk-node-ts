@@ -1,3 +1,4 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -84,7 +85,7 @@ test('clinical actor facades expose distinct section and summary update methods'
 test('IndividualControllerSdk delegates to the runtime client', async () => {
   const calls = [];
   const client = {
-    startIndividualOrganization: async (...args) => { calls.push(['startIndividualOrganization', args]); return { ok: true }; },
+    registerIndividualOrganization: async (...args) => { calls.push(['registerIndividualOrganization', args]); return { ok: true }; },
     confirmIndividualOrganizationOrder: async (...args) => { calls.push(['confirmIndividualOrganizationOrder', args]); return { ok: true }; },
     disableIndividual: async (...args) => { calls.push(['disableIndividual', args]); return { ok: true }; },
     purgeIndividual: async (...args) => { calls.push(['purgeIndividual', args]); return { ok: true }; },
@@ -105,6 +106,7 @@ test('IndividualControllerSdk delegates to the runtime client', async () => {
     requestSmartToken: async (...args) => { calls.push(['requestSmartToken', args]); return { ok: true }; },
   };
   const sdk = new IndividualControllerSdk(client);
+  await sdk.registerIndividualOrganization({});
   await sdk.startIndividualOrganization({});
   await sdk.confirmIndividualOrganizationOrder({});
   await sdk.disableIndividual({}, {});
@@ -124,7 +126,7 @@ test('IndividualControllerSdk delegates to the runtime client', async () => {
   await sdk.searchClinicalBundle({}, { subject: 'did:web:subject.example' });
   await sdk.getLatestIps({}, { subject: 'did:web:subject.example' });
   await sdk.requestSmartToken({});
-  assert.equal(calls.length, 19);
+  assert.equal(calls.length, 20);
 });
 
 test('ProfessionalSdk keeps role-scoped surface separation', () => {
@@ -290,7 +292,7 @@ test('IndividualMemberSdk delegates consent-scoped clinical operations to the sh
 test('PersonalSdk delegates to the runtime client', async () => {
   const calls = [];
   const client = {
-    startIndividualOrganization: async (...args) => { calls.push(['startIndividualOrganization', args]); return { ok: true }; },
+    registerIndividualOrganization: async (...args) => { calls.push(['registerIndividualOrganization', args]); return { ok: true }; },
     searchIndividualLicenses: async (...args) => { calls.push(['searchIndividualLicenses', args]); return { ok: true }; },
     listIndividualLicenses: async (...args) => { calls.push(['listIndividualLicenses', args]); return { ok: true }; },
     searchIndividualLicenseOffers: async (...args) => { calls.push(['searchIndividualLicenseOffers', args]); return { ok: true }; },
@@ -304,6 +306,7 @@ test('PersonalSdk delegates to the runtime client', async () => {
     requestSmartToken: async (...args) => { calls.push(['requestSmartToken', args]); return { ok: true }; },
   };
   const sdk = new PersonalSdk(client);
+  await sdk.registerIndividualOrganization({});
   await sdk.startIndividualOrganization({});
   await sdk.searchLicenses({}, {});
   await sdk.listLicenses({}, {});
@@ -316,7 +319,7 @@ test('PersonalSdk delegates to the runtime client', async () => {
   await sdk.searchClinicalBundle({}, { subject: 'did:web:subject.example' });
   await sdk.getLatestIps({}, { subject: 'did:web:subject.example' });
   await sdk.requestSmartToken({});
-  assert.equal(calls.length, 12);
+  assert.equal(calls.length, 13);
 });
 
 test('target node facades do not expose bootstrap helper shortcuts', () => {

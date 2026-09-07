@@ -26,7 +26,7 @@ import { assertFacadeCapability } from './capability-guard.js';
 import type { EnsureFamilyOrganizationRegistrationInput, EnsureFamilyOrganizationRegistrationResult } from '../family-organization-registration.js';
 import type { FamilyOrganizationSearchInput } from '../family-organization-search.js';
 import type { IndividualOrganizationConfirmOrderInput, IndividualOrganizationOrderResult, RouteContext } from '../individual-onboarding.js';
-import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
+import type { IndividualOrganizationRegistrationInput, IndividualOrganizationRegistrationResult } from '../individual-start.js';
 import type { NodeCapability } from '../session.js';
 import { GatewayActiveConsentProvider } from '../gateway-active-consent-provider.js';
 import type { IndividualOrganizationLifecycleInput } from 'gdc-sdk-core-ts';
@@ -80,11 +80,18 @@ export class IndividualControllerSdk {
   ) {}
 
   /**
-   * Starts the individual onboarding/bootstrap flow.
+   * Registers the personal organization/subject index and returns its Offer.
+   * Wallet creation, activation exchange, DCR, and session opening are later
+   * `ServerProfileSessionManager` phases.
    */
-  public startIndividualOrganization(input: IndividualOrganizationBootstrapInput): Promise<IndividualOrganizationStartResult> {
-    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualBootstrap, ActorKinds.IndividualController, 'startIndividualOrganization');
-    return requireClientMethod(this.client, 'startIndividualOrganization')(input);
+  public registerIndividualOrganization(input: IndividualOrganizationRegistrationInput): Promise<IndividualOrganizationRegistrationResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualBootstrap, ActorKinds.IndividualController, 'registerIndividualOrganization');
+    return requireClientMethod(this.client, 'registerIndividualOrganization')(input);
+  }
+
+  /** @deprecated Use `registerIndividualOrganization`. */
+  public startIndividualOrganization(input: IndividualOrganizationRegistrationInput): Promise<IndividualOrganizationRegistrationResult> {
+    return this.registerIndividualOrganization(input);
   }
 
   /**
@@ -110,7 +117,9 @@ export class IndividualControllerSdk {
   }
 
   /**
-   * Confirms the order returned by `startIndividualOrganization(...)`.
+   * Confirms the Offer returned by `registerIndividualOrganization(...)` and
+   * returns the opaque controller `activationCode` required by profile
+   * enrollment.
    */
   public confirmIndividualOrganizationOrder(input: IndividualOrganizationConfirmOrderInput): Promise<IndividualOrganizationOrderResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualBootstrap, ActorKinds.IndividualController, 'confirmIndividualOrganizationOrder');

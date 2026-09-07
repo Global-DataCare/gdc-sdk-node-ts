@@ -21,7 +21,7 @@ import type { PollOptions, SubmitAndPollResult } from './orchestration/client-po
 import type { RouteContext } from './individual-onboarding.js';
 import type { OfferPreview } from './order-offer-summary.js';
 
-export type IndividualOrganizationBootstrapInput = {
+export type IndividualOrganizationRegistrationInput = {
   /**
    * Preferred route identifier for the selected personal indexing service provider.
    *
@@ -76,7 +76,10 @@ export type IndividualOrganizationBootstrapInput = {
   intervalSeconds?: number;
 };
 
-export type IndividualOrganizationStartResult = {
+/** @deprecated Use `IndividualOrganizationRegistrationInput`. */
+export type IndividualOrganizationBootstrapInput = IndividualOrganizationRegistrationInput;
+
+export type IndividualOrganizationRegistrationResult = {
   registration: SubmitAndPollResult;
   offerId: string;
   offerPreview: OfferPreview;
@@ -95,6 +98,9 @@ export type IndividualOrganizationStartResult = {
   identity?: IndividualOrganizationBootstrapIdentity;
 };
 
+/** @deprecated Use `IndividualOrganizationRegistrationResult`. */
+export type IndividualOrganizationStartResult = IndividualOrganizationRegistrationResult;
+
 export type IndividualOrganizationBootstrapIdentity = {
   /** Technical UUID returned as `Bundle.data[0].resource.id`. */
   resourceId: string;
@@ -108,8 +114,8 @@ export type IndividualOrganizationBootstrapIdentity = {
   subjectDid: string;
 };
 
-type StartIndividualOrganizationDeps = {
-  input: IndividualOrganizationBootstrapInput;
+type RegisterIndividualOrganizationDeps = {
+  input: IndividualOrganizationRegistrationInput;
   routeCtx: RouteContext;
   defaultTimeoutMs?: number;
   defaultIntervalMs?: number;
@@ -129,9 +135,14 @@ type StartIndividualOrganizationDeps = {
   getOfferPreviewFromResponse: (result: SubmitAndPollResult) => OfferPreview;
 };
 
-export async function startIndividualOrganizationWithDeps(
-  deps: StartIndividualOrganizationDeps,
-): Promise<IndividualOrganizationStartResult> {
+/**
+ * Registers the hosted personal organization/subject index and returns its
+ * commercial Offer. This phase does not create a managed wallet, exchange an
+ * activation code, register DCR keys, or open a profile session.
+ */
+export async function registerIndividualOrganizationWithDeps(
+  deps: RegisterIndividualOrganizationDeps,
+): Promise<IndividualOrganizationRegistrationResult> {
   /**
    * Important semantic split:
    *
@@ -146,12 +157,12 @@ export async function startIndividualOrganizationWithDeps(
    */
   const alternateName = String(deps.input.alternateName || '').trim();
   if (!alternateName) {
-    throw new Error('bootstrapIndividualOrganization requires alternateName.');
+    throw new Error('registerIndividualOrganization requires alternateName.');
   }
   const controllerEmail = String(deps.input.controllerEmail || '').trim();
   const controllerTelephone = String(deps.input.controllerTelephone || '').trim();
   if (!controllerEmail && !controllerTelephone) {
-    throw new Error('bootstrapIndividualOrganization requires controllerEmail, or controllerTelephone only for compatibility/extension flows.');
+    throw new Error('registerIndividualOrganization requires controllerEmail, or controllerTelephone only for compatibility/extension flows.');
   }
   const controllerRole = String(deps.input.controllerRole || 'RESPRSN').trim();
 
@@ -205,7 +216,7 @@ export async function startIndividualOrganizationWithDeps(
     pollOptions,
   );
 
-  deps.assertFirstDidcommEntrySuccess?.(registration, 'startIndividualOrganization.registration');
+  deps.assertFirstDidcommEntrySuccess?.(registration, 'registerIndividualOrganization.registration');
 
   /**
    * Commercial contract for this SDK path:
@@ -218,7 +229,7 @@ export async function startIndividualOrganizationWithDeps(
    */
   const offerId = deps.getOfferIdFromResponse(registration);
   if (!offerId) {
-    throw new Error('startIndividualOrganization failed: missing offerId in registration response.');
+    throw new Error('registerIndividualOrganization failed: missing offerId in registration response.');
   }
 
   const registrationSummary = readFamilyOrganizationSummaryFromResponseBody(registration.poll.body);
@@ -230,6 +241,13 @@ export async function startIndividualOrganizationWithDeps(
     orderConfirmationRequired: registrationSummary?.status !== 'already_exists',
     identity: readIndividualOrganizationBootstrapIdentity(registration.poll.body),
   };
+}
+
+/** @deprecated Use `registerIndividualOrganizationWithDeps`. */
+export async function startIndividualOrganizationWithDeps(
+  deps: RegisterIndividualOrganizationDeps,
+): Promise<IndividualOrganizationRegistrationResult> {
+  return registerIndividualOrganizationWithDeps(deps);
 }
 
 /**

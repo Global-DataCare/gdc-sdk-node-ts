@@ -8,7 +8,7 @@ import {
   type SubmitAndPollResult,
   type SubmitPayload,
 } from './client-port.js';
-import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
+import type { IndividualOrganizationRegistrationInput, IndividualOrganizationRegistrationResult } from '../individual-start.js';
 import type { RouteContext } from '../individual-onboarding.js';
 import { buildProfessionalAccessRequestDecisionGrant } from '../resource-operations.js';
 import { buildProfessionalAccessRequestSearchInput } from '../resource-operations.js';
@@ -36,9 +36,14 @@ import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-
 export class PersonalSdk {
   constructor(private readonly client: NodeRuntimeClient) {}
 
-  /** Starts individual subject onboarding (organization profile) and returns offer preview. */
-  public startIndividualOrganization(input: IndividualOrganizationBootstrapInput): Promise<IndividualOrganizationStartResult> {
-    return requireClientMethod(this.client, 'startIndividualOrganization')(input);
+  /** Registers the personal organization/subject index and returns its Offer. */
+  public registerIndividualOrganization(input: IndividualOrganizationRegistrationInput): Promise<IndividualOrganizationRegistrationResult> {
+    return requireClientMethod(this.client, 'registerIndividualOrganization')(input);
+  }
+
+  /** @deprecated Use `registerIndividualOrganization`. */
+  public startIndividualOrganization(input: IndividualOrganizationRegistrationInput): Promise<IndividualOrganizationRegistrationResult> {
+    return this.registerIndividualOrganization(input);
   }
 
   /** Grants professional access via Consent for a subject. */

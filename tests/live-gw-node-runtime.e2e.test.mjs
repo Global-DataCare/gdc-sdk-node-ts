@@ -44,7 +44,7 @@
  * - keep this suite focused on proving the runtime end-to-end
  * - add one explicit v2 profile-runtime live slice for:
  *   - `loadProfile(...)`
- *   - `startIndividualOrganization(...)`
+ *   - `registerIndividualOrganization(...)`
  *   - `confirmIndividualOrganizationOrder(...)`
  *   - the current canonical index/`Composition` read helper
  * - do not freeze the final read-step wording until current GW CORE proves
@@ -1244,7 +1244,7 @@ registerSelectedLiveTest(
   const smartProfessionalDid = env('SMART_SUBJECT_DID', EXAMPLE_PROFESSIONAL_DID);
   const smartClientId = env('SMART_CLIENT_ID', 'did:web:api.acme.org:employee:admin1@acme.org:device:demo');
 
-  const individualStart = await individualControllerSession.asIndividualController().startIndividualOrganization({
+  const individualStart = await individualControllerSession.asIndividualController().registerIndividualOrganization({
     tenantId: tenantRouteId,
     jurisdiction,
     sector,
@@ -1471,7 +1471,7 @@ async function runLiveIndividualLifecycleSuite() {
     `controller+${runSlug}@example.com`,
   );
   const subjectDid = suiteLifecycleSubjectDid;
-  const individualStart = await profiler.run('individual-start', () => individualControllerSession.asIndividualController().startIndividualOrganization({
+  const individualStart = await profiler.run('individual-start', () => individualControllerSession.asIndividualController().registerIndividualOrganization({
     tenantId: tenantRouteId,
     jurisdiction,
     sector,
@@ -1814,7 +1814,7 @@ async function runLiveIndividualLifecycleSuite() {
   assertSuccessfulTerminalBundle(disableTenant, 'Individual lifecycle suite must disable the hosted tenant after descendant cleanup.');
 
   await assert.rejects(
-    individualControllerSession.asIndividualController().startIndividualOrganization({
+    individualControllerSession.asIndividualController().registerIndividualOrganization({
       tenantId: tenantRouteId,
       jurisdiction,
       sector,
@@ -2549,7 +2549,7 @@ async function runLiveProfileRuntimeIndividualSuite() {
   });
   assert.equal(profile.session.actorKind, ActorKinds.IndividualController, 'Profile runtime suite must materialize one individual-controller facade from loadProfile(...).');
 
-  const individualStart = await profiler.run('individual-start', () => individualRuntime.startIndividualOrganization(
+  const individualStart = await profiler.run('individual-start', () => individualRuntime.registerIndividualOrganization(
     profile,
     {
       tenantId: tenantRouteId,

@@ -34,7 +34,12 @@ import type {
 import type { OrganizationEmployeeLifecycleRecord } from 'gdc-common-utils-ts/models/organization-employee-lifecycle';
 import type { HostRouteContext, HostedTenantLifecycleInput, LegalOrganizationOrderInput } from '../host-onboarding.js';
 import type { IndividualOrganizationConfirmOrderInput, IndividualOrganizationOrderResult, RouteContext } from '../individual-onboarding.js';
-import type { IndividualOrganizationBootstrapInput, IndividualOrganizationStartResult } from '../individual-start.js';
+import type {
+  IndividualOrganizationBootstrapInput,
+  IndividualOrganizationRegistrationInput,
+  IndividualOrganizationRegistrationResult,
+  IndividualOrganizationStartResult,
+} from '../individual-start.js';
 import type { FamilyOrganizationSearchInput } from '../family-organization-search.js';
 import type { FhirR5Subscription, FhirR5SubscriptionTopic } from 'gdc-common-utils-ts/models/fhir-r5-subscription';
 import type { FhirR5SubscriptionBatchInput } from '../fhir-r5-subscription-runtime.js';
@@ -299,9 +304,13 @@ export type RuntimeClient = {
   requestSmartToken?: (
     input: SmartTokenRequestInput,
   ) => Promise<SmartTokenExchangeResult>;
+  registerIndividualOrganization?: (
+    input: IndividualOrganizationRegistrationInput,
+  ) => Promise<IndividualOrganizationRegistrationResult>;
+  /** @deprecated Use `registerIndividualOrganization`. */
   startIndividualOrganization?: (
-    input: IndividualOrganizationBootstrapInput,
-  ) => Promise<IndividualOrganizationStartResult>;
+    input: IndividualOrganizationRegistrationInput,
+  ) => Promise<IndividualOrganizationRegistrationResult>;
   searchFamilyOrganization?: (
     ctx: RouteContext,
     input: FamilyOrganizationSearchInput,
