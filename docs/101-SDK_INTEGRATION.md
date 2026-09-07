@@ -645,6 +645,11 @@ copy of an imported IPS, pass the complete protected
 `cloneImportedClinicalDocumentForDemo(...)`; never turn that session
 `actorDid` into `Composition.author`.
 
+The complete role-separated load-to-readback subset is
+[101-HIGH_LEVEL_CLINICAL_PROFILE_WRITES](./101-HIGH_LEVEL_CLINICAL_PROFILE_WRITES.md).
+Use that snippet for application code and this integration guide for the
+runtime configuration that precedes it.
+
 When the actor profile is created, the BFF may also supply a server-authorized
 `clinicalCreatorBinding`: the imported or generated member/Practitioner UUID,
 the UUID of the exact role/relationship assignment, its owner and governed

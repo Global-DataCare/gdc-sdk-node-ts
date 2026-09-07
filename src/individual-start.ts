@@ -129,6 +129,11 @@ type StartIndividualOrganizationDeps = {
   getOfferPreviewFromResponse: (result: SubmitAndPollResult) => OfferPreview;
 };
 
+/**
+ * Registers the hosted personal organization/subject index and returns its
+ * commercial Offer. This phase does not create a managed wallet, exchange an
+ * activation code, register DCR keys, or open a profile session.
+ */
 export async function startIndividualOrganizationWithDeps(
   deps: StartIndividualOrganizationDeps,
 ): Promise<IndividualOrganizationStartResult> {

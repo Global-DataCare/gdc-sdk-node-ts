@@ -1088,6 +1088,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    * - the registration poll response is expected to return one Offer id
    * - callers should then confirm it through
    *   `confirmIndividualOrganizationOrder(...)`
+   * - this phase does not create a wallet, perform DCR, or open a profile
    *
    * This is distinct from embedded legacy individual registration helpers in
    * GW CORE that may persist an individual record without minting an Offer.
@@ -1146,7 +1147,11 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
   }
 
   /**
-   * Confirms the order returned by `startIndividualOrganization(...)`.
+   * Confirms the Offer returned by `startIndividualOrganization(...)`, waits
+   * for the terminal Order, and exposes its controller `activationCode`.
+   * The caller passes that opaque value directly to
+   * `ServerProfileSessionManager.enroll(...)`; it does not traverse claims or
+   * call a separate licence reader.
    */
   public async confirmIndividualOrganizationOrder(input: IndividualOrganizationConfirmOrderInput): Promise<IndividualOrganizationOrderResult> {
     const routeCtx = this.paths.routeCtxFromInput(input);

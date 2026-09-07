@@ -1,6 +1,6 @@
 {
   "name": "gdc-sdk-node-ts",
-  "version": "2.9.2",
+  "version": "2.9.3",
   "description": "Next-generation Node runtime package for the GDC SDK family",
   "license": "Apache-2.0",
   "author": "Antifraud Services Inc.",
@@ -13,7 +13,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepare": "npm run build",
-    "type-check": "tsc -p tsconfig.json --noEmit",
+    "type-check": "tsc -p tsconfig.json --noEmit && tsc -p docs/snippets/tsconfig.json",
     "check:product-neutrality": "node scripts/check-product-neutrality.mjs",
     "prepublishOnly": "npm run check:product-neutrality && npm run type-check && npm test",
     "local:close": "PORTS=3000 bash ./scripts/local-close.sh",

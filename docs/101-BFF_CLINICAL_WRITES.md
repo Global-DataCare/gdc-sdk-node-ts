@@ -18,6 +18,11 @@ The matching gateway-side authorization contract is
 Keep both guides synchronized when author, attester or update/delete rules
 change.
 
+For the complete profile-load-to-readback code, use
+[High-level clinical writes from loaded profiles](./101-HIGH_LEVEL_CLINICAL_PROFILE_WRITES.md).
+That document is the canonical copyable example; this guide remains the
+operation-selection and authorization reference.
+
 ## Choose the operation first
 
 | Use case | Input | High-level method |
@@ -77,14 +82,15 @@ submit an author reference, attester reference, role assignment or signing key:
 
 ```ts
 const exportedCreator = await profileManager.exportClinicalCreatorIps({
-  ownerId: authenticatedAccountId,
-  profileId: selectedProfileId,
+  // This BFF account owns the encrypted profile record, not the clinical data.
+  ownerId: selectedProfileAccountId,
+  profileId: individualControllerProfile.profile.descriptor.profileId,
 });
 
-await loadedProfile.sdk.updateClinicalSection(tenantContext, {
+await individualControllerProfile.sdk.updateClinicalSection(indexProviderRouteContext, {
   subject: subjectDid,
-  sender: loadedProfile.session.actorDid,
-  recipient: providerDid,
+  sender: individualControllerProfile.session.actorDid,
+  recipient: indexProviderDid,
   section: selectedSection,
   bundle: sectionBatch,
   clinicalCreator: exportedCreator,
@@ -167,15 +173,17 @@ allergyChanges
 const sectionResult =
   await individualControllerRuntime.updateClinicalSection(
     individualControllerProfile,
-    tenantContext,
+    indexProviderRouteContext,
     {
       subject: subjectDid,
       sender: individualControllerProfile.session.actorDid,
-      author: exportedCreator.provenance.authorReference,
-      recipient: providerDid,
+      recipient: indexProviderDid,
       section: HealthcareBasicSections.AllergiesAndIntolerances.attributeValue,
       bundle: allergyChanges.buildJsonApi(),
       clinicalFormat: 'r4',
+      // Preserve both the source author and its attester. The browser never
+      // constructs or overrides either protected identity.
+      clinicalCreator: exportedCreator,
     },
   );
 ```
@@ -193,24 +201,12 @@ await individualMemberProfile.sdk.updateClinicalSection(tenantContext, input);
 await professionalProfile.sdk.updateClinicalSection(tenantContext, input);
 ```
 
-`sender` identifies the transport participant. `author` identifies the source
-organization/individual and therefore comes from the protected projection. The
-role/relationship remains the attester; do not accept either UUID from browser
-JSON:
-
-```ts
-const provenance = await profileManager.exportClinicalCreatorIps({
-  ownerId: authenticatedAccountId,
-  profileId: selectedProfileId,
-});
-
-await loadedActorProfile.sdk.updateClinicalSection(tenantContext, {
-  ...input,
-  sender: loadedActorProfile.session.actorDid,
-  author: provenance.provenance.authorReference,
-  // Keep provenance.provenance.attesters on the section Bundle claims.
-});
-```
+`sender` identifies the transport participant. The source author and attester
+come together from the protected `clinicalCreator` export shown above; do not
+accept either identity from browser JSON. The complete role-specific load,
+export and write calls are kept in
+[`101-HIGH_LEVEL_CLINICAL_PROFILE_WRITES.md`](./101-HIGH_LEVEL_CLINICAL_PROFILE_WRITES.md)
+so this BFF guide does not introduce a second set of placeholder names.
 
 The member/caregiver or professional must already possess the subject-scoped
 authorization described in the actor table above. A different authorized
@@ -230,11 +226,11 @@ const document = summaryDocumentEditor.buildDocument();
 
 await individualControllerRuntime.updateClinicalSummary(
   individualControllerProfile,
-  tenantContext,
+  indexProviderRouteContext,
   {
     subject: subjectDid,
     sender: individualControllerProfile.session.actorDid,
-    recipient: providerDid,
+    recipient: indexProviderDid,
     bundle: document,
     clinicalFormat: 'r4',
   },

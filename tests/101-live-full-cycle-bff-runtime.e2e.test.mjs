@@ -18,8 +18,9 @@
  * 8. the controller reads the inbox request and authors the active Consent
  * 9. the professional requests a SMART token and reads the allowed IPS via
  *    `Composition.section`
- * 10. the same professional SDK instance creates one authored vital sign
- * 11. the controller transports a second fact for that registered author
+ * 10. the BFF resolves the protected professional creator assignment and the
+ *     same professional SDK instance creates one authored vital sign
+ * 11. the controller transports a second fact with that protected provenance
  * 12. the controller is denied when trying to update or delete that fact
  * 13. the exact professional author deletes both facts
  * 14. cleanup closes consent, individual, employee, tenant, and host state
@@ -48,6 +49,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ActorCapabilities } from 'gdc-common-utils-ts/constants/actor-session';
 import {
+  ClaimsOrganizationSchemaorg,
   ClaimsOrderSchemaorg,
   ClaimsPersonSchemaorg,
   ClaimsServiceSchemaorg,
@@ -101,6 +103,8 @@ import {
   HealthcareConsentPurposes,
   HealthcareConsentActions,
   ConsentStatuses,
+  FhirIpsCreatorKinds,
+  buildOrganizationAuthorizationUrnCds,
   createJwtSigner,
   createVP,
   createLegalOrganizationOnboardingEditor,
@@ -126,6 +130,7 @@ import {
   NodeHttpClient,
   OrganizationControllerSdk,
   prepareLoadProfile,
+  resolveClinicalCreatorIpsExport,
 } from '../dist/index.js';
 import { extractOfferIdFromResponseBody } from '../dist/order-offer-summary.js';
 import {
@@ -359,6 +364,13 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
   const tenantAliasValidation = { allowExplicitAlternateNameForTenantId: true };
   const legalOrganizationDraft = legalOrganizationOnboarding.buildDraft(tenantAliasValidation);
   assert.equal(legalOrganizationDraft.validation.ok, true, 'Legal-organization onboarding form must stay valid before BFF submission.');
+  const hostedTenantIdentifierValue = String(
+    legalOrganizationDraft.claims[ClaimsOrganizationSchemaorg.identifierValue] || '',
+  ).trim();
+  assert.ok(
+    hostedTenantIdentifierValue,
+    'The lifecycle journey requires the exact Organization.identifier.value submitted to the host.',
+  );
   debug.record('front-web-legal-organization-form', {
     formFields: legalOrganizationOnboarding.getFormFields(),
     normalizedClaims: legalOrganizationDraft.claims,
@@ -596,11 +608,31 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     const employeeCreate = employeeProvisioning.employee;
     assertSuccessfulTerminalBundle(employeeCreate, 'Professional employee provisioning');
     employeeCreated = true;
-    const createdEmployeeResourceId = String(
-      employeeCreate?.poll?.body?.data?.[0]?.resource?.id
-      || employeeCreate?.poll?.body?.body?.data?.[0]?.resource?.id
-      || '',
-    ).trim();
+    const createdEmployeeResource = readFirstBundleResourceFromResponseBody(employeeCreate.poll.body);
+    const createdEmployeeResourceId = String(createdEmployeeResource?.id || '').trim();
+    const professionalAssignmentId = String(createdEmployeeResource?.contained?.[0]?.id || '').trim();
+    assert.match(createdEmployeeResourceId, /^urn:uuid:[0-9a-f-]+$/i);
+    assert.match(professionalAssignmentId, /^[0-9a-f-]+$/i);
+
+    // BFF-only boundary: the employee receipt supplies the durable Employee
+    // and professional-assignment UUIDs. The authenticated employee channel
+    // selects that protected binding; browser input never supplies author or
+    // attester references.
+    const professionalClinicalCreator = resolveClinicalCreatorIpsExport({
+      bindings: [{
+        kind: FhirIpsCreatorKinds.Professional,
+        actorIdentifier: createdEmployeeResourceId,
+        authorIdentifier: `urn:uuid:${professionalAssignmentId}`,
+        ownerIdentifier: buildOrganizationAuthorizationUrnCds({
+          jurisdiction: suiteJurisdiction,
+          identifierType: legalOrganizationDraft.claims[ClaimsOrganizationSchemaorg.identifierType],
+          identifierValue: hostedTenantIdentifierValue,
+        }),
+        role: employeeRole,
+        actorDids: [professionalActorDid],
+      }],
+      evidence: { actorDid: professionalActorDid },
+    });
 
     const employeeSearch = await profiler.run('organization-controller-search-professional', () => organizationControllerSdk.searchOrganizationEmployees(
       ctx,
@@ -626,7 +658,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     assert.equal(individualControllerProfile.session.actorKind, ActorKinds.IndividualController);
     individualControllerSdk = individualControllerProfile.sdk;
 
-    const individualStart = await profiler.run('individual-controller-start-individual', () => individualControllerSdk.startIndividualOrganization({
+    const individualOrganizationRegistration = await profiler.run('individual-controller-start-individual', () => individualControllerSdk.startIndividualOrganization({
       tenantId: suiteTenantRouteId,
       jurisdiction: suiteJurisdiction,
       sector: suiteSector,
@@ -641,28 +673,32 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       timeoutSeconds: Math.round(pollOptions.timeoutMs / 1000),
       intervalSeconds: pollOptions.intervalMs / 1000,
     }));
-    debug.record('individual-controller-start-individual', { response: individualStart });
-    assertSuccessfulTerminalBundle(individualStart.registration, 'Individual registration');
+    debug.record('individual-controller-start-individual', { response: individualOrganizationRegistration });
+    assertSuccessfulTerminalBundle(individualOrganizationRegistration.registration, 'Individual registration');
     assert.ok(
-      individualStart.offerId.startsWith(`urn:cds:${suiteJurisdiction.toUpperCase()}:v1:${suiteSector}:`),
+      individualOrganizationRegistration.offerId.startsWith(`urn:cds:${suiteJurisdiction.toUpperCase()}:v1:${suiteSector}:`),
       'Individual Offer URN must identify the jurisdiction/network selected by the route.',
     );
-    assert.equal(individualStart.offerId.includes('undefined'), false);
+    assert.equal(individualOrganizationRegistration.offerId.includes('undefined'), false);
 
-    const individualOrder = await profiler.run('individual-controller-confirm-order', () => individualControllerSdk.confirmIndividualOrganizationOrder({
+    const individualOrganizationOrder = await profiler.run('individual-controller-confirm-order', () => individualControllerSdk.confirmIndividualOrganizationOrder({
       tenantId: suiteTenantRouteId,
       jurisdiction: suiteJurisdiction,
       sector: suiteSector,
-      offerId: individualStart.offerId,
+      offerId: individualOrganizationRegistration.offerId,
       timeoutSeconds: Math.round(pollOptions.timeoutMs / 1000),
       intervalSeconds: pollOptions.intervalMs / 1000,
     }));
-    debug.record('individual-controller-confirm-order', { response: individualOrder });
-    assertSuccessfulTerminalBundle(individualOrder, 'Individual Order confirmation');
+    debug.record('individual-controller-confirm-order', { response: individualOrganizationOrder });
+    assertSuccessfulTerminalBundle(individualOrganizationOrder, 'Individual Order confirmation');
+    assert.ok(
+      String(individualOrganizationOrder.activationCode || '').trim(),
+      'The high-level Order result must expose the controller activation code.',
+    );
     individualCreated = true;
     {
-      const invoiceSummary = readInvoiceBundleSummaryFromResponseBody(individualOrder.poll.body);
-      assert.equal(invoiceSummary.invoiceId, individualStart.offerId);
+      const invoiceSummary = readInvoiceBundleSummaryFromResponseBody(individualOrganizationOrder.poll.body);
+      assert.equal(invoiceSummary.invoiceId, individualOrganizationRegistration.offerId);
       assert.ok(invoiceSummary.pdfDocumentId);
       assert.ok(invoiceSummary.structuredDocumentId);
     }
@@ -819,6 +855,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       {
         subject: suiteSubjectDid,
         sender: professionalActorDid,
+        clinicalCreator: professionalClinicalCreator,
         recipient: EXAMPLE_PROFILE_PROVIDER_DID,
         section: HealthcareBasicSections.VitalSigns.attributeValue,
         bundle: authoredVitalSigns.buildJsonApi(),
@@ -879,7 +916,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       {
         subject: suiteSubjectDid,
         sender: individualControllerLoadRequest.profileDid,
-        author: professionalActorDid,
+        clinicalCreator: professionalClinicalCreator,
         recipient: EXAMPLE_PROFILE_PROVIDER_DID,
         section: HealthcareBasicSections.VitalSigns.attributeValue,
         bundle: delegatedCreateBundle.buildJsonApi(),
@@ -904,7 +941,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       {
         subject: suiteSubjectDid,
         sender: individualControllerLoadRequest.profileDid,
-        author: professionalActorDid,
+        clinicalCreator: professionalClinicalCreator,
         recipient: EXAMPLE_PROFILE_PROVIDER_DID,
         section: HealthcareBasicSections.VitalSigns.attributeValue,
         bundle: delegatedUpdateBundle.buildJsonApi(),
@@ -927,7 +964,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       {
         subject: suiteSubjectDid,
         sender: individualControllerLoadRequest.profileDid,
-        author: professionalActorDid,
+        clinicalCreator: professionalClinicalCreator,
         recipient: EXAMPLE_PROFILE_PROVIDER_DID,
         section: HealthcareBasicSections.VitalSigns.attributeValue,
         bundle: delegatedDeleteBundle.buildJsonApi(),
@@ -950,6 +987,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       {
         subject: suiteSubjectDid,
         sender: professionalActorDid,
+        clinicalCreator: professionalClinicalCreator,
         recipient: EXAMPLE_PROFILE_PROVIDER_DID,
         section: HealthcareBasicSections.VitalSigns.attributeValue,
         bundle: deleteVitalSign.buildJsonApi(),
@@ -966,6 +1004,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       {
         subject: suiteSubjectDid,
         sender: professionalActorDid,
+        clinicalCreator: professionalClinicalCreator,
         recipient: EXAMPLE_PROFILE_PROVIDER_DID,
         section: HealthcareBasicSections.VitalSigns.attributeValue,
         bundle: delegatedDeleteBundle.buildJsonApi(),
@@ -1068,8 +1107,11 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
 
     if (hostActivated) {
       const tenantLifecycleEditor = new OrganizationLifecycleEditor()
-        .setIdentifierValue(controllerOrganizationTaxId)
-        .setTaxId(controllerOrganizationTaxId);
+        // Lifecycle lookup is keyed by the exact Organization.identifier.value
+        // accepted during registration. The ICA representative credential may
+        // carry a different certificate tax identifier and must not replace it.
+        .setIdentifierValue(hostedTenantIdentifierValue)
+        .setTaxId(hostedTenantIdentifierValue);
 
       const disableTenant = await profiler.run('organization-controller-disable-tenant', () => organizationControllerSdk.disableTenant(
         hostCtx,

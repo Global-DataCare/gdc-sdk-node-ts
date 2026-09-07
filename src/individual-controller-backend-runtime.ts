@@ -52,7 +52,8 @@ export class IndividualControllerBackendRuntime {
   }
 
   /**
-   * Starts the current CORE individual/family bootstrap flow.
+   * Registers the personal organization/subject index and returns its Offer.
+   * This does not enroll a wallet or a DCR device.
    */
   public startIndividualOrganization(
     profile: BackendIndividualControllerProfile,
@@ -86,7 +87,8 @@ export class IndividualControllerBackendRuntime {
   }
 
   /**
-   * Confirms the order returned by the individual bootstrap flow.
+   * Confirms the Offer returned by the individual registration and returns the
+   * opaque controller activation code for managed profile enrollment.
    */
   public confirmIndividualOrganizationOrder(
     profile: BackendIndividualControllerProfile,

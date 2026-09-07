@@ -80,7 +80,9 @@ export class IndividualControllerSdk {
   ) {}
 
   /**
-   * Starts the individual onboarding/bootstrap flow.
+   * Registers the personal organization/subject index and returns its Offer.
+   * Wallet creation, activation exchange, DCR, and session opening are later
+   * `ServerProfileSessionManager` phases.
    */
   public startIndividualOrganization(input: IndividualOrganizationBootstrapInput): Promise<IndividualOrganizationStartResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualBootstrap, ActorKinds.IndividualController, 'startIndividualOrganization');
@@ -110,7 +112,9 @@ export class IndividualControllerSdk {
   }
 
   /**
-   * Confirms the order returned by `startIndividualOrganization(...)`.
+   * Confirms the Offer returned by `startIndividualOrganization(...)` and
+   * returns the opaque controller `activationCode` required by profile
+   * enrollment.
    */
   public confirmIndividualOrganizationOrder(input: IndividualOrganizationConfirmOrderInput): Promise<IndividualOrganizationOrderResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualBootstrap, ActorKinds.IndividualController, 'confirmIndividualOrganizationOrder');

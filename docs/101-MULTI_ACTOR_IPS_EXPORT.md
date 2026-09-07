@@ -1,5 +1,11 @@
 # 101: Multi-actor IPS export
 
+For the complete high-level profile load, create/import, write and readback
+calls, start with
+[101-HIGH_LEVEL_CLINICAL_PROFILE_WRITES](./101-HIGH_LEVEL_CLINICAL_PROFILE_WRITES.md).
+This guide owns the detailed multi-actor FHIR provenance and aggregate graph;
+it does not duplicate the copyable BFF flow.
+
 This is the numbered, product-neutral contract for aggregating externally
 supplied IPS data with facts recorded by an individual controller and a
 caregiver. `Composition.author` identifies the organization, EHR/patient portal
@@ -167,16 +173,18 @@ both author and personal attester for the locally created content.
 import { HealthcareBasicSections } from 'gdc-common-utils-ts';
 
 const controllerProvenance = await profileManager.exportClinicalCreatorIps({
-  ownerId: authenticatedAccountId,
-  profileId: controllerProfileId,
+  // This is the BFF account that owns the encrypted profile. It is not the
+  // clinical subject and is never sent to GW as the resource owner.
+  ownerId: controllerProfileAccountId,
+  profileId: controllerProfile.profile.descriptor.profileId,
 });
 
 // `controllerBodyWeightBatch` uses LOINC 29463-7 and UCUM kg. Body weight is
 // deliberately neutral across human care, animal care and assisted living.
-await controllerProfile.sdk.updateClinicalSection(tenantContext, {
+await controllerProfile.sdk.updateClinicalSection(indexProviderRouteContext, {
   subject: subjectDid,
   sender: controllerProfile.session.actorDid,
-  recipient: providerDid,
+  recipient: indexProviderDid,
   section: HealthcareBasicSections.VitalSigns,
   bundle: controllerBodyWeightBatch,
   // Pass the complete protected export. The SDK derives the same RelatedPerson
@@ -194,16 +202,16 @@ both author and personal attester for the locally created content.
 
 ```ts
 const caregiverProvenance = await profileManager.exportClinicalCreatorIps({
-  ownerId: authenticatedAccountId,
-  profileId: caregiverProfileId,
+  ownerId: caregiverProfileAccountId,
+  profileId: caregiverProfile.profile.descriptor.profileId,
 });
 
 // `caregiverBodyWeightBatch` is a different Observation with the same canonical
 // LOINC 29463-7 / UCUM kg coding and its own stable identifier.
-await caregiverProfile.sdk.updateClinicalSection(tenantContext, {
+await caregiverProfile.sdk.updateClinicalSection(indexProviderRouteContext, {
   subject: subjectDid,
   sender: caregiverProfile.session.actorDid,
-  recipient: providerDid,
+  recipient: indexProviderDid,
   section: HealthcareBasicSections.VitalSigns,
   bundle: caregiverBodyWeightBatch,
   clinicalCreator: caregiverProvenance,
@@ -218,8 +226,8 @@ the union of source authors and attesters and the resources needed to resolve
 their graph.
 
 ```ts
-const summaryRequest = await loadedActorProfile.sdk.requestClinicalSummary(
-  tenantContext,
+const summaryRequest = await individualControllerProfile.sdk.requestClinicalSummary(
+  indexProviderRouteContext,
   { subject: subjectDid },
 );
 
@@ -247,10 +255,11 @@ because an administrator transported it.
 ```ts
 // The browser supplies only the requested business edit. The BFF obtains the
 // actor session and protected creator binding before calling the SDK.
-await loadedActorProfile.sdk.updateClinicalSection(tenantContext, {
+await professionalProfile.sdk.updateClinicalSection(indexProviderRouteContext, {
   ...authorizedCorrection,
-  sender: loadedActorProfile.session.actorDid,
-  clinicalCreator: protectedProvenance,
+  sender: professionalProfile.session.actorDid,
+  recipient: indexProviderDid,
+  clinicalCreator: professionalProvenance,
 });
 ```
 
@@ -260,10 +269,10 @@ The imported document remains immutable. The protected export determines the
 new local copy's FHIR identities without making `profile.actorDid` its author:
 
 ```ts
-const actorDid = profile.actorDid;
 const clinicalCreator = await profileManager.exportClinicalCreatorIps({
-  ownerId: authenticatedAccountId,
-  profileId: profile.id,
+  // BFF-local encrypted-profile ownership; not the clinical data owner.
+  ownerId: professionalProfileAccountId,
+  profileId: professionalProfile.profile.descriptor.profileId,
 });
 
 const editableCopy = cloneImportedClinicalDocumentForDemo({
@@ -271,11 +280,14 @@ const editableCopy = cloneImportedClinicalDocumentForDemo({
   clinicalCreator,
 });
 
-await updateClinicalSummary(ctx, {
+await professionalProfile.sdk.updateClinicalSummary(indexProviderRouteContext, {
   subject: individualDid,
-  sender: actorDid,       // operational DID: transport and audit only
-  recipient: providerDid, // real hosted tenant DID
+  // Operational DID: transport and audit only. The protected creator above
+  // supplies the professional organization author and PractitionerRole attester.
+  sender: professionalProfile.session.actorDid,
+  recipient: indexProviderDid,
   bundle: editableCopy,
+  clinicalFormat: 'r4',
 });
 ```
 

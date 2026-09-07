@@ -71,6 +71,19 @@ test('authorized-subject 101 separates signed OpenID discovery from VP and SMART
   assert.doesNotMatch(authorizedSubjectGuide, /Organization\/_search/);
 });
 
+test('individual onboarding 101 separates registration, Order, enrollment, and profile opening', () => {
+  assert.match(guide, /const\s+individualOrganizationRegistration\s*=\s*await\s+individualSdk\.startIndividualOrganization/);
+  assert.match(guide, /const\s+individualOrganizationOrder\s*=\s*await\s+individualSdk\.confirmIndividualOrganizationOrder/);
+  assert.match(guide, /offerId:\s*individualOrganizationRegistration\.offerId/);
+  assert.match(guide, /const\s+controllerActivationCode\s*=\s*individualOrganizationOrder\.activationCode/);
+  assert.match(guide, /await\s+profileSessionManager\.enroll\([\s\S]*activationCode:\s*controllerActivationCode/);
+  assert.match(guide, /await\s+profileSessionManager\.unlock\(/);
+  assert.match(guide, /await\s+profileSessionManager\.openIndividualController\(/);
+  assert.match(guide, /does not create[\s\S]*wallet[\s\S]*does not register[\s\S]*DCR/is);
+  assert.match(guide, /Token\/_exchange[\s\S]*Device\/_dcr/is);
+  assert.match(guide, /does not need[\s\S]*getLicense\(\)/is);
+});
+
 test('BFF clinical-write 101 separates section CRUD from document import', () => {
   assert.match(guide, /101-BFF_CLINICAL_WRITES\.md/);
   assert.match(clinicalWriteGuide, /IndividualControllerBackendRuntime/);

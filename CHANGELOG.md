@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 2.9.3 - 2026-09-07
+
+- Add one type-checked, high-level clinical-write 101 for the professional,
+  individual-controller and individual-member loaded-profile flows, including
+  external IPS import and authoritative summary readback.
+- Make the individual subject/data owner, index-provider recipient,
+  operational sender, protected author/attester and BFF-local profile account
+  explicit without exposing SDK transport or wallet plumbing.
+- Cross-link the wider end-to-end, BFF write, multi-actor provenance and SDK
+  integration guides to the canonical copyable snippet, and remove ambiguous
+  placeholder identities from those examples.
+- Separate individual organization/index registration, Offer confirmation,
+  managed wallet/DCR enrollment and profile opening in the end-to-end 101;
+  the BFF consumes the returned `activationCode` directly without a
+  `getLicense()` step.
+- Keep the live lifecycle cleanup keyed by the exact legal-organization
+  identifier submitted during registration rather than replacing it with an
+  unrelated representative credential identifier.
+
 ## 2.9.2 - 2026-09-06
 
 - Pin `gdc-sdk-core-ts@2.9.2` and retain `gdc-common-utils-ts@2.9.4` so the
