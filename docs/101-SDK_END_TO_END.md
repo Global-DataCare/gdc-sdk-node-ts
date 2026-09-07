@@ -1297,9 +1297,8 @@ What you get back:
 ### 7.3 Confirm the Offer and consume the controller activation code
 
 ```ts
-if (individualOrganizationRegistration.orderConfirmationRequired) {
-  const individualOrganizationOrder =
-    await individualSdk.confirmIndividualOrganizationOrder({
+const individualOrganizationOrder =
+  await individualSdk.confirmIndividualOrganizationOrder({
     tenantId: tenantContext.tenantId,
     jurisdiction: tenantContext.jurisdiction,
     sector: tenantContext.sector,
@@ -1308,12 +1307,10 @@ if (individualOrganizationRegistration.orderConfirmationRequired) {
     intervalSeconds: 2,
   });
 
-  // Opaque one-time input for the subsequent managed-wallet activation. The
-  // SDK reads it from the terminal Order response; the BFF must not traverse
-  // Bundle entries or know `IndividualProduct.serialNumber`.
-  const controllerActivationCode =
-    individualOrganizationOrder.activationCode;
-}
+// Opaque one-time input for the subsequent managed-wallet activation. The SDK
+// reads it from the terminal Order response; the BFF must not traverse Bundle
+// entries or know `IndividualProduct.serialNumber`.
+const controllerActivationCode = individualOrganizationOrder.activationCode;
 ```
 
 `confirmIndividualOrganizationOrder(...)` fails closed when a newly confirmed
