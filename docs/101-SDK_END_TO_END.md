@@ -1376,10 +1376,10 @@ const enrolledControllerProfile = await profileSessionManager.enroll({
   activationCode: controllerActivationCode,
   clinicalCreatorBinding: {
     kind: FhirIpsCreatorKinds.IndividualMember,
-    actorIdentifier: `urn:uuid:${controllerPersonId}`,
-    authorIdentifier: `urn:uuid:${controllerRelatedPersonId}`,
-    ownerIdentifier: `urn:uuid:${individualOrganizationRegistration.identity!.resourceId}`,
-    role: `${HL7_CODING_SYSTEM_V3_ROLE_CODE}|${HealthcareActorRoleCodes.Controller}`,
+    actorIdentifier: controllerPersonId,
+    assignmentIdentifier: controllerRelatedPersonId,
+    ownerIdentifier: individualOrganizationRegistration.identity!.resourceId,
+    role: HealthcareActorRoleCodes.Controller,
   },
   redirectUris,
   clientName,
@@ -1494,7 +1494,9 @@ For an individual controller, `actorDid` and `profileDid` must be the same
 complete member DID. The creator binding keeps three different UUIDs:
 
 - `actorIdentifier`: the natural controller person
-- `authorIdentifier`: the controller's RelatedPerson assignment
+- `assignmentIdentifier`: the controller's RelatedPerson assignment UUID; the
+  SDK serializes the deprecated DCR/profile wire name `authorIdentifier`
+  internally
 - `ownerIdentifier`: the licensed individual returned as
   `individualOrganizationRegistration.identity.resourceId`
 

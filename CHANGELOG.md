@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 2.9.7 - 2026-09-08
+
+- Normalize high-level clinical creator bindings during profile enrollment so
+  BFFs pass UUIDs and governed role codes without constructing URN or coding
+  system literals; use `assignmentIdentifier` for the registered assignment.
+- Preserve the closed personal authorship choice: individual-originated or
+  dictated content uses the individual as author, member-originated content
+  uses the RelatedPerson, and the RelatedPerson remains the attester.
+- Document telephone section proposals as FHIR `preparation` until explicit
+  member attestation advances them to `completed` or rejects them as
+  `not-done`.
+- Consume exact `gdc-common-utils-ts@2.9.10` and `gdc-sdk-core-ts@2.9.7`.
+
 ## 2.9.6 - 2026-09-08
 
 - Complete the individual-controller BFF enrollment 101 with the exact

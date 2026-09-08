@@ -80,11 +80,18 @@ description: Enforce branch, TDD, fixture, test-layer, product-neutrality, chang
   fields. HTTP Authorization proves the caller and `Communication.sender`
   remains a business participant reference.
 - For generated clinical content, resolve `Composition.author` and attesters
-  from the protected registered creator binding. Member/controller content may
-  use one RelatedPerson as both author and attester; professional content uses
-  the jurisdictional CDS legal-organization URN as author and PractitionerRole
-  as attester. The legacy closed `owner | creator` BFF choice is compatibility
-  only. Never accept arbitrary provenance from a UI.
+  from the protected registered creator binding. For personal content,
+  `ClinicalSourceAuthorSelections.Owner` means the individual originated or
+  dictated it, while `Creator` means the registered member/controller
+  originated it; the RelatedPerson is the attester in both cases. Professional
+  content uses the jurisdictional CDS legal-organization URN as author and
+  PractitionerRole as attester. BFF enrollment uses `assignmentIdentifier`;
+  deprecated `authorIdentifier` is only the persisted DCR/profile wire name for
+  that assignment. Never accept arbitrary provenance from a UI.
+- A telephone-transcribed section `batch|collection` remains non-indexed while
+  its Communication is `preparation`. Explicit authorized attestation advances
+  it to `completed`; rejection uses `not-done`. A matched phone number is not an
+  actor DID, author or attester.
 - Keep `docs/101-BFF_CLINICAL_WRITES.md`, the GW CORE authenticated-authorship
   101, public JSDoc, test flow comments, snippets, README summaries and the
   repository-local provenance skill mutually linked and synchronized.

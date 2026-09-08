@@ -30,11 +30,16 @@ test('canonical clinical profile guide covers both loaded-profile journeys throu
   assert.match(snippet, /individualControllerProfile\.sdk\.updateClinicalSummary\(/);
   assert.match(snippet, /individualMemberProfile\.sdk\.updateClinicalSummary\(/);
   assert.match(snippet, /providerDid:\s*indexProviderDid/);
+  assert.match(snippet, /sourceAuthor:\s*input\.sourceAuthor/);
+  assert.match(snippet, /ClinicalSourceAuthorSelections\.Owner/);
+  assert.match(snippet, /ClinicalSourceAuthorSelections\.Creator/);
 
   assert.match(guide, /individual.*owner.*subject/is);
   assert.match(guide, /index provider.*recipient/is);
   assert.match(guide, /professional organization.*author/is);
+  assert.match(guide, /individual.*author.*RelatedPerson.*attester/is);
   assert.match(guide, /RelatedPerson.*author.*attester/is);
+  assert.match(guide, /preparation.*completed.*not-done/is);
   assert.match(guide, /external IPS.*preserv/is);
   assert.match(guide, /(?:subset|subconjunto).*101-SDK_END_TO_END/is);
 

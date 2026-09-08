@@ -652,9 +652,11 @@ runtime configuration that precedes it.
 
 When the actor profile is created, the BFF may also supply a server-authorized
 `clinicalCreatorBinding`: the imported or generated member/Practitioner UUID,
-the UUID of the exact role/relationship assignment, its owner and governed
-role. The profile manager keeps verified contact, operational DID and DCR/key
-aliases attached to that binding as devices change.
+the `assignmentIdentifier` UUID of the exact RelatedPerson/PractitionerRole,
+its owner and governed role. The deprecated persisted DCR/profile wire field is
+called `authorIdentifier`, but it still means assignment and never selects
+`Composition.author`. The profile manager keeps verified contact, operational
+DID and DCR/key aliases attached to that binding as devices change.
 Enrollment carries only the stable fields through DCR. GW must already know
 the exact binding from an employee/member import or authorized onboarding;
 DCR may link its client and keys but cannot invent or change UUIDs or role.
@@ -662,10 +664,11 @@ DCR may link its client and keys but cannot invent or change UUIDs or role.
 For FHIR IPS export, a BFF calls
 `profileManager.exportClinicalCreatorIps({ ownerId, profileId, sourceAuthor })`.
 `sourceAuthor` is the closed `ClinicalSourceAuthorSelections.Owner | Creator`
-compatibility choice, never a browser-supplied FHIR reference. High-level
-clone/section helpers use the stable legal organization URN plus
-PractitionerRole for professionals, or one RelatedPerson urn:uuid as both
-author and attester for a member/controller. The returned
+choice, never a browser-supplied FHIR reference. `Owner` means that the
+individual originated or dictated the personal content; `Creator` means the
+registered member/controller originated it. The RelatedPerson is the attester
+in both cases. High-level clone/section helpers use the stable legal
+organization URN plus PractitionerRole for professionals. The returned
 `permissionActor` remains the matching Consent actor. Phone, email, DIDComm
 sender, DCR client ids and signing keys never become IPS provenance.
 `exportServerProfileClinicalCreatorIps(profile, { sourceAuthor })` remains the

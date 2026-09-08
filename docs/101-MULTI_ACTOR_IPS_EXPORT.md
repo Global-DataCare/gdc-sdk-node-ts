@@ -24,8 +24,9 @@ They are deliberately different:
 1. `profile.actorDid` is the operational sender and audit identity. It may
    contain a resolvable host/domain and may therefore change after migration.
 2. `Composition.author` is stable FHIR provenance. A professional document uses
-   the provider's legal organization URN; a controller/member-created local
-   copy uses its registered `RelatedPerson` urn:uuid.
+   the provider's legal organization URN. Personal content uses the individual
+   reference when the member transcribed what the individual originated or
+   dictated, or the registered `RelatedPerson` when the member originated it.
 3. `Composition.attester.party` is the registered assignment: a professional
    `PractitionerRole` urn:uuid, or the same controller/member `RelatedPerson`
    urn:uuid. An imported external IPS keeps whatever valid references it brought.
@@ -171,12 +172,14 @@ both author and personal attester for the locally created content.
 
 ```ts
 import { HealthcareBasicSections } from 'gdc-common-utils-ts';
+import { ClinicalSourceAuthorSelections } from 'gdc-sdk-node-ts';
 
 const controllerProvenance = await profileManager.exportClinicalCreatorIps({
   // This is the BFF account that owns the encrypted profile. It is not the
   // clinical subject and is never sent to GW as the resource owner.
   ownerId: controllerProfileAccountId,
   profileId: controllerProfile.profile.descriptor.profileId,
+  sourceAuthor: ClinicalSourceAuthorSelections.Creator,
 });
 
 // `controllerBodyWeightBatch` uses LOINC 29463-7 and UCUM kg. Body weight is
@@ -193,17 +196,19 @@ await controllerProfile.sdk.updateClinicalSection(indexProviderRouteContext, {
 });
 ```
 
-## Journey 3 — caregiver records another neutral measurement
+## Journey 3 — caregiver transcribes an individual-originated measurement
 
 Authorization invariant: subject Consent and SMART scope authorize this exact
 caregiver; a relationship or login alone does not.
-Persistence invariant: the caregiver's registered `RelatedPerson` urn:uuid is
-both author and personal attester for the locally created content.
+Persistence invariant: the individual remains author because they originated
+or dictated the measurement; the caregiver's registered `RelatedPerson`
+urn:uuid is the personal attester.
 
 ```ts
 const caregiverProvenance = await profileManager.exportClinicalCreatorIps({
   ownerId: caregiverProfileAccountId,
   profileId: caregiverProfile.profile.descriptor.profileId,
+  sourceAuthor: ClinicalSourceAuthorSelections.Owner,
 });
 
 // `caregiverBodyWeightBatch` is a different Observation with the same canonical
@@ -238,7 +243,7 @@ const ips = summaryRequest.bundle;
 assertAggregatedClinicalResources(ips);
 
 // Verify source and assignment provenance independently:
-// - Composition.author: stable Organization URN and RelatedPerson urn:uuid values.
+// - Composition.author: stable Organization, individual and RelatedPerson references.
 // - Composition.attester.party: PractitionerRole and RelatedPerson.
 // - Bundle graph: Organization, Practitioner, PractitionerRole, RelatedPerson.
 assertResolvableIpsProvenanceGraph(ips);
@@ -292,8 +297,9 @@ await professionalProfile.sdk.updateClinicalSummary(indexProviderRouteContext, {
 ```
 
 For a professional/employee the clone author is the stable legal organization
-URN and its attester is the PractitionerRole urn:uuid. For an individual
-member/controller the RelatedPerson urn:uuid is both author and attester.
+URN and its attester is the PractitionerRole urn:uuid. For personal content,
+the individual or RelatedPerson is author according to the closed origin
+selection, while the RelatedPerson is the attester.
 
 The release gate for these journeys is a real local UI/BFF or live Node runtime
 against local GW services, followed by `$summary` readback. A mocked route,

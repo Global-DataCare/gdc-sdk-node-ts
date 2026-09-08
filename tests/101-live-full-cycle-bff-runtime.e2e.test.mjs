@@ -27,7 +27,9 @@
  *
  * Authorization invariant: SMART `sub` is the clinical actor; sender and
  * subject remain independent roles; a submitter is not an author and cannot
- * gain update/delete authority by transporting the authored fact.
+ * gain update/delete authority by transporting the authored fact. The legal
+ * identifier submitted for tenant creation must equal the identifier verified
+ * from the signed test PDF and carried by the representative's memberOf proof.
  * Persistence invariant: successful DELETE removes the current fact without
  * converting consent revocation or profile cleanup into clinical operations.
  *
@@ -74,7 +76,6 @@ import {
   EXAMPLE_PROFESSIONAL_DID,
   EXAMPLE_REGISTERED_SUBJECT_ALTERNATE_NAME,
   EXAMPLE_SECTOR,
-  EXAMPLE_TENANT_IDENTIFIER,
   EXAMPLE_SIGNED_TERMS_PDF_URL,
   EXAMPLE_SMART_PRESENTATION_SUBMISSION,
   cloneExample,
@@ -105,6 +106,7 @@ import {
   ConsentStatuses,
   FhirIpsCreatorKinds,
   buildOrganizationAuthorizationUrnCds,
+  normalizeClinicalCreatorBinding,
   createJwtSigner,
   createVP,
   createLegalOrganizationOnboardingEditor,
@@ -170,7 +172,13 @@ const suiteHostIdentifierValue = env('HOST_ID_VALUE', `live101-host-${runSlug}`)
 const LOCAL_LIVE_POLL_INTERVAL_MS = Math.max(1, Number(env('LIVE_GW_POLL_INTERVAL_MS', '200')));
 const LOCAL_LIVE_POLL_TIMEOUT_MS = Math.max(1000, Number(env('LIVE_GW_POLL_TIMEOUT_MS', '60000')));
 const CONTROLLER_SIGNER_SEED = env('CONTROLLER_SIGNER_SEED', 'organization-controller-seed-001');
-const DEFAULT_LIVE_CONTROLLER_ORGANIZATION_TAX_ID = env('LIVE_CONTROLLER_ORGANIZATION_TAX_ID', EXAMPLE_TENANT_IDENTIFIER);
+// Immutable identity contained in examples/TEST-A4-Antifraud.pdf. A different
+// signed fixture must provide LIVE_CONTROLLER_ORGANIZATION_TAX_ID explicitly.
+const SIGNED_PDF_ORGANIZATION_TAX_ID = 'VATES-N0377833I';
+const DEFAULT_LIVE_CONTROLLER_ORGANIZATION_TAX_ID = env(
+  'LIVE_CONTROLLER_ORGANIZATION_TAX_ID',
+  SIGNED_PDF_ORGANIZATION_TAX_ID,
+);
 const LIVE_HOST_VERIFICATION_DEFAULT_PDF_PATH = env(
   'LIVE_GW_HOST_VERIFICATION_PDF_PATH',
   path.join(__dirname, '..', '..', 'examples', 'TEST-A4-Antifraud.pdf'),
@@ -619,10 +627,10 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     // selects that protected binding; browser input never supplies author or
     // attester references.
     const professionalClinicalCreator = resolveClinicalCreatorIpsExport({
-      bindings: [{
+      bindings: [normalizeClinicalCreatorBinding({
         kind: FhirIpsCreatorKinds.Professional,
         actorIdentifier: createdEmployeeResourceId,
-        authorIdentifier: `urn:uuid:${professionalAssignmentId}`,
+        assignmentIdentifier: professionalAssignmentId,
         ownerIdentifier: buildOrganizationAuthorizationUrnCds({
           jurisdiction: suiteJurisdiction,
           identifierType: legalOrganizationDraft.claims[ClaimsOrganizationSchemaorg.identifierType],
@@ -630,7 +638,7 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
         }),
         role: employeeRole,
         actorDids: [professionalActorDid],
-      }],
+      })],
       evidence: { actorDid: professionalActorDid },
     });
 
@@ -1107,11 +1115,11 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
 
     if (hostActivated) {
       const tenantLifecycleEditor = new OrganizationLifecycleEditor()
-        // Lifecycle lookup is keyed by the exact Organization.identifier.value
-        // accepted during registration. The ICA representative credential may
-        // carry a different certificate tax identifier and must not replace it.
-        .setIdentifierValue(hostedTenantIdentifierValue)
-        .setTaxId(hostedTenantIdentifierValue);
+        // The authenticated lifecycle proof is the verified ICA credential
+        // pair. Its exact legal identifier must select the same tenant; an
+        // unverified form value cannot override the representative memberOf.
+        .setIdentifierValue(controllerOrganizationTaxId)
+        .setTaxId(controllerOrganizationTaxId);
 
       const disableTenant = await profiler.run('organization-controller-disable-tenant', () => organizationControllerSdk.disableTenant(
         hostCtx,

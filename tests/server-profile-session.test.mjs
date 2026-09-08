@@ -36,9 +36,15 @@ import {
   EXAMPLE_HEALTHCARE_ACTOR_ROLE_PHYSICIAN,
   EXAMPLE_KYC_CONTROLLER_USER_UUID,
   EXAMPLE_KYC_CONTROLLER_UUID,
+  EXAMPLE_PRIVATE_INDIVIDUAL_UUID,
 } from 'gdc-common-utils-ts/examples/shared';
 import { IdentityDcrMetadataFields } from 'gdc-common-utils-ts/constants/identity-auth';
-import { HealthcareActorRoles } from 'gdc-common-utils-ts/constants/healthcare';
+import {
+  HealthcareActorRoleCodes,
+  HealthcareActorRoles,
+} from 'gdc-common-utils-ts/constants/healthcare';
+import { HL7_CODING_SYSTEM_V3_ROLE_CODE } from 'gdc-common-utils-ts/constants/hl7-roles';
+import { UrnPrefixes } from 'gdc-common-utils-ts/constants/urn';
 import { CompositionAttesterModes } from 'gdc-common-utils-ts/models/interoperable-claims/composition-claims';
 import { EXAMPLE_INTER_TENANT_ACCESS_CONTRACT_CREDENTIAL } from 'gdc-common-utils-ts/examples/inter-tenant-access-contract';
 
@@ -223,6 +229,13 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
     redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
     clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
     walletSeed,
+    clinicalCreatorBinding: {
+      kind: FhirIpsCreatorKinds.IndividualMember,
+      actorIdentifier: EXAMPLE_KYC_CONTROLLER_USER_UUID,
+      assignmentIdentifier: EXAMPLE_KYC_CONTROLLER_UUID,
+      ownerIdentifier: EXAMPLE_PRIVATE_INDIVIDUAL_UUID,
+      role: HealthcareActorRoleCodes.Controller,
+    },
   };
   const enrolled = await manager.enroll(base);
   assert.equal(enrolled.clientId, 'device-client-1');
@@ -262,6 +275,17 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   assert.equal(dcrRequest.iss, base.actorDid);
   assert.deepEqual(dcrRequest.body[IdentityDcrMetadataFields.RedirectUris], [EXAMPLE_DCR_REDIRECT_URI]);
   assert.equal(dcrRequest.body[IdentityDcrMetadataFields.ClientName], EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME);
+  assert.deepEqual(dcrRequest.body[IdentityDcrMetadataFields.ClinicalCreatorBinding], {
+    kind: FhirIpsCreatorKinds.IndividualMember,
+    actorIdentifier: `${UrnPrefixes.Uuid}${EXAMPLE_KYC_CONTROLLER_USER_UUID}`,
+    authorIdentifier: `${UrnPrefixes.Uuid}${EXAMPLE_KYC_CONTROLLER_UUID}`,
+    ownerIdentifier: `${UrnPrefixes.Uuid}${EXAMPLE_PRIVATE_INDIVIDUAL_UUID}`,
+    role: `${HL7_CODING_SYSTEM_V3_ROLE_CODE}|${HealthcareActorRoleCodes.Controller}`,
+  });
+  assert.deepEqual(
+    clinicalCreatorStableFields(enrolled.clinicalCreatorBinding),
+    dcrRequest.body[IdentityDcrMetadataFields.ClinicalCreatorBinding],
+  );
 
   const unlocked = await manager.unlock({
     ownerId: base.ownerId,
@@ -479,8 +503,8 @@ test('professional profile rejects a creator assignment whose role differs from 
     professionalProof: { role: HealthcareActorRoles.Veterinarian },
     clinicalCreatorBinding: {
       kind: FhirIpsCreatorKinds.Professional,
-      actorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_USER_UUID}`,
-      authorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}`,
+      actorIdentifier: EXAMPLE_KYC_CONTROLLER_USER_UUID,
+      assignmentIdentifier: EXAMPLE_KYC_CONTROLLER_UUID,
       ownerIdentifier: EXAMPLE_PROVIDER_ORGANIZATION_AUTHORIZATION_URN_CDS,
       role: EXAMPLE_HEALTHCARE_ACTOR_ROLE_PHYSICIAN,
     },
@@ -518,10 +542,10 @@ test('employee enrollment builds its signed role VP after DCR instead of copying
     clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
     clinicalCreatorBinding: {
       kind: FhirIpsCreatorKinds.Professional,
-      actorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_USER_UUID}`,
-      authorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}`,
+      actorIdentifier: EXAMPLE_KYC_CONTROLLER_USER_UUID,
+      assignmentIdentifier: EXAMPLE_KYC_CONTROLLER_UUID,
       ownerIdentifier: EXAMPLE_PROVIDER_ORGANIZATION_AUTHORIZATION_URN_CDS,
-      role: HealthcareActorRoles.Veterinarian,
+      role: HealthcareActorRoleCodes.Veterinarian,
     },
   });
   assert.equal(profile.clinicalCreatorBinding.actorIdentifier, `urn:uuid:${EXAMPLE_KYC_CONTROLLER_USER_UUID}`);
@@ -600,7 +624,7 @@ function clinicalCreatorStableFields(binding) {
   };
 }
 
-test('member provenance projects the registered RelatedPerson as both author and attester', () => {
+test('member provenance keeps the selected personal author separate from its attester', () => {
   const clinicalCreatorBinding = {
     kind: FhirIpsCreatorKinds.IndividualMember,
     actorIdentifier: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_USER_UUID}`,
@@ -622,13 +646,24 @@ test('member provenance projects the registered RelatedPerson as both author and
     clinicalCreatorBinding.authorIdentifier,
   );
 
-  // Compatibility selection does not change the binding-derived result.
+  // A member-originated fact uses the RelatedPerson as author and attester.
   const memberAttested = exportServerProfileClinicalCreatorIps(protectedProfile, {
     sourceAuthor: ClinicalSourceAuthorSelections.Creator,
   });
   assert.equal(memberAttested.provenance.authorReference, clinicalCreatorBinding.authorIdentifier);
   assert.equal(
     memberAttested.provenance.attesters[0].party.reference,
+    clinicalCreatorBinding.authorIdentifier,
+  );
+
+  // A fact dictated or originated by the individual keeps the individual as
+  // author; the registered RelatedPerson is still the explicit attester.
+  const individualAuthored = exportServerProfileClinicalCreatorIps(protectedProfile, {
+    sourceAuthor: ClinicalSourceAuthorSelections.Owner,
+  });
+  assert.equal(individualAuthored.provenance.authorReference, clinicalCreatorBinding.ownerIdentifier);
+  assert.equal(
+    individualAuthored.provenance.attesters[0].party.reference,
     clinicalCreatorBinding.authorIdentifier,
   );
 });
