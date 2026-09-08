@@ -71,11 +71,21 @@ When the controller/member creates the content, its registered
 `RelatedPerson urn:uuid` is both `Composition.author` and the personal
 `Composition.attester.party`. When it merely records content created or
 dictated by the individual, the individual stays author and the RelatedPerson
-is the attester; that closed source choice is made by the authorized BFF, never
-by a browser-supplied FHIR reference.
+is the attester. The BFF makes that closed choice with
+`ClinicalSourceAuthorSelections.Creator` or
+`ClinicalSourceAuthorSelections.Owner`; it never accepts a browser-supplied
+FHIR reference.
 
 The sender is always the loaded role-specific `session.actorDid`, not the
 RelatedPerson UUID, an email-derived value or a portal alias.
+
+For a telephone-originated section update, the identified individual may be
+the content author even when a telephone assistant submitted the message. Keep
+the attached section `Bundle.type=batch|collection` outside the definitive
+clinical index while `Communication.status=preparation`. An authorized
+controller/member may explicitly attest and advance it to `completed`, or
+reject it as `not-done`. The telephone identifier proves the matched private
+individual account; it is not `actorDid`, `Composition.author` or an attester.
 
 ## Import is different from creating an editable copy
 

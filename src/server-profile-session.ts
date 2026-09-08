@@ -6,6 +6,11 @@ import type { ActorKind } from 'gdc-common-utils-ts/models/actor-session';
 import { ActorKinds } from 'gdc-common-utils-ts/constants/actor-session';
 import type { LegalOrganizationVerificationTransactionInput } from 'gdc-common-utils-ts/utils/legal-organization-verification-transaction';
 import {
+  normalizeClinicalCreatorBinding,
+  type ClinicalCreatorBindingInput,
+} from 'gdc-common-utils-ts/utils/fhir-ips-creator-identity';
+import { getHealthcareRoleByClaim } from 'gdc-common-utils-ts/constants/healthcare';
+import {
   readLegalOrganizationVerificationCredentialPairFromResponseBody,
   readServiceControllerCredentialFromResponseBody,
 } from 'gdc-common-utils-ts/utils/legal-organization-verification-result';
@@ -175,7 +180,7 @@ export type ServerProfileEnrollmentInput = Readonly<{
    * locally. Enrollment adds the operational actor DID and registered DCR
    * client/key aliases; it never derives UUIDs from those aliases.
    */
-  clinicalCreatorBinding?: ClinicalCreatorBinding;
+  clinicalCreatorBinding?: ClinicalCreatorBindingInput;
   /**
    * Signed actor/controller VP protected for later SMART operations. Required
    * for organization/professional/member actors. Individual-controller
@@ -396,9 +401,10 @@ export class ServerProfileSessionManager {
       ownerId: string;
       profileId: string;
       /**
-       * Deprecated compatibility choice. The high-level clone/section helpers
-       * derive the final professional or individual-member author boundary
-       * from the returned protected binding.
+       * Closed personal-content origin. `Owner` means the individual originated
+       * or dictated it; `Creator` means the registered member/controller did.
+       * This never changes the authenticated sender or permits a free-form
+       * author reference. Professional content remains organization-authored.
        */
       sourceAuthor?: ClinicalSourceAuthorSelection;
     }>,
@@ -410,7 +416,15 @@ export class ServerProfileSessionManager {
   }
 
   public async enroll(input: ServerProfileEnrollmentInput): Promise<ServerProfileRecord> {
-    requireEnrollment(input);
+    const normalizedClinicalCreatorBinding = input.clinicalCreatorBinding
+      ? normalizeClinicalCreatorBinding(input.clinicalCreatorBinding)
+      : undefined;
+    requireEnrollment({
+      ...input,
+      ...(normalizedClinicalCreatorBinding
+        ? { clinicalCreatorBinding: normalizedClinicalCreatorBinding }
+        : {}),
+    });
     const seed = input.walletSeed || randomBytes(32).toString('base64url');
     if (input.walletSeed) requireBase64UrlSeed32(input.walletSeed);
     const walletKeyDerivationId = normalizedWalletKeyDerivationId(input.walletKeyDerivationId, input.profileId);
@@ -455,8 +469,8 @@ export class ServerProfileSessionManager {
       .setPublicJwks(publicKeys.filter((entry) => entry.purpose !== 'document-at-rest').map((entry) => entry.publicJwk))
       .setActorDid(input.actorDid)
       .setProfileDid(input.profileDid);
-    if (input.clinicalCreatorBinding) {
-      activationDraft.setClinicalCreatorBinding(input.clinicalCreatorBinding);
+    if (normalizedClinicalCreatorBinding) {
+      activationDraft.setClinicalCreatorBinding(normalizedClinicalCreatorBinding);
     }
     const activationRequest = activationDraft.build();
     const activation = await client.activateProfileDeviceWithActivationRequest(activationRequest);
@@ -473,8 +487,8 @@ export class ServerProfileSessionManager {
         ...input.professionalProof,
       })
       : undefined);
-    const clinicalCreatorBinding = input.clinicalCreatorBinding
-      ? bindClinicalCreatorChannels(input.clinicalCreatorBinding, {
+    const clinicalCreatorBinding = normalizedClinicalCreatorBinding
+      ? bindClinicalCreatorChannels(normalizedClinicalCreatorBinding, {
           actorDid: input.actorDid,
           clientId,
           clientInstanceId,
@@ -1326,11 +1340,11 @@ function requireBase64UrlSeed32(seed: string): void {
 /**
  * Exports the stable FHIR IPS source author and attester attached to a server
  * profile. The returned protected binding lets high-level helpers use the
- * stable legal organization URN plus PractitionerRole for professionals, or
- * one RelatedPerson urn:uuid as both author and attester for individual
- * members/controllers. The optional selection remains only for backwards
- * compatibility. DIDComm sender and signing keys remain transport/audit
- * evidence and never become FHIR provenance.
+ * stable legal organization URN plus PractitionerRole for professionals. For
+ * individual members/controllers, `Owner` selects the individual as author and
+ * `Creator` selects the registered RelatedPerson; that RelatedPerson remains
+ * the attester. DIDComm sender and signing keys remain transport/audit evidence
+ * and never become FHIR provenance.
  */
 export function exportServerProfileClinicalCreatorIps(
   profile: ServerProfileRecord,
@@ -1388,10 +1402,26 @@ function requireEnrollment(input: ServerProfileEnrollmentInput): void {
     throw new Error('Profile enrollment professionalProof requires role.');
   }
   if (input.professionalProof && input.clinicalCreatorBinding
-    && String(input.professionalProof.role).trim() !== String(input.clinicalCreatorBinding.role).trim()) {
+    && !sameGovernedRole(input.professionalProof.role, input.clinicalCreatorBinding.role)) {
     throw new Error('Clinical creator binding role must equal professionalProof.role.');
   }
   if (!input.allowedSubjectDids.length) throw new Error('Profile enrollment requires an allowed subject.');
+}
+
+function sameGovernedRole(left: string, right: string): boolean {
+  const resolveRole = (value: string) => {
+    const normalized = String(value || '').trim();
+    return getHealthcareRoleByClaim(normalized)
+      || getHealthcareRoleByClaim(normalized.split('|').pop() || '');
+  };
+  const leftRole = resolveRole(left);
+  const rightRole = resolveRole(right);
+  return Boolean(
+    leftRole
+    && rightRole
+    && leftRole.codingSystem === rightRole.codingSystem
+    && leftRole.code === rightRole.code,
+  );
 }
 
 function unique(values: readonly string[]): string[] {

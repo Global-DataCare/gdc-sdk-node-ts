@@ -79,9 +79,10 @@ test('individual onboarding 101 separates registration, Order, enrollment, and p
   assert.match(guide, /const\s+controllerActivationCode\s*=\s*individualOrganizationOrder\.activationCode/);
   assert.match(guide, /await\s+profileSessionManager\.enroll\([\s\S]*activationCode:\s*controllerActivationCode/);
   assert.match(guide, /clinicalCreatorBinding:\s*\{[\s\S]*kind:\s*FhirIpsCreatorKinds\.IndividualMember/);
-  assert.match(guide, /actorIdentifier:\s*`urn:uuid:\$\{controllerPersonId\}`/);
-  assert.match(guide, /authorIdentifier:\s*`urn:uuid:\$\{controllerRelatedPersonId\}`/);
-  assert.match(guide, /ownerIdentifier:\s*`urn:uuid:\$\{individualOrganizationRegistration\.identity!\.resourceId\}`/);
+  assert.match(guide, /actorIdentifier:\s*controllerPersonId/);
+  assert.match(guide, /assignmentIdentifier:\s*controllerRelatedPersonId/);
+  assert.match(guide, /ownerIdentifier:\s*individualOrganizationRegistration\.identity!\.resourceId/);
+  assert.match(guide, /role:\s*HealthcareActorRoleCodes\.Controller/);
   assert.match(guide, /actorDid:\s*individualControllerDid,[\s\S]*profileDid:\s*individualControllerDid/);
   assert.match(guide, /complete member DID[\s\S]*not the individual subject DID/is);
   assert.match(guide, /await\s+profileSessionManager\.unlock\(/);
@@ -116,7 +117,8 @@ test('BFF clinical-write 101 separates section CRUD from document import', () =>
   assert.match(clinicalWriteGuide, /ClinicalSourceAuthorSelections\.Creator/);
   assert.match(clinicalWriteGuide, /RelatedPerson.*attester/is);
   assert.match(clinicalWriteGuide, /PractitionerRole.*attester/is);
-  assert.match(clinicalWriteGuide, /RelatedPerson.*both author and attester/is);
+  assert.match(clinicalWriteGuide, /individual.*author.*RelatedPerson.*attester/is);
+  assert.match(clinicalWriteGuide, /RelatedPerson.*author.*attester/is);
   assert.match(clinicalWriteGuide, /browser.*must not.*author reference/is);
   assert.match(
     clinicalWriteGuide,

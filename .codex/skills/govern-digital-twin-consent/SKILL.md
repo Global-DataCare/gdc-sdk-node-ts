@@ -135,11 +135,13 @@ Verify current branches, versions and published npm state before release claims.
 - Use `Bundle.type = batch`; each entry independently selects `.create()`, `.update()` or `.delete()`. Do not turn this flow into a transaction.
 - A typed delete addresses exactly `ResourceType/id`, has no resource body and may carry `.ifMatch(versionId)`.
 - For generated clinical data, resolve provenance from the authenticated
-  protected profile. A member/controller uses its registered RelatedPerson as
-  both author and attester when it creates the content. A professional uses the
-  jurisdictional CDS legal-organization URN as author and its PractitionerRole
-  as attester. The legacy closed `owner | creator` selection is compatibility
-  only.
+  protected profile. For personal content, `owner` selects the individual as
+  author when the member transcribes what the individual originated or
+  dictated; `creator` selects the registered RelatedPerson when the member
+  originated it. The RelatedPerson is the attester in either case. A
+  professional uses the jurisdictional CDS legal-organization URN as author and
+  its PractitionerRole as attester. High-level enrollment calls that assignment
+  `assignmentIdentifier`; `authorIdentifier` is only its deprecated wire name.
 - Never accept a FHIR author/attester reference from browser JSON. Never place
   email, phone, stable contact hashes, DIDComm sender, DCR client id or signing
   key in these provenance fields.

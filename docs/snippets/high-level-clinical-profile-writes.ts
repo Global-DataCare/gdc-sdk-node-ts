@@ -1,15 +1,23 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
 import {
+  ClinicalSourceAuthorSelections,
   cloneImportedClinicalDocumentForDemo,
   loadBackendIndividualControllerProfile,
   loadBackendIndividualMemberProfile,
   loadBackendProfessionalProfile,
   type BackendProfileRuntimeClient,
+  type ClinicalSourceAuthorSelection,
   type ProfileLoadRequest,
   type RouteContext,
   type ServerProfileSessionManager,
 } from 'gdc-sdk-node-ts';
+
+/** Closed BFF choice; no browser-supplied FHIR reference is accepted. */
+export const PersonalContentOrigins = Object.freeze({
+  Individual: ClinicalSourceAuthorSelections.Owner,
+  Member: ClinicalSourceAuthorSelections.Creator,
+});
 
 type ClinicalCreatorProfileManager = Pick<
   ServerProfileSessionManager,
@@ -124,8 +132,9 @@ export async function updateEditableSummaryAsProfessional(input: Readonly<{
 
 /**
  * Individual-controller flow: load the controller profile and create/update
- * one editable multi-section document. The registered RelatedPerson is author
- * and attester when the controller creates the content. No professional
+ * one editable multi-section document. `sourceAuthor` selects whether the
+ * individual originated/dictated the content or the controller originated it;
+ * the registered RelatedPerson remains the attester. No professional
  * organization participates in this authorship path.
  */
 export async function updateEditableSummaryAsIndividualController(input: Readonly<{
@@ -133,6 +142,7 @@ export async function updateEditableSummaryAsIndividualController(input: Readonl
   profile: ProtectedProfileSelection;
   index: AuthorizedIndividualIndex;
   sourceDocument: Record<string, unknown>;
+  sourceAuthor: ClinicalSourceAuthorSelection;
 }>) {
   const { profileRuntime, profileManager } = input.dependencies;
   const { profileAccountId, loadRequest } = input.profile;
@@ -148,6 +158,7 @@ export async function updateEditableSummaryAsIndividualController(input: Readonl
   const individualCreator = await profileManager.exportClinicalCreatorIps({
     ownerId: profileAccountId,
     profileId: individualControllerProfile.profile.descriptor.profileId,
+    sourceAuthor: input.sourceAuthor,
   });
   const editableCopy = cloneImportedClinicalDocumentForDemo({
     bundle: input.sourceDocument,
@@ -177,6 +188,8 @@ export async function updateEditableSummaryAsIndividualController(input: Readonl
 /**
  * Individual-member/caregiver flow: it has the same index destination as the
  * controller flow but loads the accepted RelatedPerson role-specific facade.
+ * Its explicit `sourceAuthor` distinguishes individual-originated/dictated
+ * content from member-originated content without changing the sender.
  * This facade may create or update authorized data; it does not expose the
  * external IPS import operation.
  */
@@ -185,6 +198,7 @@ export async function updateEditableSummaryAsIndividualMember(input: Readonly<{
   profile: ProtectedProfileSelection;
   index: AuthorizedIndividualIndex;
   sourceDocument: Record<string, unknown>;
+  sourceAuthor: ClinicalSourceAuthorSelection;
 }>) {
   const { profileRuntime, profileManager } = input.dependencies;
   const { profileAccountId, loadRequest } = input.profile;
@@ -198,6 +212,7 @@ export async function updateEditableSummaryAsIndividualMember(input: Readonly<{
   const individualCreator = await profileManager.exportClinicalCreatorIps({
     ownerId: profileAccountId,
     profileId: individualMemberProfile.profile.descriptor.profileId,
+    sourceAuthor: input.sourceAuthor,
   });
   const editableCopy = cloneImportedClinicalDocumentForDemo({
     bundle: input.sourceDocument,

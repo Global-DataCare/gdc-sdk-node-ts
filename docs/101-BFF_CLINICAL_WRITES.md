@@ -77,14 +77,25 @@ authoritative read model.
 For locally supplied content, resolve the FHIR provenance from the protected
 profile through the manager. A professional uses the stable legal organization
 URN as author and its PractitionerRole as attester. A controller/member uses
-its RelatedPerson urn:uuid as both author and attester. The browser must not
-submit an author reference, attester reference, role assignment or signing key:
+the individual as author for individual-originated/dictated content, or its
+RelatedPerson urn:uuid when the member originated it; the RelatedPerson is the
+attester in both cases. The browser must not submit an author reference,
+attester reference, role assignment or signing key:
 
 ```ts
+import { ClinicalSourceAuthorSelections } from 'gdc-sdk-node-ts';
+
+const sourceAuthor = contentWasOriginatedOrDictatedByIndividual
+  ? ClinicalSourceAuthorSelections.Owner
+  : ClinicalSourceAuthorSelections.Creator;
+
 const exportedCreator = await profileManager.exportClinicalCreatorIps({
   // This BFF account owns the encrypted profile record, not the clinical data.
   ownerId: selectedProfileAccountId,
   profileId: individualControllerProfile.profile.descriptor.profileId,
+  // Closed BFF decision made from the authoritative workflow, not browser
+  // identity fields.
+  sourceAuthor,
 });
 
 await individualControllerProfile.sdk.updateClinicalSection(indexProviderRouteContext, {
@@ -97,15 +108,24 @@ await individualControllerProfile.sdk.updateClinicalSection(indexProviderRouteCo
 });
 ```
 
-`ClinicalSourceAuthorSelections.Creator` remains accepted for compatibility but
-produces the same author/attester boundary. These are the complete cases:
+These are the complete cases:
 
 | Authenticated profile and content source | `Composition.author` | `Composition.attester.party` |
 | --- | --- | --- |
 | Individual records their own content without a member assignment | Stable individual author | Same reference as personal attester when omitted |
-| Controller/caregiver records content for an individual | Registered `RelatedPerson` urn:uuid | The same registered `RelatedPerson` urn:uuid |
+| Controller/caregiver transcribes content originated or dictated by the individual (`Owner`) | Stable individual reference | Registered `RelatedPerson` urn:uuid |
+| Controller/caregiver originates the content (`Creator`) | Registered `RelatedPerson` urn:uuid | The same registered `RelatedPerson` urn:uuid |
 | Professional records provider content | Jurisdictional CDS legal organization URN (`urn:cds-<jurisdiction>:v1:organization:...`) | Registered `PractitionerRole` urn:uuid |
 | Administrative professional imports an external IPS | Preserved external organization/EHR/portal | Existing attester is preserved; importer is only submitter unless it truly attests |
+
+A telephone assistant may submit a section batch after matching the caller to
+the private individual account, but matching a telephone number does not make
+the assistant or that number an author or attester. Keep the Communication in
+FHIR `preparation` and do not index its attached clinical resources until an
+authorized controller/member explicitly attests it. Confirmation advances the
+workflow to `completed`; rejection advances it to `not-done` with the governed
+reason. This is a section `batch|collection`, not a document Bundle with a
+synthetic Composition.
 
 The projection resolves only the role/relationship already bound to the
 authenticated protected profile. It is not an escape hatch for an arbitrary

@@ -750,9 +750,13 @@ A document Bundle keeps `Composition.author` (the organization, EHR/patient
 portal or individual that supplies the document) separate from
 `Composition.attester` (the registered personal or professional assignment
 that attested its content). A `RelatedPerson` or `PractitionerRole` is an
-attester, never a shortcut for replacing the source author. The protected BFF
-profile resolves both from its registered binding. DIDComm sender and signing
-keys remain audit/transport identities.
+attester, never a shortcut for replacing the source author. For personal
+content, the BFF selects `Owner` when the individual originated/dictated it or
+`Creator` when the registered member originated it. Use
+`assignmentIdentifier` for that RelatedPerson/PractitionerRole UUID; the old
+wire name `authorIdentifier` is deprecated and does not choose the author. The
+protected BFF profile resolves both from its registered binding. DIDComm sender
+and signing keys remain audit/transport identities.
 The BFF never configures ledger routing or supplies channel/smart-contract
 names. GW owns that decision and returns one transaction receipt with
 per-resource CID/version evidence for a successful clinical Bundle.
