@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 2.9.4 - 2026-09-07
+
+- Consume the published `gdc-common-utils-ts@2.9.5` and
+  `gdc-sdk-core-ts@2.9.3` release contracts.
+- Make branch closure, live-test ordering, interactive npm authorization and
+  local tarball fallback executable policy without allowing an unpublished
+  dependency to reach `main` or npm.
+
 ## 2.9.3 - 2026-09-07
 
 - Add the explicit `registerIndividualOrganization()` API and result/input type
