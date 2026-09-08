@@ -36,6 +36,7 @@ import type {
   BlockchainArtifactRegistrationInput,
   ClinicalBundleSearchInput,
   ClinicalSectionUpdateInput,
+  SubjectSectionUpdateInput,
   ClinicalSummaryReadResult,
   ClinicalSummaryRequestInput,
   ClinicalSummaryUpdateInput,
@@ -285,6 +286,16 @@ export class IndividualControllerSdk {
   public updateClinicalSection(ctx: RouteContext, input: ClinicalSectionUpdateInput): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualIngestCommunication, ActorKinds.IndividualController, 'updateClinicalSection');
     return requireClientMethod(this.client, 'updateClinicalSection')(ctx, input);
+  }
+
+  /**
+   * Updates one subject-owned section, including non-clinical sections such as
+   * appointments or contracts, while preserving the indexed Composition
+   * author/attester compatibility contract.
+   */
+  public updateSubjectSection(ctx: RouteContext, input: SubjectSectionUpdateInput): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualIngestCommunication, ActorKinds.IndividualController, 'updateSubjectSection');
+    return requireClientMethod(this.client, 'updateSubjectSection')(ctx, input);
   }
 
   /**

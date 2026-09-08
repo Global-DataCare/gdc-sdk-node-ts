@@ -24,6 +24,7 @@ import type {
   CommunicationParticipantRuntimeSearchInput,
   ClinicalBundleSearchInput,
   ClinicalSectionUpdateInput,
+  SubjectSectionUpdateInput,
   ClinicalSummaryReadResult,
   ClinicalSummaryRequestInput,
   ClinicalSummaryUpdateInput,
@@ -169,6 +170,11 @@ export class ProfessionalSdk {
   /** Updates one consent-authorized clinical section through a scoped batch/collection. */
   public updateClinicalSection(ctx: RouteContext, input: ClinicalSectionUpdateInput): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'updateClinicalSection')(ctx, input);
+  }
+
+  /** Updates one consent-authorized subject section with its profile attester. */
+  public updateSubjectSection(ctx: RouteContext, input: SubjectSectionUpdateInput): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'updateSubjectSection')(ctx, input);
   }
 
   /** Updates a consent-authorized multi-section summary document. */

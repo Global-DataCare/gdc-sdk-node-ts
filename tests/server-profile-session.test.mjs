@@ -13,6 +13,8 @@ import {
   NodeManagedWallet,
   ProfessionalSdk,
   ServerProfileSessionManager,
+  buildProfileAttester,
+  buildRelatedPersonProfileAttester,
   TransportProfiles,
   exportServerProfileClinicalCreatorIps,
   openServerProfileSecret,
@@ -47,6 +49,23 @@ import { HL7_CODING_SYSTEM_V3_ROLE_CODE } from 'gdc-common-utils-ts/constants/hl
 import { UrnPrefixes } from 'gdc-common-utils-ts/constants/urn';
 import { CompositionAttesterModes } from 'gdc-common-utils-ts/models/interoperable-claims/composition-claims';
 import { EXAMPLE_INTER_TENANT_ACCESS_CONTRACT_CREDENTIAL } from 'gdc-common-utils-ts/examples/inter-tenant-access-contract';
+import { EXAMPLE_RELATED_PERSON_LIST_RESPONSE_BODY, cloneExample } from 'gdc-common-utils-ts/examples';
+import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
+
+test('telephone/member directory selection returns the exact RelatedPerson profile attester', () => {
+  const directory = cloneExample(EXAMPLE_RELATED_PERSON_LIST_RESPONSE_BODY);
+  directory.body.data[0].resource.meta.claims[RelatedPersonClaim.IdentifierValue] =
+    `${UrnPrefixes.Uuid}${EXAMPLE_KYC_CONTROLLER_UUID}`;
+  const attester = buildRelatedPersonProfileAttester(directory, {
+    name: directory.body.data[0].resource.meta.claims[RelatedPersonClaim.Name],
+    activeOnly: true,
+  });
+
+  assert.deepEqual(attester, {
+    mode: CompositionAttesterModes.Personal,
+    party: { reference: `${UrnPrefixes.Uuid}${EXAMPLE_KYC_CONTROLLER_UUID}` },
+  });
+});
 
 /**
  * Flow contract exercised by this suite:
@@ -229,6 +248,10 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
     redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
     clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
     walletSeed,
+    attester: buildProfileAttester({
+      assignmentIdentifier: EXAMPLE_KYC_CONTROLLER_UUID,
+      mode: CompositionAttesterModes.Personal,
+    }),
     clinicalCreatorBinding: {
       kind: FhirIpsCreatorKinds.IndividualMember,
       actorIdentifier: EXAMPLE_KYC_CONTROLLER_USER_UUID,
@@ -244,6 +267,10 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   assert.equal(enrolled.publicJwks.some((key) => key.kid === enrolled.storagePublicJwk.kid), false);
   assert.equal(enrolled.storagePublicJwk.crv, 'ML-KEM-768');
   assert.equal(enrolled.confidentialStorageProfile, 'confidential-pqc-v1');
+  assert.deepEqual(enrolled.attester, {
+    mode: CompositionAttesterModes.Personal,
+    party: { reference: `${UrnPrefixes.Uuid}${EXAMPLE_KYC_CONTROLLER_UUID}` },
+  });
   // Token/_exchange receives only the trusted OIDC email proof as Bearer. The
   // independent role VP is protected in the profile and used later for SMART.
   assert.equal(
@@ -297,6 +324,7 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   });
   assert.equal(unlocked.accessToken, 'smart-access-token');
   assert.equal(unlocked.profile.actorMode, 'self');
+  assert.deepEqual(unlocked.attester, enrolled.attester);
   const openedIndividual = await manager.openIndividualController({
     ownerId: base.ownerId,
     sessionId: unlocked.sessionId,

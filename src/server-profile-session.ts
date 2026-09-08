@@ -4,8 +4,19 @@ import { randomBytes } from 'node:crypto';
 import type { JWK } from 'gdc-common-utils-ts/models/jwk';
 import type { ActorKind } from 'gdc-common-utils-ts/models/actor-session';
 import { ActorKinds } from 'gdc-common-utils-ts/constants/actor-session';
+import { UrnPrefixes } from 'gdc-common-utils-ts/constants/urn';
+import { normalizeUuid } from 'gdc-common-utils-ts/utils/normalize-uuid';
+import {
+  selectRelatedPersonListRecord,
+  type RelatedPersonListSelection,
+} from 'gdc-common-utils-ts/utils/related-person-list';
+import {
+  CompositionAttesterModes,
+  type CompositionAttesterMode,
+} from 'gdc-common-utils-ts/models/interoperable-claims/composition-claims';
 import type { LegalOrganizationVerificationTransactionInput } from 'gdc-common-utils-ts/utils/legal-organization-verification-transaction';
 import {
+  FhirIpsCreatorKinds,
   normalizeClinicalCreatorBinding,
   type ClinicalCreatorBindingInput,
 } from 'gdc-common-utils-ts/utils/fhir-ips-creator-identity';
@@ -58,6 +69,61 @@ export type { ServerProfileSealer } from './server-profile-protection.js';
 
 export type ServerActorMode = 'self' | 'controller' | 'member';
 
+/** FHIR attester assignment bound to one authenticated server profile. */
+export type ServerProfileAttester = Readonly<{
+  mode: CompositionAttesterMode;
+  party: Readonly<{ reference: string }>;
+}>;
+
+/**
+ * Builds the canonical `urn:uuid` attester reference from a real
+ * RelatedPerson/PractitionerRole assignment returned by GW.
+ */
+export function buildProfileAttester(input: Readonly<{
+  assignmentIdentifier: string;
+  mode: CompositionAttesterMode;
+}>): ServerProfileAttester {
+  const hexadecimal = normalizeUuid(String(input.assignmentIdentifier || '').trim());
+  if (!hexadecimal) {
+    throw new TypeError('Profile attester assignmentIdentifier must be a UUID returned by RelatedPerson or PractitionerRole data.');
+  }
+  const uuid = [
+    hexadecimal.slice(0, 8),
+    hexadecimal.slice(8, 12),
+    hexadecimal.slice(12, 16),
+    hexadecimal.slice(16, 20),
+    hexadecimal.slice(20),
+  ].join('-');
+  return Object.freeze({
+    mode: input.mode,
+    party: Object.freeze({ reference: `${UrnPrefixes.Uuid}${uuid}` }),
+  });
+}
+
+/**
+ * Selects a real active contact/member from a RelatedPerson search response
+ * and turns its governed identifier into the personal profile attester.
+ */
+export function buildRelatedPersonProfileAttester(
+  relatedPersonSearchResponseBody: unknown,
+  selection: RelatedPersonListSelection,
+): ServerProfileAttester {
+  const relationship = selectRelatedPersonListRecord(
+    relatedPersonSearchResponseBody,
+    { ...selection, activeOnly: selection.activeOnly ?? true },
+  );
+  if (!relationship) {
+    throw new Error('No matching active RelatedPerson was returned by the member/contact search.');
+  }
+  if (!relationship.identifier) {
+    throw new Error('The selected RelatedPerson response has no governed assignment identifier.');
+  }
+  return buildProfileAttester({
+    assignmentIdentifier: relationship.identifier,
+    mode: CompositionAttesterModes.Personal,
+  });
+}
+
 /** Durable public metadata plus PIN-and-host protected private material. */
 export type ServerProfileRecord = Readonly<{
   profileId: string;
@@ -74,6 +140,8 @@ export type ServerProfileRecord = Readonly<{
   clientId: string;
   /** Stable non-secret id of the browser/app installation registered by DCR. */
   clientInstanceId?: string;
+  /** Profile identity used as Composition attester; never a per-write author. */
+  attester?: ServerProfileAttester;
   /** Stable FHIR creator/permission identity; channel and device values are aliases only. */
   clinicalCreatorBinding?: ClinicalCreatorBinding;
   deviceDid: string;
@@ -176,6 +244,11 @@ export type ServerProfileEnrollmentInput = Readonly<{
    */
   clientInstanceId?: string;
   /**
+   * Server-selected RelatedPerson/PractitionerRole assignment for this
+   * profile. It is persisted locally and is not sent as document authorship.
+   */
+  attester?: ServerProfileAttester;
+  /**
    * Server-authorized stable creator identity imported from FHIR or generated
    * locally. Enrollment adds the operational actor DID and registered DCR
    * client/key aliases; it never derives UUIDs from those aliases.
@@ -270,6 +343,8 @@ export type ResolvedServerProfileSession = Readonly<{
   subjectDid: string;
   scopes: string[];
   accessToken: string;
+  /** Attester bound to this authenticated and unlocked profile. */
+  attester?: ServerProfileAttester;
   secureTransportAdapter: SecureDidcommTransportAdapter;
   /** Storage adapter available only while the PIN-unlocked session is alive. */
   confidentialStorageAdapter: Readonly<{
@@ -419,6 +494,14 @@ export class ServerProfileSessionManager {
     const normalizedClinicalCreatorBinding = input.clinicalCreatorBinding
       ? normalizeClinicalCreatorBinding(input.clinicalCreatorBinding)
       : undefined;
+    const attester = input.attester || (normalizedClinicalCreatorBinding
+      ? buildProfileAttester({
+          assignmentIdentifier: normalizedClinicalCreatorBinding.authorIdentifier,
+          mode: normalizedClinicalCreatorBinding.kind === FhirIpsCreatorKinds.Professional
+            ? CompositionAttesterModes.Professional
+            : CompositionAttesterModes.Personal,
+        })
+      : undefined);
     requireEnrollment({
       ...input,
       ...(normalizedClinicalCreatorBinding
@@ -510,6 +593,7 @@ export class ServerProfileSessionManager {
       allowedSubjectDids: unique(input.allowedSubjectDids),
       clientId,
       clientInstanceId,
+      ...(attester ? { attester } : {}),
       ...(clinicalCreatorBinding ? { clinicalCreatorBinding } : {}),
       deviceDid,
       publicJwks: publicKeys.filter((entry) => entry.purpose !== 'document-at-rest').map((entry) => entry.publicJwk as Record<string, unknown>),
@@ -579,6 +663,7 @@ export class ServerProfileSessionManager {
           keyIds: [],
         },
       } : {}),
+      ...(previous.attester ? { attester: previous.attester } : {}),
     });
     await this.options.store.deleteSessionsForProfile(profile.profileId);
     return profile;
@@ -906,6 +991,7 @@ export class ServerProfileSessionManager {
       subjectDid: session.subjectDid,
       scopes: session.scopes,
       accessToken: await this.options.sealer.unseal(session.sealedAccessToken, `${sessionId}:access-token`),
+      ...(profile.attester ? { attester: profile.attester } : {}),
       secureTransportAdapter: {
         pack: (message) => wallet.packForRecipientWithContext!(
           bindTransportActor(message, profile.actorDid, profile.clientId),

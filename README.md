@@ -744,12 +744,12 @@ modules below.
   portal alias
 - vital-sign helpers
 
-### Composition provenance in clinical Bundles
+### Author and attester provenance in subject sections and documents
 
 The canonical integration boundary is
-[Clinical author, profile attester and subject boundaries](./docs/101-CLINICAL_AUTHOR_ATTESTER_BOUNDARIES.md).
-It keeps technical enrollment free of clinical authorship, preserves the
-document-specific author and resolves the attester from the unlocked profile.
+[Subject-section author and profile-attester contract](./docs/101-CLINICAL_AUTHOR_ATTESTER_BOUNDARIES.md).
+It keeps technical enrollment free of per-write authorship, preserves the
+write-specific data author and resolves the attester from the unlocked profile.
 
 A document Bundle keeps `Composition.author` (the organization, EHR/patient
 portal or individual that supplies the document) separate from
@@ -776,7 +776,7 @@ See [Clinical writes from a Node BFF](./docs/101-BFF_CLINICAL_WRITES.md),
 - [`NodeHttpClient.ingestCommunicationAndUpdateIndex(...)`](src/node-runtime-client.ts)
 - [`NodeHttpClient.submitCommunicationAndPoll(...)`](src/node-runtime-client.ts)
 - [`NodeHttpClient.searchClinicalBundle(...)`](src/node-runtime-client.ts)
-- [`NodeHttpClient.updateClinicalSection(...)`](src/node-runtime-client.ts) for
+- [`NodeHttpClient.updateSubjectSection(...)`](src/node-runtime-client.ts) for
   one explicit section carried by a batch Communication; its typed entries may
   mix `.create()`, `.update()` and exact authored `.delete()` operations
 - [`NodeHttpClient.updateClinicalSummary(...)`](src/node-runtime-client.ts) for

@@ -1,151 +1,113 @@
-# Clinical author, profile attester and subject boundaries
+# Subject-section author and profile-attester contract
 
-This is the canonical integration contract for clinical writes from an
-authenticated Node BFF. Keep four independent concepts separate:
+Use the complete, type-checked implementation in
+[`snippets/subject-section-writes.ts`](./snippets/subject-section-writes.ts).
+Every value in that file is either returned by a shown SDK call or declared as
+an application input; there are no invented `controllerRelationship`,
+`practitionerRole` or UUID variables.
 
-1. `enroll()` registers and protects the wallet/device profile. It does not
-   choose clinical authorship.
-2. `Composition.author` belongs to the document. Different documents written
-   through the same unlocked profile may have different authors.
-3. `Composition.attester.party` identifies the authenticated and unlocked
-   profile's registered FHIR assignment:
-   - individual member/controller: `RelatedPerson`;
-   - professional: `PractitionerRole`.
-4. `Composition.subject` identifies the human or animal clinical subject. It
-   is independent from author, attester, DIDComm sender and data owner.
+## The current contract
 
-`actorIdentifier` identifies an authorization actor. It is not another name
-for the document author, and historical `authorIdentifier` fields must not be
-used to select `Composition.author`.
+The current confidential-storage index uses Composition-compatible flat claims
+for section batches because those batches may later be materialized as one
+`Bundle.type=document`. This remains the supported contract:
 
-## Individual organization and technical profile enrollment
+- `subject`: the human or animal whose index is updated;
+- `dataAuthorReference`: the author/source of this particular write;
+- `attester`: the FHIR identity bound to the authenticated, unlocked profile;
+- `sender`: the operational DID that transports the request;
+- `section`: the functional section, whether clinical or non-clinical.
 
-The activation code comes directly from
-`confirmIndividualOrganizationOrder()`. Do not call `getLicense()` in this
-organization-registration flow.
+`dataAuthorReference` may change on every write while `attester` remains the
+same for the selected profile. `actorIdentifier` is an authorization/Consent
+identifier and is not an alias for `dataAuthorReference`.
 
-```ts
-const registration =
-  await individualSdk.registerIndividualOrganization({
-    // Individual-organization registration input.
-  });
+`dataAuthorReference` is an actual FHIR reference from the data source, not a
+new SDK-generated identity. Preserve an imported `Composition.author`. For
+locally provider-authored data, call the snippet's
+`buildProfessionalDataAuthorReference(...)`, which uses
+`buildOrganizationAuthorizationUrnCds(...)` with the real jurisdiction and
+legal-identifier type/value. For personally authored data, use the real stable
+FHIR reference for that author; use the profile's RelatedPerson reference only
+when that RelatedPerson truly authored the write. Never copy a sample URN.
 
-const order =
-  await individualSdk.confirmIndividualOrganizationOrder({
-    ...tenantContext,
-    offerId: registration.offerId,
-  });
+Do not migrate these batches to `Provenance` in application code yet. A future
+internal migration may project the roles to canonical
+`Provenance.agent.who`/`Provenance.agent.type` values such as enterer,
+performer or author. Until that migration is implemented and indexed, the SDK
+continues emitting the existing Composition-compatible claims.
 
-// Existing server-side RelatedPerson record for this controller. This value
-// comes from creating or reading that record; it is not invented at write time.
-const controllerRelatedPersonId = controllerRelationship.id;
+## Where the attester comes from
 
-// Technical profile enrollment only. There is no clinicalCreatorBinding.
-await profileSessionManager.enroll({
-  ...profileOptions,
-  actorKind: ActorKinds.IndividualController,
-  actorMode: "controller",
-  actorDid: individualControllerDid,
-  profileDid: individualControllerDid,
-  providerDid: registration.identity.providerDidWeb,
-  allowedSubjectDids: [registration.identity.subjectDid],
-  activationCode: order.activationCode,
-  idToken,
-});
+Registration of an individual organization does not create or invent a
+`RelatedPerson`. The telephone/member flow already queries `RelatedPerson`
+contacts. Pass the exact `RelatedPerson/_search` response body to
+`buildRelatedPersonProfileAttester(...)`; it selects the real row and validates
+its governed UUID identifier.
+
+For an individual controller/member, the resulting reference is:
+
+```text
+urn:uuid:<RelatedPerson.identifier UUID returned by GW>
 ```
 
-The BFF associates `controllerRelatedPersonId` with its protected profile
-descriptor. It never accepts this identifier from browser JSON and does not
-send it to `enroll()`. Unlocking the profile selects that server-authoritative
-descriptor and therefore the already registered RelatedPerson attester.
+For a professional, `provisionOrganizationEmployee(...)` returns the Employee
+creation receipt together with its contained `PractitionerRole`.
+`readEmployeeProfessionalAssignmentIdentifier(...)` reads that exact UUID and
+`buildProfileAttester(...)` produces:
 
-## One section write
+```text
+urn:uuid:<PractitionerRole.id returned by GW>
+```
 
-For a section-scoped write, supply the author of this document and the
-attester resolved from the unlocked profile as different values:
+Never derive either reference from email, telephone, `actorDid`, `profileId`,
+OAuth `client_id` or a signing key.
+
+## Enrollment and unlocking
+
+`enroll()` remains technical: it registers/protects the wallet and stores the
+profile's stable attester assignment. It does not choose the author of any
+section or document. New integrations do not pass `clinicalCreatorBinding`.
+
+The activation code for an individual controller comes directly from
+`confirmIndividualOrganizationOrder()`. There is no `getLicense()` call in
+that flow.
+
+`unlock()` returns `session.attester`; the subsequent opened facade exposes the
+same value as `openedProfile.profile.attester`. Use that stored attester and do
+not rebuild its URN:
 
 ```ts
-await unlockedProfile.sdk.updateClinicalSection(tenantContext, {
-  subject: clinicalSubjectDid,
-  sender: unlockedProfile.session.actorDid,
-  recipient: registration.identity.providerDidWeb,
+await openedProfile.sdk.updateSubjectSection(tenantContext, {
+  subject: subjectDid,
+  sender: openedProfile.profile.actorDid,
+  recipient: providerDid,
   section,
   bundle: sectionChanges,
-
-  // The source author of this document. It may change on the next document.
-  author: documentAuthorReference,
-
-  // RelatedPerson record associated server-side with the unlocked profile.
-  attesters: [{
-    mode: CompositionAttesterModes.Personal,
-    party: {
-      reference: controllerRelatedPersonId,
-    },
-  }],
+  dataAuthorReference,
+  attester: openedProfile.profile.attester,
 });
 ```
 
-The next write may use another `documentAuthorReference` while retaining the
-same `controllerRelatedPersonId`. The SDK never replaces that explicit
-document author with the RelatedPerson.
+The same type-checked `updateSubjectSection(...)` helper accepts the opened
+individual controller or the opened professional. It performs the required
+missing-attester check before this call, so application code never uses
+`undefined`.
 
-For a professional profile, the same rule applies with its registered
-`PractitionerRole`:
+## Create, update and delete
 
-```ts
-// Existing server-side PractitionerRole record for this professional.
-const professionalPractitionerRoleId = practitionerRole.id;
+The snippet exports three `BundleEditor` examples:
 
-await unlockedProfessionalProfile.sdk.updateClinicalSection(tenantContext, {
-  subject: clinicalSubjectDid,
-  sender: unlockedProfessionalProfile.session.actorDid,
-  recipient: indexProviderDid,
-  section,
-  bundle: sectionChanges,
-  author: documentAuthorReference,
-  attesters: [{
-    mode: CompositionAttesterModes.Professional,
-    party: {
-      reference: professionalPractitionerRoleId,
-    },
-  }],
-});
-```
+- `buildAllergyCreate(...)` produces `POST` plus a resource body;
+- `buildAllergyUpdate(...)` produces `PUT ResourceType/id` and applies
+  `ifMatch(currentVersionId)`;
+- `buildAllergyDelete(...)` produces `DELETE ResourceType/id`, applies
+  `ifMatch(currentVersionId)` and emits no resource body.
 
-The author may be an organization, professional, individual or another valid
-FHIR source for that particular document. Professional authentication does
-not force the professional organization to be every document's author.
+The same `updateSubjectSection()` envelope is used for other supported
+functional sections, including appointments, contracts and future coverage
+sections. The method name does not imply that the section belongs to the
+unlocked profile: it belongs to `subject`.
 
-## Complete document Bundle
-
-For `updateClinicalSummary(...)`, the submitted document Bundle already owns
-its provenance:
-
-- preserve `Composition.author` from the source document;
-- add or validate the unlocked profile as `Composition.attester.party`;
-- preserve the clinical subject independently;
-- pass `unlockedProfile.session.actorDid` only as the operational sender.
-
-An imported IPS therefore keeps its external author. Authentication of the
-importer or updater does not rewrite that author; the authenticated profile is
-represented separately as attester when it actually attests the document.
-
-## Human and animal products
-
-The professional/individual split and the author/attester split do not change
-between human-health and animal-health products. Only the governed subject
-model and role vocabulary change. Never infer author or attester from whether
-the clinical subject is human or animal.
-
-## Identifier summary
-
-| Value | Meaning | May change per document? |
-| --- | --- | --- |
-| `subject` | Human or animal clinical subject | Yes |
-| `author` | Source responsible for this document | Yes |
-| `attester.party` | RelatedPerson or PractitionerRole of the unlocked profile | No, while that profile remains selected |
-| `sender` | Operational DIDComm actor DID | No, while that session remains active |
-| `actorIdentifier` | Authorization/permission actor | Not an authorship field |
-
-The legacy `clinicalCreatorBinding`/`sourceAuthor` model must not be used by
-new integrations to bind document authorship during profile enrollment.
+`updateClinicalSection()` remains as a deprecated compatibility alias during
+the migration; existing integrations are not broken.

@@ -16,6 +16,7 @@ import type {
   BlockchainArtifactRegistrationInput,
   ClinicalBundleSearchInput,
   ClinicalSectionUpdateInput,
+  SubjectSectionUpdateInput,
   ClinicalSummaryReadResult,
   ClinicalSummaryRequestInput,
   ClinicalSummaryUpdateInput,
@@ -86,6 +87,11 @@ export class PersonalSdk {
   /** Updates one exact clinical section through a section-scoped batch/collection. */
   public updateClinicalSection(ctx: RouteContext, input: ClinicalSectionUpdateInput): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'updateClinicalSection')(ctx, input);
+  }
+
+  /** Updates one generic subject-owned section with its profile attester. */
+  public updateSubjectSection(ctx: RouteContext, input: SubjectSectionUpdateInput): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'updateSubjectSection')(ctx, input);
   }
 
   /** Updates the multi-section clinical summary through a Composition-first document. */

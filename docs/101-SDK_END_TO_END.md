@@ -1340,68 +1340,32 @@ different phases. Keep the activation code server-side and consume it directly
 in the managed profile enrollment:
 
 ```ts
-// These are stable confidential UUIDs owned by the BFF. They identify the
-// natural controller and that controller's RelatedPerson assignment. They are
-// not a DCR client id, device id, profile id or DID.
-const controllerPersonId = controllerIdentity.id;
-const controllerRelatedPersonId = controllerRelationship.id;
+import {
+  enrollAndOpenIndividualController,
+} from './snippets/subject-section-writes.js';
 
-// Use the exact verified contact and role bound by the individual Order. This
-// produces the complete member DID; it is not the individual subject DID or
-// the index-provider organization DID.
-const individualControllerDid = buildIndividualMemberDidWebFromPrivateIdentifiers({
-  providerDidWeb: individualOrganizationRegistration.identity!.providerDidWeb,
-  secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
-  privateIdValueIndividual: individualOrganizationRegistration.identity!.resourceId,
-  secureIdTypeMember: SecureIdTypesIndividual.Email,
-  privateIdValueMember: verifiedControllerEmail,
-  roleType: HL7_CODING_SYSTEM_V3_ROLE_CODE,
-  roleValue: HealthcareActorRoleCodes.Controller,
-});
-
-const enrolledControllerProfile = await profileSessionManager.enroll({
+const openedIndividualController = await enrollAndOpenIndividualController({
+  individualSdk,
+  profileSessionManager,
+  tenantContext,
+  registration: individualOrganizationRegistrationInput,
+  relatedPersonSearchResponseBody,
+  relatedPersonSelection,
+  verifiedControllerEmail,
   ownerId: profileAccountId,
   profileId: individualControllerProfileId,
-  actorKind: ActorKinds.IndividualController,
-  actorMode: 'controller',
-  actorDid: individualControllerDid,
-  profileDid: individualControllerDid,
-  providerDid: individualOrganizationRegistration.identity!.providerDidWeb,
-  routeContext: tenantContext,
-  allowedSubjectDids: [
-    individualOrganizationRegistration.identity!.subjectDid,
-  ],
-  pin: profilePin,
+  profilePin,
   idToken,
-  activationCode: controllerActivationCode,
-  clinicalCreatorBinding: {
-    kind: FhirIpsCreatorKinds.IndividualMember,
-    actorIdentifier: controllerPersonId,
-    assignmentIdentifier: controllerRelatedPersonId,
-    ownerIdentifier: individualOrganizationRegistration.identity!.resourceId,
-    role: HealthcareActorRoleCodes.Controller,
-  },
   redirectUris,
   clientName,
-});
-
-const unlockedControllerSession = await profileSessionManager.unlock({
-  ownerId: profileAccountId,
-  profileId: enrolledControllerProfile.profileId,
-  subjectDid: individualOrganizationRegistration.identity!.subjectDid,
   scopes: individualControllerScopes,
-  pin: profilePin,
-  idToken,
 });
-
-const openedIndividualController =
-  await profileSessionManager.openIndividualController({
-    ownerId: profileAccountId,
-    sessionId: unlockedControllerSession.sessionId,
-  });
-
-const enrolledIndividualSdk = openedIndividualController.sdk;
 ```
+
+`relatedPersonSearchResponseBody` is the actual response body already returned
+by the telephone/member `RelatedPerson/_search` flow. The helper selects its
+real governed identifier and stores only that profile attester; it does not
+invent a UUID and does not bind any section author during enrollment.
 
 `ServerProfileSessionManager.enroll(...)` owns the wallet and activation
 plumbing. It generates or restores the server-managed wallet, sends the
@@ -1491,19 +1455,18 @@ const subjectVc = individualSdk.getSubjectVC({
 ```
 
 For an individual controller, `actorDid` and `profileDid` must be the same
-complete member DID. The creator binding keeps three different UUIDs:
+complete member DID. Do not construct a new `clinicalCreatorBinding` for
+section writes. The profile attester comes from the governed identifier of the
+actual `RelatedPerson/_search` row selected by the server-side contact/member
+flow. The licensed individual's `registration.identity.resourceId`, the
+subject DID, actor DID, profile id and OAuth client id are different identities
+and none is a substitute for that RelatedPerson assignment.
 
-- `actorIdentifier`: the natural controller person
-- `assignmentIdentifier`: the controller's RelatedPerson assignment UUID; the
-  SDK serializes the deprecated DCR/profile wire name `authorIdentifier`
-  internally
-- `ownerIdentifier`: the licensed individual returned as
-  `individualOrganizationRegistration.identity.resourceId`
-
-Do not substitute the subject DID, provider DID, organization DID, DCR client
-id or profile id into those UUID fields. The SDK serializes this binding into
-the encrypted DCR request; BFF code should not construct the raw route or JOSE
-message.
+Legacy profile records may still contain `actorIdentifier`,
+`assignmentIdentifier`/the old serialized `authorIdentifier`, and
+`ownerIdentifier`. They remain readable for compatibility, but
+`actorIdentifier` is not section authorship and new application snippets use
+the explicit `dataAuthorReference` plus the profile `attester` instead.
 
 Practical rule:
 
@@ -1718,66 +1681,29 @@ Optional narrower facade:
   `disableIndividualMember(...)` and `purgeIndividualMember(...)`
   remain owned by `IndividualControllerSdk`
 
-### 7.11 Update exactly one clinical section
+### 7.11 Update exactly one subject section
 
 For the complete Node BFF decision table, actor authorization matrix, mixed
 create/update/delete example, document import boundary and current test versus
 Playwright evidence, read
 [101-BFF_CLINICAL_WRITES.md](./101-BFF_CLINICAL_WRITES.md).
 
-Use `updateClinicalSection(...)` when every entry belongs to one section. The
+Use `updateSubjectSection(...)` when every entry belongs to one section. The
 Bundle is `batch` or `collection`; the method puts the exact section on the
-outer Communication. Vital-sign measurement batches use this flow.
+outer Communication. The current storage contract also indexes the independent
+`dataAuthorReference` and profile `attester` as Composition-compatible claims.
 
-```ts
-const emailProfessional = 'doctor@example.org';
-
-const professionalDid = buildProfessionalDidWeb({
-  organizationDidWeb: organizationDid,
-  email: emailProfessional,
-  role: HealthcareActorRoles.Physician,
-});
-
-const clinicalBundleEditor = new BundleEditor()
-  .setBundleOperation(BundleOperations.create)
-  .setBundleType(BundleTypes.batch)
-  .setAllowedResourceType(BundleEditableResourceTypes.observation);
-
-clinicalBundleEditor
-  .newEntryAs(BundleEditableResourceTypes.vitalSign)
-  .setSubject(subjectDid)
-  .setDate('2026-05-22T10:00:00Z')
-  .setHeartRate(72)
-  .ensureIdentifier();
-
-clinicalBundleEditor
-  .newEntryAs(BundleEditableResourceTypes.vitalSign)
-  .setSubject(subjectDid)
-  .setDate('2026-05-22T10:00:00Z')
-  .setSystolicBloodPressure(120)
-  .ensureIdentifier();
-
-const clinicalBundle = clinicalBundleEditor.buildJsonApi();
-
-await individualControllerProfile.sdk.updateClinicalSection(tenantContext, {
-  subject: subjectDid,
-  sender: professionalDid,
-  recipient: organizationDid,
-  // Protected export: CDS legal organization author + PractitionerRole attester.
-  clinicalCreator: professionalClinicalCreator,
-  section: HealthcareBasicSections.VitalSigns.attributeValue,
-  bundle: clinicalBundle,
-  noteText: 'IPS update with vital signs',
-  clinicalFormat: 'r4',
-});
-```
+The complete, type-checked call is maintained in
+[`snippets/subject-section-writes.ts`](./snippets/subject-section-writes.ts), so
+integrators do not have to reconstruct profile identifiers from partial
+examples in this broader guide.
 
 Important:
 
 - every resource in this Bundle belongs to the one declared section
-- `sender` is the authenticated submitter. The protected `clinicalCreator`
-  export supplies author/attester; `profile.actorDid` is never copied into
-  those FHIR fields. GW verifies the exact registered binding.
+- `sender` is the authenticated submitter;
+- `dataAuthorReference` is specific to this write;
+- `attester` is returned by the unlocked profile and is not rebuilt;
 - the GW must not infer a default section
 - individual resource `upsert*` calls are internal compatibility plumbing
 - this flow does not replace a multi-section IPS document
@@ -1786,29 +1712,29 @@ The same section batch can create one fact and remove another. Each entry
 selects its own operation; a delete has no resource body:
 
 ```ts
-const allergies = new BundleEditor().setBundleType(BundleTypes.batch);
-
-allergies
-  .newEntryAs(BundleEditableResourceTypes.allergyIntolerance, 'allergy-new')
-  .create()
-  .setSubject(subjectDid)
-  .ensureIdentifier();
-
-allergies
-  .newEntryAs(BundleEditableResourceTypes.allergyIntolerance, 'allergy-old')
-  .delete()
-  .ifMatch(currentVersionId);
-
-await individualControllerProfile.sdk.updateClinicalSection(tenantContext, {
-  subject: subjectDid,
-  sender: authenticatedControllerDid,
-  author: authenticatedControllerDid,
-  recipient: organizationDid,
-  section: HealthcareBasicSections.AllergiesAndIntolerances.attributeValue,
-  bundle: allergies.buildJsonApi(),
-  clinicalFormat: 'r4',
-});
+import {
+  buildAllergyCreate,
+  buildAllergyDelete,
+  buildAllergyUpdate,
+} from './snippets/subject-section-writes.js';
 ```
+
+These functions receive every resource id, business identifier, subject,
+version and code as an explicit input. See the linked type-checked source for
+the complete calls; no example UUID is intended to be copied into production.
+
+The professional flow uses the same write helper. Its attester is not supplied
+as a made-up variable: `enrollAndOpenProfessional(...)` reads the contained
+`PractitionerRole.id` from the real Employee creation receipt, stores that
+profile attester, and returns the opened professional facade:
+
+The linked canonical snippet contains both `enrollAndOpenProfessional(...)`
+and its `updateSubjectSection(...)` call using only values returned by the SDK
+or supplied as explicit BFF inputs.
+
+For an individual controller/member profile the attester comes instead from
+the selected row of the existing `RelatedPerson/_search` contact/member query.
+A personal flow never creates or expects a `PractitionerRole`.
 
 GW permits deletion only for the resource creator and the same subject. If
 that person linked verified phone and email access, either login may authorize

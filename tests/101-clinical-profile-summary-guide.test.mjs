@@ -8,50 +8,36 @@ const canonicalGuideUrl = new URL(
   import.meta.url,
 );
 const canonicalSnippetUrl = new URL(
-  '../docs/snippets/high-level-clinical-profile-writes.ts',
+  '../docs/snippets/subject-section-writes.ts',
   import.meta.url,
 );
 
 const readWhenPresent = (url) => (fs.existsSync(url) ? fs.readFileSync(url, 'utf8') : '');
 
-test('canonical clinical profile guide covers both loaded-profile journeys through public facades', () => {
+test('canonical profile guide points to complete subject-section snippets', () => {
   const guide = readWhenPresent(canonicalGuideUrl);
   const snippet = readWhenPresent(canonicalSnippetUrl);
 
   assert.ok(guide, 'the canonical high-level clinical profile guide must exist');
   assert.ok(snippet, 'the copyable high-level clinical profile snippet must exist');
 
-  assert.match(snippet, /loadBackendProfessionalProfile\(/);
-  assert.match(snippet, /loadBackendIndividualControllerProfile\(/);
-  assert.match(snippet, /loadBackendIndividualMemberProfile\(/);
-  assert.match(snippet, /exportClinicalCreatorIps\(/);
-  assert.match(snippet, /professionalProfile\.sdk\.updateClinicalSummary\(/);
-  assert.match(snippet, /individualControllerProfile\.sdk\.importIpsOrFhirAndUpdateIndex\(/);
-  assert.match(snippet, /individualControllerProfile\.sdk\.updateClinicalSummary\(/);
-  assert.match(snippet, /individualMemberProfile\.sdk\.updateClinicalSummary\(/);
-  assert.match(snippet, /providerDid:\s*indexProviderDid/);
-  assert.match(snippet, /sourceAuthor:\s*input\.sourceAuthor/);
-  assert.match(snippet, /ClinicalSourceAuthorSelections\.Owner/);
-  assert.match(snippet, /ClinicalSourceAuthorSelections\.Creator/);
+  assert.match(snippet, /registerIndividualOrganization/);
+  assert.match(snippet, /confirmIndividualOrganizationOrder/);
+  assert.match(snippet, /buildRelatedPersonProfileAttester/);
+  assert.match(snippet, /readEmployeeProfessionalAssignmentIdentifier/);
+  assert.match(snippet, /updateSubjectSection/);
+  assert.match(snippet, /dataAuthorReference/);
+  assert.match(snippet, /\.create\(\)/);
+  assert.match(snippet, /\.update\(\)/);
+  assert.match(snippet, /\.delete\(\)/);
+  assert.doesNotMatch(snippet, /controllerRelationship\.id|practitionerRole\.id/);
 
-  assert.match(guide, /individual.*owner.*subject/is);
-  assert.match(guide, /index provider.*recipient/is);
-  assert.match(guide, /professional organization.*author/is);
-  assert.match(guide, /individual.*author.*RelatedPerson.*attester/is);
-  assert.match(guide, /RelatedPerson.*author.*attester/is);
-  assert.match(guide, /preparation.*completed.*not-done/is);
-  assert.match(guide, /external IPS.*preserv/is);
-  assert.match(guide, /(?:subset|subconjunto).*101-SDK_END_TO_END/is);
-  assert.doesNotMatch(
-    guide,
-    /subject:\s*individualDid,\s*subject:\s*individualDid,/,
-    'the copyable write call must not repeat the subject property',
-  );
+  assert.match(guide, /superseded and intentionally removed/is);
+  assert.match(guide, /Complete type-checked snippets/is);
 
   for (const document of [guide, snippet]) {
     assert.doesNotMatch(document, /new NodeHttpClient|NodeManagedWallet|packForRecipient|compact JWE|queue adapter/i);
-    assert.doesNotMatch(document, /authenticatedAccountId|loadedActorProfile|const\s+providerDid|recipient:\s*providerDid/);
-    assert.doesNotMatch(document, /openProfessional\(|\btarget:\s*\{/);
+    assert.doesNotMatch(document, /controllerRelationship\.id|practitionerRole\.id/);
   }
 });
 
