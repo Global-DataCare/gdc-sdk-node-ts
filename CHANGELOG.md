@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 2.9.8 - 2026-09-08
+
+- Make the individual-controller profile guide one sendable journey that
+  separates one-time registration and enrollment from ordinary authenticated
+  clinical writes.
+- Explain the person, RelatedPerson/PractitionerRole assignment, owner,
+  `Composition.author` and `Composition.attester.party` mappings for individual
+  and professional profiles, including the deprecated DCR wire name.
+- Guard the copyable clinical-write call against duplicated `subject`
+  properties and keep the focused guide linked to the complete end-to-end 101.
+
 ## 2.9.7 - 2026-09-08
 
 - Normalize high-level clinical creator bindings during profile enrollment so

@@ -42,6 +42,11 @@ test('canonical clinical profile guide covers both loaded-profile journeys throu
   assert.match(guide, /preparation.*completed.*not-done/is);
   assert.match(guide, /external IPS.*preserv/is);
   assert.match(guide, /(?:subset|subconjunto).*101-SDK_END_TO_END/is);
+  assert.doesNotMatch(
+    guide,
+    /subject:\s*individualDid,\s*subject:\s*individualDid,/,
+    'the copyable write call must not repeat the subject property',
+  );
 
   for (const document of [guide, snippet]) {
     assert.doesNotMatch(document, /new NodeHttpClient|NodeManagedWallet|packForRecipient|compact JWE|queue adapter/i);
