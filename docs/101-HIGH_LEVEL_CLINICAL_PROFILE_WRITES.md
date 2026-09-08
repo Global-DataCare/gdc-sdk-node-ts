@@ -1,5 +1,11 @@
 # Individual profile enrollment and high-level clinical writes
 
+> **Canonical provenance correction:** use
+> [Clinical author, profile attester and subject boundaries](./101-CLINICAL_AUTHOR_ATTESTER_BOUNDARIES.md).
+> New integrations must not bind document authorship in `enroll()`.
+> `Composition.author` is document-specific; the authenticated unlocked
+> profile supplies the RelatedPerson or PractitionerRole attester.
+
 This is the single link to send to an integrator who needs to understand both
 how an individual-controller profile is registered and how that already
 registered profile later writes clinical data. It deliberately separates two

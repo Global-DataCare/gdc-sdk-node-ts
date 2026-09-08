@@ -746,6 +746,11 @@ modules below.
 
 ### Composition provenance in clinical Bundles
 
+The canonical integration boundary is
+[Clinical author, profile attester and subject boundaries](./docs/101-CLINICAL_AUTHOR_ATTESTER_BOUNDARIES.md).
+It keeps technical enrollment free of clinical authorship, preserves the
+document-specific author and resolves the attester from the unlocked profile.
+
 A document Bundle keeps `Composition.author` (the organization, EHR/patient
 portal or individual that supplies the document) separate from
 `Composition.attester` (the registered personal or professional assignment
