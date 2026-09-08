@@ -1,13 +1,179 @@
-# High-level clinical writes from loaded profiles
+# Individual profile enrollment and high-level clinical writes
 
-This is the canonical copyable subset of
-[101-SDK_END_TO_END](./101-SDK_END_TO_END.md) for creating or importing
-clinical data after profile enrollment. It shows only public application and
-SDK facades. Wallet construction, HTTP clients, DIDComm packaging, queues,
-polling routes and ledger configuration deliberately remain outside this 101.
+This is the single link to send to an integrator who needs to understand both
+how an individual-controller profile is registered and how that already
+registered profile later writes clinical data. It deliberately separates two
+different journeys:
+
+1. **Journey 0 — one-time profile enrollment:** register the individual
+   organization, confirm its Order, consume the activation code and bind the
+   protected clinical identity to a managed profile.
+2. **Journey 1 — normal clinical write:** load the existing authenticated
+   profile, obtain its protected author/attester projection and submit the
+   clinical content.
+
+`enroll()` is onboarding and is not a document-write operation. A normal
+clinical write must not register the organization, confirm its Order, consume
+another activation code or enroll another wallet/device.
+
+The examples show only public application and SDK facades. Wallet
+construction, raw HTTP, DIDComm packaging, queues, polling routes and ledger
+configuration remain outside this 101.
 
 The complete TypeScript snippet is
 [high-level-clinical-profile-writes.ts](./snippets/high-level-clinical-profile-writes.ts).
+
+## Journey 0 — one-time individual-controller profile enrollment
+
+Run this journey only when the individual organization and its managed
+controller profile do not exist yet. The `individualSdk` below is the facade of
+the already authenticated person/channel authorized to request registration;
+it is not the new managed profile being created.
+
+```ts
+const registration = await individualSdk.registerIndividualOrganization({
+  ...tenantContext,
+  alternateName,
+  controllerEmail: verifiedControllerEmail,
+  timeoutSeconds: registrationTimeoutSeconds,
+  intervalSeconds: pollIntervalSeconds,
+});
+
+const order = await individualSdk.confirmIndividualOrganizationOrder({
+  ...tenantContext,
+  offerId: registration.offerId,
+  timeoutSeconds: orderTimeoutSeconds,
+  intervalSeconds: pollIntervalSeconds,
+});
+
+// The BFF owns these confidential UUIDs. They come from the controller's
+// durable person record and its RelatedPerson relationship record. They are
+// not DIDs, OAuth client ids, profile ids or FHIR Patient ids.
+const controllerActorIdentifier = controllerIdentity.id;
+const controllerAttesterAssignmentIdentifier = controllerRelationship.id;
+
+const individualControllerDid = buildIndividualMemberDidWebFromPrivateIdentifiers({
+  providerDidWeb: registration.identity!.providerDidWeb,
+  secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
+  privateIdValueIndividual: registration.identity!.resourceId,
+  secureIdTypeMember: SecureIdTypesIndividual.Email,
+  privateIdValueMember: verifiedControllerEmail,
+  roleType: HL7_CODING_SYSTEM_V3_ROLE_CODE,
+  roleValue: HealthcareActorRoleCodes.Controller,
+});
+
+const enrolledProfile = await profileSessionManager.enroll({
+  ownerId: profileAccountId,
+  profileId: individualControllerProfileId,
+  actorKind: ActorKinds.IndividualController,
+  actorMode: 'controller',
+  actorDid: individualControllerDid,
+  profileDid: individualControllerDid,
+  providerDid: registration.identity!.providerDidWeb,
+  routeContext: tenantContext,
+  allowedSubjectDids: [registration.identity!.subjectDid],
+  pin: profilePin,
+  idToken,
+  activationCode: order.activationCode,
+  clinicalCreatorBinding: {
+    kind: FhirIpsCreatorKinds.IndividualMember,
+    actorIdentifier: controllerActorIdentifier,
+    assignmentIdentifier: controllerAttesterAssignmentIdentifier,
+    ownerIdentifier: registration.identity!.resourceId,
+    role: HealthcareActorRoleCodes.Controller,
+  },
+  redirectUris,
+  clientName,
+});
+```
+
+The binding names describe stored identity evidence, not arbitrary provenance
+chosen by the browser:
+
+- `actorIdentifier` identifies the authenticated natural actor behind this
+  controller/member relationship. It is not the clinical subject or Patient.
+- `assignmentIdentifier` identifies the exact `RelatedPerson` relationship
+  assignment used as `Composition.attester.party`.
+- `ownerIdentifier` identifies the licensed individual and becomes the source
+  author only when the BFF selects `ClinicalSourceAuthorSelections.Owner` for
+  individual-originated or dictated content. The default/`Creator` selection
+  remains the registered member/controller `RelatedPerson`.
+- The persisted DCR/profile wire representation still calls the assignment
+  `authorIdentifier`. That wire name is deprecated: it identifies the
+  attester assignment and does not select `Composition.author`.
+
+The SDK accepts bare UUIDs and the governed bare role code here, then
+canonicalizes them internally. BFF code must not concatenate `urn:uuid:` or a
+coding-system prefix.
+
+For a professional profile the same identity graph has different FHIR
+participants: the professional organization is `Composition.author`, while
+the registered `PractitionerRole` is `Composition.attester.party`. The
+underlying practitioner, authenticated sender, signing key and attester role
+remain distinct.
+
+The `enrolledProfile` result is stored by the BFF. The browser must never
+receive the activation code, wallet seed, initial access token or private
+keys. Subsequent requests begin with Journey 1, not by repeating Journey 0.
+
+## Journey 1 — normal clinical write from the existing profile
+
+The BFF loads the already enrolled profile appropriate to the authenticated
+request. It does not accept `Composition.author`, `Composition.attester`, an
+assignment UUID or an actor DID from browser JSON.
+
+```ts
+const individualControllerProfile =
+  await loadBackendIndividualControllerProfile(profileRuntime, {
+    ...loadRequest,
+    providerDid: indexProviderDid,
+  });
+
+const sourceAuthor = contentWasOriginatedOrDictatedByIndividual
+  ? ClinicalSourceAuthorSelections.Owner
+  : ClinicalSourceAuthorSelections.Creator;
+
+const clinicalCreator = await profileManager.exportClinicalCreatorIps({
+  ownerId: profileAccountId,
+  profileId: individualControllerProfile.profile.descriptor.profileId,
+  sourceAuthor,
+});
+
+const write = await individualControllerProfile.sdk.updateClinicalSection(
+  indexProviderRouteContext,
+  {
+    subject: individualDid,
+    sender: individualControllerProfile.session.actorDid,
+    recipient: indexProviderDid,
+    section: selectedSection,
+    bundle: sectionChanges,
+    clinicalFormat: 'r4',
+    clinicalCreator,
+  },
+);
+
+const readback = await individualControllerProfile.sdk.requestClinicalSummary(
+  indexProviderRouteContext,
+  {
+    subjectId: individualDid,
+    requesterId: individualControllerProfile.session.actorDid,
+  },
+);
+```
+
+`ClinicalSourceAuthorSelections.Owner` means the individual originated or
+dictated the content: the individual is `Composition.author` and the
+registered RelatedPerson remains `Composition.attester.party`.
+`ClinicalSourceAuthorSelections.Creator` means the controller/member originated
+the content: the registered RelatedPerson is both author and attester. This is
+a closed BFF decision derived from the authoritative workflow; it is not a
+free-form reference supplied by the UI.
+
+For a complete Composition-first document use `updateClinicalSummary(...)`
+instead of `updateClinicalSection(...)`. For an external IPS/FHIR document use
+`importIpsOrFhirAndUpdateIndex(...)` and preserve its original author and
+attesters. In every case, the authoritative readback—not an accepted async
+submission or optimistic UI state—proves persistence.
 
 ## The common beginning
 

@@ -20,6 +20,10 @@ const clinicalWriteGuide = fs.readFileSync(
   new URL('../docs/101-BFF_CLINICAL_WRITES.md', import.meta.url),
   'utf8',
 );
+const highLevelClinicalProfileGuide = fs.readFileSync(
+  new URL('../docs/101-HIGH_LEVEL_CLINICAL_PROFILE_WRITES.md', import.meta.url),
+  'utf8',
+);
 const multiActorIpsGuide = fs.readFileSync(
   new URL('../docs/101-MULTI_ACTOR_IPS_EXPORT.md', import.meta.url),
   'utf8',
@@ -133,6 +137,34 @@ test('BFF clinical-write 101 separates section CRUD from document import', () =>
   assert.match(clinicalWriteGuide, /must not supply.*channel.*smart contract/is);
   assert.match(readme, /BFF.*never.*ledger routing/is);
   assert.match(clinicalWriteGuide, /Playwright/);
+});
+
+test('high-level clinical profile 101 is one sendable link that separates one-time enrollment from normal writes', () => {
+  assert.match(highLevelClinicalProfileGuide, /Journey 0.*one-time.*profile enrollment/is);
+  assert.match(highLevelClinicalProfileGuide, /Journey 1.*normal clinical write/is);
+  assert.match(
+    highLevelClinicalProfileGuide,
+    /`enroll\(\)`.*not.*document-write operation/is,
+  );
+  assert.match(
+    highLevelClinicalProfileGuide,
+    /registerIndividualOrganization[\s\S]*confirmIndividualOrganizationOrder[\s\S]*profileSessionManager\.enroll/,
+  );
+  assert.match(
+    highLevelClinicalProfileGuide,
+    /loadBackendIndividualControllerProfile[\s\S]*exportClinicalCreatorIps[\s\S]*updateClinicalSummary/,
+  );
+  assert.match(highLevelClinicalProfileGuide, /`actorIdentifier`.*authenticated natural actor/is);
+  assert.match(highLevelClinicalProfileGuide, /`assignmentIdentifier`.*RelatedPerson.*attester/is);
+  assert.match(
+    highLevelClinicalProfileGuide,
+    /`ownerIdentifier`.*selects `ClinicalSourceAuthorSelections\.Owner`.*default.*`Creator`.*RelatedPerson/is,
+  );
+  assert.match(highLevelClinicalProfileGuide, /wire.*`authorIdentifier`.*deprecated/is);
+  assert.match(
+    highLevelClinicalProfileGuide,
+    /professional organization.*Composition\.author.*PractitionerRole.*Composition\.attester/is,
+  );
 });
 
 test('multi-actor IPS export 101 numbers the source, attester and aggregate-read journeys', () => {
