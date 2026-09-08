@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 2.9.5 - 2026-09-07
+
+- Add `matchPatientAtIndexProvider(...)` for IHE PDQm
+  `POST Patient/$match`, returning the same FHIR search `Bundle` through FHIR,
+  DIDComm plain and strict transport profiles.
+- Keep the opaque subject-identifier hash at the Fabric boundary and send one
+  FHIR `Parameters` resource to the provider, either directly or as the only
+  DIDComm `body.data[]` entry.
+- Consume exact `gdc-common-utils-ts@2.9.7` and `gdc-sdk-core-ts@2.9.5`.
+
 ## 2.9.4 - 2026-09-07
 
 - Consume the published `gdc-common-utils-ts@2.9.5` and

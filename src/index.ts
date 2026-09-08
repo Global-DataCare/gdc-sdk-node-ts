@@ -53,3 +53,4 @@ export * from './orchestration/professional-sdk.js';
 export * from './orchestration/digital-twin-sdk.js';
 export * from './legacy-compat.js';
 export * from './local-terminology-bff.js';
+export * from './pdqm-patient-match.js';

@@ -2175,6 +2175,15 @@ Current forward-looking TODOs intentionally left in the SDK source:
 - `TODO(gw-core-lifecycle-target-patch-employee-disable)`
 - `TODO(gw-core-lifecycle-target-patch-individual-disable)`
 
+### Resolve and match before requesting a federated token
+
+Before requesting a federated SMART token for a human whose index provider is
+not yet known, resolve only `indexProviderDid` through the public subject
+identifier contract. Then use IHE PDQm `POST Patient/$match`; never forward the
+opaque Fabric hash to the provider. The high-level Node call, its single
+`Parameters` body and its FHIR, DIDComm plain and strict representations are in
+[101-PDQM_PATIENT_MATCH.md](./101-PDQM_PATIENT_MATCH.md).
+
 ## 10. Common mistakes to avoid
 
 - Do not teach legal organization activation and individual bootstrap as if they
