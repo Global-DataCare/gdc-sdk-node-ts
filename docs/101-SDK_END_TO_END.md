@@ -1336,8 +1336,10 @@ high-level `activationCode` result.
 ### 7.3a Enroll the wallet and DCR device, then open the profile
 
 Registration, Order confirmation, enrollment and profile opening are four
-different phases. Keep the activation code server-side and consume it directly
-in the managed profile enrollment:
+different phases. The following one-call BFF helper orchestrates all four from
+the original registration input; use it instead of separately repeating the
+7.2 and 7.3 calls shown above. It keeps the activation code server-side and
+consumes it directly in the managed profile enrollment:
 
 ```ts
 import {
