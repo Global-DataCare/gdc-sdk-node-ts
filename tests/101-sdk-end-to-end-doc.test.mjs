@@ -78,6 +78,12 @@ test('individual onboarding 101 separates registration, Order, enrollment, and p
   assert.match(guide, /offerId:\s*individualOrganizationRegistration\.offerId/);
   assert.match(guide, /const\s+controllerActivationCode\s*=\s*individualOrganizationOrder\.activationCode/);
   assert.match(guide, /await\s+profileSessionManager\.enroll\([\s\S]*activationCode:\s*controllerActivationCode/);
+  assert.match(guide, /clinicalCreatorBinding:\s*\{[\s\S]*kind:\s*FhirIpsCreatorKinds\.IndividualMember/);
+  assert.match(guide, /actorIdentifier:\s*`urn:uuid:\$\{controllerPersonId\}`/);
+  assert.match(guide, /authorIdentifier:\s*`urn:uuid:\$\{controllerRelatedPersonId\}`/);
+  assert.match(guide, /ownerIdentifier:\s*`urn:uuid:\$\{individualOrganizationRegistration\.identity!\.resourceId\}`/);
+  assert.match(guide, /actorDid:\s*individualControllerDid,[\s\S]*profileDid:\s*individualControllerDid/);
+  assert.match(guide, /complete member DID[\s\S]*not the individual subject DID/is);
   assert.match(guide, /await\s+profileSessionManager\.unlock\(/);
   assert.match(guide, /await\s+profileSessionManager\.openIndividualController\(/);
   assert.match(guide, /does not create[\s\S]*wallet[\s\S]*does not register[\s\S]*DCR/is);
