@@ -216,7 +216,12 @@ import {
   ServiceCapability,
   ResourceTypesFhirR4,
   SmartGatewayScopesFhirR4,
+  FhirIpsCreatorKinds,
+  HealthcareActorRoleCodes,
+  HL7_CODING_SYSTEM_V3_ROLE_CODE,
+  SecureIdTypesIndividual,
   buildControllerBindingInput,
+  buildIndividualMemberDidWebFromPrivateIdentifiers,
   buildOrganizationDidWeb,
   buildProfessionalDidWeb,
   buildIndividualDidWeb,
@@ -1335,6 +1340,25 @@ different phases. Keep the activation code server-side and consume it directly
 in the managed profile enrollment:
 
 ```ts
+// These are stable confidential UUIDs owned by the BFF. They identify the
+// natural controller and that controller's RelatedPerson assignment. They are
+// not a DCR client id, device id, profile id or DID.
+const controllerPersonId = controllerIdentity.id;
+const controllerRelatedPersonId = controllerRelationship.id;
+
+// Use the exact verified contact and role bound by the individual Order. This
+// produces the complete member DID; it is not the individual subject DID or
+// the index-provider organization DID.
+const individualControllerDid = buildIndividualMemberDidWebFromPrivateIdentifiers({
+  providerDidWeb: individualOrganizationRegistration.identity!.providerDidWeb,
+  secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
+  privateIdValueIndividual: individualOrganizationRegistration.identity!.resourceId,
+  secureIdTypeMember: SecureIdTypesIndividual.Email,
+  privateIdValueMember: verifiedControllerEmail,
+  roleType: HL7_CODING_SYSTEM_V3_ROLE_CODE,
+  roleValue: HealthcareActorRoleCodes.Controller,
+});
+
 const enrolledControllerProfile = await profileSessionManager.enroll({
   ownerId: profileAccountId,
   profileId: individualControllerProfileId,
@@ -1350,6 +1374,13 @@ const enrolledControllerProfile = await profileSessionManager.enroll({
   pin: profilePin,
   idToken,
   activationCode: controllerActivationCode,
+  clinicalCreatorBinding: {
+    kind: FhirIpsCreatorKinds.IndividualMember,
+    actorIdentifier: `urn:uuid:${controllerPersonId}`,
+    authorIdentifier: `urn:uuid:${controllerRelatedPersonId}`,
+    ownerIdentifier: `urn:uuid:${individualOrganizationRegistration.identity!.resourceId}`,
+    role: `${HL7_CODING_SYSTEM_V3_ROLE_CODE}|${HealthcareActorRoleCodes.Controller}`,
+  },
   redirectUris,
   clientName,
 });
@@ -1458,6 +1489,19 @@ const subjectVc = individualSdk.getSubjectVC({
   },
 });
 ```
+
+For an individual controller, `actorDid` and `profileDid` must be the same
+complete member DID. The creator binding keeps three different UUIDs:
+
+- `actorIdentifier`: the natural controller person
+- `authorIdentifier`: the controller's RelatedPerson assignment
+- `ownerIdentifier`: the licensed individual returned as
+  `individualOrganizationRegistration.identity.resourceId`
+
+Do not substitute the subject DID, provider DID, organization DID, DCR client
+id or profile id into those UUID fields. The SDK serializes this binding into
+the encrypted DCR request; BFF code should not construct the raw route or JOSE
+message.
 
 Practical rule:
 

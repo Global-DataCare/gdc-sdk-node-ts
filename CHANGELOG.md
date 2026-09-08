@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 2.9.6 - 2026-09-08
+
+- Complete the individual-controller BFF enrollment 101 with the exact
+  member `actorDid`/`profileDid` and the stable person, RelatedPerson and
+  licensed-individual UUIDs required by `clinicalCreatorBinding`.
+- Keep raw DCR routing and JOSE packaging inside the SDK while documenting the
+  high-level `registerIndividualOrganization` -> Order -> `enroll` handoff.
+
 ## 2.9.5 - 2026-09-07
 
 - Add `matchPatientAtIndexProvider(...)` for IHE PDQm
