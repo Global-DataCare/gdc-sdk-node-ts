@@ -12,6 +12,10 @@ different journeys:
    profile, obtain its protected author/attester projection and submit the
    clinical content.
 
+This is the canonical copyable subset of
+[101-SDK_END_TO_END](./101-SDK_END_TO_END.md) for the profile-to-clinical-write
+boundary.
+
 `enroll()` is onboarding and is not a document-write operation. A normal
 clinical write must not register the organization, confirm its Order, consume
 another activation code or enroll another wallet/device.
@@ -20,7 +24,7 @@ The examples show only public application and SDK facades. Wallet
 construction, raw HTTP, DIDComm packaging, queues, polling routes and ledger
 configuration remain outside this 101.
 
-The complete TypeScript snippet is
+The complete reusable normal-write functions are in
 [high-level-clinical-profile-writes.ts](./snippets/high-level-clinical-profile-writes.ts).
 
 ## Journey 0 — one-time individual-controller profile enrollment
@@ -102,6 +106,23 @@ chosen by the browser:
   `authorIdentifier`. That wire name is deprecated: it identifies the
   attester assignment and does not select `Composition.author`.
 
+| Binding value | Individual controller/member | Professional employee |
+| --- | --- | --- |
+| `actorIdentifier` | natural controller/member UUID | underlying Practitioner UUID |
+| `assignmentIdentifier` | RelatedPerson UUID used as attester | PractitionerRole UUID used as attester |
+| `ownerIdentifier` | licensed individual UUID selected as author by `Owner` | professional organization legal identifier and author |
+
+FHIR keeps the clinical subject separate from these roles. In a human-health
+document the Patient may also be the individual author, but being
+`Composition.subject` does not by itself make that Patient the author.
+
+The high-level 2.x input cannot reuse `authorIdentifier` for the actual source
+author because that property is already occupied by the historical DCR/profile
+wire contract. Instead, the protected export derives `Composition.author`
+from `ownerIdentifier`, `assignmentIdentifier` and the closed `sourceAuthor`
+choice below. The application never reads the misleading legacy wire name to
+decide authorship.
+
 The SDK accepts bare UUIDs and the governed bare role code here, then
 canonicalizes them internally. BFF code must not concatenate `urn:uuid:` or a
 coding-system prefix.
@@ -175,9 +196,9 @@ instead of `updateClinicalSection(...)`. For an external IPS/FHIR document use
 attesters. In every case, the authoritative readback—not an accepted async
 submission or optimistic UI state—proves persistence.
 
-## The common beginning
+## Journey 1 inputs shared by all actor types
 
-Both journeys start with the same BFF-owned information:
+All normal-write variants start with the same BFF-owned information:
 
 1. `profileAccountId`: the authenticated BFF account that owns the encrypted
    profile record. This is not the owner of the clinical data and is never sent
@@ -198,7 +219,7 @@ The public `ProfileLoadRequest` property is named `providerDid`. In this
 journey its value must be `indexProviderDid`; the snippet makes that mapping
 explicit instead of introducing an ambiguous local variable.
 
-## Flow A: professional or employee creates provider content
+### Journey 1A: professional or employee creates provider content
 
 Load the professional facade with `loadBackendProfessionalProfile(...)`.
 Its `session.actorDid` is the operational sender. Obtain the protected creator
@@ -221,7 +242,7 @@ author/attester provenance without accepting it from browser input.
 After the asynchronous write, call `requestClinicalSummary(...)`. Only that
 authoritative readback proves which resources and provenance were persisted.
 
-## Flow B: individual member or controller creates personal content
+### Journey 1B: individual member or controller creates personal content
 
 Choose the facade that matches the already-authorized profile:
 
