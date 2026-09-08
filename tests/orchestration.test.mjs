@@ -11,6 +11,8 @@ import {
   EXAMPLE_OTP_CODE,
   EXAMPLE_PROFESSIONAL_IDENTITY,
   EXAMPLE_LICENSE_SUBJECT_ID_ACTIVE,
+  EXAMPLE_KYC_CONTROLLER_UUID,
+  CompositionAttesterModes,
   IndividualCredentialTypes,
   ProfessionalCredentialTypes,
   W3cCredentialTypes,
@@ -50,11 +52,15 @@ test('HostOnboardingSdk exposes the canonical transaction and Order continuation
   assert.deepEqual(calls.map(([name]) => name), ['transaction', 'order']);
 });
 
-test('clinical actor facades expose distinct section and summary update methods', async () => {
+test('actor facades expose generic subject-section writes and retain the clinical alias', async () => {
   // Step 1. The public facade must keep one-section and multi-section writes
   // discoverable instead of forcing callers through generic ingestion.
   const calls = [];
   const sdk = new PersonalSdk({
+    async updateSubjectSection(...args) {
+      calls.push(['subject-section', args]);
+      return { ok: true };
+    },
     async updateClinicalSection(...args) {
       calls.push(['section', args]);
       return { ok: true };
@@ -66,6 +72,16 @@ test('clinical actor facades expose distinct section and summary update methods'
   });
 
   // Step 2. Each method delegates through its own runtime port.
+  await sdk.updateSubjectSection({}, {
+    subject: 'did:web:subject.example',
+    section: 'LOINC|8716-3',
+    dataAuthorReference: 'did:web:data-author.example',
+    attester: {
+      mode: CompositionAttesterModes.Personal,
+      party: { reference: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}` },
+    },
+    bundle: { resourceType: 'Bundle', type: 'collection', data: [{}] },
+  });
   await sdk.updateClinicalSection({}, {
     subject: 'did:web:subject.example',
     section: 'LOINC|8716-3',
@@ -79,7 +95,7 @@ test('clinical actor facades expose distinct section and summary update methods'
       entry: [{ resource: { resourceType: 'Composition' } }],
     },
   });
-  assert.deepEqual(calls.map(([name]) => name), ['section', 'summary']);
+  assert.deepEqual(calls.map(([name]) => name), ['subject-section', 'section', 'summary']);
 });
 
 test('IndividualControllerSdk delegates to the runtime client', async () => {

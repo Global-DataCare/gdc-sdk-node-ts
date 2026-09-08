@@ -81,16 +81,10 @@ test('individual onboarding 101 separates registration, Order, enrollment, and p
   assert.match(guide, /const\s+individualOrganizationOrder\s*=\s*await\s+individualSdk\.confirmIndividualOrganizationOrder/);
   assert.match(guide, /offerId:\s*individualOrganizationRegistration\.offerId/);
   assert.match(guide, /const\s+controllerActivationCode\s*=\s*individualOrganizationOrder\.activationCode/);
-  assert.match(guide, /await\s+profileSessionManager\.enroll\([\s\S]*activationCode:\s*controllerActivationCode/);
-  assert.match(guide, /clinicalCreatorBinding:\s*\{[\s\S]*kind:\s*FhirIpsCreatorKinds\.IndividualMember/);
-  assert.match(guide, /actorIdentifier:\s*controllerPersonId/);
-  assert.match(guide, /assignmentIdentifier:\s*controllerRelatedPersonId/);
-  assert.match(guide, /ownerIdentifier:\s*individualOrganizationRegistration\.identity!\.resourceId/);
-  assert.match(guide, /role:\s*HealthcareActorRoleCodes\.Controller/);
-  assert.match(guide, /actorDid:\s*individualControllerDid,[\s\S]*profileDid:\s*individualControllerDid/);
-  assert.match(guide, /complete member DID[\s\S]*not the individual subject DID/is);
-  assert.match(guide, /await\s+profileSessionManager\.unlock\(/);
-  assert.match(guide, /await\s+profileSessionManager\.openIndividualController\(/);
+  assert.match(guide, /enrollAndOpenIndividualController/);
+  assert.match(guide, /relatedPersonSearchResponseBody/);
+  assert.match(guide, /real governed identifier/);
+  assert.doesNotMatch(guide, /controllerRelationship\.id|clinicalCreatorBinding:\s*\{/);
   assert.match(guide, /does not create[\s\S]*wallet[\s\S]*does not register[\s\S]*DCR/is);
   assert.match(guide, /Token\/_exchange[\s\S]*Device\/_dcr/is);
   assert.match(guide, /does not need[\s\S]*getLicense\(\)/is);
@@ -140,31 +134,12 @@ test('BFF clinical-write 101 separates section CRUD from document import', () =>
 });
 
 test('high-level clinical profile 101 is one sendable link that separates one-time enrollment from normal writes', () => {
-  assert.match(highLevelClinicalProfileGuide, /Journey 0.*one-time.*profile enrollment/is);
-  assert.match(highLevelClinicalProfileGuide, /Journey 1.*normal clinical write/is);
-  assert.match(
-    highLevelClinicalProfileGuide,
-    /`enroll\(\)`.*not.*document-write operation/is,
-  );
-  assert.match(
-    highLevelClinicalProfileGuide,
-    /registerIndividualOrganization[\s\S]*confirmIndividualOrganizationOrder[\s\S]*profileSessionManager\.enroll/,
-  );
-  assert.match(
-    highLevelClinicalProfileGuide,
-    /loadBackendIndividualControllerProfile[\s\S]*exportClinicalCreatorIps[\s\S]*updateClinicalSummary/,
-  );
-  assert.match(highLevelClinicalProfileGuide, /`actorIdentifier`.*authenticated natural actor/is);
-  assert.match(highLevelClinicalProfileGuide, /`assignmentIdentifier`.*RelatedPerson.*attester/is);
-  assert.match(
-    highLevelClinicalProfileGuide,
-    /`ownerIdentifier`.*selects `ClinicalSourceAuthorSelections\.Owner`.*default.*`Creator`.*RelatedPerson/is,
-  );
-  assert.match(highLevelClinicalProfileGuide, /wire.*`authorIdentifier`.*deprecated/is);
-  assert.match(
-    highLevelClinicalProfileGuide,
-    /professional organization.*Composition\.author.*PractitionerRole.*Composition\.attester/is,
-  );
+  assert.match(highLevelClinicalProfileGuide, /superseded and intentionally removed/is);
+  assert.match(highLevelClinicalProfileGuide, /subject-section-writes\.ts/);
+  assert.match(highLevelClinicalProfileGuide, /RelatedPerson.*existing contact\/member search/is);
+  assert.match(highLevelClinicalProfileGuide, /PractitionerRole.*Employee creation receipt/is);
+  assert.match(highLevelClinicalProfileGuide, /dataAuthorReference/);
+  assert.match(highLevelClinicalProfileGuide, /updateSubjectSection/);
 });
 
 test('multi-actor IPS export 101 numbers the source, attester and aggregate-read journeys', () => {

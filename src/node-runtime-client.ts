@@ -83,6 +83,7 @@ import {
   purgeDigitalTwinSubjectLinkWithDeps,
   searchSubjectConsentsWithDeps,
   buildClinicalSectionUpdateIngestion,
+  buildSubjectSectionUpdateIngestion,
   buildClinicalSummaryUpdateIngestion,
   ingestCommunicationAndUpdateIndexWithDeps,
   requestProfessionalAccessWithDeps,
@@ -112,6 +113,7 @@ import {
   type CommunicationParticipantRuntimeSearchInput,
   type ClinicalBundleSearchInput,
   type ClinicalSectionUpdateInput,
+  type SubjectSectionUpdateInput,
   type ClinicalSummaryReadResult,
   type ClinicalSummaryRequestInput,
   type ClinicalSummaryUpdateInput,
@@ -1640,6 +1642,21 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return this.ingestCommunicationAndUpdateIndex(
       ctx,
       buildClinicalSectionUpdateIngestion(input),
+    );
+  }
+
+  /**
+   * Updates one generic subject section. The attached batch/collection may
+   * contain clinical or non-clinical resources. It receives the exact
+   * attester exposed by the unlocked profile.
+   */
+  public async updateSubjectSection(
+    ctx: RouteContext,
+    input: SubjectSectionUpdateInput,
+  ): Promise<SubmitAndPollResult> {
+    return this.ingestCommunicationAndUpdateIndex(
+      ctx,
+      buildSubjectSectionUpdateIngestion(input),
     );
   }
 

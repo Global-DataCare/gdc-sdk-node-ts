@@ -940,6 +940,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.9.9] - 2026-09-08
+
+- Add the generic `updateSubjectSection(...)` facade while retaining
+  `updateClinicalSection(...)` compatibility. Section batches keep the current
+  Composition-compatible author and attester claims: each write supplies its
+  own `dataAuthorReference`, while the authenticated profile supplies its
+  stable `attester`.
+- Expose `buildRelatedPersonProfileAttester(...)` for real telephone/member
+  directory responses and `readEmployeeProfessionalAssignmentIdentifier(...)`
+  for real professional provisioning receipts. Technical enrollment no longer
+  requires new integrations to invent controller or PractitionerRole UUIDs.
+- Replace the conflicting 101 examples with one type-checked, copyable
+  individual/professional enrollment plus create/update/delete snippet.
+
 - Persist an optional stable clinical-creator binding with each server-owned
   actor profile: member/Practitioner UUID, distinct role/relationship
   assignment UUID, owner and governed role.

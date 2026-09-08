@@ -10,6 +10,7 @@ import {
   EXAMPLE_INDIVIDUAL_DISABLE_MESSAGE,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_DISABLE_ENTRY,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_PURGE_ENTRY,
+  EXAMPLE_KYC_CONTROLLER_UUID,
   EXAMPLE_CLINICAL_BUNDLE_SEARCH_INPUT,
   EXAMPLE_COMMUNICATION_INGESTION_PAYLOAD,
   EXAMPLE_CONSENT_GRANT_INPUT,
@@ -40,6 +41,7 @@ import {
   InteroperableLifecycleStatuses,
   HealthcareConsentPurposes,
   ServiceCapability,
+  CompositionAttesterModes,
 } from 'gdc-common-utils-ts';
 import { RelatedPersonClaim } from 'gdc-common-utils-ts/models/interoperable-claims/related-person-claims';
 import { ClaimConsent, ConsentStatuses } from 'gdc-common-utils-ts/models/consent-rule';
@@ -95,11 +97,33 @@ import {
   buildBlockchainArtifactBundleFromSearchResponse,
   buildVitalSignBatchCommunicationFromSearchResponse,
   buildClinicalSectionUpdateIngestion,
+  buildSubjectSectionUpdateIngestion,
   buildClinicalSummaryUpdateIngestion,
   GwCoreLifecycleRequestMethod,
   GwCoreLifecycleRequestType,
   revokeEmployeeDeviceWithDeps,
 } from '../dist/index.js';
+
+test('subject section ingestion keeps the data author separate from the unlocked profile attester', () => {
+  const ingestion = buildSubjectSectionUpdateIngestion({
+    subject: EXAMPLE_SUBJECT_DID,
+    section: HealthcareBasicSections.AllergiesAndIntolerances,
+    dataAuthorReference: EXAMPLE_SUBJECT_DID,
+    attester: {
+      mode: CompositionAttesterModes.Personal,
+      party: { reference: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}` },
+    },
+    bundle: { resourceType: 'Bundle', type: 'batch', data: [{ resource: { resourceType: 'AllergyIntolerance' } }] },
+  });
+  const claims = ingestion.communicationJob.payload.body.data[0].resource.meta.claims;
+  const attached = JSON.parse(Buffer.from(
+    claims['Communication.content-attachment-data'],
+    'base64',
+  ).toString('utf8'));
+
+  assert.equal(attached.meta.claims['Composition.author'], EXAMPLE_SUBJECT_DID);
+  assert.equal(attached.meta.claims['Composition.attester'], `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}`);
+});
 
 const TEST_ROUTE_CTX = cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT);
 

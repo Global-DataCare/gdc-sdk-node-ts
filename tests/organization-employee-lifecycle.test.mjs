@@ -1,6 +1,7 @@
 // Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { ResourceTypesFhirR4 } from 'gdc-common-utils-ts/constants';
 
 /**
  * Flow contract: interactive provisioning is never left half-created. A
@@ -34,9 +35,48 @@ import {
   enrollInvitedOrganizationEmployeeWithDeps,
   listOrganizationEmployeeLifecycleWithDeps,
   provisionOrganizationEmployeeWithDeps,
+  readEmployeeProfessionalAssignmentIdentifier,
   readEmployeeLicenseMaxDevices,
   readEmployeeLicenseOfferId,
 } from '../dist/index.js';
+
+test('employee receipt exposes the exact contained PractitionerRole assignment identifier', () => {
+  const response = buildExampleSubmitAndPollResult({
+    resourceType: 'Bundle',
+    type: 'batch-response',
+    data: [{
+      resource: {
+        id: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.resourceId,
+        contained: [{
+          resourceType: ResourceTypesFhirR4.PractitionerRole,
+          id: EXAMPLE_CLIENT_INSTANCE_UUID,
+        }],
+      },
+      response: { status: '201' },
+    }],
+  });
+
+  assert.equal(
+    readEmployeeProfessionalAssignmentIdentifier(response.poll.body),
+    EXAMPLE_CLIENT_INSTANCE_UUID,
+  );
+});
+
+test('professional provisioning response exposes its real contained PractitionerRole assignment', () => {
+  const response = buildExampleSubmitAndPollResult({
+    resourceType: 'Employee',
+    id: EXAMPLE_EMPLOYEE_CONTROLLER_ACTIVE.resourceId,
+    contained: [{
+      resourceType: 'PractitionerRole',
+      id: EXAMPLE_CLIENT_INSTANCE_UUID,
+    }],
+  });
+
+  assert.equal(
+    readEmployeeProfessionalAssignmentIdentifier(response.poll.body),
+    EXAMPLE_CLIENT_INSTANCE_UUID,
+  );
+});
 
 test('readEmployeeLicenseOfferId exposes the asynchronous payment continuation without issuing a seat', () => {
   const offerId = 'urn:cds:ES:v1:health-care:product:org.schema:Offer:employee-seat-async';

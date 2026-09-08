@@ -35,10 +35,12 @@ import {
   buildClinicalSummaryCommunicationJob,
   buildPermissionRequestCommunication,
   createClinicalSectionUpdateOutboxJob,
+  createSubjectSectionUpdateOutboxJob,
   createClinicalSummaryUpdateOutboxJob,
   readClinicalSummaryOperationResult,
   TransportProfiles,
   type ClinicalSectionUpdateCommunicationInput,
+  type SubjectSectionUpdateCommunicationInput,
   type ClinicalUpdateCommunicationInput,
   type ClinicalSummaryReadResult,
   type ClinicalSummaryRequestInput,
@@ -362,6 +364,14 @@ export type ClinicalSectionUpdateInput =
   ClinicalSectionUpdateCommunicationInput & ClinicalUpdateRuntimeOptions;
 
 /**
+ * Preferred generic section mutation for data owned by a human, animal, or
+ * other governed subject. It keeps the current Composition-compatible flat
+ * author and attester claims used by confidential indexing.
+ */
+export type SubjectSectionUpdateInput =
+  SubjectSectionUpdateCommunicationInput & ClinicalUpdateRuntimeOptions;
+
+/**
  * Updates one complete multi-section clinical summary document.
  *
  * For the direct call, `sender` is the authenticated profile's operational
@@ -378,6 +388,18 @@ export function buildClinicalSectionUpdateIngestion(
 ): CommunicationIngestionInput {
   return {
     communicationJob: createClinicalSectionUpdateOutboxJob(input),
+    clinicalFormat: input.clinicalFormat,
+    transportProfile: input.transportProfile,
+    pollOptions: input.pollOptions,
+  };
+}
+
+/** Builds the generic subject-section ingestion job. */
+export function buildSubjectSectionUpdateIngestion(
+  input: SubjectSectionUpdateInput,
+): CommunicationIngestionInput {
+  return {
+    communicationJob: createSubjectSectionUpdateOutboxJob(input),
     clinicalFormat: input.clinicalFormat,
     transportProfile: input.transportProfile,
     pollOptions: input.pollOptions,

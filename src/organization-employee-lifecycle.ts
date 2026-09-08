@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto';
 import {
   ActorKinds,
+  ResourceTypesFhirR4,
   EmployeeActivationGrantVersions,
   projectOrganizationEmployeeLifecycle,
   readEmployeeActivationCode,
@@ -121,6 +122,28 @@ export function readEmployeeResourceId(value: unknown): string | undefined {
     if (status !== undefined && (status < 200 || status >= 300)) continue;
     const resourceId = String(record(candidate.resource)?.id || '').trim();
     if (resourceId) return resourceId;
+  }
+  return undefined;
+}
+
+/**
+ * Reads the concrete PractitionerRole assignment created inside an Employee
+ * receipt. This UUID, not the employee DID or contact, becomes the
+ * professional profile attester reference.
+ */
+export function readEmployeeProfessionalAssignmentIdentifier(value: unknown): string | undefined {
+  for (const candidate of nestedRecords(value)) {
+    const response = record(candidate.response);
+    const status = parseHttpStatus(response?.status);
+    if (status !== undefined && (status < 200 || status >= 300)) continue;
+    const resource = record(candidate.resource) || candidate;
+    const contained = Array.isArray(resource?.contained) ? resource.contained : [];
+    for (const item of contained) {
+      const assignment = record(item);
+      if (assignment?.resourceType !== ResourceTypesFhirR4.PractitionerRole) continue;
+      const identifier = String(assignment.id || '').trim();
+      if (identifier) return identifier;
+    }
   }
   return undefined;
 }

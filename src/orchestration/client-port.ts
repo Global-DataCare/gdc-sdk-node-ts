@@ -57,6 +57,7 @@ import type {
   CommunicationParticipantRuntimeSearchInput,
   ClinicalBundleSearchInput,
   ClinicalSectionUpdateInput,
+  SubjectSectionUpdateInput,
   ClinicalSummaryReadResult,
   ClinicalSummaryRequestInput,
   ClinicalSummaryUpdateInput,
@@ -363,6 +364,10 @@ export type RuntimeClient = {
   updateClinicalSection?: (
     ctx: RouteContext,
     input: ClinicalSectionUpdateInput,
+  ) => Promise<SubmitAndPollResult>;
+  updateSubjectSection?: (
+    ctx: RouteContext,
+    input: SubjectSectionUpdateInput,
   ) => Promise<SubmitAndPollResult>;
   updateClinicalSummary?: (
     ctx: RouteContext,

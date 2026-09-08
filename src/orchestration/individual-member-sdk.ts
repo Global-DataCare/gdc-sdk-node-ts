@@ -14,6 +14,7 @@ import type { RouteContext } from '../individual-onboarding.js';
 import type {
   ClinicalBundleSearchInput,
   ClinicalSectionUpdateInput,
+  SubjectSectionUpdateInput,
   ClinicalSummaryReadResult,
   ClinicalSummaryRequestInput,
   ClinicalSummaryUpdateInput,
@@ -73,6 +74,11 @@ export class IndividualMemberSdk {
   /** Updates one authorized clinical section through a scoped batch/collection. */
   public updateClinicalSection(ctx: RouteContext, input: ClinicalSectionUpdateInput) {
     return requireClientMethod(this.client, 'updateClinicalSection')(ctx, input);
+  }
+
+  /** Updates one authorized subject-owned section with its profile attester. */
+  public updateSubjectSection(ctx: RouteContext, input: SubjectSectionUpdateInput) {
+    return requireClientMethod(this.client, 'updateSubjectSection')(ctx, input);
   }
 
   /** Updates an authorized multi-section summary document. */
