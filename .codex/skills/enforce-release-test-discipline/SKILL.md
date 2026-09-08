@@ -92,6 +92,12 @@ description: Enforce branch, TDD, fixture, test-layer, product-neutrality, chang
   SDKs, BFFs, portals and deployment environments never accept, expose or
   configure channel or smart-contract names. Their high-level contract ends at
   the authenticated operation and returned transaction/CID/version evidence.
+- Subject-identifier discovery returns only `indexProviderDid`; the opaque hash
+  stops at Fabric and is never forwarded to the provider. Human provider lookup
+  uses IHE PDQm `POST Patient/$match` with one FHIR `Parameters` resource.
+  DIDComm plain carries exactly one such resource in `body.data[]`; strict mode
+  protects that same message in `application/x-www-form-urlencoded`. Keep the
+  high-level method and 101 free of wallet `pack`/`unpack` plumbing.
 
 ## Preserve shared-package neutrality
 

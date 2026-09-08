@@ -195,6 +195,11 @@ import {
   type AuthorizedIndividualSubject,
   type AuthorizedIndividualSubjectDirectoryInput,
 } from './authorized-subject-directory.js';
+import {
+  matchPatientAtIndexProviderWithDeps,
+  type FhirPatientMatchBundle,
+  type MatchPatientAtIndexProviderInput,
+} from './pdqm-patient-match.js';
 
 const bootstrapFacade = createBootstrapFacade();
 
@@ -343,6 +348,25 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    */
   public getRuntimeVpToken(): string | undefined {
     return this.runtimeVpToken;
+  }
+
+  /**
+   * Matches a known human identifier at the index provider resolved in Fabric.
+   *
+   * The BFF supplies the provider DID and its discovered FHIR base URL. This
+   * method never forwards the Fabric lookup hash. It sends one IHE PDQm
+   * `Parameters` request and returns the resulting FHIR search `Bundle`, while
+   * applying the runtime's configured FHIR, DIDComm plain or strict profile.
+   */
+  public async matchPatientAtIndexProvider(
+    input: MatchPatientAtIndexProviderInput,
+  ): Promise<FhirPatientMatchBundle> {
+    return matchPatientAtIndexProviderWithDeps(input, {
+      transportProfile: this.transportProfile,
+      secureTransportAdapter: this.secureTransportAdapter,
+      createUuid: runtimeUuid,
+      post: async (url, rendered) => postRenderedWithRuntimeConfig(this.transportConfig, url, rendered),
+    });
   }
 
   /**
