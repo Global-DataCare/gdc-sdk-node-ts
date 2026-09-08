@@ -36,6 +36,10 @@ const order =
     offerId: registration.offerId,
   });
 
+// Existing server-side RelatedPerson record for this controller. This value
+// comes from creating or reading that record; it is not invented at write time.
+const controllerRelatedPersonId = controllerRelationship.id;
+
 // Technical profile enrollment only. There is no clinicalCreatorBinding.
 await profileSessionManager.enroll({
   ...profileOptions,
@@ -50,9 +54,10 @@ await profileSessionManager.enroll({
 });
 ```
 
-The BFF stores the registered FHIR assignment together with its own protected
-profile descriptor. It never accepts that assignment reference from browser
-JSON. Unlocking the profile selects that server-authoritative descriptor.
+The BFF associates `controllerRelatedPersonId` with its protected profile
+descriptor. It never accepts this identifier from browser JSON and does not
+send it to `enroll()`. Unlocking the profile selects that server-authoritative
+descriptor and therefore the already registered RelatedPerson attester.
 
 ## One section write
 
@@ -70,24 +75,27 @@ await unlockedProfile.sdk.updateClinicalSection(tenantContext, {
   // The source author of this document. It may change on the next document.
   author: documentAuthorReference,
 
-  // Server-resolved identity of the profile that authenticated and unlocked.
+  // RelatedPerson record associated server-side with the unlocked profile.
   attesters: [{
     mode: CompositionAttesterModes.Personal,
     party: {
-      reference: unlockedProfileAttesterReference, // RelatedPerson
+      reference: controllerRelatedPersonId,
     },
   }],
 });
 ```
 
 The next write may use another `documentAuthorReference` while retaining the
-same `unlockedProfileAttesterReference`. The SDK never replaces that explicit
+same `controllerRelatedPersonId`. The SDK never replaces that explicit
 document author with the RelatedPerson.
 
 For a professional profile, the same rule applies with its registered
 `PractitionerRole`:
 
 ```ts
+// Existing server-side PractitionerRole record for this professional.
+const professionalPractitionerRoleId = practitionerRole.id;
+
 await unlockedProfessionalProfile.sdk.updateClinicalSection(tenantContext, {
   subject: clinicalSubjectDid,
   sender: unlockedProfessionalProfile.session.actorDid,
@@ -98,7 +106,7 @@ await unlockedProfessionalProfile.sdk.updateClinicalSection(tenantContext, {
   attesters: [{
     mode: CompositionAttesterModes.Professional,
     party: {
-      reference: unlockedProfileAttesterReference, // PractitionerRole
+      reference: professionalPractitionerRoleId,
     },
   }],
 });

@@ -12,7 +12,11 @@ test('canonical guide separates enrollment, document author, profile attester an
   assert.match(guide, /enroll\(\{[\s\S]*activationCode:[\s\S]*idToken[\s\S]*\}\)/);
   assert.doesNotMatch(guide.match(/enroll\(\{[\s\S]*?\}\);/)?.[0] || '', /clinicalCreatorBinding/);
   assert.match(guide, /documentAuthorReference/);
-  assert.match(guide, /unlockedProfileAttesterReference/);
+  assert.match(guide, /const controllerRelatedPersonId = controllerRelationship\.id/);
+  assert.match(guide, /reference: controllerRelatedPersonId/);
+  assert.match(guide, /const professionalPractitionerRoleId = practitionerRole\.id/);
+  assert.match(guide, /reference: professionalPractitionerRoleId/);
+  assert.doesNotMatch(guide, /unlockedProfileAttesterReference/);
   assert.match(guide, /RelatedPerson/);
   assert.match(guide, /PractitionerRole/);
   assert.match(guide, /human|humano/i);
