@@ -242,8 +242,8 @@ type ProfessionalEnrollmentInput = Readonly<{
   clientName: string;
 }>;
 
-/** Professional equivalent: PractitionerRole comes from the real Employee receipt. */
-export async function enrollAndOpenProfessional(input: ProfessionalEnrollmentInput) {
+/** Enrolls, but does not open, a professional profile from the real Employee receipt. */
+export async function enrollProfessionalProfile(input: ProfessionalEnrollmentInput) {
   const provisioning = await input.organizationControllerSdk.provisionOrganizationEmployee(
     input.tenantContext,
     input.provisioning,
@@ -254,7 +254,7 @@ export async function enrollAndOpenProfessional(input: ProfessionalEnrollmentInp
   if (!assignmentIdentifier) {
     throw new Error('Employee creation did not return its contained PractitionerRole.');
   }
-  const enrolled = await input.profileSessionManager.enroll({
+  return input.profileSessionManager.enroll({
     ownerId: input.ownerId,
     profileId: input.profileId,
     actorKind: ActorKinds.OrganizationEmployee,
@@ -275,9 +275,22 @@ export async function enrollAndOpenProfessional(input: ProfessionalEnrollmentInp
     redirectUris: input.redirectUris,
     clientName: input.clientName,
   });
+}
+
+type ProfessionalOpenInput = Readonly<{
+  profileSessionManager: ServerProfileSessionManager;
+  ownerId: string;
+  profileId: string;
+  profilePin: string;
+  idToken: string;
+  professionalProof: ProfessionalEnrollmentInput['professionalProof'];
+}>;
+
+/** Opens an already enrolled professional profile during this or a later login. */
+export async function openProfessionalProfile(input: ProfessionalOpenInput) {
   return input.profileSessionManager.openProfessional({
     ownerId: input.ownerId,
-    profileId: enrolled.profileId,
+    profileId: input.profileId,
     idToken: input.idToken,
     professionalProof: input.professionalProof,
     pin: input.profilePin,

@@ -1784,13 +1784,14 @@ version and code as an explicit input. See the linked type-checked source for
 the complete calls; no example UUID is intended to be copied into production.
 
 The professional flow uses the same write helper. Its attester is not supplied
-as a made-up variable: `enrollAndOpenProfessional(...)` reads the contained
-`PractitionerRole.id` from the real Employee creation receipt, stores that
-profile attester, and returns the opened professional facade:
+as a made-up variable: `enrollProfessionalProfile(...)` reads the contained
+`PractitionerRole.id` from the real Employee creation receipt and stores that
+profile attester. `openProfessionalProfile(...)` is the separate normal-login
+step and does not depend on the Employee creation receipt or an Order.
 
-The linked canonical snippet contains both `enrollAndOpenProfessional(...)`
-and its `updateSubjectSection(...)` call using only values returned by the SDK
-or supplied as explicit BFF inputs.
+The linked canonical snippet contains the separate enrollment and open calls,
+plus `updateSubjectSection(...)`, using only values returned by the SDK or
+supplied as explicit BFF inputs.
 
 For the principal individual controller profile the attester comes instead
 from the automatic Order result. Additional caregivers or members may be
