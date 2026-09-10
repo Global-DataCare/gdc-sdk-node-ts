@@ -1358,7 +1358,7 @@ const individualControllerAttester = buildProfileAttester({
   assignmentIdentifier: controllerRelatedPersonIdentifier,
   mode: CompositionAttesterModes.Personal,
 });
-// Example individualControllerAttester.reference:
+// Example individualControllerAttester.party.reference:
 // "urn:uuid:00000000-0000-4000-8000-000000000001".
 // Example individualControllerAttester.mode: "personal".
 // This only serializes the stable RESPRSN identity into protected profile
@@ -1375,7 +1375,8 @@ const individualControllerActorDid =
     roleType: HL7_CODING_SYSTEM_V3_ROLE_CODE,
     roleValue: HealthcareActorRoleCodes.Controller,
   });
-// Example shape: did:web:provider.example.org:individual:...:member:...
+// Example shape:
+// "did:web:host.example.com:health-care:organization:taxid:ES-B00112233:individual:UUID:zG9H82...:member:zG9DAB...:RESPRSN"
 // This DID identifies the controller actor. The RelatedPerson URN identifies
 // that actor's governed RESPRSN assignment; they are deliberately different.
 

@@ -29,7 +29,7 @@ test('canonical profile guide points to complete subject-section snippets', () =
   assert.doesNotMatch(snippet, /enrollAndOpenIndividualController/);
   assert.match(snippet, /urn:uuid:00000000-0000-4000-8000-000000000001/);
   assert.match(snippet, /RelatedPerson\.identifier/);
-  assert.match(snippet, /Example shape: did:web:/);
+  assert.match(snippet, /Example shape:[\s\S]*did:web:/);
   assert.match(snippet, /Example shape: [A-Za-z0-9_-]{20,}/);
   assert.doesNotMatch(snippet, /RelatedPerson\/_search|relatedPersonSearchResponseBody/);
   assert.match(snippet, /readEmployeeProfessionalAssignmentIdentifier/);

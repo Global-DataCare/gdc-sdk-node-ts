@@ -57,16 +57,18 @@ export async function enrollIndividualControllerProfile(
     throw new Error('GW registration did not return the individual identity.');
   }
   // Example shapes returned by GW:
-  // registration.offerId: "urn:uuid:offer-..."
-  // registration.identity.resourceId: "550e8400-e29b-41d4-a716-446655440000"
-  // registration.identity.providerDidWeb: "did:web:provider.example.org"
-  // registration.identity.subjectDid: "did:web:provider.example.org:individual:..."
+  // registration.offerId: "urn:offer:family-003"
+  // registration.identity.resourceId: "a87e5b15-aea4-4475-9c7c-40aa88354b6f"
+  // registration.identity.providerDidWeb:
+  // "did:web:host.example.com:health-care:organization:taxid:ES-B00112233"
+  // registration.identity.subjectDid:
+  // "did:web:host.example.com:health-care:organization:taxid:ES-B00112233:individual:multibase:zMomQqDS8U8M8MxEbzn7gjG"
 
   const order = await input.individualSdk.confirmIndividualOrganizationOrder({
     ...input.tenantContext,
     offerId: registration.offerId,
   });
-  // Example order.activationCode: "ACT-001". It is an opaque, one-time secret;
+  // Example order.activationCode: "individual-controller-activation-1". It is an opaque, one-time secret;
   // do not parse it, log it, or send it to browser storage.
   // Example order.controllerRelatedPersonIdentifier:
   // "urn:uuid:00000000-0000-4000-8000-000000000001".
@@ -79,7 +81,7 @@ export async function enrollIndividualControllerProfile(
     assignmentIdentifier: controllerRelatedPersonIdentifier,
     mode: CompositionAttesterModes.Personal,
   });
-  // Example attester.reference:
+  // Example attester.party.reference:
   // "urn:uuid:00000000-0000-4000-8000-000000000001".
   // Example attester.mode: "personal".
   // This does not attest a document. It stores the stable RESPRSN identity in
@@ -94,7 +96,8 @@ export async function enrollIndividualControllerProfile(
     roleType: HL7_CODING_SYSTEM_V3_ROLE_CODE,
     roleValue: HealthcareActorRoleCodes.Controller,
   });
-  // Example shape: did:web:provider.example.org:individual:...:member:...
+  // Example shape:
+  // "did:web:host.example.com:health-care:organization:taxid:ES-B00112233:individual:UUID:zG9H82...:member:zG9DAB...:RESPRSN"
   // This identifies the authenticated controller actor. It is different from
   // the RelatedPerson URN above, which identifies the governed assignment.
 
