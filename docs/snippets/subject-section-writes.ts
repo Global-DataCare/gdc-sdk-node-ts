@@ -40,16 +40,14 @@ type IndividualControllerEnrollmentInput = Readonly<{
   idToken: string;
   redirectUris: string[];
   clientName: string;
-  scopes: string[];
 }>;
 
 /**
- * Registers and unlocks an individual-controller profile without inventing
- * person or relationship identifiers. GW derives the principal controller
- * from Organization.owner, issues its RESPRSN licence and returns the
- * automatically materialized RelatedPerson assignment in the Order result.
+ * Enrolls, but does not open, an individual-controller profile. GW derives the
+ * principal controller from Organization.owner, issues its RESPRSN licence
+ * and automatically materializes the RelatedPerson assignment.
  */
-export async function enrollAndOpenIndividualController(
+export async function enrollIndividualControllerProfile(
   input: IndividualControllerEnrollmentInput,
 ) {
   const registration = await input.individualSdk.registerIndividualOrganization(
@@ -58,16 +56,32 @@ export async function enrollAndOpenIndividualController(
   if (!registration.identity) {
     throw new Error('GW registration did not return the individual identity.');
   }
+  // Example shapes returned by GW:
+  // registration.offerId: "urn:uuid:offer-..."
+  // registration.identity.resourceId: "550e8400-e29b-41d4-a716-446655440000"
+  // registration.identity.providerDidWeb: "did:web:provider.example.org"
+  // registration.identity.subjectDid: "did:web:provider.example.org:individual:..."
 
   const order = await input.individualSdk.confirmIndividualOrganizationOrder({
     ...input.tenantContext,
     offerId: registration.offerId,
   });
+  // Example order.activationCode: "ACT-001". It is an opaque, one-time secret;
+  // do not parse it, log it, or send it to browser storage.
+  // Example order.controllerRelatedPersonIdentifier:
+  // "urn:uuid:00000000-0000-4000-8000-000000000001".
+  // This is RelatedPerson.identifier for the principal RESPRSN created by GW;
+  // it is not an extra claim authored inside the Order.
+  const controllerRelatedPersonIdentifier =
+    order.controllerRelatedPersonIdentifier;
 
   const attester = buildProfileAttester({
-    assignmentIdentifier: order.controllerAssignmentIdentifier,
+    assignmentIdentifier: controllerRelatedPersonIdentifier,
     mode: CompositionAttesterModes.Personal,
   });
+  // Example attester.reference:
+  // "urn:uuid:00000000-0000-4000-8000-000000000001".
+  // Example attester.mode: "personal".
 
   const actorDid = buildIndividualMemberDidWebFromPrivateIdentifiers({
     providerDidWeb: registration.identity.providerDidWeb,
@@ -78,6 +92,9 @@ export async function enrollAndOpenIndividualController(
     roleType: HL7_CODING_SYSTEM_V3_ROLE_CODE,
     roleValue: HealthcareActorRoleCodes.Controller,
   });
+  // Example shape: did:web:provider.example.org:individual:...:member:...
+  // This identifies the authenticated controller actor. It is different from
+  // the RelatedPerson URN above, which identifies the governed assignment.
 
   const enrolled = await input.profileSessionManager.enroll({
     ownerId: input.ownerId,
@@ -97,14 +114,41 @@ export async function enrollAndOpenIndividualController(
     clientName: input.clientName,
   });
 
+  // Example enrolled.profileId: "individual-controller-profile-001".
+  // Enrollment consumed the activation code and persisted the protected
+  // wallet/DCR profile. It did not open a normal SMART working session.
+  return {
+    registration,
+    order,
+    enrolled,
+  };
+}
+
+type IndividualControllerOpenInput = Readonly<{
+  profileSessionManager: ServerProfileSessionManager;
+  ownerId: string;
+  profileId: string;
+  subjectDid: string;
+  scopes: string[];
+  profilePin: string;
+  idToken: string;
+}>;
+
+/** Opens a previously enrolled individual-controller profile. */
+export async function openIndividualControllerProfile(
+  input: IndividualControllerOpenInput,
+) {
   const session = await input.profileSessionManager.unlock({
     ownerId: input.ownerId,
-    profileId: enrolled.profileId,
-    subjectDid: registration.identity.subjectDid,
+    profileId: input.profileId,
+    subjectDid: input.subjectDid,
     scopes: input.scopes,
     pin: input.profilePin,
     idToken: input.idToken,
   });
+  // Example shape: Fm8EpxJg0S6gHh8mL4q2KcXvB7aN9tRyUw3dZi1oP5Q
+  // session.sessionId is a short-lived, random base64url handle. It is not the
+  // RelatedPerson URN, profileId, DID, activation code, or SMART access token.
   if (!session.attester) {
     throw new Error('The unlocked profile has no RelatedPerson attester.');
   }

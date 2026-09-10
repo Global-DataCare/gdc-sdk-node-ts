@@ -40,8 +40,14 @@ export type IndividualOrganizationConfirmOrderInput = {
 export type IndividualOrganizationOrderResult = SubmitAndPollResult & Readonly<{
   activationCode: string;
   /**
-   * Governed RelatedPerson identifier automatically materialized by GW for
-   * the principal Organization owner/controller.
+   * Governed `RelatedPerson.identifier` automatically materialized by GW for
+   * the principal Organization owner/controller. Current GW values use the
+   * `urn:uuid:<UUID>` form.
+   */
+  controllerRelatedPersonIdentifier: string;
+  /**
+   * @deprecated Use `controllerRelatedPersonIdentifier`, which states the
+   * resource represented by this identifier.
    */
   controllerAssignmentIdentifier: string;
 }>;
@@ -121,7 +127,12 @@ export async function confirmIndividualOrganizationOrderWithDeps(
   if (!controllerAssignmentIdentifier) {
     throw new Error('confirmIndividualOrganizationOrder failed: missing automatic controller RESPRSN assignment in GW Order response.');
   }
-  return { ...order, activationCode, controllerAssignmentIdentifier };
+  return {
+    ...order,
+    activationCode,
+    controllerRelatedPersonIdentifier: controllerAssignmentIdentifier,
+    controllerAssignmentIdentifier,
+  };
 }
 
 /**

@@ -192,6 +192,7 @@ import {
   ActorKinds,
   IndividualControllerSdk,
   IndividualMemberSdk,
+  buildProfileAttester,
   readCommercialOfferId,
   readActivationCode,
   createCommMsgExtendedDraft,
@@ -206,6 +207,7 @@ import { CryptographyService } from 'gdc-common-utils-ts';
 import { HostNetworkTypes } from 'gdc-common-utils-ts/constants/network';
 import {
   ClaimsOrganizationSchemaorg,
+  CompositionAttesterModes,
   ClaimsPersonSchemaorg,
   ClaimsServiceSchemaorg,
   DataspaceSectors,
@@ -1319,13 +1321,20 @@ const individualOrganizationOrder =
 // reads it from the terminal Order response; the BFF must not traverse Bundle
 // entries or know `IndividualProduct.serialNumber`.
 const controllerActivationCode = individualOrganizationOrder.activationCode;
-const controllerAssignmentIdentifier =
-  individualOrganizationOrder.controllerAssignmentIdentifier;
+// Example: "ACT-001". The real value is an opaque one-time secret: never
+// parse it, log it, or return it to browser storage.
+// This is RelatedPerson.identifier for the principal RESPRSN created by GW.
+// The longer local name makes that origin explicit; it is not an Order claim.
+const controllerRelatedPersonIdentifier =
+  individualOrganizationOrder.controllerRelatedPersonIdentifier;
+// Example: "urn:uuid:00000000-0000-4000-8000-000000000001".
 ```
 
 `confirmIndividualOrganizationOrder(...)` fails closed when a newly confirmed
 Order does not contain both `activationCode` and the automatic principal
-`controllerAssignmentIdentifier`. Pass those values server-side to
+`controllerRelatedPersonIdentifier`. The latter is the stable identifier of the
+principal `RelatedPerson/RESPRSN` automatically created by GW. Pass both
+values server-side to
 `ServerProfileSessionManager.enroll(...)` together with the signed OIDC
 `idToken`. Never return it to browser storage. For an `IndividualController`,
 the independent actor VP is optional; the `idToken` still remains mandatory
@@ -1335,39 +1344,62 @@ The BFF does not need a `getLicense()` call and must not search or traverse the
 terminal Bundle. `confirmIndividualOrganizationOrder(...)` extracts
 `org.schema.IndividualProduct.serialNumber` and the sibling RelatedPerson
 `resource.meta.claims` internally, then exposes the high-level
-`activationCode` and `controllerAssignmentIdentifier` results. The latter is
-an SDK projection, never a custom Order claim.
+`activationCode` and `controllerRelatedPersonIdentifier` results. The latter
+is an SDK projection, never a custom Order claim. The older
+`controllerAssignmentIdentifier` property is a deprecated compatibility alias.
 
-### 7.3a Enroll the wallet and DCR device, then open the profile
+### 7.3a Enroll the wallet and DCR device
 
 Registration, Order confirmation, enrollment and profile opening are four
-different phases. The following one-call BFF helper orchestrates all four from
-the original registration input; use it instead of separately repeating the
-7.2 and 7.3 calls shown above. It keeps the activation code server-side and
-consumes it directly in the managed profile enrollment:
+different phases. Keep enrollment separate from normal profile opening:
 
 ```ts
-import {
-  enrollAndOpenIndividualController,
-} from './snippets/subject-section-writes.js';
+const individualControllerAttester = buildProfileAttester({
+  assignmentIdentifier: controllerRelatedPersonIdentifier,
+  mode: CompositionAttesterModes.Personal,
+});
+// Example individualControllerAttester.reference:
+// "urn:uuid:00000000-0000-4000-8000-000000000001".
+// Example individualControllerAttester.mode: "personal".
 
-const openedIndividualController = await enrollAndOpenIndividualController({
-  individualSdk,
-  profileSessionManager,
-  tenantContext,
-  registration: individualOrganizationRegistrationInput,
-  verifiedControllerEmail,
+const individualControllerActorDid =
+  buildIndividualMemberDidWebFromPrivateIdentifiers({
+    providerDidWeb: individualOrganizationRegistration.identity.providerDidWeb,
+    secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
+    privateIdValueIndividual:
+      individualOrganizationRegistration.identity.resourceId,
+    secureIdTypeMember: SecureIdTypesIndividual.Email,
+    privateIdValueMember: verifiedControllerEmail,
+    roleType: HL7_CODING_SYSTEM_V3_ROLE_CODE,
+    roleValue: HealthcareActorRoleCodes.Controller,
+  });
+// Example shape: did:web:provider.example.org:individual:...:member:...
+// This DID identifies the controller actor. The RelatedPerson URN identifies
+// that actor's governed RESPRSN assignment; they are deliberately different.
+
+const enrolledIndividualControllerProfile = await profileSessions.enroll({
   ownerId: profileAccountId,
   profileId: individualControllerProfileId,
-  profilePin,
+  actorKind: ActorKinds.IndividualController,
+  actorMode: 'controller',
+  actorDid: individualControllerActorDid,
+  profileDid: individualControllerActorDid,
+  providerDid: individualOrganizationRegistration.identity.providerDidWeb,
+  routeContext: tenantContext,
+  allowedSubjectDids: [individualOrganizationRegistration.identity.subjectDid],
+  pin: profilePin,
   idToken,
+  activationCode: controllerActivationCode,
+  attester: individualControllerAttester,
   redirectUris,
   clientName,
-  scopes: individualControllerScopes,
 });
+// Example enrolledIndividualControllerProfile.profileId:
+// "individual-controller-profile-001". Enrollment persists the protected
+// wallet/DCR profile but does not leave it open for normal calls.
 ```
 
-The helper consumes the governed RelatedPerson identifier returned by the
+Enrollment consumes the governed RelatedPerson identifier returned by the
 Order result and stores it as the profile attester. GW derived the principal
 controller from the individual Organization owner and created the assignment
 in the same transition that issued the `RESPRSN` licence. Email and telephone
@@ -1380,6 +1412,33 @@ access token for `Device/_dcr`, registers the wallet public keys, and persists
 the protected profile. The browser never receives the activation code, wallet
 seed, initial access token or private keys.
 
+### 7.3b Open the already enrolled profile
+
+Opening is a later operation. First `unlock(...)` obtains a short-lived,
+subject-scoped SMART session from the protected profile; then
+`openIndividualController(...)` returns the high-level SDK facade. Neither
+call repeats enrollment or consumes another activation code.
+
+```ts
+const individualControllerSession = await profileSessions.unlock({
+  ownerId: profileAccountId,
+  profileId: enrolledIndividualControllerProfile.profileId,
+  subjectDid: individualOrganizationRegistration.identity.subjectDid,
+  scopes: individualControllerScopes,
+  pin: profilePin,
+  idToken,
+});
+// Example sessionId shape:
+// "Fm8EpxJg0S6gHh8mL4q2KcXvB7aN9tRyUw3dZi1oP5Q" (random base64url).
+// It is a short-lived handle, not the RelatedPerson URN or access token.
+
+const openedIndividualController =
+  await profileSessions.openIndividualController({
+    ownerId: profileAccountId,
+    sessionId: individualControllerSession.sessionId,
+  });
+```
+
 `unlock(...)` is a later authenticated operation: it opens the protected wallet
 and obtains the subject-scoped SMART session. Only then does
 `openIndividualController(...)` return the enrolled high-level facade used for
@@ -1390,7 +1449,7 @@ Offer was already confirmed. Confirming that same Offer again correctly finds
 a non-pending record. For create-or-resume channel flows, prefer
 `ensureFamilyOrganizationRegistration(...)`, which searches before starting.
 
-### 7.3b Identity layers after individual bootstrap
+### 7.3c Identity layers after individual bootstrap
 
 Keep these two layers separate:
 

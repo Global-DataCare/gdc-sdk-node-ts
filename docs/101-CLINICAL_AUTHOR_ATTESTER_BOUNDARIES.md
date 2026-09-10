@@ -42,11 +42,12 @@ continues emitting the existing Composition-compatible claims.
 The individual Organization owns the principal controller declaration through
 `Organization.owner.email` or `Organization.owner.telephone`. When its Order
 is confirmed, GW issues that owner the bare `RESPRSN` controller licence,
-materializes the corresponding `RelatedPerson` assignment and returns its
-governed identifier as `controllerAssignmentIdentifier`. The SDK derives this
-convenience result from the sibling RelatedPerson `resource.meta.claims`; it is
-not a new Order claim. The portal neither ingests nor searches for this primary
-assignment.
+materializes the corresponding `RelatedPerson` assignment in the terminal
+response. The SDK derives its governed identifier from the sibling
+RelatedPerson `resource.meta.claims` and exposes it as
+`controllerRelatedPersonIdentifier`; it is not a new Order claim. The older
+`controllerAssignmentIdentifier` property is a deprecated compatibility alias.
+The portal neither ingests nor searches for this primary assignment.
 
 `RelatedPerson/_search` remains the directory operation for additional
 caregivers, family members and other related entities. It is not part of the
@@ -56,6 +57,8 @@ For an individual controller/member, the resulting reference is:
 
 ```text
 urn:uuid:<RelatedPerson.identifier UUID returned by GW>
+
+Example: urn:uuid:00000000-0000-4000-8000-000000000001
 ```
 
 For a professional, `provisionOrganizationEmployee(...)` returns the Employee
@@ -78,7 +81,7 @@ section or document. New integrations do not pass `clinicalCreatorBinding`.
 
 The activation code for an individual controller comes directly from
 `confirmIndividualOrganizationOrder()`, together with
-`controllerAssignmentIdentifier`. There is no `getLicense()`, RelatedPerson
+`controllerRelatedPersonIdentifier`. There is no `getLicense()`, RelatedPerson
 ingestion or `RelatedPerson/_search` call in that flow.
 
 `unlock()` returns `session.attester`; the subsequent opened facade exposes the
