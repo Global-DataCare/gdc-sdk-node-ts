@@ -4,10 +4,6 @@ import {
   BundleEditableResourceTypes,
   BundleTypes,
   CompositionAttesterModes,
-  HealthcareActorRoleCodes,
-  HL7_CODING_SYSTEM_V3_ROLE_CODE,
-  SecureIdTypesIndividual,
-  buildIndividualMemberDidWebFromPrivateIdentifiers,
   buildOrganizationAuthorizationUrnCds,
   type OrganizationAuthorizationUrnCdsInput,
 } from 'gdc-common-utils-ts';
@@ -33,7 +29,6 @@ type IndividualControllerEnrollmentInput = Readonly<{
   profileSessionManager: ServerProfileSessionManager;
   tenantContext: RouteContext;
   registration: Parameters<IndividualControllerSdk['registerIndividualOrganization']>[0];
-  verifiedControllerEmail: string;
   ownerId: string;
   profileId: string;
   profilePin: string;
@@ -87,19 +82,12 @@ export async function enrollIndividualControllerProfile(
   // This does not attest a document. It stores the stable RESPRSN identity in
   // the protected profile so later logins can recover it without this Order.
 
-  const actorDid = buildIndividualMemberDidWebFromPrivateIdentifiers({
-    providerDidWeb: registration.identity.providerDidWeb,
-    secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
-    privateIdValueIndividual: registration.identity.resourceId,
-    secureIdTypeMember: SecureIdTypesIndividual.Email,
-    privateIdValueMember: input.verifiedControllerEmail,
-    roleType: HL7_CODING_SYSTEM_V3_ROLE_CODE,
-    roleValue: HealthcareActorRoleCodes.Controller,
-  });
-  // Example shape:
-  // "did:web:host.example.com:health-care:organization:taxid:ES-B00112233:individual:UUID:zG9H82...:member:zG9DAB...:RESPRSN"
-  // This identifies the authenticated controller actor. It is different from
-  // the RelatedPerson URN above, which identifies the governed assignment.
+  const actorDid = registration.identity.subjectDid;
+  // Example:
+  // "did:web:host.example.com:health-care:organization:taxid:ES-B00112233:individual:multibase:zMomQqDS8U8M8MxEbzn7gjG"
+  // In self mode this is actorDid, profileDid and the authorized subject DID.
+  // The RelatedPerson URN above remains the separate RESPRSN assignment used
+  // later for attestation.
 
   const enrolled = await input.profileSessionManager.enroll({
     ownerId: input.ownerId,

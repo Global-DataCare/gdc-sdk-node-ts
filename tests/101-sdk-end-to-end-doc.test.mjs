@@ -84,6 +84,7 @@ test('individual onboarding 101 separates registration, Order, enrollment, and p
   assert.doesNotMatch(guide, /enrollAndOpenIndividualController/);
   assert.match(guide, /profileSessions\.enroll\(/);
   assert.match(guide, /actorMode:\s*'self'.*RESPRSN/);
+  assert.match(guide, /const\s+individualControllerActorDid\s*=\s*individualOrganizationRegistration\.identity\.subjectDid/);
   assert.match(guide, /profileSessions\.unlock\(/);
   assert.match(guide, /profileSessions\.openIndividualController\(/);
   assert.match(guide, /const\s+controllerRelatedPersonIdentifier\s*=\s*individualOrganizationOrder\.controllerRelatedPersonIdentifier/);

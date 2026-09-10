@@ -219,11 +219,7 @@ import {
   ResourceTypesFhirR4,
   SmartGatewayScopesFhirR4,
   FhirIpsCreatorKinds,
-  HealthcareActorRoleCodes,
-  HL7_CODING_SYSTEM_V3_ROLE_CODE,
-  SecureIdTypesIndividual,
   buildControllerBindingInput,
-  buildIndividualMemberDidWebFromPrivateIdentifiers,
   buildOrganizationDidWeb,
   buildProfessionalDidWeb,
   buildIndividualDidWeb,
@@ -1365,20 +1361,12 @@ const individualControllerAttester = buildProfileAttester({
 // metadata. It does not create, clone, sign or attest any clinical document.
 
 const individualControllerActorDid =
-  buildIndividualMemberDidWebFromPrivateIdentifiers({
-    providerDidWeb: individualOrganizationRegistration.identity.providerDidWeb,
-    secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
-    privateIdValueIndividual:
-      individualOrganizationRegistration.identity.resourceId,
-    secureIdTypeMember: SecureIdTypesIndividual.Email,
-    privateIdValueMember: verifiedControllerEmail,
-    roleType: HL7_CODING_SYSTEM_V3_ROLE_CODE,
-    roleValue: HealthcareActorRoleCodes.Controller,
-  });
-// Example shape:
-// "did:web:host.example.com:health-care:organization:taxid:ES-B00112233:individual:UUID:zG9H82...:member:zG9DAB...:RESPRSN"
-// This DID identifies the controller actor. The RelatedPerson URN identifies
-// that actor's governed RESPRSN assignment; they are deliberately different.
+  individualOrganizationRegistration.identity.subjectDid;
+// Example:
+// "did:web:host.example.com:health-care:organization:taxid:ES-B00112233:individual:multibase:zMomQqDS8U8M8MxEbzn7gjG"
+// In self mode, actorDid/profileDid and the authorized subject DID are this
+// same individual DID. The separate RelatedPerson URN identifies the governed
+// RESPRSN assignment used later for attestation.
 
 const enrolledIndividualControllerProfile = await profileSessions.enroll({
   ownerId: profileAccountId,
