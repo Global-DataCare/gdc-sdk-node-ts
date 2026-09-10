@@ -13,7 +13,7 @@ The canonical snippets contain:
 
 - individual registration and Order confirmation;
 - the activation code passed directly to technical profile enrollment;
-- `RelatedPerson` selected from the existing contact/member search response;
+- principal controller `RelatedPerson` returned automatically by Order confirmation;
 - `PractitionerRole` read from the professional Employee creation receipt;
 - profile-bound `attester` exposed after unlock;
 - per-write `dataAuthorReference`;

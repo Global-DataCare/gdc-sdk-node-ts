@@ -82,8 +82,9 @@ test('individual onboarding 101 separates registration, Order, enrollment, and p
   assert.match(guide, /offerId:\s*individualOrganizationRegistration\.offerId/);
   assert.match(guide, /const\s+controllerActivationCode\s*=\s*individualOrganizationOrder\.activationCode/);
   assert.match(guide, /enrollAndOpenIndividualController/);
-  assert.match(guide, /relatedPersonSearchResponseBody/);
-  assert.match(guide, /real governed identifier/);
+  assert.match(guide, /controllerAssignmentIdentifier/);
+  assert.doesNotMatch(guide, /relatedPersonSearchResponseBody|relatedPersonSelection/);
+  assert.match(guide, /governed RelatedPerson identifier returned by the\s+Order result/i);
   assert.doesNotMatch(guide, /controllerRelationship\.id|clinicalCreatorBinding:\s*\{/);
   assert.match(guide, /does not create[\s\S]*wallet[\s\S]*does not register[\s\S]*DCR/is);
   assert.match(guide, /Token\/_exchange[\s\S]*Device\/_dcr/is);
@@ -136,7 +137,7 @@ test('BFF clinical-write 101 separates section CRUD from document import', () =>
 test('high-level clinical profile 101 is one sendable link that separates one-time enrollment from normal writes', () => {
   assert.match(highLevelClinicalProfileGuide, /superseded and intentionally removed/is);
   assert.match(highLevelClinicalProfileGuide, /subject-section-writes\.ts/);
-  assert.match(highLevelClinicalProfileGuide, /RelatedPerson.*existing contact\/member search/is);
+  assert.match(highLevelClinicalProfileGuide, /RelatedPerson.*returned automatically by Order confirmation/is);
   assert.match(highLevelClinicalProfileGuide, /PractitionerRole.*Employee creation receipt/is);
   assert.match(highLevelClinicalProfileGuide, /dataAuthorReference/);
   assert.match(highLevelClinicalProfileGuide, /updateSubjectSection/);

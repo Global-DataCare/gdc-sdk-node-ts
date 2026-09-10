@@ -1319,10 +1319,13 @@ const individualOrganizationOrder =
 // reads it from the terminal Order response; the BFF must not traverse Bundle
 // entries or know `IndividualProduct.serialNumber`.
 const controllerActivationCode = individualOrganizationOrder.activationCode;
+const controllerAssignmentIdentifier =
+  individualOrganizationOrder.controllerAssignmentIdentifier;
 ```
 
 `confirmIndividualOrganizationOrder(...)` fails closed when a newly confirmed
-Order does not contain `activationCode`. Pass that value server-side to
+Order does not contain both `activationCode` and the automatic principal
+`controllerAssignmentIdentifier`. Pass those values server-side to
 `ServerProfileSessionManager.enroll(...)` together with the signed OIDC
 `idToken`. Never return it to browser storage. For an `IndividualController`,
 the independent actor VP is optional; the `idToken` still remains mandatory
@@ -1330,8 +1333,10 @@ because DCR must bind the device to the verified login identifier.
 
 The BFF does not need a `getLicense()` call and must not search or traverse the
 terminal Bundle. `confirmIndividualOrganizationOrder(...)` extracts
-`org.schema.IndividualProduct.serialNumber` internally and exposes only the
-high-level `activationCode` result.
+`org.schema.IndividualProduct.serialNumber` and the sibling RelatedPerson
+`resource.meta.claims` internally, then exposes the high-level
+`activationCode` and `controllerAssignmentIdentifier` results. The latter is
+an SDK projection, never a custom Order claim.
 
 ### 7.3a Enroll the wallet and DCR device, then open the profile
 
@@ -1351,8 +1356,6 @@ const openedIndividualController = await enrollAndOpenIndividualController({
   profileSessionManager,
   tenantContext,
   registration: individualOrganizationRegistrationInput,
-  relatedPersonSearchResponseBody,
-  relatedPersonSelection,
   verifiedControllerEmail,
   ownerId: profileAccountId,
   profileId: individualControllerProfileId,
@@ -1364,10 +1367,11 @@ const openedIndividualController = await enrollAndOpenIndividualController({
 });
 ```
 
-`relatedPersonSearchResponseBody` is the actual response body already returned
-by the telephone/member `RelatedPerson/_search` flow. The helper selects its
-real governed identifier and stores only that profile attester; it does not
-invent a UUID and does not bind any section author during enrollment.
+The helper consumes the governed RelatedPerson identifier returned by the
+Order result and stores it as the profile attester. GW derived the principal
+controller from the individual Organization owner and created the assignment
+in the same transition that issued the `RESPRSN` licence. Email and telephone
+use the same path; the portal does not ingest or search for this assignment.
 
 `ServerProfileSessionManager.enroll(...)` owns the wallet and activation
 plumbing. It generates or restores the server-managed wallet, sends the
@@ -1458,9 +1462,9 @@ const subjectVc = individualSdk.getSubjectVC({
 
 For an individual controller, `actorDid` and `profileDid` must be the same
 complete member DID. Do not construct a new `clinicalCreatorBinding` for
-section writes. The profile attester comes from the governed identifier of the
-actual `RelatedPerson/_search` row selected by the server-side contact/member
-flow. The licensed individual's `registration.identity.resourceId`, the
+section writes. The profile attester comes from the governed RelatedPerson
+identifier returned automatically by `confirmIndividualOrganizationOrder(...)`.
+The licensed individual's `registration.identity.resourceId`, the
 subject DID, actor DID, profile id and OAuth client id are different identities
 and none is a substitute for that RelatedPerson assignment.
 
@@ -1734,9 +1738,10 @@ The linked canonical snippet contains both `enrollAndOpenProfessional(...)`
 and its `updateSubjectSection(...)` call using only values returned by the SDK
 or supplied as explicit BFF inputs.
 
-For an individual controller/member profile the attester comes instead from
-the selected row of the existing `RelatedPerson/_search` contact/member query.
-A personal flow never creates or expects a `PractitionerRole`.
+For the principal individual controller profile the attester comes instead
+from the automatic Order result. Additional caregivers or members may be
+selected later through `RelatedPerson/_search`; a personal flow never creates
+or expects a `PractitionerRole`.
 
 GW permits deletion only for the resource creator and the same subject. If
 that person linked verified phone and email access, either login may authorize

@@ -39,11 +39,18 @@ continues emitting the existing Composition-compatible claims.
 
 ## Where the attester comes from
 
-Registration of an individual organization does not create or invent a
-`RelatedPerson`. The telephone/member flow already queries `RelatedPerson`
-contacts. Pass the exact `RelatedPerson/_search` response body to
-`buildRelatedPersonProfileAttester(...)`; it selects the real row and validates
-its governed UUID identifier.
+The individual Organization owns the principal controller declaration through
+`Organization.owner.email` or `Organization.owner.telephone`. When its Order
+is confirmed, GW issues that owner the bare `RESPRSN` controller licence,
+materializes the corresponding `RelatedPerson` assignment and returns its
+governed identifier as `controllerAssignmentIdentifier`. The SDK derives this
+convenience result from the sibling RelatedPerson `resource.meta.claims`; it is
+not a new Order claim. The portal neither ingests nor searches for this primary
+assignment.
+
+`RelatedPerson/_search` remains the directory operation for additional
+caregivers, family members and other related entities. It is not part of the
+principal owner/controller enrollment path.
 
 For an individual controller/member, the resulting reference is:
 
@@ -70,8 +77,9 @@ profile's stable attester assignment. It does not choose the author of any
 section or document. New integrations do not pass `clinicalCreatorBinding`.
 
 The activation code for an individual controller comes directly from
-`confirmIndividualOrganizationOrder()`. There is no `getLicense()` call in
-that flow.
+`confirmIndividualOrganizationOrder()`, together with
+`controllerAssignmentIdentifier`. There is no `getLicense()`, RelatedPerson
+ingestion or `RelatedPerson/_search` call in that flow.
 
 `unlock()` returns `session.attester`; the subsequent opened facade exposes the
 same value as `openedProfile.profile.attester`. Use that stored attester and do

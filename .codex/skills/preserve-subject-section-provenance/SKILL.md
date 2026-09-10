@@ -33,17 +33,21 @@ breaking migration is explicitly authorized.
 
 ## Resolve the Attester from Real Data
 
-For an individual member, controller or caregiver:
+For the principal individual controller:
 
-1. Read the actual response from the existing `RelatedPerson/_search`
-   contact/member flow.
-2. Select the intended active row server-side by verified data.
-3. Use its governed `RelatedPerson.identifier` UUID.
-4. Canonicalize it as `urn:uuid:<uuid>` with the shared SDK helper.
+1. Author the individual Organization owner with `owner.email` or
+   `owner.telephone` in canonical Schema.org claims.
+2. Confirm its Order. GW issues the bare `RESPRSN` licence and materializes the
+   RelatedPerson assignment in the same transition.
+3. Consume `controllerAssignmentIdentifier` from the high-level Order result.
+   The SDK derives it from RelatedPerson `resource.meta.claims`; it is not an
+   Order claim.
+4. Never ingest, search for or select the principal assignment in portal code.
 
-Registration of an individual organization does not create a
-`RelatedPerson`. Never substitute the individual resource id, subject DID,
-actor DID, profile id, email, telephone or OAuth client id.
+For an additional member or caregiver, use the actual `RelatedPerson/_search`
+directory response and select its intended active row server-side by verified
+data. Never substitute the individual resource id, subject DID, actor DID,
+profile id, email, telephone or OAuth client id for either assignment.
 
 For a professional:
 
@@ -124,3 +128,21 @@ Use "Contract" when referring to the FHIR `Contract` resource, "smart
 contract" for ledger code, or "API/schema contract" only when a formal
 interface guarantee is actually meant.
 
+## Preserve Release Authorization Continuity
+
+Follow `docs/LOCAL_FIRST_RELEASE_CONTRACT.md`. For npm authorization, make at
+most three attempts and keep each command session and browser window alive for
+up to five minutes. Do not attempt npm publish until every affected local test
+gate is green: unit, integration, local services, real UI and Playwright.
+
+An authorization failure must never stop the test stage. Build an immutable
+`npm pack` tarball for provisional local test use, install it `--no-save` on
+pushed but unmerged branches, and never commit a `file:`, Git, workspace or
+vendored dependency. Resume only the smallest failed gate; do not repeat a green
+gate unless its boundary changed or its state is no longer trustworthy.
+
+After publication, install the exact registry version and run only the minimal install/export smoke; do not repeat the green local matrix unless the artifact differs. Missing exact registry publication blocks only consumer merge, image build, local-network, test-network/staging and network promotion.
+
+Use this order: dependency registry publish and verification, consumer exact version pin, package merge, consumer merge, image build and deploy. A gateway must install the exact registry version before image and local-network. A portal may use the tarball only for local-network, then must install the exact registry version before staging.
+
+The first line of every changed test must be the Flow contract comment and require reuse from the versioned domain data package or common-utils with no duplicated literals. Reuse existing types and canonical HL7/FHIR, LOINC, SNOMED CT, ICD-10, WHO ATC and Schema.org vocabulary before inventing anything. Put missing types in the versioned domain data package, common-utils or the other owning shared package first.

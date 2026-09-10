@@ -23,7 +23,8 @@ test('canonical profile guide points to complete subject-section snippets', () =
 
   assert.match(snippet, /registerIndividualOrganization/);
   assert.match(snippet, /confirmIndividualOrganizationOrder/);
-  assert.match(snippet, /buildRelatedPersonProfileAttester/);
+  assert.match(snippet, /order\.controllerAssignmentIdentifier/);
+  assert.doesNotMatch(snippet, /RelatedPerson\/_search|relatedPersonSearchResponseBody/);
   assert.match(snippet, /readEmployeeProfessionalAssignmentIdentifier/);
   assert.match(snippet, /updateSubjectSection/);
   assert.match(snippet, /dataAuthorReference/);

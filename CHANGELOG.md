@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 2.9.10 - 2026-09-10
+
+- Return the principal controller `controllerAssignmentIdentifier` beside the
+  activation code from individual Organization Order confirmation, derived
+  exclusively from the automatic RelatedPerson `resource.meta.claims` entry.
+- Remove the circular pre-enrollment RelatedPerson ingestion/search from the
+  copyable individual-controller flow. GW owns the primary owner assignment;
+  directory search remains for additional caregivers and members.
+- Synchronize the end-to-end 101, focused provenance guide, README, tests and
+  repository skill with the email/telephone-equivalent controller flow.
+
 ## 2.9.8 - 2026-09-08
 
 - Make the individual-controller profile guide one sendable journey that

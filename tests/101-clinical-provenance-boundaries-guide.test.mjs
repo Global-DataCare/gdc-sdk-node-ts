@@ -13,7 +13,8 @@ test('canonical guide exposes a copyable subject-section flow without invented i
   assert.match(guide, /updateSubjectSection/);
   assert.match(guide, /dataAuthorReference/);
   assert.match(guide, /session\.attester/);
-  assert.match(guide, /buildRelatedPersonProfileAttester/);
+  assert.match(guide, /controllerAssignmentIdentifier/);
+  assert.match(guide, /portal neither ingests nor searches for this primary\s+assignment/i);
   assert.match(guide, /readEmployeeProfessionalAssignmentIdentifier/);
   assert.doesNotMatch(guide, /controllerRelationship\.id|practitionerRole\.id|unlockedProfileAttesterReference/);
   assert.match(guide, /Composition-compatible/);

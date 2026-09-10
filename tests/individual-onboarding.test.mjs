@@ -31,9 +31,22 @@ test('confirmIndividualOrganizationOrderWithDeps builds canonical family order p
         body: {
           data: [{
             type: 'Family-order-response-v1.0',
-            meta: { claims: {
+            resource: { meta: { claims: {
               'org.schema.IndividualProduct.serialNumber': 'individual-controller-activation-1',
-            } },
+            } } },
+          }, {
+            type: 'RelatedPerson',
+            resource: {
+              resourceType: 'RelatedPerson',
+              id: 'urn:uuid:00000000-0000-4000-8000-000000000001',
+              meta: { claims: {
+                '@context': 'org.hl7.fhir.api',
+                'org.hl7.fhir.api.RelatedPerson.identifier': 'urn:uuid:00000000-0000-4000-8000-000000000001',
+                'org.hl7.fhir.api.RelatedPerson.patient': 'did:web:provider.example:individual:UUID:zSubject',
+                'org.hl7.fhir.api.RelatedPerson.relationship': 'http://terminology.hl7.org/CodeSystem/v3-RoleCode|RESPRSN',
+                'org.hl7.fhir.api.RelatedPerson.active': 'true',
+              } },
+            },
           }],
         },
       };
@@ -51,6 +64,7 @@ test('confirmIndividualOrganizationOrderWithDeps builds canonical family order p
   });
   assert.equal(result.poll.status, 200);
   assert.equal(result.activationCode, 'individual-controller-activation-1');
+  assert.equal(result.controllerAssignmentIdentifier, 'urn:uuid:00000000-0000-4000-8000-000000000001');
 });
 
 test('confirmIndividualOrganizationOrderWithDeps fails closed when GW omits the controller activation code', async () => {
@@ -63,6 +77,30 @@ test('confirmIndividualOrganizationOrderWithDeps fails closed when GW omits the 
       submitAndPoll: async () => cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_RESPONSE),
     }),
     /missing controller activation code/,
+  );
+});
+
+test('confirmIndividualOrganizationOrderWithDeps fails closed when GW omits its automatic RESPRSN assignment', async () => {
+  const response = cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_RESPONSE);
+  response.poll.body = {
+    body: {
+      data: [{
+        type: 'Family-order-response-v1.0',
+        resource: { meta: { claims: {
+          'org.schema.IndividualProduct.serialNumber': 'individual-controller-activation-1',
+        } } },
+      }],
+    },
+  };
+  await assert.rejects(
+    confirmIndividualOrganizationOrderWithDeps({
+      input: cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_ORDER_INPUT),
+      routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+      individualFamilyOrderBatchPath: () => '/submit',
+      individualFamilyOrderPollPath: () => '/poll',
+      submitAndPoll: async () => response,
+    }),
+    /missing automatic controller RESPRSN assignment/,
   );
 });
 
