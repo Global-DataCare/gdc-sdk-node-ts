@@ -82,6 +82,8 @@ export async function enrollIndividualControllerProfile(
   // Example attester.reference:
   // "urn:uuid:00000000-0000-4000-8000-000000000001".
   // Example attester.mode: "personal".
+  // This does not attest a document. It stores the stable RESPRSN identity in
+  // the protected profile so later logins can recover it without this Order.
 
   const actorDid = buildIndividualMemberDidWebFromPrivateIdentifiers({
     providerDidWeb: registration.identity.providerDidWeb,
@@ -153,10 +155,14 @@ export async function openIndividualControllerProfile(
     throw new Error('The unlocked profile has no RelatedPerson attester.');
   }
 
-  return input.profileSessionManager.openIndividualController({
+  const openedProfile = await input.profileSessionManager.openIndividualController({
     ownerId: input.ownerId,
     sessionId: session.sessionId,
   });
+  // A later write or demo clone can now use openedProfile.profile.attester.
+  // No Order is involved in this or any subsequent login. The source may be
+  // any supported FHIR Bundle/document; it does not have to be an IPS.
+  return openedProfile;
 }
 
 type OpenedSubjectSectionWriter = Readonly<{

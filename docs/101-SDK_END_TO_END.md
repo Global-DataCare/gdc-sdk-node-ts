@@ -1348,7 +1348,7 @@ terminal Bundle. `confirmIndividualOrganizationOrder(...)` extracts
 is an SDK projection, never a custom Order claim. The older
 `controllerAssignmentIdentifier` property is a deprecated compatibility alias.
 
-### 7.3a Enroll the wallet and DCR device
+### 7.3a First use only: enroll the wallet and DCR device
 
 Registration, Order confirmation, enrollment and profile opening are four
 different phases. Keep enrollment separate from normal profile opening:
@@ -1361,6 +1361,8 @@ const individualControllerAttester = buildProfileAttester({
 // Example individualControllerAttester.reference:
 // "urn:uuid:00000000-0000-4000-8000-000000000001".
 // Example individualControllerAttester.mode: "personal".
+// This only serializes the stable RESPRSN identity into protected profile
+// metadata. It does not create, clone, sign or attest any clinical document.
 
 const individualControllerActorDid =
   buildIndividualMemberDidWebFromPrivateIdentifiers({
@@ -1412,18 +1414,33 @@ access token for `Device/_dcr`, registers the wallet public keys, and persists
 the protected profile. The browser never receives the activation code, wallet
 seed, initial access token or private keys.
 
-### 7.3b Open the already enrolled profile
+### 7.3b Every later login: unlock and open the already enrolled profile
 
 Opening is a later operation. First `unlock(...)` obtains a short-lived,
 subject-scoped SMART session from the protected profile; then
 `openIndividualController(...)` returns the high-level SDK facade. Neither
-call repeats enrollment or consumes another activation code.
+call repeats enrollment, confirms an Order, consumes another activation code or
+searches for a RelatedPerson.
 
 ```ts
+const storedIndividualControllerProfiles =
+  await profileSessions.listProfiles(profileAccountId);
+const storedIndividualControllerProfile =
+  storedIndividualControllerProfiles.find(
+    (profile) => profile.profileId === individualControllerProfileId,
+  );
+if (!storedIndividualControllerProfile) {
+  throw new Error('The enrolled individual-controller profile was not found.');
+}
+const [selectedSubjectDid] = storedIndividualControllerProfile.allowedSubjectDids;
+if (!selectedSubjectDid) {
+  throw new Error('The enrolled profile has no authorized subject.');
+}
+
 const individualControllerSession = await profileSessions.unlock({
   ownerId: profileAccountId,
-  profileId: enrolledIndividualControllerProfile.profileId,
-  subjectDid: individualOrganizationRegistration.identity.subjectDid,
+  profileId: storedIndividualControllerProfile.profileId,
+  subjectDid: selectedSubjectDid,
   scopes: individualControllerScopes,
   pin: profilePin,
   idToken,
@@ -1437,6 +1454,15 @@ const openedIndividualController =
     ownerId: profileAccountId,
     sessionId: individualControllerSession.sessionId,
   });
+
+// Only now, while authoring or cloning a new clinical Bundle/document, use the
+// RESPRSN identity recovered from the protected profile as the attester.
+// This applies to any supported FHIR Bundle; it is not restricted to IPS.
+const controllerAttesterForThisWrite =
+  openedIndividualController.profile.attester;
+if (!controllerAttesterForThisWrite) {
+  throw new Error('The opened controller profile has no RESPRSN attester.');
+}
 ```
 
 `unlock(...)` is a later authenticated operation: it opens the protected wallet

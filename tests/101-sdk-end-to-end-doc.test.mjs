@@ -89,6 +89,10 @@ test('individual onboarding 101 separates registration, Order, enrollment, and p
   assert.match(guide, /urn:uuid:00000000-0000-4000-8000-000000000001/);
   assert.match(guide, /RelatedPerson\.identifier/);
   assert.match(guide, /sessionId.*base64url/is);
+  assert.match(guide, /Every later login/);
+  assert.match(guide, /profileSessions\.listProfiles\(/);
+  assert.match(guide, /Neither[\s\S]*confirms an Order[\s\S]*consumes another activation code/is);
+  assert.match(guide, /not restricted to IPS/i);
   assert.match(guide, /controllerRelatedPersonIdentifier/);
   assert.doesNotMatch(guide, /relatedPersonSearchResponseBody|relatedPersonSelection/);
   assert.match(guide, /governed RelatedPerson identifier returned by the\s+Order result/i);
