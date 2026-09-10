@@ -105,7 +105,7 @@ export async function enrollIndividualControllerProfile(
     ownerId: input.ownerId,
     profileId: input.profileId,
     actorKind: ActorKinds.IndividualController,
-    actorMode: 'controller',
+    actorMode: 'self', // self-managed subject; controller role is still RESPRSN
     actorDid,
     profileDid: actorDid,
     providerDid: registration.identity.providerDidWeb,

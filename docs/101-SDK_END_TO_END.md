@@ -1044,7 +1044,7 @@ const registeredControllerProfile = await profileSessions.enroll({
 
   // Authority already established for this profile. This is server-owned
   // state and must not be an arbitrary value accepted from the browser.
-  actorMode: 'controller',
+  actorMode: 'self', // self-managed subject; controller role is still RESPRSN
 
   // Exact professional-role/controller DID bound by the controller VC and
   // registered device. It represents the role, not the human personally.
