@@ -41,8 +41,9 @@ export type IndividualOrganizationOrderResult = SubmitAndPollResult & Readonly<{
   activationCode: string;
   /**
    * Governed `RelatedPerson.identifier` automatically materialized by GW for
-   * the principal Organization owner/controller. Current GW values use the
-   * `urn:uuid:<UUID>` form.
+   * the principal Organization owner/controller. GW reuses the bare UUID from
+   * `Organization.owner.identifier.value`; document helpers expose it as an
+   * `urn:uuid:<UUID>` FHIR reference only when a reference is required.
    */
   controllerRelatedPersonIdentifier: string;
   /**

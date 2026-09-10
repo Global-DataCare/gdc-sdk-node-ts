@@ -67,6 +67,65 @@ test('telephone/member directory selection returns the exact RelatedPerson profi
   });
 });
 
+test('self individual enrollment is SDK-owned and exposes the document attester only after open', async () => {
+  const manager = Object.create(ServerProfileSessionManager.prototype);
+  let lowLevelEnrollment;
+  manager.enroll = async (input) => {
+    lowLevelEnrollment = input;
+    return {
+      ...input,
+      attester: buildProfileAttester({
+        assignmentIdentifier: input.controllerRelatedPersonIdentifier,
+        mode: CompositionAttesterModes.Personal,
+      }),
+    };
+  };
+
+  const ownerIdentifier = `${UrnPrefixes.Uuid}${EXAMPLE_KYC_CONTROLLER_UUID}`;
+  await manager.enrollSelfIndividualController({
+    ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
+    profileId: EXAMPLE_PROFILE_ID,
+    registration: {
+      identity: {
+        subjectDid: EXAMPLE_GENERIC_SUBJECT_DID,
+        providerDidWeb: EXAMPLE_PROFILE_PROVIDER_DID,
+      },
+    },
+    order: {
+      activationCode: EXAMPLE_EMPLOYEE_ACTIVATION_CODE,
+      controllerRelatedPersonIdentifier: ownerIdentifier,
+    },
+    routeContext: EXAMPLE_TENANT_ROUTE_CONTEXT,
+    pin: EXAMPLE_PROFILE_PIN,
+    idToken: EXAMPLE_DEMO_PORTAL_ID_TOKEN,
+    redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
+    clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
+  });
+
+  assert.equal(lowLevelEnrollment.actorKind, ActorKinds.IndividualController);
+  assert.equal(lowLevelEnrollment.actorMode, 'self');
+  assert.equal(lowLevelEnrollment.controllerRelatedPersonIdentifier, ownerIdentifier);
+  assert.equal('attester' in lowLevelEnrollment, false);
+
+  await assert.rejects(
+    manager.enrollSelfIndividualController({
+      ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
+      profileId: EXAMPLE_PROFILE_ID,
+      registration: {},
+      order: {
+        activationCode: EXAMPLE_EMPLOYEE_ACTIVATION_CODE,
+        controllerRelatedPersonIdentifier: ownerIdentifier,
+      },
+      routeContext: EXAMPLE_TENANT_ROUTE_CONTEXT,
+      pin: EXAMPLE_PROFILE_PIN,
+      idToken: EXAMPLE_DEMO_PORTAL_ID_TOKEN,
+      redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
+      clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
+    }),
+    /registered individual identity/,
+  );
+});
+
 /**
  * Flow contract exercised by this suite:
  * 1. Registration publishes only deterministic public keys and stores the
@@ -332,6 +391,10 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
   assert.equal(openedIndividual.session.sessionId, unlocked.sessionId);
   assert.equal(openedIndividual.profile, unlocked.profile);
   assert.ok(openedIndividual.sdk instanceof IndividualControllerSdk);
+  assert.equal(
+    openedIndividual.getAttesterUriForDocs(),
+    `${UrnPrefixes.Uuid}${EXAMPLE_KYC_CONTROLLER_UUID}`,
+  );
   assert.equal(
     new Headers(calls[4].init.headers).get('content-type'),
     TransportProfiles.DidcommEncryptedForm,

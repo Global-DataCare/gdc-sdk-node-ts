@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## 2.9.12 - 2026-09-10
+
+- Make `Organization.owner.identifier.value` the stable principal-controller
+  identity emitted during individual registration and reused by the automatic
+  `RelatedPerson/RESPRSN` assignment.
+- Add SDK-owned `enrollSelfIndividualController(...)`; portals pass the typed
+  registration and Order results unchanged and never construct an attester or
+  parse standardized claims.
+- Expose `getAttesterUriForDocs()` only after the enrolled profile has been
+  unlocked and opened, while preserving existing stored profile attesters.
+- Make `Organization.owner.identifier.value` a canonical UUID supplied by the
+  caller or generated once by the SDK, never an email/telephone-derived URN.
+- Let the `IndividualControllerSdk` facade returned by
+  `openIndividualController(...)` apply its protected RESPRSN attester by
+  default to `updateSubjectSection(...)`; standalone facades still fail closed
+  unless an explicit authorized attester is supplied.
+
 ## 2.9.11 - 2026-09-10
 
 - Expose the automatic principal controller assignment under the explicit

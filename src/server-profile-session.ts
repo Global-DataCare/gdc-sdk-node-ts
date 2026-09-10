@@ -51,7 +51,11 @@ import { ProfessionalSdk } from './orchestration/professional-sdk.js';
 import { DigitalTwinSdk } from './orchestration/digital-twin-sdk.js';
 import type { SmartTokenExchangeResult } from './smart-token.js';
 import type { DigitalTwinSearchInput, DigitalTwinSearchResult } from './digital-twin.js';
-import type { RouteContext } from './individual-onboarding.js';
+import type {
+  IndividualOrganizationOrderResult,
+  RouteContext,
+} from './individual-onboarding.js';
+import type { IndividualOrganizationRegistrationResult } from './individual-start.js';
 import type { HostRouteContext } from './host-onboarding.js';
 import { buildIdentityOpenIdSmartTokenPath } from './runtime-paths.js';
 import { createProfileDeviceActivationRequest } from './device-activation.js';
@@ -83,20 +87,23 @@ export function buildProfileAttester(input: Readonly<{
   assignmentIdentifier: string;
   mode: CompositionAttesterMode;
 }>): ServerProfileAttester {
-  const hexadecimal = normalizeUuid(String(input.assignmentIdentifier || '').trim());
-  if (!hexadecimal) {
-    throw new TypeError('Profile attester assignmentIdentifier must be a UUID returned by RelatedPerson or PractitionerRole data.');
+  const assignmentIdentifier = String(input.assignmentIdentifier || '').trim();
+  const hexadecimal = normalizeUuid(assignmentIdentifier);
+  const reference = hexadecimal
+    ? `${UrnPrefixes.Uuid}${[
+        hexadecimal.slice(0, 8),
+        hexadecimal.slice(8, 12),
+        hexadecimal.slice(12, 16),
+        hexadecimal.slice(16, 20),
+        hexadecimal.slice(20),
+      ].join('-')}`
+    : assignmentIdentifier;
+  if (!/^(?:urn:|https?:\/\/)/i.test(reference)) {
+    throw new TypeError('Profile attester assignmentIdentifier must be a governed RelatedPerson or PractitionerRole URI.');
   }
-  const uuid = [
-    hexadecimal.slice(0, 8),
-    hexadecimal.slice(8, 12),
-    hexadecimal.slice(12, 16),
-    hexadecimal.slice(16, 20),
-    hexadecimal.slice(20),
-  ].join('-');
   return Object.freeze({
     mode: input.mode,
-    party: Object.freeze({ reference: `${UrnPrefixes.Uuid}${uuid}` }),
+    party: Object.freeze({ reference }),
   });
 }
 
@@ -238,6 +245,13 @@ export type ServerProfileEnrollmentInput = Readonly<{
   idToken: string;
   /** One-time code returned by the completed organization flow or employee `License/_issue`. */
   activationCode: string;
+  /**
+   * Principal controller identifier projected by the SDK from
+   * `Organization.owner.identifier.value` and the matching automatic
+   * `RelatedPerson.identifier`. Individual-controller callers pass this
+   * identifier; the SDK constructs protected document-attester metadata.
+   */
+  controllerRelatedPersonIdentifier?: string;
   /**
    * Optional explicit installation identity. Normally omit it so the SDK
    * derives the identity from the wallet key it creates for this profile.
@@ -388,6 +402,22 @@ export type OpenedServerIndividualController = Readonly<{
   session: ResolvedServerProfileSession;
   profile: ServerProfileRecord;
   sdk: IndividualControllerSdk;
+  /** Returns the protected RelatedPerson URI for FHIR document attestation. */
+  getAttesterUriForDocs(): string;
+}>;
+
+/** One-time self-controller enrollment. It never opens a working session. */
+export type ServerSelfIndividualControllerEnrollmentInput = Readonly<{
+  ownerId: string;
+  profileId: string;
+  registration: Pick<IndividualOrganizationRegistrationResult, 'identity'>;
+  order: Pick<IndividualOrganizationOrderResult,
+    'activationCode' | 'controllerRelatedPersonIdentifier'>;
+  routeContext: RouteContext;
+  pin: string;
+  idToken: string;
+  redirectUris: string[];
+  clientName: string;
 }>;
 
 /** Server-owned role evidence used to sign a fresh professional VP. */
@@ -490,11 +520,50 @@ export class ServerProfileSessionManager {
     );
   }
 
+  /**
+   * Enrolls the controller of a self-managed individual from SDK-owned
+   * registration and Order projections. The caller never parses claims or
+   * constructs FHIR attester metadata, and this operation does not open the
+   * resulting profile.
+   */
+  public async enrollSelfIndividualController(
+    input: ServerSelfIndividualControllerEnrollmentInput,
+  ): Promise<ServerProfileRecord> {
+    const identity = input.registration.identity;
+    if (!identity) {
+      throw new Error('Self individual-controller enrollment requires the registered individual identity.');
+    }
+    return this.enroll({
+      ownerId: input.ownerId,
+      profileId: input.profileId,
+      actorKind: ActorKinds.IndividualController,
+      actorMode: 'self',
+      actorDid: identity.subjectDid,
+      profileDid: identity.subjectDid,
+      providerDid: identity.providerDidWeb,
+      routeContext: input.routeContext,
+      allowedSubjectDids: [identity.subjectDid],
+      pin: input.pin,
+      idToken: input.idToken,
+      activationCode: input.order.activationCode,
+      controllerRelatedPersonIdentifier:
+        input.order.controllerRelatedPersonIdentifier,
+      redirectUris: input.redirectUris,
+      clientName: input.clientName,
+    });
+  }
+
   public async enroll(input: ServerProfileEnrollmentInput): Promise<ServerProfileRecord> {
     const normalizedClinicalCreatorBinding = input.clinicalCreatorBinding
       ? normalizeClinicalCreatorBinding(input.clinicalCreatorBinding)
       : undefined;
-    const attester = input.attester || (normalizedClinicalCreatorBinding
+    const controllerAttester = input.controllerRelatedPersonIdentifier
+      ? buildProfileAttester({
+          assignmentIdentifier: input.controllerRelatedPersonIdentifier,
+          mode: CompositionAttesterModes.Personal,
+        })
+      : undefined;
+    const attester = controllerAttester || input.attester || (normalizedClinicalCreatorBinding
       ? buildProfileAttester({
           assignmentIdentifier: normalizedClinicalCreatorBinding.authorIdentifier,
           mode: normalizedClinicalCreatorBinding.kind === FhirIpsCreatorKinds.Professional
@@ -1022,6 +1091,10 @@ export class ServerProfileSessionManager {
       || (profile.actorMode !== 'self' && profile.actorMode !== 'controller')) {
       throw new Error('Profile is not an individual controller.');
     }
+    const profileAttester = profile.attester;
+    if (!profileAttester) {
+      throw new Error('The opened individual-controller profile has no RelatedPerson attester.');
+    }
     const client = new NodeHttpClient({
       baseUrl: this.options.gatewayBaseUrl,
       ctx: profile.routeContext,
@@ -1031,7 +1104,20 @@ export class ServerProfileSessionManager {
       transportProfile: TransportProfiles.DidcommEncryptedForm,
       secureTransportAdapter: session.secureTransportAdapter,
     });
-    return { session, profile, sdk: new IndividualControllerSdk(client) };
+    return {
+      session,
+      profile,
+      sdk: new IndividualControllerSdk(client, undefined, {
+        attester: profileAttester,
+      }),
+      getAttesterUriForDocs: () => {
+        const reference = String(profileAttester.party.reference || '').trim();
+        if (!reference) {
+          throw new Error('The opened individual-controller profile has no RelatedPerson attester URI.');
+        }
+        return reference;
+      },
+    };
   }
 
   /**

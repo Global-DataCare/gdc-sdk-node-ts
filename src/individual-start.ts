@@ -1,5 +1,7 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
+import { randomUUID } from 'node:crypto';
+
 import {
   ClaimsOfferSchemaorg,
   ClaimsOrganizationSchemaorg,
@@ -10,6 +12,7 @@ import {
   buildIndividualDidWeb,
   buildSecureIdValueIndividual,
   extractPrimaryClaims,
+  normalizeUuid,
   readFamilyOrganizationSummaryFromResponseBody,
   SecureIdTypesIndividual,
 } from 'gdc-common-utils-ts';
@@ -70,6 +73,12 @@ export type IndividualOrganizationRegistrationInput = {
    * a product gateway extension.
    */
   controllerTelephone?: string;
+  /**
+   * Stable UUID of the principal controller/RESPRSN assignment. In a self
+   * registration this may be the same UUID already assigned to the person.
+   * Omit only for a brand-new assignment so the SDK creates it once.
+   */
+  controllerIdentifier?: string;
   controllerRole?: string;
   additionalClaims?: Record<string, unknown>;
   timeoutSeconds?: number;
@@ -165,11 +174,17 @@ export async function registerIndividualOrganizationWithDeps(
     throw new Error('registerIndividualOrganization requires controllerEmail, or controllerTelephone only for compatibility/extension flows.');
   }
   const controllerRole = String(deps.input.controllerRole || 'RESPRSN').trim();
+  const controllerIdentifier = canonicalControllerUuid(
+    deps.input.controllerIdentifier
+      || deps.input.additionalClaims?.[ClaimsOrganizationSchemaorg.ownerIdentifierValue]
+      || randomUUID(),
+  );
 
   const claims: Record<string, unknown> = {
     '@context': 'org.schema',
     ...(deps.input.additionalClaims || {}),
     [ClaimsOrganizationSchemaorg.alternateName]: alternateName,
+    [ClaimsOrganizationSchemaorg.ownerIdentifierValue]: controllerIdentifier,
     [ClaimsServiceSchemaorg.category]: deps.routeCtx.sector,
     [ClaimsPersonSchemaorg.hasOccupationalRoleValue]: controllerRole,
     ...(controllerEmail
@@ -241,6 +256,20 @@ export async function registerIndividualOrganizationWithDeps(
     orderConfirmationRequired: registrationSummary?.status !== 'already_exists',
     identity: readIndividualOrganizationBootstrapIdentity(registration.poll.body),
   };
+}
+
+function canonicalControllerUuid(value: unknown): string {
+  const hexadecimal = normalizeUuid(String(value || '').trim());
+  if (!hexadecimal) {
+    throw new TypeError('controllerIdentifier must be a UUID or urn:uuid identifier.');
+  }
+  return [
+    hexadecimal.slice(0, 8),
+    hexadecimal.slice(8, 12),
+    hexadecimal.slice(12, 16),
+    hexadecimal.slice(16, 20),
+    hexadecimal.slice(20),
+  ].join('-');
 }
 
 /** @deprecated Use `registerIndividualOrganizationWithDeps`. */

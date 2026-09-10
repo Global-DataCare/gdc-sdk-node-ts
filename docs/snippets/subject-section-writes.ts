@@ -4,6 +4,7 @@ import {
   BundleEditableResourceTypes,
   BundleTypes,
   CompositionAttesterModes,
+  HealthcareSummarySections,
   buildOrganizationAuthorizationUrnCds,
   type OrganizationAuthorizationUrnCdsInput,
 } from 'gdc-common-utils-ts';
@@ -11,7 +12,9 @@ import {
   buildProfileAttester,
   readEmployeeProfessionalAssignmentIdentifier,
   type IndividualControllerSdk,
+  type IndividualControllerSubjectSectionUpdateInput,
   type OrganizationControllerSdk,
+  type OpenedServerIndividualController,
   type RouteContext,
   type ServerProfileSessionManager,
   type SubjectSectionUpdateInput,
@@ -41,6 +44,8 @@ type IndividualControllerEnrollmentInput = Readonly<{
  * Enrolls, but does not open, an individual-controller profile. GW derives the
  * principal controller from Organization.owner, issues its RESPRSN licence
  * and automatically materializes the RelatedPerson assignment.
+ * `input.registration.controllerIdentifier` is its UUID; email/telephone are
+ * contact and notification channels, never the creator identity.
  */
 export async function enrollIndividualControllerProfile(
   input: IndividualControllerEnrollmentInput,
@@ -63,46 +68,17 @@ export async function enrollIndividualControllerProfile(
     ...input.tenantContext,
     offerId: registration.offerId,
   });
-  // Example order.activationCode: "individual-controller-activation-1". It is an opaque, one-time secret;
-  // do not parse it, log it, or send it to browser storage.
-  // Example order.controllerRelatedPersonIdentifier:
-  // "urn:uuid:00000000-0000-4000-8000-000000000001".
-  // This is RelatedPerson.identifier for the principal RESPRSN created by GW;
-  // it is not an extra claim authored inside the Order.
-  const controllerRelatedPersonIdentifier =
-    order.controllerRelatedPersonIdentifier;
-
-  const attester = buildProfileAttester({
-    assignmentIdentifier: controllerRelatedPersonIdentifier,
-    mode: CompositionAttesterModes.Personal,
-  });
-  // Example attester.party.reference:
-  // "urn:uuid:00000000-0000-4000-8000-000000000001".
-  // Example attester.mode: "personal".
-  // This does not attest a document. It stores the stable RESPRSN identity in
-  // the protected profile so later logins can recover it without this Order.
-
-  const actorDid = registration.identity.subjectDid;
-  // Example:
-  // "did:web:host.example.com:health-care:organization:taxid:ES-B00112233:individual:multibase:zMomQqDS8U8M8MxEbzn7gjG"
-  // In self mode this is actorDid, profileDid and the authorized subject DID.
-  // The RelatedPerson URN above remains the separate RESPRSN assignment used
-  // later for attestation.
-
-  const enrolled = await input.profileSessionManager.enroll({
+  // Application code passes both typed SDK results unchanged. It does not
+  // extract IndividualProduct.serialNumber, Organization.owner.identifier,
+  // RelatedPerson.identifier or construct document-attester metadata.
+  const enrolled = await input.profileSessionManager.enrollSelfIndividualController({
     ownerId: input.ownerId,
     profileId: input.profileId,
-    actorKind: ActorKinds.IndividualController,
-    actorMode: 'self', // self-managed subject; controller role is still RESPRSN
-    actorDid,
-    profileDid: actorDid,
-    providerDid: registration.identity.providerDidWeb,
+    registration,
+    order,
     routeContext: input.tenantContext,
-    allowedSubjectDids: [registration.identity.subjectDid],
     pin: input.profilePin,
     idToken: input.idToken,
-    activationCode: order.activationCode,
-    attester,
     redirectUris: input.redirectUris,
     clientName: input.clientName,
   });
@@ -142,15 +118,13 @@ export async function openIndividualControllerProfile(
   // Example shape: Fm8EpxJg0S6gHh8mL4q2KcXvB7aN9tRyUw3dZi1oP5Q
   // session.sessionId is a short-lived, random base64url handle. It is not the
   // RelatedPerson URN, profileId, DID, activation code, or SMART access token.
-  if (!session.attester) {
-    throw new Error('The unlocked profile has no RelatedPerson attester.');
-  }
-
   const openedProfile = await input.profileSessionManager.openIndividualController({
     ownerId: input.ownerId,
     sessionId: session.sessionId,
   });
-  // A later write or demo clone can now use openedProfile.profile.attester.
+  // Only a later document write or demo clone asks the SDK for this URI.
+  // Example: urn:uuid:033ceb35-2528-402e-8385-f22e12f57805
+  openedProfile.getAttesterUriForDocs();
   // No Order is involved in this or any subsequent login. The source may be
   // any supported FHIR Bundle/document; it does not have to be an IPS.
   return openedProfile;
@@ -174,15 +148,31 @@ type OpenedSubjectSectionWriter = Readonly<{
 export async function updateSubjectSection(
   openedProfile: OpenedSubjectSectionWriter,
   tenantContext: RouteContext,
-  input: Omit<SubjectSectionUpdateInput, 'sender' | 'attester'>,
+  input: IndividualControllerSubjectSectionUpdateInput,
 ) {
-  if (!openedProfile.profile.attester) {
-    throw new Error('The unlocked profile has no attester assignment.');
-  }
+  // openIndividualController() binds the protected RESPRSN attester to this
+  // facade. Application code does not repeat it on each section mutation.
+  return openedProfile.sdk.updateSubjectSection(tenantContext, input);
+}
+
+/**
+ * Self-authored allergy mutation after a normal profile open.
+ * The same protected RESPRSN UUID is the data author and default attester.
+ */
+export async function updateSelfAuthoredAllergySection(
+  openedProfile: OpenedServerIndividualController,
+  tenantContext: RouteContext,
+  allergyCreateBundle: Record<string, unknown>,
+) {
+  const controllerReference = openedProfile.getAttesterUriForDocs();
+  // Example controllerReference:
+  // "urn:uuid:033ceb35-2528-402e-8385-f22e12f57805".
   return openedProfile.sdk.updateSubjectSection(tenantContext, {
-    ...input,
-    sender: openedProfile.profile.actorDid,
-    attester: openedProfile.profile.attester,
+    subject: openedProfile.profile.profileDid,
+    section: HealthcareSummarySections.AllergiesAndIntolerances.attributeValue,
+    dataAuthorReference: controllerReference,
+    // `attester` is omitted: the opened facade supplies profile.attester.
+    bundle: allergyCreateBundle,
   });
 }
 
