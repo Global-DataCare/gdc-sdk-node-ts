@@ -10,6 +10,12 @@
 - Keep the controller/RESPRSN UUID distinct from the signer certificate serial,
   and keep registration separate from Order, enrollment, profile opening and
   later author/attester selection.
+- Add separate high-level enrollment for a represented subject: the controller
+  DID owns the wallet/DCR profile while the registered subject DID remains the
+  only authorized clinical subject.
+- Require `subjectAlternateName` at registration only when signed PDF evidence
+  cannot supply it, and document a simple post-login allergy write using the
+  high-level `BundleEditor` plus the protected default profile attester.
 
 ## 2.9.12 - 2026-09-10
 

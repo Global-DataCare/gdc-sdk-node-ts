@@ -86,6 +86,9 @@ test('individual onboarding 101 separates registration, Order, enrollment, and p
   assert.match(guide, /offerId:\s*individualOrganizationRegistration\.offerId/);
   assert.doesNotMatch(guide, /enrollAndOpenIndividualController/);
   assert.match(guide, /profileSessions\.enrollSelfIndividualController\(/);
+  assert.match(guide, /profileSessions\.enrollIndividualController\(/);
+  assert.match(guide, /subjectAlternateName.*conditionally required.*registration/is);
+  assert.match(guide, /field\s+never belongs to enrollment/i);
   assert.doesNotMatch(guide, /buildProfileAttester\([\s\S]*assignmentIdentifier:\s*controllerRelatedPersonIdentifier/);
   assert.doesNotMatch(guide, /attester:\s*individualControllerAttester/);
   assert.match(guide, /profileSessions\.unlock\(/);
@@ -100,6 +103,10 @@ test('individual onboarding 101 separates registration, Order, enrollment, and p
   assert.match(guide, /controllerRelatedPersonIdentifier/);
   assert.doesNotMatch(guide, /relatedPersonSearchResponseBody|relatedPersonSelection/);
   assert.match(guide, /getAttesterUriForDocs\(\)/);
+  assert.match(guide, /new BundleEditor\(\)[\s\S]*BundleEditableResourceTypes\.allergyIntolerance/);
+  assert.match(guide, /HealthcareSummarySections\.AllergiesAndIntolerances\.attributeValue/);
+  assert.match(guide, /attester omitted: the opened facade supplies profile\.attester/i);
+  assert.doesNotMatch(guide, /IDCES-[0-9]{8}[A-Z]/);
   assert.doesNotMatch(guide, /controllerRelationship\.id|clinicalCreatorBinding:\s*\{/);
   assert.match(guide, /does not create[\s\S]*wallet[\s\S]*does not register[\s\S]*DCR/is);
   assert.match(guide, /Token\/_exchange[\s\S]*Device\/_dcr/is);

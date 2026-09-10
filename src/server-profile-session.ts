@@ -420,6 +420,31 @@ export type ServerSelfIndividualControllerEnrollmentInput = Readonly<{
   clientName: string;
 }>;
 
+/**
+ * One-time enrollment when the controller and represented subject are
+ * different identities. Demographics and alternateName belong to registration
+ * evidence and are deliberately not accepted by this operation.
+ */
+export type ServerIndividualControllerEnrollmentInput = Readonly<{
+  ownerId: string;
+  profileId: string;
+  /** Stable controller/member DID that owns the wallet and DCR client. */
+  controllerActorDid: string;
+  /**
+   * Authorized subject alias used by the product, when different from the
+   * hosted subject DID returned by registration (for example, an animal card).
+   */
+  subjectDid?: string;
+  registration: Pick<IndividualOrganizationRegistrationResult, 'identity'>;
+  order: Pick<IndividualOrganizationOrderResult,
+    'activationCode' | 'controllerRelatedPersonIdentifier'>;
+  routeContext: RouteContext;
+  pin: string;
+  idToken: string;
+  redirectUris: string[];
+  clientName: string;
+}>;
+
 /** Server-owned role evidence used to sign a fresh professional VP. */
 export type ServerProfessionalProofInput = Readonly<{
   role: string;
@@ -496,6 +521,46 @@ export type ServerProfileSessionManagerOptions = Readonly<{
  */
 export class ServerProfileSessionManager {
   public constructor(private readonly options: ServerProfileSessionManagerOptions) {}
+
+  /**
+   * Enrolls a controller for a different represented subject. The SDK consumes
+   * the automatic GW RESPRSN assignment and does not ask the caller to build an
+   * attester. This operation does not accept or update subject demographics.
+   */
+  public async enrollIndividualController(
+    input: ServerIndividualControllerEnrollmentInput,
+  ): Promise<ServerProfileRecord> {
+    const identity = input.registration.identity;
+    if (!identity) {
+      throw new Error('Individual-controller enrollment requires the registered individual identity.');
+    }
+    const controllerActorDid = String(input.controllerActorDid || '').trim();
+    if (!controllerActorDid) {
+      throw new Error('Individual-controller enrollment requires controllerActorDid.');
+    }
+    const subjectDid = String(input.subjectDid || identity.subjectDid).trim();
+    if (!subjectDid) {
+      throw new Error('Individual-controller enrollment requires subjectDid.');
+    }
+    return this.enroll({
+      ownerId: input.ownerId,
+      profileId: input.profileId,
+      actorKind: ActorKinds.IndividualController,
+      actorMode: 'controller',
+      actorDid: controllerActorDid,
+      profileDid: controllerActorDid,
+      providerDid: identity.providerDidWeb,
+      routeContext: input.routeContext,
+      allowedSubjectDids: [subjectDid],
+      pin: input.pin,
+      idToken: input.idToken,
+      activationCode: input.order.activationCode,
+      controllerRelatedPersonIdentifier:
+        input.order.controllerRelatedPersonIdentifier,
+      redirectUris: input.redirectUris,
+      clientName: input.clientName,
+    });
+  }
 
   /**
    * Resolves the canonical IPS author/attester projection from one owned

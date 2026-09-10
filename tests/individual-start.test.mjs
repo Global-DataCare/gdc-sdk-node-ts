@@ -35,7 +35,7 @@ test('registerIndividualOrganizationWithDeps accepts one high-level onboarding d
       controllerEmail: 'controller@example.org',
       individualAlternateName: 'Charly',
     }, { self: false })
-    .setControllerAlternateName('Fernando')
+    .setControllerAlternateName('Controller example')
     .setSubjectAlternateName('Charly')
     .setPdf({
       subject: EXAMPLE_SUBJECT_DID,
@@ -133,6 +133,45 @@ test('registerIndividualOrganizationWithDeps builds canonical registration paylo
     providerDidWeb: EXAMPLE_API_ORGANIZATION_DID,
     subjectDid: `${EXAMPLE_API_ORGANIZATION_DID}:individual:UUID:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee`,
   });
+});
+
+test('registration requires subjectAlternateName only when no signed PDF can supply it', async () => {
+  const onboardingDraft = createIndividualOnboardingEditor()
+    .setControllerEmail('controller@example.org')
+    .buildDraft();
+
+  await assert.rejects(registerIndividualOrganizationWithDeps({
+    input: { onboardingDraft },
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    individualFamilyOrganizationBatchPath: () => '/submit',
+    individualFamilyOrganizationPollPath: () => '/poll',
+    submitAndPoll: async () => { throw new Error('must not submit'); },
+    getOfferIdFromResponse: () => undefined,
+    getOfferPreviewFromResponse: () => ({}),
+  }), /subjectAlternateName.*required when signed PDF evidence is absent/);
+});
+
+test('registration accepts omitted subjectAlternateName when signed PDF evidence supplies it', async () => {
+  const onboardingDraft = createIndividualOnboardingEditor()
+    .setPdf({
+      subject: EXAMPLE_SUBJECT_DID,
+      identifier: EXAMPLE_DOCUMENT_REFERENCE_IDENTIFIER,
+      contentType: 'application/pdf',
+      contentData: Buffer.from('signed-pdf-with-subject-name').toString('base64'),
+    })
+    .buildDraft();
+
+  const result = await registerIndividualOrganizationWithDeps({
+    input: { onboardingDraft },
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    individualFamilyOrganizationBatchPath: () => '/submit',
+    individualFamilyOrganizationPollPath: () => '/poll',
+    submitAndPoll: async () => cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_START_RESPONSE),
+    getOfferIdFromResponse: () => 'urn:offer:signed-pdf',
+    getOfferPreviewFromResponse: () => ({ offerId: 'urn:offer:signed-pdf' }),
+  });
+
+  assert.equal(result.offerId, 'urn:offer:signed-pdf');
 });
 
 test('registerIndividualOrganizationWithDeps marks an already-active registration as not requiring Order confirmation', async () => {

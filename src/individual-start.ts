@@ -19,6 +19,7 @@ import {
 export { buildIndividualMemberDidWebFromPrivateIdentifiers } from 'gdc-common-utils-ts';
 import type { FamilyRegistrationStatus } from 'gdc-common-utils-ts/utils/family-organization-summary';
 import type { IndividualOnboardingDraftResult } from 'gdc-common-utils-ts/models/individual-onboarding';
+import { DocumentReferenceClaim } from 'gdc-common-utils-ts/models/interoperable-claims/document-reference-claims';
 import { buildIndividualOrganizationRegistrationGatewayRequestFromDraft } from 'gdc-sdk-core-ts';
 import { GwCoreLifecycleRequestType } from './constants/lifecycle.js';
 import { resolvePollOptionsFromSeconds } from './poll-options.js';
@@ -175,6 +176,18 @@ export async function registerIndividualOrganizationWithDeps(
    * routing/indexing contract for this flow.
    */
   const onboardingDraft = deps.input.onboardingDraft;
+  if (onboardingDraft && !hasSignedPdfEvidence(onboardingDraft)) {
+    const subjectAlternateName = String(
+      onboardingDraft.formFields.subjectAlternateName
+      || onboardingDraft.claims?.[ClaimsOrganizationSchemaorg.alternateName]
+      || '',
+    ).trim();
+    if (!subjectAlternateName) {
+      throw new Error(
+        'registerIndividualOrganization subjectAlternateName is required when signed PDF evidence is absent.',
+      );
+    }
+  }
   const alternateName = String(deps.input.alternateName || '').trim();
   if (!onboardingDraft && !alternateName) {
     throw new Error('registerIndividualOrganization requires alternateName.');
@@ -289,6 +302,14 @@ function canonicalControllerUuid(value: unknown): string {
     hexadecimal.slice(16, 20),
     hexadecimal.slice(20),
   ].join('-');
+}
+
+function hasSignedPdfEvidence(draft: IndividualOnboardingDraftResult): boolean {
+  const claims = draft.documentReference?.resource?.meta?.claims;
+  return Boolean(
+    String(claims?.[DocumentReferenceClaim.ContentType] || '').trim()
+    && String(claims?.[DocumentReferenceClaim.ContentData] || '').trim(),
+  );
 }
 
 /** @deprecated Use `registerIndividualOrganizationWithDeps`. */
