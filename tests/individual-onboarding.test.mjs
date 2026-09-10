@@ -64,6 +64,8 @@ test('confirmIndividualOrganizationOrderWithDeps builds canonical family order p
   });
   assert.equal(result.poll.status, 200);
   assert.equal(result.activationCode, 'individual-controller-activation-1');
+  assert.equal(result.controllerRelatedPersonIdentifier, 'urn:uuid:00000000-0000-4000-8000-000000000001');
+  // Compatibility alias for SDK <=2.9.10 consumers.
   assert.equal(result.controllerAssignmentIdentifier, 'urn:uuid:00000000-0000-4000-8000-000000000001');
 });
 

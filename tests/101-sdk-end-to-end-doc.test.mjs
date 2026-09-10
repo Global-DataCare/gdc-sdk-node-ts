@@ -81,8 +81,15 @@ test('individual onboarding 101 separates registration, Order, enrollment, and p
   assert.match(guide, /const\s+individualOrganizationOrder\s*=\s*await\s+individualSdk\.confirmIndividualOrganizationOrder/);
   assert.match(guide, /offerId:\s*individualOrganizationRegistration\.offerId/);
   assert.match(guide, /const\s+controllerActivationCode\s*=\s*individualOrganizationOrder\.activationCode/);
-  assert.match(guide, /enrollAndOpenIndividualController/);
-  assert.match(guide, /controllerAssignmentIdentifier/);
+  assert.doesNotMatch(guide, /enrollAndOpenIndividualController/);
+  assert.match(guide, /profileSessions\.enroll\(/);
+  assert.match(guide, /profileSessions\.unlock\(/);
+  assert.match(guide, /profileSessions\.openIndividualController\(/);
+  assert.match(guide, /const\s+controllerRelatedPersonIdentifier\s*=\s*individualOrganizationOrder\.controllerRelatedPersonIdentifier/);
+  assert.match(guide, /urn:uuid:00000000-0000-4000-8000-000000000001/);
+  assert.match(guide, /RelatedPerson\.identifier/);
+  assert.match(guide, /sessionId.*base64url/is);
+  assert.match(guide, /controllerRelatedPersonIdentifier/);
   assert.doesNotMatch(guide, /relatedPersonSearchResponseBody|relatedPersonSelection/);
   assert.match(guide, /governed RelatedPerson identifier returned by the\s+Order result/i);
   assert.doesNotMatch(guide, /controllerRelationship\.id|clinicalCreatorBinding:\s*\{/);

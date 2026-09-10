@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 2.9.11 - 2026-09-10
+
+- Expose the automatic principal controller assignment under the explicit
+  `controllerRelatedPersonIdentifier` name while retaining
+  `controllerAssignmentIdentifier` as a deprecated compatibility alias.
+- Separate individual-controller enrollment, unlock and profile opening in the
+  end-to-end 101 and type-checked snippets; the combined helper is no longer
+  taught as the normal integration path.
+- Show concrete example shapes for the RelatedPerson `urn:uuid`, activation
+  code, actor DID, persisted profile id and short-lived base64url session id.
+
 ## 2.9.10 - 2026-09-10
 
 - Return the principal controller `controllerAssignmentIdentifier` beside the
