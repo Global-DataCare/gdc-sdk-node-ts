@@ -1372,7 +1372,7 @@ const enrolledIndividualControllerProfile = await profileSessions.enroll({
   ownerId: profileAccountId,
   profileId: individualControllerProfileId,
   actorKind: ActorKinds.IndividualController,
-  actorMode: 'controller',
+  actorMode: 'self', // self-managed subject; controller role is still RESPRSN
   actorDid: individualControllerActorDid,
   profileDid: individualControllerActorDid,
   providerDid: individualOrganizationRegistration.identity.providerDidWeb,
