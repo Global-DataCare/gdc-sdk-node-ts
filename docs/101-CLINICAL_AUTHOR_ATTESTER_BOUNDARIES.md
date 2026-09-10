@@ -39,9 +39,10 @@ continues emitting the existing Composition-compatible claims.
 
 ## Where the attester comes from
 
-The individual Organization owns the principal controller declaration through
-`Organization.owner.email` or `Organization.owner.telephone`. When its Order
-is confirmed, GW issues that owner the bare `RESPRSN` controller licence,
+The Node SDK writes the principal controller's canonical UUID to
+`Organization.owner.identifier.value`; email and telephone are contact
+channels only. When its Order is confirmed, GW reuses that UUID, issues the
+owner the bare `RESPRSN` controller licence,
 materializes the corresponding `RelatedPerson` assignment in the terminal
 response. The SDK derives its governed identifier from the sibling
 RelatedPerson `resource.meta.claims` and exposes it as
@@ -56,7 +57,11 @@ principal owner/controller enrollment path.
 For an individual controller/member, the resulting reference is:
 
 ```text
-urn:uuid:<RelatedPerson.identifier UUID returned by GW>
+Organization.owner.identifier.value / RelatedPerson.identifier:
+<bare UUID returned by GW>
+
+FHIR document reference produced by the opened profile:
+urn:uuid:<same UUID>
 
 Example: urn:uuid:00000000-0000-4000-8000-000000000001
 ```
@@ -84,26 +89,25 @@ The activation code for an individual controller comes directly from
 `controllerRelatedPersonIdentifier`. There is no `getLicense()`, RelatedPerson
 ingestion or `RelatedPerson/_search` call in that flow.
 
-`unlock()` returns `session.attester`; the subsequent opened facade exposes the
-same value as `openedProfile.profile.attester`. Use that stored attester and do
-not rebuild its URN:
+`unlock()` returns `session.attester`; the subsequent opened facade binds that
+same protected RESPRSN assignment as its default section attester. Application
+code neither rebuilds its URN nor repeats the attester on each write:
 
 ```ts
 await openedProfile.sdk.updateSubjectSection(tenantContext, {
   subject: subjectDid,
-  sender: openedProfile.profile.actorDid,
   recipient: providerDid,
   section,
   bundle: sectionChanges,
   dataAuthorReference,
-  attester: openedProfile.profile.attester,
 });
 ```
 
-The same type-checked `updateSubjectSection(...)` helper accepts the opened
-individual controller or the opened professional. It performs the required
-missing-attester check before this call, so application code never uses
-`undefined`.
+The opened individual-controller facade fails closed if its protected profile
+has no attester. A standalone facade still requires an explicit attester.
+Professional and administrative workflows keep their separately authorized
+PractitionerRole/employee assignment; they never replace the controller
+attester with a free-form identifier.
 
 ## Create, update and delete
 

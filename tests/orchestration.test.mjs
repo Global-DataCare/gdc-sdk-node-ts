@@ -12,6 +12,9 @@ import {
   EXAMPLE_PROFESSIONAL_IDENTITY,
   EXAMPLE_LICENSE_SUBJECT_ID_ACTIVE,
   EXAMPLE_KYC_CONTROLLER_UUID,
+  EXAMPLE_SUBJECT_DID,
+  EXAMPLE_TENANT_ROUTE_CONTEXT,
+  HealthcareSummarySections,
   CompositionAttesterModes,
   IndividualCredentialTypes,
   ProfessionalCredentialTypes,
@@ -32,6 +35,50 @@ import {
   submitAndPollWithMethods,
   submitAndPollWithClient,
 } from '../dist/index.js';
+
+test('opened individual-controller facade defaults a section attester from its protected profile', async () => {
+  const calls = [];
+  const profileAttester = {
+    mode: CompositionAttesterModes.Personal,
+    party: { reference: `urn:uuid:${EXAMPLE_KYC_CONTROLLER_UUID}` },
+  };
+  const sdk = new IndividualControllerSdk({
+    async updateSubjectSection(...args) {
+      calls.push(args);
+      return { poll: { status: 200, body: {} } };
+    },
+  }, undefined, { attester: profileAttester });
+
+  await sdk.updateSubjectSection(EXAMPLE_TENANT_ROUTE_CONTEXT, {
+    subject: EXAMPLE_SUBJECT_DID,
+    section: HealthcareSummarySections.AllergiesAndIntolerances.attributeValue,
+    dataAuthorReference: profileAttester.party.reference,
+    bundle: {},
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1].attester, profileAttester);
+
+  const standalone = new IndividualControllerSdk({
+    async updateSubjectSection() {
+      return { poll: { status: 200, body: {} } };
+    },
+  });
+  assert.throws(() => standalone.updateSubjectSection(EXAMPLE_TENANT_ROUTE_CONTEXT, {
+    subject: EXAMPLE_SUBJECT_DID,
+    section: HealthcareSummarySections.AllergiesAndIntolerances.attributeValue,
+    dataAuthorReference: profileAttester.party.reference,
+    bundle: {},
+  }), /requires an explicit attester/);
+
+  await standalone.updateSubjectSection(EXAMPLE_TENANT_ROUTE_CONTEXT, {
+    subject: EXAMPLE_SUBJECT_DID,
+    section: HealthcareSummarySections.AllergiesAndIntolerances.attributeValue,
+    dataAuthorReference: profileAttester.party.reference,
+    attester: profileAttester,
+    bundle: {},
+  });
+});
 
 test('HostOnboardingSdk exposes the canonical transaction and Order continuation', async () => {
   const calls = [];

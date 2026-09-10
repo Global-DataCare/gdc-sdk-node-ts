@@ -23,14 +23,16 @@ test('canonical profile guide points to complete subject-section snippets', () =
 
   assert.match(snippet, /registerIndividualOrganization/);
   assert.match(snippet, /confirmIndividualOrganizationOrder/);
-  assert.match(snippet, /order\.controllerRelatedPersonIdentifier/);
+  assert.match(snippet, /enrollSelfIndividualController/);
+  assert.doesNotMatch(snippet, /order\.controllerRelatedPersonIdentifier/);
   assert.match(snippet, /enrollIndividualControllerProfile/);
   assert.match(snippet, /openIndividualControllerProfile/);
   assert.doesNotMatch(snippet, /enrollAndOpenIndividualController/);
-  assert.match(snippet, /urn:uuid:00000000-0000-4000-8000-000000000001/);
+  assert.match(snippet, /urn:uuid:033ceb35-2528-402e-8385-f22e12f57805/);
   assert.match(snippet, /RelatedPerson\.identifier/);
-  assert.match(snippet, /Example:[\s\S]*did:web:/);
-  assert.match(snippet, /const actorDid = registration\.identity\.subjectDid/);
+  assert.match(snippet, /Example shapes[\s\S]*did:web:/);
+  assert.match(snippet, /registration,\s*\n\s*order,/);
+  assert.match(snippet, /getAttesterUriForDocs\(\)/);
   assert.match(snippet, /Example shape: [A-Za-z0-9_-]{20,}/);
   assert.doesNotMatch(snippet, /RelatedPerson\/_search|relatedPersonSearchResponseBody/);
   assert.match(snippet, /readEmployeeProfessionalAssignmentIdentifier/);

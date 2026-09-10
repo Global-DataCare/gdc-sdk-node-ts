@@ -192,7 +192,6 @@ import {
   ActorKinds,
   IndividualControllerSdk,
   IndividualMemberSdk,
-  buildProfileAttester,
   readCommercialOfferId,
   readActivationCode,
   createCommMsgExtendedDraft,
@@ -207,7 +206,6 @@ import { CryptographyService } from 'gdc-common-utils-ts';
 import { HostNetworkTypes } from 'gdc-common-utils-ts/constants/network';
 import {
   ClaimsOrganizationSchemaorg,
-  CompositionAttesterModes,
   ClaimsPersonSchemaorg,
   ClaimsServiceSchemaorg,
   DataspaceSectors,
@@ -1274,6 +1272,10 @@ const individualOrganizationRegistration =
     jurisdiction: tenantContext.jurisdiction,
     sector: tenantContext.sector,
     alternateName: 'ana',
+    // Do not create a RelatedPerson or attester here. When this optional input
+    // is omitted, the SDK generates the stable controller UUID once and sends
+    // it as Organization.owner.identifier.value. Real value shape generated:
+    // "033ceb35-2528-402e-8385-f22e12f57805".
     controllerEmail: 'ana.parent@example.org',
     timeoutSeconds: 7,
     intervalSeconds: 2,
@@ -1300,7 +1302,7 @@ What you get back:
   - `providerDidWeb`: exact `Offer.offeredBy` returned by GW
   - `subjectDid`: canonical individual DID beneath that exact provider DID
 
-### 7.3 Confirm the Offer and consume the controller activation code
+### 7.3 Confirm the Offer
 
 ```ts
 const individualOrganizationOrder =
@@ -1313,26 +1315,20 @@ const individualOrganizationOrder =
     intervalSeconds: 2,
   });
 
-// Opaque one-time input for the subsequent managed-wallet activation. The SDK
-// reads it from the terminal Order response; the BFF must not traverse Bundle
-// entries or know `IndividualProduct.serialNumber`.
-const controllerActivationCode = individualOrganizationOrder.activationCode;
-// Example: "ACT-001". The real value is an opaque one-time secret: never
-// parse it, log it, or return it to browser storage.
-// This is RelatedPerson.identifier for the principal RESPRSN created by GW.
-// The longer local name makes that origin explicit; it is not an Order claim.
-const controllerRelatedPersonIdentifier =
-  individualOrganizationOrder.controllerRelatedPersonIdentifier;
-// Example: "urn:uuid:00000000-0000-4000-8000-000000000001".
+// The SDK reads the opaque activation code from the standardized
+// `org.schema.IndividualProduct.serialNumber` claim and the controller from
+// the matching Organization.owner.identifier.value / RelatedPerson.identifier.
+// Application code passes this typed result unchanged to enrollment; it does
+// not read Bundle entries, extract either value or construct an attester.
 ```
 
 `confirmIndividualOrganizationOrder(...)` fails closed when a newly confirmed
 Order does not contain both `activationCode` and the automatic principal
 `controllerRelatedPersonIdentifier`. The latter is the stable identifier of the
-principal `RelatedPerson/RESPRSN` automatically created by GW. Pass both
-values server-side to
-`ServerProfileSessionManager.enroll(...)` together with the signed OIDC
-`idToken`. Never return it to browser storage. For an `IndividualController`,
+principal `RelatedPerson/RESPRSN` automatically created by GW. Pass the whole
+typed result server-side to
+`ServerProfileSessionManager.enrollSelfIndividualController(...)` together
+with the signed OIDC `idToken`. Never return its internals to browser storage. For an `IndividualController`,
 the independent actor VP is optional; the `idToken` still remains mandatory
 because DCR must bind the device to the verified login identifier.
 
@@ -1343,6 +1339,10 @@ terminal Bundle. `confirmIndividualOrganizationOrder(...)` extracts
 `activationCode` and `controllerRelatedPersonIdentifier` results. The latter
 is an SDK projection, never a custom Order claim. The older
 `controllerAssignmentIdentifier` property is a deprecated compatibility alias.
+Its UUID is the same value originally sent as
+`Organization.owner.identifier.value`; email and telephone are contact
+channels, not creator identifiers. `getAttesterUriForDocs()` adds `urn:uuid:`
+when a FHIR reference is needed.
 
 ### 7.3a First use only: enroll the wallet and DCR device
 
@@ -1350,44 +1350,24 @@ Registration, Order confirmation, enrollment and profile opening are four
 different phases. Keep enrollment separate from normal profile opening:
 
 ```ts
-const individualControllerAttester = buildProfileAttester({
-  assignmentIdentifier: controllerRelatedPersonIdentifier,
-  mode: CompositionAttesterModes.Personal,
-});
-// Example individualControllerAttester.party.reference:
-// "urn:uuid:00000000-0000-4000-8000-000000000001".
-// Example individualControllerAttester.mode: "personal".
-// This only serializes the stable RESPRSN identity into protected profile
-// metadata. It does not create, clone, sign or attest any clinical document.
-
-const individualControllerActorDid =
-  individualOrganizationRegistration.identity.subjectDid;
-// Example:
-// "did:web:host.example.com:health-care:organization:taxid:ES-B00112233:individual:multibase:zMomQqDS8U8M8MxEbzn7gjG"
-// In self mode, actorDid/profileDid and the authorized subject DID are this
-// same individual DID. The separate RelatedPerson URN identifies the governed
-// RESPRSN assignment used later for attestation.
-
-const enrolledIndividualControllerProfile = await profileSessions.enroll({
+const enrolledIndividualControllerProfile =
+  await profileSessions.enrollSelfIndividualController({
   ownerId: profileAccountId,
   profileId: individualControllerProfileId,
-  actorKind: ActorKinds.IndividualController,
-  actorMode: 'self', // self-managed subject; controller role is still RESPRSN
-  actorDid: individualControllerActorDid,
-  profileDid: individualControllerActorDid,
-  providerDid: individualOrganizationRegistration.identity.providerDidWeb,
+  registration: individualOrganizationRegistration,
+  order: individualOrganizationOrder,
   routeContext: tenantContext,
-  allowedSubjectDids: [individualOrganizationRegistration.identity.subjectDid],
   pin: profilePin,
   idToken,
-  activationCode: controllerActivationCode,
-  attester: individualControllerAttester,
   redirectUris,
   clientName,
 });
 // Example enrolledIndividualControllerProfile.profileId:
 // "individual-controller-profile-001". Enrollment persists the protected
 // wallet/DCR profile but does not leave it open for normal calls.
+// The SDK alone extracts the activation code, carries the controller
+// identifier and creates protected attester metadata. The portal does none of
+// those operations.
 ```
 
 Enrollment consumes the governed RelatedPerson identifier returned by the
@@ -1396,7 +1376,7 @@ controller from the individual Organization owner and created the assignment
 in the same transition that issued the `RESPRSN` licence. Email and telephone
 use the same path; the portal does not ingest or search for this assignment.
 
-`ServerProfileSessionManager.enroll(...)` owns the wallet and activation
+`ServerProfileSessionManager.enrollSelfIndividualController(...)` owns the wallet and activation
 plumbing. It generates or restores the server-managed wallet, sends the
 one-time activation code through `Token/_exchange`, uses the returned initial
 access token for `Device/_dcr`, registers the wallet public keys, and persists
@@ -1447,11 +1427,10 @@ const openedIndividualController =
 // Only now, while authoring or cloning a new clinical Bundle/document, use the
 // RESPRSN identity recovered from the protected profile as the attester.
 // This applies to any supported FHIR Bundle; it is not restricted to IPS.
-const controllerAttesterForThisWrite =
-  openedIndividualController.profile.attester;
-if (!controllerAttesterForThisWrite) {
-  throw new Error('The opened controller profile has no RESPRSN attester.');
-}
+const controllerAttesterUriForThisDocument =
+  openedIndividualController.getAttesterUriForDocs();
+// Example derived from Organization.owner.identifier.value:
+// "urn:uuid:033ceb35-2528-402e-8385-f22e12f57805".
 ```
 
 `unlock(...)` is a later authenticated operation: it opens the protected wallet
@@ -1772,6 +1751,8 @@ Use `updateSubjectSection(...)` when every entry belongs to one section. The
 Bundle is `batch` or `collection`; the method puts the exact section on the
 outer Communication. The current storage contract also indexes the independent
 `dataAuthorReference` and profile `attester` as Composition-compatible claims.
+The facade returned by `openIndividualController(...)` supplies its protected
+profile attester automatically, so the caller omits `attester`.
 
 The complete, type-checked call is maintained in
 [`snippets/subject-section-writes.ts`](./snippets/subject-section-writes.ts), so
@@ -1804,13 +1785,14 @@ version and code as an explicit input. See the linked type-checked source for
 the complete calls; no example UUID is intended to be copied into production.
 
 The professional flow uses the same write helper. Its attester is not supplied
-as a made-up variable: `enrollAndOpenProfessional(...)` reads the contained
-`PractitionerRole.id` from the real Employee creation receipt, stores that
-profile attester, and returns the opened professional facade:
+as a made-up variable: `enrollProfessionalProfile(...)` reads the contained
+`PractitionerRole.id` from the real Employee creation receipt and stores that
+profile attester. `openProfessionalProfile(...)` is the separate normal-login
+step and does not depend on the Employee creation receipt or an Order.
 
-The linked canonical snippet contains both `enrollAndOpenProfessional(...)`
-and its `updateSubjectSection(...)` call using only values returned by the SDK
-or supplied as explicit BFF inputs.
+The linked canonical snippet contains the separate enrollment and open calls,
+plus `updateSubjectSection(...)`, using only values returned by the SDK or
+supplied as explicit BFF inputs.
 
 For the principal individual controller profile the attester comes instead
 from the automatic Order result. Additional caregivers or members may be

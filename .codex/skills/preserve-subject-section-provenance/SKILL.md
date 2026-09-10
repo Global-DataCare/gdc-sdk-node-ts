@@ -35,14 +35,25 @@ breaking migration is explicitly authorized.
 
 For the principal individual controller:
 
-1. Author the individual Organization owner with `owner.email` or
-   `owner.telephone` in canonical Schema.org claims.
+1. Author the individual Organization owner with a stable UUID in
+   `Organization.owner.identifier.value`. Email and telephone are only contact
+   or notification channels. The SDK accepts that UUID or creates it once for
+   a brand-new controller assignment; it never derives creator identity from a
+   contact address.
 2. Confirm its Order. GW issues the bare `RESPRSN` licence and materializes the
-   RelatedPerson assignment in the same transition.
-3. Consume `controllerAssignmentIdentifier` from the high-level Order result.
-   The SDK derives it from RelatedPerson `resource.meta.claims`; it is not an
-   Order claim.
-4. Never ingest, search for or select the principal assignment in portal code.
+   RelatedPerson assignment with that exact owner identifier in the same
+   transition; it never invents another UUID.
+3. Pass the typed registration and Order results unchanged to
+   `enrollSelfIndividualController(...)`. Portal code must not extract the
+   activation code, controller identifier or call `buildProfileAttester(...)`.
+4. After a later `unlock(...)` plus `openIndividualController(...)`, obtain the
+   document reference with `getAttesterUriForDocs()` only when authoring or
+   cloning a document.
+5. The opened `IndividualControllerSdk` supplies its protected profile
+   attester by default to `updateSubjectSection(...)`; application snippets
+   omit it. A standalone facade must provide an explicitly authorized
+   assignment and fails closed otherwise.
+6. Never ingest, search for or select the principal assignment in portal code.
 
 For an additional member or caregiver, use the actual `RelatedPerson/_search`
 directory response and select its intended active row server-side by verified
@@ -61,6 +72,10 @@ A personal profile has no `PractitionerRole`; never manufacture one.
 Treat `enroll()` as technical profile/wallet/DCR setup. It may protect the
 stable profile attester so it is returned after unlock, but it must not choose
 or freeze the author of later section writes.
+
+Never mix the self-controller example with additional `IndividualMember`
+creation, caregiver selection or document authoring. Document each as a
+separate numbered journey with its own inputs and terminal result.
 
 ## Resolve the Data Author
 

@@ -5,6 +5,7 @@ import {
   EXAMPLE_API_ORGANIZATION_DID,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_START_RESPONSE,
+  EXAMPLE_KYC_CONTROLLER_UUID,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
@@ -19,7 +20,10 @@ import {
 test('registerIndividualOrganizationWithDeps builds canonical registration payload and extracts offer', async () => {
   const calls = [];
   const result = await registerIndividualOrganizationWithDeps({
-    input: cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT),
+    input: {
+      ...cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT),
+      controllerIdentifier: EXAMPLE_KYC_CONTROLLER_UUID,
+    },
     routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
     individualFamilyOrganizationBatchPath: (ctx) => `/${ctx.tenantId}/${ctx.jurisdiction}/${ctx.sector}/org/_batch`,
     individualFamilyOrganizationPollPath: (ctx) => `/${ctx.tenantId}/${ctx.jurisdiction}/${ctx.sector}/org/_batch-response`,
@@ -48,6 +52,10 @@ test('registerIndividualOrganizationWithDeps builds canonical registration paylo
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Organization.alternateName'], 'ana');
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Organization.address.addressCountry'], undefined);
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Organization.owner.email'], 'ana.parent@example.org');
+  assert.equal(
+    calls[0][2].body.data[0].resource.meta.claims['org.schema.Organization.owner.identifier.value'],
+    EXAMPLE_KYC_CONTROLLER_UUID,
+  );
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Person.email'], 'ana.parent@example.org');
   assert.equal(calls[0][2].body.data[0].resource.meta.claims['org.schema.Person.hasOccupation.identifier.value'], 'RESPRSN');
   assert.deepEqual(calls[0][3], {
@@ -113,6 +121,21 @@ test('deprecated startIndividualOrganizationWithDeps delegates and rejects an in
     }),
     /missing offerId/,
   );
+});
+
+test('registerIndividualOrganizationWithDeps rejects a non-UUID controller identity', async () => {
+  await assert.rejects(registerIndividualOrganizationWithDeps({
+    input: {
+      ...cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT),
+      controllerIdentifier: 'not-a-uuid',
+    },
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    individualFamilyOrganizationBatchPath: () => '/submit',
+    individualFamilyOrganizationPollPath: () => '/poll',
+    submitAndPoll: async () => { throw new Error('must not submit'); },
+    getOfferIdFromResponse: () => undefined,
+    getOfferPreviewFromResponse: () => ({}),
+  }), /controllerIdentifier must be a UUID/);
 });
 
 test('readIndividualOrganizationBootstrapIdentity preserves the exact hosted provider DID returned by GW', () => {

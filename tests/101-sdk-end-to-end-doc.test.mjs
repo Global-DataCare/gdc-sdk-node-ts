@@ -80,15 +80,13 @@ test('individual onboarding 101 separates registration, Order, enrollment, and p
   assert.match(guide, /startIndividualOrganization\(\.\.\.\).*deprecated/is);
   assert.match(guide, /const\s+individualOrganizationOrder\s*=\s*await\s+individualSdk\.confirmIndividualOrganizationOrder/);
   assert.match(guide, /offerId:\s*individualOrganizationRegistration\.offerId/);
-  assert.match(guide, /const\s+controllerActivationCode\s*=\s*individualOrganizationOrder\.activationCode/);
   assert.doesNotMatch(guide, /enrollAndOpenIndividualController/);
-  assert.match(guide, /profileSessions\.enroll\(/);
-  assert.match(guide, /const\s+enrolledIndividualControllerProfile[\s\S]*actorMode:\s*'self'.*RESPRSN/);
-  assert.match(guide, /const\s+individualControllerActorDid\s*=\s*individualOrganizationRegistration\.identity\.subjectDid/);
+  assert.match(guide, /profileSessions\.enrollSelfIndividualController\(/);
+  assert.doesNotMatch(guide, /buildProfileAttester\([\s\S]*assignmentIdentifier:\s*controllerRelatedPersonIdentifier/);
+  assert.doesNotMatch(guide, /attester:\s*individualControllerAttester/);
   assert.match(guide, /profileSessions\.unlock\(/);
   assert.match(guide, /profileSessions\.openIndividualController\(/);
-  assert.match(guide, /const\s+controllerRelatedPersonIdentifier\s*=\s*individualOrganizationOrder\.controllerRelatedPersonIdentifier/);
-  assert.match(guide, /urn:uuid:00000000-0000-4000-8000-000000000001/);
+  assert.match(guide, /urn:uuid:033ceb35-2528-402e-8385-f22e12f57805/);
   assert.match(guide, /RelatedPerson\.identifier/);
   assert.match(guide, /sessionId.*base64url/is);
   assert.match(guide, /Every later login/);
@@ -97,7 +95,7 @@ test('individual onboarding 101 separates registration, Order, enrollment, and p
   assert.match(guide, /not restricted to IPS/i);
   assert.match(guide, /controllerRelatedPersonIdentifier/);
   assert.doesNotMatch(guide, /relatedPersonSearchResponseBody|relatedPersonSelection/);
-  assert.match(guide, /governed RelatedPerson identifier returned by the\s+Order result/i);
+  assert.match(guide, /getAttesterUriForDocs\(\)/);
   assert.doesNotMatch(guide, /controllerRelationship\.id|clinicalCreatorBinding:\s*\{/);
   assert.match(guide, /does not create[\s\S]*wallet[\s\S]*does not register[\s\S]*DCR/is);
   assert.match(guide, /Token\/_exchange[\s\S]*Device\/_dcr/is);

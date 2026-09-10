@@ -65,6 +65,19 @@ import type {
 } from '../resource-operations.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 
+/** Profile-owned defaults applied to subject-section mutations after unlock. */
+export type IndividualControllerProfileDefaults = Readonly<{
+  attester: SubjectSectionUpdateInput['attester'];
+}>;
+
+/**
+ * High-level section input. An opened controller profile supplies its own
+ * protected RESPRSN attester; standalone facades must still provide one.
+ */
+export type IndividualControllerSubjectSectionUpdateInput =
+  Omit<SubjectSectionUpdateInput, 'attester'> &
+  Partial<Pick<SubjectSectionUpdateInput, 'attester'>>;
+
 /**
  * Individual-controller oriented facade over a `NodeRuntimeClient`.
  *
@@ -78,6 +91,7 @@ export class IndividualControllerSdk {
   constructor(
     private readonly client: NodeRuntimeClient,
     private readonly capabilities?: readonly NodeCapability[],
+    private readonly profileDefaults?: IndividualControllerProfileDefaults,
   ) {}
 
   /**
@@ -293,9 +307,13 @@ export class IndividualControllerSdk {
    * appointments or contracts, while preserving the indexed Composition
    * author/attester compatibility contract.
    */
-  public updateSubjectSection(ctx: RouteContext, input: SubjectSectionUpdateInput): Promise<SubmitAndPollResult> {
+  public updateSubjectSection(ctx: RouteContext, input: IndividualControllerSubjectSectionUpdateInput): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualIngestCommunication, ActorKinds.IndividualController, 'updateSubjectSection');
-    return requireClientMethod(this.client, 'updateSubjectSection')(ctx, input);
+    const attester = input.attester || this.profileDefaults?.attester;
+    if (!attester) {
+      throw new Error('updateSubjectSection requires an explicit attester unless the facade comes from an opened controller profile.');
+    }
+    return requireClientMethod(this.client, 'updateSubjectSection')(ctx, { ...input, attester });
   }
 
   /**
