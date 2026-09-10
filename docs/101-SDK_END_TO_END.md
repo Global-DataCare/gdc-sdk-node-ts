@@ -1272,9 +1272,10 @@ const individualOrganizationRegistration =
     jurisdiction: tenantContext.jurisdiction,
     sector: tenantContext.sector,
     alternateName: 'ana',
-    // Stable UUID of Organization.owner / the automatic principal RESPRSN.
-    // Example: "033ceb35-2528-402e-8385-f22e12f57805".
-    controllerIdentifier: individualControllerUuid,
+    // Do not create a RelatedPerson or attester here. When this optional input
+    // is omitted, the SDK generates the stable controller UUID once and sends
+    // it as Organization.owner.identifier.value. Real value shape generated:
+    // "033ceb35-2528-402e-8385-f22e12f57805".
     controllerEmail: 'ana.parent@example.org',
     timeoutSeconds: 7,
     intervalSeconds: 2,

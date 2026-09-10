@@ -44,8 +44,9 @@ type IndividualControllerEnrollmentInput = Readonly<{
  * Enrolls, but does not open, an individual-controller profile. GW derives the
  * principal controller from Organization.owner, issues its RESPRSN licence
  * and automatically materializes the RelatedPerson assignment.
- * `input.registration.controllerIdentifier` is its UUID; email/telephone are
- * contact and notification channels, never the creator identity.
+ * When `input.registration.controllerIdentifier` is absent, the SDK creates
+ * the canonical UUID once and sends it as Organization.owner.identifier.value;
+ * email/telephone are contact and notification channels, never creator identity.
  */
 export async function enrollIndividualControllerProfile(
   input: IndividualControllerEnrollmentInput,
