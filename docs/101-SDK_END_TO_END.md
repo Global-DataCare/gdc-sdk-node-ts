@@ -1266,21 +1266,51 @@ activation.
 code must use the explicit `registerIndividualOrganization(...)` name.
 
 ```ts
+import { createIndividualOnboardingEditor } from 'gdc-sdk-node-ts';
+
+// Optional verified KYC payload received by the BFF from its KYC provider.
+// Example profile.id_number: "IDCES-72882419L" (certificate/person serial).
+// It is not the controller/RESPRSN UUID.
+const onboardingEditor = createIndividualOnboardingEditor()
+  .setKyc(verifiedKycPayload, { self: true })
+  .setSelf(true)
+  .setControllerAlternateName('ana')
+  .setControllerEmail('ana@example.org')
+  .setSubjectAlternateName('ana');
+
+// After the PDF-render and certificate-signing step, pass the resulting bytes
+// back to the editor. The portal does not construct Bundle or attachments[].
+// Example signedPdfBase64 starts with "JVBERi0x...".
+onboardingEditor.setPdf({
+  subject: authenticatedSubjectDid,
+  identifier: signedPdfDocumentIdentifier,
+  contentType: 'application/pdf',
+  contentData: signedPdfBase64,
+});
+
 const individualOrganizationRegistration =
   await individualSdk.registerIndividualOrganization({
     tenantId: tenantContext.tenantId,
     jurisdiction: tenantContext.jurisdiction,
     sector: tenantContext.sector,
-    alternateName: 'ana',
-    // Do not create a RelatedPerson or attester here. When this optional input
-    // is omitted, the SDK generates the stable controller UUID once and sends
-    // it as Organization.owner.identifier.value. Real value shape generated:
+    onboardingDraft: onboardingEditor.buildDraft(),
+
+    // Usually omitted: the SDK generates this stable UUID and sends it as
+    // Organization.owner.identifier.value. GW reuses it for the automatic
+    // RelatedPerson/RESPRSN. Example generated shape:
     // "033ceb35-2528-402e-8385-f22e12f57805".
-    controllerEmail: 'ana.parent@example.org',
+    // controllerIdentifier: existingStableControllerUuid,
     timeoutSeconds: 7,
     intervalSeconds: 2,
   });
 ```
+
+The high-level precedence is explicit: request claims are compatibility and
+routing hints; verified KYC is the audited prefill/fallback; the verified
+certificate-signed PDF is authoritative for the identity/form fields it
+contains. `Person.identifier.value` may therefore contain the signer certificate
+serial, while `Organization.owner.identifier.value` is the distinct stable
+controller/RESPRSN UUID generated or accepted by the SDK.
 
 Current CORE note:
 

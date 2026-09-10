@@ -5,17 +5,77 @@ import {
   EXAMPLE_API_ORGANIZATION_DID,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_START_RESPONSE,
+  EXAMPLE_DOCUMENT_REFERENCE_IDENTIFIER,
   EXAMPLE_KYC_CONTROLLER_UUID,
+  EXAMPLE_KYC_CONTROLLER_IDENTIFIER,
+  EXAMPLE_KYC_CONTROLLER_VERIFIED_AT,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
+  EXAMPLE_SUBJECT_DID,
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
 
 import {
   buildIndividualMemberDidWebFromPrivateIdentifiers,
+  createIndividualOnboardingEditor,
   readIndividualOrganizationBootstrapIdentity,
   registerIndividualOrganizationWithDeps,
   startIndividualOrganizationWithDeps,
 } from '../dist/index.js';
+
+test('registerIndividualOrganizationWithDeps accepts one high-level onboarding draft with KYC and signed PDF evidence', async () => {
+  // Teaching goal: the application supplies one SDK-owned draft; it never
+  // authors the GW Bundle, attachment, Organization.owner or RelatedPerson.
+  const signedPdfBase64 = Buffer.from('certificate-signed-pdf', 'utf8').toString('base64');
+  const onboardingDraft = createIndividualOnboardingEditor()
+    .setKyc({
+      profile: {
+        id_number: EXAMPLE_KYC_CONTROLLER_IDENTIFIER,
+        kyc_verified_at: EXAMPLE_KYC_CONTROLLER_VERIFIED_AT,
+      },
+      controllerEmail: 'controller@example.org',
+      individualAlternateName: 'Charly',
+    }, { self: false })
+    .setControllerAlternateName('Fernando')
+    .setSubjectAlternateName('Charly')
+    .setPdf({
+      subject: EXAMPLE_SUBJECT_DID,
+      identifier: EXAMPLE_DOCUMENT_REFERENCE_IDENTIFIER,
+      contentType: 'application/pdf',
+      contentData: signedPdfBase64,
+    })
+    .buildDraft();
+  const calls = [];
+
+  await registerIndividualOrganizationWithDeps({
+    input: {
+      onboardingDraft,
+      controllerIdentifier: EXAMPLE_KYC_CONTROLLER_UUID,
+    },
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    individualFamilyOrganizationBatchPath: () => '/submit',
+    individualFamilyOrganizationPollPath: () => '/poll',
+    submitAndPoll: async (...args) => {
+      calls.push(args);
+      return cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_START_RESPONSE);
+    },
+    getOfferIdFromResponse: () => 'urn:offer:evidence',
+    getOfferPreviewFromResponse: () => ({ offerId: 'urn:offer:evidence' }),
+  });
+
+  const body = calls[0][2].body;
+  assert.equal(body.resourceType, 'Bundle');
+  assert.equal(body.attachments[0].media_type, 'application/pdf');
+  assert.equal(body.attachments[0].data.base64, signedPdfBase64);
+  assert.equal(body.data[0].resource.meta.kyc.profile.id_number, EXAMPLE_KYC_CONTROLLER_IDENTIFIER);
+  assert.equal(
+    body.data[0].resource.meta.claims['org.schema.Organization.owner.identifier.value'],
+    EXAMPLE_KYC_CONTROLLER_UUID,
+  );
+  assert.equal(body.data[0].resource.meta.claims['org.schema.Service.category'], 'health-care');
+  assert.equal(body.data[0].resource.meta.claims['org.schema.Person.identifier.value'], EXAMPLE_KYC_CONTROLLER_IDENTIFIER);
+  assert.equal(body.data[0].resource.meta.claims.activationCode, undefined);
+  assert.equal(body.data[0].resource.meta.claims.attester, undefined);
+});
 
 test('registerIndividualOrganizationWithDeps builds canonical registration payload and extracts offer', async () => {
   const calls = [];

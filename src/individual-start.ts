@@ -18,6 +18,8 @@ import {
 } from 'gdc-common-utils-ts';
 export { buildIndividualMemberDidWebFromPrivateIdentifiers } from 'gdc-common-utils-ts';
 import type { FamilyRegistrationStatus } from 'gdc-common-utils-ts/utils/family-organization-summary';
+import type { IndividualOnboardingDraftResult } from 'gdc-common-utils-ts/models/individual-onboarding';
+import { buildIndividualOrganizationRegistrationGatewayRequestFromDraft } from 'gdc-sdk-core-ts';
 import { GwCoreLifecycleRequestType } from './constants/lifecycle.js';
 import { resolvePollOptionsFromSeconds } from './poll-options.js';
 import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
@@ -25,6 +27,14 @@ import type { RouteContext } from './individual-onboarding.js';
 import type { OfferPreview } from './order-offer-summary.js';
 
 export type IndividualOrganizationRegistrationInput = {
+  /**
+   * Preferred high-level input produced by `createIndividualOnboardingEditor()`.
+   *
+   * The SDK converts this draft into the GW Bundle and signed-PDF attachment.
+   * Registration remains separate from Order confirmation, enrollment and
+   * opening a profile.
+   */
+  onboardingDraft?: IndividualOnboardingDraftResult;
   /**
    * Preferred route identifier for the selected personal indexing service provider.
    *
@@ -45,7 +55,7 @@ export type IndividualOrganizationRegistrationInput = {
    * This is not the technical subject identifier. It is the nearby name the
    * controller uses to refer to the person in the UI, for example `Charly`.
    */
-  alternateName: string;
+  alternateName?: string;
   /**
    * CORE-canonical controller contact channel for individual bootstrap.
    *
@@ -164,26 +174,28 @@ export async function registerIndividualOrganizationWithDeps(
    * in the payload for compatibility, but the owner claims are the live GW
    * routing/indexing contract for this flow.
    */
+  const onboardingDraft = deps.input.onboardingDraft;
   const alternateName = String(deps.input.alternateName || '').trim();
-  if (!alternateName) {
+  if (!onboardingDraft && !alternateName) {
     throw new Error('registerIndividualOrganization requires alternateName.');
   }
   const controllerEmail = String(deps.input.controllerEmail || '').trim();
   const controllerTelephone = String(deps.input.controllerTelephone || '').trim();
-  if (!controllerEmail && !controllerTelephone) {
+  if (!onboardingDraft && !controllerEmail && !controllerTelephone) {
     throw new Error('registerIndividualOrganization requires controllerEmail, or controllerTelephone only for compatibility/extension flows.');
   }
   const controllerRole = String(deps.input.controllerRole || 'RESPRSN').trim();
   const controllerIdentifier = canonicalControllerUuid(
     deps.input.controllerIdentifier
       || deps.input.additionalClaims?.[ClaimsOrganizationSchemaorg.ownerIdentifierValue]
+      || onboardingDraft?.claims?.[ClaimsOrganizationSchemaorg.ownerIdentifierValue]
       || randomUUID(),
   );
 
   const claims: Record<string, unknown> = {
     '@context': 'org.schema',
     ...(deps.input.additionalClaims || {}),
-    [ClaimsOrganizationSchemaorg.alternateName]: alternateName,
+    ...(alternateName ? { [ClaimsOrganizationSchemaorg.alternateName]: alternateName } : {}),
     [ClaimsOrganizationSchemaorg.ownerIdentifierValue]: controllerIdentifier,
     [ClaimsServiceSchemaorg.category]: deps.routeCtx.sector,
     [ClaimsPersonSchemaorg.hasOccupationalRoleValue]: controllerRole,
@@ -201,18 +213,25 @@ export async function registerIndividualOrganizationWithDeps(
       : {}),
   };
 
+  const registrationBody = onboardingDraft
+    ? buildIndividualOrganizationRegistrationGatewayRequestFromDraft({
+        draft: onboardingDraft,
+        routingClaims: claims,
+      })
+    : {
+        data: [{
+          type: GwCoreLifecycleRequestType.IndividualOrganizationRegistration,
+          resource: { meta: { claims } },
+        }],
+      };
+
   const registrationPayload = {
     jti: `jti-${createRuntimeUuid()}`,
     iss: deps.routeCtx.tenantId,
     aud: deps.routeCtx.tenantId,
     type: 'application/didcomm-plain+json',
     thid: `family-org-${createRuntimeUuid()}`,
-    body: {
-      data: [{
-        type: GwCoreLifecycleRequestType.IndividualOrganizationRegistration,
-        resource: { meta: { claims } },
-      }],
-    },
+    body: registrationBody,
   };
 
   const pollOptions = resolvePollOptionsFromSeconds(

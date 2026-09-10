@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 2.9.13 - 2026-09-10
+
+- Let applications pass the high-level individual-onboarding editor draft
+  directly to `registerIndividualOrganization(...)`; the SDK owns the GW
+  Bundle, KYC boundary and certificate-signed PDF attachment translation.
+- Keep the controller/RESPRSN UUID distinct from the signer certificate serial,
+  and keep registration separate from Order, enrollment, profile opening and
+  later author/attester selection.
+
 ## 2.9.12 - 2026-09-10
 
 - Make `Organization.owner.identifier.value` the stable principal-controller
