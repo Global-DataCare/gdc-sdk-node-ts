@@ -1,7 +1,12 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
+import {
+  HealthcareActorRoleCodes,
+  HL7_CODING_SYSTEM_V3_ROLE_CODE,
+  extractPrimaryClaims,
+  readRelatedPersonListRecords,
+} from 'gdc-common-utils-ts';
 import type { DataspaceSector } from 'gdc-common-utils-ts/constants';
-import { extractPrimaryClaims } from 'gdc-common-utils-ts';
 import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
 import { resolvePollOptionsFromSeconds } from './poll-options.js';
 
@@ -34,6 +39,11 @@ export type IndividualOrganizationConfirmOrderInput = {
  */
 export type IndividualOrganizationOrderResult = SubmitAndPollResult & Readonly<{
   activationCode: string;
+  /**
+   * Governed RelatedPerson identifier automatically materialized by GW for
+   * the principal Organization owner/controller.
+   */
+  controllerAssignmentIdentifier: string;
 }>;
 
 type ConfirmIndividualOrganizationOrderDeps = {
@@ -105,7 +115,13 @@ export async function confirmIndividualOrganizationOrderWithDeps(
   if (!activationCode) {
     throw new Error('confirmIndividualOrganizationOrder failed: missing controller activation code in GW Order response.');
   }
-  return { ...order, activationCode };
+  const controllerAssignmentIdentifier = readIndividualOrganizationControllerAssignmentIdentifier(
+    order.poll.body,
+  );
+  if (!controllerAssignmentIdentifier) {
+    throw new Error('confirmIndividualOrganizationOrder failed: missing automatic controller RESPRSN assignment in GW Order response.');
+  }
+  return { ...order, activationCode, controllerAssignmentIdentifier };
 }
 
 /**
@@ -116,6 +132,23 @@ export async function confirmIndividualOrganizationOrderWithDeps(
 export function readIndividualOrganizationActivationCode(responseBody: unknown): string | undefined {
   const claims = extractPrimaryClaims(responseBody);
   return String(claims['org.schema.IndividualProduct.serialNumber'] || '').trim() || undefined;
+}
+
+/**
+ * Reads the principal owner/controller assignment that GW creates during the
+ * same Order transition as the individual controller licence. This is a
+ * projection from the returned RelatedPerson `resource.meta.claims`; it is not
+ * an Order claim and callers must not pre-create or search for it.
+ */
+export function readIndividualOrganizationControllerAssignmentIdentifier(
+  responseBody: unknown,
+): string | undefined {
+  const expectedRelationship = `${HL7_CODING_SYSTEM_V3_ROLE_CODE}|${HealthcareActorRoleCodes.Controller}`;
+  return readRelatedPersonListRecords(responseBody)
+    .find((record) => record.identifier
+      && record.relationship === expectedRelationship
+      && record.active !== 'false')
+    ?.identifier;
 }
 
 function createRuntimeUuid(): string {

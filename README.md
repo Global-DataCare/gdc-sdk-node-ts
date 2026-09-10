@@ -686,8 +686,8 @@ modules below.
   - types: `IndividualOrganizationBootstrapInput`, `OfferPreview`, `IndividualOrganizationStartResult`
   - function: `registerIndividualOrganizationWithDeps(...)`
 - [`src/individual-onboarding.ts`](src/individual-onboarding.ts)
-  - types: `RouteContext`, `IndividualOrganizationConfirmOrderInput`
-  - function: `confirmIndividualOrganizationOrderWithDeps(...)`
+  - types: `RouteContext`, `IndividualOrganizationConfirmOrderInput`, `IndividualOrganizationOrderResult`
+  - functions: `confirmIndividualOrganizationOrderWithDeps(...)`, `readIndividualOrganizationControllerAssignmentIdentifier(...)`
 - [`src/device-activation.ts`](src/device-activation.ts)
   - types: `EmployeeDeviceActivationInput`, `EmployeeDeviceActivationRequestInput`, `EmployeeDeviceActivationResult`
   - functions: `activateEmployeeDeviceWithActivationCodeWithDeps(...)`, `activateEmployeeDeviceWithActivationRequestWithDeps(...)`

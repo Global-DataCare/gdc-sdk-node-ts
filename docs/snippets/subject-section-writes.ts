@@ -9,13 +9,10 @@ import {
   SecureIdTypesIndividual,
   buildIndividualMemberDidWebFromPrivateIdentifiers,
   buildOrganizationAuthorizationUrnCds,
-  readRelatedPersonListRecords,
   type OrganizationAuthorizationUrnCdsInput,
-  type RelatedPersonListSelection,
 } from 'gdc-common-utils-ts';
 import {
   buildProfileAttester,
-  buildRelatedPersonProfileAttester,
   readEmployeeProfessionalAssignmentIdentifier,
   type IndividualControllerSdk,
   type OrganizationControllerSdk,
@@ -36,10 +33,6 @@ type IndividualControllerEnrollmentInput = Readonly<{
   profileSessionManager: ServerProfileSessionManager;
   tenantContext: RouteContext;
   registration: Parameters<IndividualControllerSdk['registerIndividualOrganization']>[0];
-  /** Exact body returned by the existing RelatedPerson/_search contact/member query. */
-  relatedPersonSearchResponseBody: unknown;
-  /** Server-side selection using a verified name, telecom, identifier, or patient. */
-  relatedPersonSelection: RelatedPersonListSelection;
   verifiedControllerEmail: string;
   ownerId: string;
   profileId: string;
@@ -52,8 +45,9 @@ type IndividualControllerEnrollmentInput = Readonly<{
 
 /**
  * Registers and unlocks an individual-controller profile without inventing
- * person or relationship identifiers. The RelatedPerson comes from the same
- * real contact/member search already used by telephone assistants.
+ * person or relationship identifiers. GW derives the principal controller
+ * from Organization.owner, issues its RESPRSN licence and returns the
+ * automatically materialized RelatedPerson assignment in the Order result.
  */
 export async function enrollAndOpenIndividualController(
   input: IndividualControllerEnrollmentInput,
@@ -70,18 +64,10 @@ export async function enrollAndOpenIndividualController(
     offerId: registration.offerId,
   });
 
-  // This validates that the selector matched one actual directory row. The
-  // returned identifier is the RelatedPerson assignment, not the subject.
-  const selectedRelatedPerson = readRelatedPersonListRecords(
-    input.relatedPersonSearchResponseBody,
-  );
-  if (selectedRelatedPerson.length === 0) {
-    throw new Error('RelatedPerson/_search returned no controller/member rows.');
-  }
-  const attester = buildRelatedPersonProfileAttester(
-    input.relatedPersonSearchResponseBody,
-    input.relatedPersonSelection,
-  );
+  const attester = buildProfileAttester({
+    assignmentIdentifier: order.controllerAssignmentIdentifier,
+    mode: CompositionAttesterModes.Personal,
+  });
 
   const actorDid = buildIndividualMemberDidWebFromPrivateIdentifiers({
     providerDidWeb: registration.identity.providerDidWeb,
