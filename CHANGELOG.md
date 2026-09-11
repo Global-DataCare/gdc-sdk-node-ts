@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Require the standalone individual profile and controller-to-professional live
+  journeys to enroll the canonical member DID returned by registration before
+  clinical, consent or lifecycle work, and target only the returned subject DID.
+- Default the clean full-cycle gate to GW VET with `connect-ica-ts`; paired
+  explicit GW/ICA overrides remain available for later CORE/product promotion.
+- Resolve the live route, selected GW ICA route and Connect ICA supported
+  jurisdictions from the same explicit jurisdiction, preventing a product
+  environment file from silently changing only one side of the E2E boundary.
 - Expose the authenticated owner-scoped individual Organization directory,
   including each returned `resourceId`, alternate name and lifecycle claims.
   This permits operators to review a local label prefix and then call the

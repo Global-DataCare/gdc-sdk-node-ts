@@ -57,3 +57,58 @@ test('individual lifecycle enrolls its verified owner before destructive cleanup
     'Destructive lifecycle calls must retain the verified owner-contact bearer.',
   );
 });
+
+test('standalone individual live journeys enroll the registered member before protected work', async () => {
+  for (const file of [
+    'live-profile-runtime-individual.e2e.test.mjs',
+    'live-dialogue-consent-professional-access.e2e.test.mjs',
+  ]) {
+    const source = await readFile(new URL(file, import.meta.url), 'utf8');
+    const enrollment = source.indexOf('.enrollSelfIndividualController({');
+    const ingestion = source.indexOf('ingestCommunicationAndUpdateIndex(');
+
+    assert.ok(enrollment >= 0, `${file} must perform real self-controller DCR enrollment.`);
+    assert.ok(ingestion > enrollment, `${file} must enroll before protected clinical ingestion.`);
+    assert.match(
+      source,
+      /registeredIdentity = individualStart\.identity/,
+      `${file} must consume the identity returned by its real registration.`,
+    );
+    assert.match(
+      source,
+      /actorDid:\s*registeredIdentity\.controllerActorDid/,
+      `${file} must authenticate protected calls as the registered member DID.`,
+    );
+    assert.match(
+      source,
+      /subject(?:Did)?:\s*registeredIdentity\.subjectDid/,
+      `${file} must target the exact registered subject DID.`,
+    );
+  }
+});
+
+test('clean full-cycle defaults to GW VET and connect ICA while preserving explicit overrides', async () => {
+  const runner = await readFile(
+    new URL('../scripts/run-live-101-full-cycle-clean.sh', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(runner, /GW_DIR="\$\{GW_DIR_OVERRIDE:-\$\{WORKSPACE_DIR\}\/custom\/vet-gw-node-ts\}"/);
+  assert.match(runner, /ICA_DIR="\$\{ICA_DIR_OVERRIDE:-\$\{WORKSPACE_DIR\}\/connect-ica-ts\}"/);
+  assert.doesNotMatch(runner, /ICA_DIR=.*dataspace-ica-ts/);
+  assert.match(
+    runner,
+    /ICA_SUPPORTED_JURISDICTIONS_VALUE="\$\{ICA_SUPPORTED_JURISDICTIONS:-\$\{JURISDICTION:-ES\}\}"/,
+    'The ICA process must accept the same route jurisdiction selected by the live journey.',
+  );
+  assert.match(
+    runner,
+    /ICA_SUPPORTED_JURISDICTIONS="\$\{ICA_SUPPORTED_JURISDICTIONS_VALUE\}"/,
+    'The clean runner must pass its resolved jurisdiction policy into connect ICA explicitly.',
+  );
+  assert.match(
+    runner,
+    /GW_ICA_JURISDICTION_VALUE="\$\{GW_ICA_JURISDICTION_OVERRIDE:-\$\{JURISDICTION:-ES\}\}"/,
+    'The selected GW must use the live route jurisdiction unless explicitly overridden.',
+  );
+});

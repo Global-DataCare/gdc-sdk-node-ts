@@ -51,3 +51,35 @@ export function createRuntimeClient({ baseUrl, ctx, bearerToken, requestTimeoutM
     requestTimeoutMs,
   });
 }
+
+export function createLiveServerProfileState() {
+  const profiles = new Map();
+  const sessions = new Map();
+  return {
+    store: {
+      async listProfiles(ownerId) {
+        return [...profiles.values()].filter((profile) => profile.ownerId === ownerId);
+      },
+      async getProfile(profileId) { return profiles.get(profileId); },
+      async putProfile(profile) { profiles.set(profile.profileId, profile); },
+      async getSession(sessionId) { return sessions.get(sessionId); },
+      async putSession(session) { sessions.set(session.sessionId, session); },
+      async deleteSession(sessionId) { sessions.delete(sessionId); },
+      async deleteSessionsForProfile(profileId) {
+        for (const [sessionId, session] of sessions) {
+          if (session.profileId === profileId) sessions.delete(sessionId);
+        }
+      },
+    },
+    sealer: {
+      async seal(cleartext, aad) {
+        return Buffer.from(JSON.stringify({ aad, cleartext }), 'utf8').toString('base64url');
+      },
+      async unseal(ciphertext, aad) {
+        const decoded = JSON.parse(Buffer.from(ciphertext, 'base64url').toString('utf8'));
+        if (decoded.aad !== aad) throw new Error('Live profile-state AAD mismatch.');
+        return decoded.cleartext;
+      },
+    },
+  };
+}
