@@ -88,7 +88,7 @@ test('live verification keeps the canonical official identifier separate from th
   assert.match(source, /'org\.schema\.Organization\.taxID': officialOrganizationIdentifier/);
 });
 
-test('each destructive live journey owns a distinct individual identifier', () => {
+test('each live journey keeps its subject identity boundary explicit', () => {
   const source = readFileSync(
     new URL('./live-gw-node-runtime.e2e.test.mjs', import.meta.url),
     'utf8',
@@ -96,9 +96,9 @@ test('each destructive live journey owns a distinct individual identifier', () =
 
   assert.match(source, /suiteProfessionalSubjectDid/);
   assert.match(source, /suiteProfileSubjectDid/);
-  assert.match(source, /suiteLifecycleSubjectDid/);
   assert.match(source, /const subjectDid = suiteProfileSubjectDid/);
-  assert.match(source, /const subjectDid = suiteLifecycleSubjectDid/);
+  assert.match(source, /const subjectDid = registeredIdentity\.subjectDid/);
+  assert.doesNotMatch(source, /const subjectDid = suiteLifecycleSubjectDid/);
 });
 
 test('live wrappers never dirty a selected GW worktree by regenerating Swagger', () => {

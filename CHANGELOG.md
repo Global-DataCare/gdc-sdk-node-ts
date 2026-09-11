@@ -13,9 +13,10 @@
 - Let the clean live-product wrapper load an explicit ICA environment and
   override the selected GW ICA jurisdiction, allowing the same neutral SDK
   gate to exercise isolated product stacks without embedding product policy.
-- Complete real self-controller DCR enrollment in the profile-runtime live
-  journey and retain its verified owner-contact token for lifecycle cleanup;
-  cleanup now targets the exact subject DID returned by registration.
+- Complete real self-controller DCR enrollment in the profile-runtime and
+  individual-lifecycle live journeys and retain the verified owner-contact
+  token for cleanup; cleanup now targets the exact subject DID returned by
+  registration.
 
 ## 2.9.13 - 2026-09-10
 

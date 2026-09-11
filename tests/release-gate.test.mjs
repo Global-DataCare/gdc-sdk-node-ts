@@ -32,3 +32,28 @@ test('profile-runtime lifecycle enrolls its verified controller before protected
     'Lifecycle cleanup must retain the same verified owner-contact bearer used for enrollment.',
   );
 });
+
+test('individual lifecycle enrolls its verified owner before destructive cleanup', async () => {
+  const liveSuite = await readFile(
+    new URL('./live-gw-node-runtime.e2e.test.mjs', import.meta.url),
+    'utf8',
+  );
+  const lifecycleStart = liveSuite.indexOf('async function runLiveIndividualLifecycleSuite()');
+  const lifecycleEnd = liveSuite.indexOf('async function runLiveProfileRuntimeIndividualSuite()', lifecycleStart);
+  const lifecycleSuite = liveSuite.slice(lifecycleStart, lifecycleEnd);
+  const enrollment = lifecycleSuite.indexOf('.enrollSelfIndividualController({');
+  const disable = lifecycleSuite.indexOf("profiler.run('individual-disable'");
+
+  assert.ok(enrollment >= 0, 'The individual lifecycle must execute real self-controller DCR enrollment.');
+  assert.ok(disable > enrollment, 'Destructive individual cleanup must run only after successful enrollment.');
+  assert.match(
+    lifecycleSuite,
+    /const subjectDid = registeredIdentity\.subjectDid/,
+    'The lifecycle must use the subject DID returned by its real registration.',
+  );
+  assert.match(
+    lifecycleSuite,
+    /bearerToken:\s*individualControllerIdToken/,
+    'Destructive lifecycle calls must retain the verified owner-contact bearer.',
+  );
+});

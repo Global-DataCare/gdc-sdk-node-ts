@@ -296,10 +296,6 @@ const suiteProfileSubjectDid = env('PROFILE_SUBJECT_DID', buildIndividualDidWeb(
   providerDidWeb: EXAMPLE_HOSTED_PROVIDER_DID,
   individualId: `${defaultSuiteSubjectId}profile`,
 }));
-const suiteLifecycleSubjectDid = env('LIFECYCLE_SUBJECT_DID', buildIndividualDidWeb({
-  providerDidWeb: EXAMPLE_HOSTED_PROVIDER_DID,
-  individualId: `${defaultSuiteSubjectId}lifecycle`,
-}));
 const suiteHostIdentifierValue = env('HOST_ID_VALUE', `host-${runSlug}`);
 /**
  * Host discovery/publication coverage scope.
@@ -1506,7 +1502,6 @@ async function runLiveIndividualLifecycleSuite() {
     'INDIVIDUAL_CONTROLLER_EMAIL',
     `controller+${runSlug}@example.com`,
   );
-  const subjectDid = suiteLifecycleSubjectDid;
   const individualStart = await profiler.run('individual-start', () => individualControllerSession.asIndividualController().registerIndividualOrganization({
     tenantId: tenantRouteId,
     jurisdiction,
@@ -1548,6 +1543,63 @@ async function runLiveIndividualLifecycleSuite() {
     assert.ok(invoiceSummary.pdfDocumentId || projectionIds.pdfDocumentId, 'Individual lifecycle suite must return a PDF invoice projection.');
     assert.ok(invoiceSummary.structuredDocumentId || projectionIds.structuredDocumentId, 'Individual lifecycle suite must return a structured invoice projection.');
   }
+
+  const registeredIdentity = individualStart.identity;
+  assert.ok(
+    registeredIdentity?.controllerActorDid,
+    'Individual lifecycle registration must expose the canonical licensed controller member DID.',
+  );
+  const subjectDid = registeredIdentity.subjectDid;
+  const individualControllerIdToken = buildUnsignedJwt({
+    iss: registeredIdentity.controllerActorDid,
+    sub: registeredIdentity.controllerActorDid,
+    tenant_id: tenantId,
+    email: individualControllerEmail,
+    email_verified: true,
+  });
+  const profileSessions = new ServerProfileSessionManager({
+    ...createLiveServerProfileState(),
+    gatewayBaseUrl: baseUrl,
+    resolveRecipientJwk: (recipientDid) => resolveDidWebKeyAgreementJwk(recipientDid, {
+      didDocumentUrl: `${baseUrl}/${tenantRouteId}/cds-${jurisdiction}/v1/${sector}/.well-known/did.json`,
+    }),
+    profileProtection: { cost: 1_024 },
+  });
+  const enrolledControllerProfile = await profiler.run(
+    'individual-controller-enroll-dcr',
+    () => profileSessions.enrollSelfIndividualController({
+      ownerId: individualControllerEmail,
+      profileId: individualControllerEmail,
+      registration: individualStart,
+      order: individualOrder,
+      routeContext: ctx,
+      pin: EXAMPLE_PROFILE_LOCAL_PIN_PASSWORD_BACKEND,
+      idToken: individualControllerIdToken,
+      redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
+      clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
+    }),
+  );
+  assert.equal(enrolledControllerProfile.actorDid, registeredIdentity.controllerActorDid);
+  assert.equal(enrolledControllerProfile.profileDid, registeredIdentity.controllerActorDid);
+  assert.deepEqual(enrolledControllerProfile.allowedSubjectDids, [subjectDid]);
+
+  const enrolledControllerClient = createRuntimeClient({
+    baseUrl,
+    ctx,
+    bearerToken: individualControllerIdToken,
+    requestTimeoutMs: LOCAL_LIVE_REQUEST_TIMEOUT_MS,
+  });
+  const enrolledIndividualControllerSession = new NodeActorSession(
+    {
+      actorKind: ActorKinds.IndividualController,
+      actorDid: registeredIdentity.controllerActorDid,
+      capabilities: [
+        ActorCapabilities.IndividualDisable,
+        ActorCapabilities.IndividualPurge,
+      ],
+    },
+    enrolledControllerClient,
+  );
 
   const tenantDspaceBeforeDisable = await profiler.run('tenant-dspace-before-disable', () => fetchJsonOrText(baseUrl, buildTenantDspaceVersionPath(ctx), bearerToken));
   debug.record('individual-suite-tenant-dspace-before-disable', tenantDspaceBeforeDisable);
@@ -1819,7 +1871,7 @@ async function runLiveIndividualLifecycleSuite() {
     .setIdentifier(subjectDid)
     .setAlternateName(individualAltName)
     .setOwnerEmail(individualControllerEmail);
-  const disableIndividual = await profiler.run('individual-disable', () => individualControllerSession.asIndividualController().disableIndividualOrganization(
+  const disableIndividual = await profiler.run('individual-disable', () => enrolledIndividualControllerSession.asIndividualController().disableIndividualOrganization(
     ctx,
     {
       individualEditor: individualLifecycleEditor,
@@ -1829,7 +1881,7 @@ async function runLiveIndividualLifecycleSuite() {
   debug.record('individual-suite-disable', { response: disableIndividual });
   assertSuccessfulTerminalBundle(disableIndividual, 'Individual lifecycle suite must disable the hosted individual organization for cleanup.');
 
-  const purgeIndividual = await profiler.run('individual-purge', () => individualControllerSession.asIndividualController().purgeIndividualOrganization(
+  const purgeIndividual = await profiler.run('individual-purge', () => enrolledIndividualControllerSession.asIndividualController().purgeIndividualOrganization(
     ctx,
     {
       individualEditor: individualLifecycleEditor,
