@@ -27,6 +27,8 @@ import {
   EXAMPLE_EMPLOYEE_ACTIVATION_CODE,
   EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
   EXAMPLE_GENERIC_SUBJECT_DID,
+  EXAMPLE_HOSTED_INDIVIDUAL_CONTROLLER_DID,
+  EXAMPLE_HOSTED_INDIVIDUAL_DID,
   EXAMPLE_PROFILE_ID,
   EXAMPLE_PROFILE_PIN,
   EXAMPLE_PROFILE_PROVIDER_DID,
@@ -87,7 +89,8 @@ test('self individual enrollment is SDK-owned and exposes the document attester 
     profileId: EXAMPLE_PROFILE_ID,
     registration: {
       identity: {
-        subjectDid: EXAMPLE_GENERIC_SUBJECT_DID,
+        subjectDid: EXAMPLE_HOSTED_INDIVIDUAL_DID,
+        controllerActorDid: EXAMPLE_HOSTED_INDIVIDUAL_CONTROLLER_DID,
         providerDidWeb: EXAMPLE_PROFILE_PROVIDER_DID,
       },
     },
@@ -104,6 +107,9 @@ test('self individual enrollment is SDK-owned and exposes the document attester 
 
   assert.equal(lowLevelEnrollment.actorKind, ActorKinds.IndividualController);
   assert.equal(lowLevelEnrollment.actorMode, 'self');
+  assert.equal(lowLevelEnrollment.actorDid, EXAMPLE_HOSTED_INDIVIDUAL_CONTROLLER_DID);
+  assert.equal(lowLevelEnrollment.profileDid, EXAMPLE_HOSTED_INDIVIDUAL_CONTROLLER_DID);
+  assert.deepEqual(lowLevelEnrollment.allowedSubjectDids, [EXAMPLE_HOSTED_INDIVIDUAL_DID]);
   assert.equal(lowLevelEnrollment.controllerRelatedPersonIdentifier, ownerIdentifier);
   assert.equal('attester' in lowLevelEnrollment, false);
 

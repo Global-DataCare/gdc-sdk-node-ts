@@ -1,6 +1,7 @@
 // Flow contract: registration projects the SHA3-384 hosted individual DID and exposes the same member builder that GW validates during controller DCR.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { SecureIdTypesIndividual } from 'gdc-common-utils-ts';
 import {
   EXAMPLE_API_ORGANIZATION_DID,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT,
@@ -9,6 +10,10 @@ import {
   EXAMPLE_KYC_CONTROLLER_UUID,
   EXAMPLE_KYC_CONTROLLER_IDENTIFIER,
   EXAMPLE_KYC_CONTROLLER_VERIFIED_AT,
+  EXAMPLE_EMAIL_CONTROLLER_INDIVIDUAL,
+  EXAMPLE_INDIVIDUAL_CONTROLLER_ROLE_TYPE,
+  EXAMPLE_INDIVIDUAL_CONTROLLER_ROLE_VALUE,
+  EXAMPLE_PRIVATE_INDIVIDUAL_UUID,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
   EXAMPLE_SUBJECT_DID,
   cloneExample,
@@ -132,6 +137,15 @@ test('registerIndividualOrganizationWithDeps builds canonical registration paylo
     secureIdValueIndividual: 'zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee',
     providerDidWeb: EXAMPLE_API_ORGANIZATION_DID,
     subjectDid: `${EXAMPLE_API_ORGANIZATION_DID}:individual:UUID:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee`,
+    controllerActorDid: buildIndividualMemberDidWebFromPrivateIdentifiers({
+      providerDidWeb: EXAMPLE_API_ORGANIZATION_DID,
+      secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
+      privateIdValueIndividual: EXAMPLE_PRIVATE_INDIVIDUAL_UUID,
+      secureIdTypeMember: SecureIdTypesIndividual.Email,
+      privateIdValueMember: EXAMPLE_EMAIL_CONTROLLER_INDIVIDUAL,
+      roleType: EXAMPLE_INDIVIDUAL_CONTROLLER_ROLE_TYPE,
+      roleValue: EXAMPLE_INDIVIDUAL_CONTROLLER_ROLE_VALUE,
+    }),
   });
 });
 

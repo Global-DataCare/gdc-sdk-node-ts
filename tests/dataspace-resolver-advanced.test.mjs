@@ -1,3 +1,4 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -15,6 +16,7 @@ import {
   EXAMPLE_SECONDARY_EU_COUNTRY,
   EXAMPLE_SECONDARY_PROVIDER_ALTERNATE_NAME,
   EXAMPLE_SECONDARY_TENANT_SERVICE_DID,
+  EXAMPLE_SERVICE_PUBLIC_DID,
   EXAMPLE_TENANT_IDENTIFIER,
   EXAMPLE_TENANT_SERVICE_DID,
 } from 'gdc-common-utils-ts/examples/shared';
@@ -26,7 +28,7 @@ import {
 } from 'gdc-common-utils-ts/utils/dataspace-discovery';
 import { buildDspaceVersionMetadata } from 'gdc-common-utils-ts/utils/dataspace-protocol';
 import { buildOrganizationDidWeb, getBaseUrlFromDidWeb } from 'gdc-common-utils-ts/utils/did';
-import { HttpDataspaceResolver } from '../dist/index.js';
+import { HttpDataspaceResolver, resolveOperationalActorDid } from '../dist/index.js';
 
 const EXAMPLE_EU_HOST_DISCOVERY_URL = `https://host.example.org/host/cds-${EXAMPLE_COVERAGE_SCOPE_EU}/v1/${HostNetworkTypes.Test}/.well-known/dspace-version`;
 const EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL = `https://host.example.org/host/cds-${EXAMPLE_JURISDICTION}/v1/${HostNetworkTypes.Test}/dsp/catalog/dcat.json`;
@@ -488,10 +490,43 @@ test('101: falls back to a configured default catalog when HTTP fails and cache 
   assert.equal(transport.sources.get(EXAMPLE_EU_HOST_CATALOG_ARTIFACT_URL), DiscoveryCatalogSource.Default);
 });
 
-test.todo(
-  'TODO: hosted tenant DID Documents should keep the hosted/internal DID as primary `id` and publish external portal or vanity identities in `alsoKnownAs`.',
-);
+test('hosted tenant DID Documents retain the operational DID as id and bind the public organization DID through alsoKnownAs', async () => {
+  const publicOrganizationDid = buildOrganizationDidWeb({
+    hostDidWeb: EXAMPLE_SERVICE_PUBLIC_DID,
+    tenantId: EXAMPLE_TENANT_IDENTIFIER,
+    jurisdiction: EXAMPLE_JURISDICTION,
+    version: 'v1',
+    sector: DataspaceSectors.AnimalCare,
+  });
+  let requestedDid;
 
-test.todo(
-  'TODO: portal integrations should prove they can map an external organization DID such as did:web:<portal>:<sector>:organization:taxid:<VAT> to the hosted/internal DID published by the hosting operator catalog.',
-);
+  const operationalDid = await resolveOperationalActorDid(publicOrganizationDid, async (did) => {
+    requestedDid = did;
+    return {
+      id: EXAMPLE_PRIMARY_PROVIDER_DID,
+      alsoKnownAs: [publicOrganizationDid],
+    };
+  });
+
+  assert.equal(requestedDid, publicOrganizationDid);
+  assert.equal(operationalDid, EXAMPLE_PRIMARY_PROVIDER_DID);
+  assert.notEqual(operationalDid, publicOrganizationDid);
+});
+
+test('public organization DID mapping fails closed when the hosted DID Document omits that alias', async () => {
+  const publicOrganizationDid = buildOrganizationDidWeb({
+    hostDidWeb: EXAMPLE_SERVICE_PUBLIC_DID,
+    tenantId: EXAMPLE_TENANT_IDENTIFIER,
+    jurisdiction: EXAMPLE_JURISDICTION,
+    version: 'v1',
+    sector: DataspaceSectors.AnimalCare,
+  });
+
+  await assert.rejects(
+    () => resolveOperationalActorDid(publicOrganizationDid, async () => ({
+      id: EXAMPLE_PRIMARY_PROVIDER_DID,
+      alsoKnownAs: [],
+    })),
+    /does not bind the requested public actor alias/,
+  );
+});

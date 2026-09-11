@@ -76,3 +76,12 @@ test('live E2E files cannot accept asynchronous success from HTTP status alone',
     );
   }
 });
+
+test('live success assertions never whitelist an HTTP conflict as successful', () => {
+  const source = readFileSync(new URL('live-gw-node-runtime.e2e.test.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(
+    source,
+    /\['200', '201', '409'\]\.includes/,
+    'A successful live journey must not accept HTTP 409 as a terminal success.',
+  );
+});

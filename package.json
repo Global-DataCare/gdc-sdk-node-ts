@@ -15,7 +15,7 @@
     "prepare": "npm run build",
     "type-check": "tsc -p tsconfig.json --noEmit && tsc -p docs/snippets/tsconfig.json",
     "check:product-neutrality": "node scripts/check-product-neutrality.mjs",
-    "prepublishOnly": "npm run check:product-neutrality && npm run type-check && npm test",
+    "prepublishOnly": "npm run check:product-neutrality && npm run type-check && npm test && npm run test:e2e:live-full-cycle",
     "local:close": "PORTS=3000 bash ./scripts/local-close.sh",
     "docker:close": "PORTS=8000 bash ./scripts/local-close.sh",
     "test": "npm run build && node --test tests/*.test.mjs",

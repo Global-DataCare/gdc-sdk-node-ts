@@ -9,6 +9,9 @@ import {
   ClaimsServiceSchemaorg,
 } from 'gdc-common-utils-ts/constants';
 import {
+  HealthcareActorRoleCodes,
+  HL7_CODING_SYSTEM_V3_ROLE_CODE,
+  buildIndividualMemberDidWebFromPrivateIdentifiers,
   buildIndividualDidWeb,
   buildSecureIdValueIndividual,
   extractPrimaryClaims,
@@ -132,6 +135,12 @@ export type IndividualOrganizationBootstrapIdentity = {
   providerDidWeb: string;
   /** Canonical child DID built beneath the exact provider DID returned by GW. */
   subjectDid: string;
+  /**
+   * Canonical principal-controller member DID accepted by individual DCR.
+   * Optional only for compatibility with older registration receipts that did
+   * not expose the controller contact needed to derive it.
+   */
+  controllerActorDid?: string;
 };
 
 type RegisterIndividualOrganizationDeps = {
@@ -192,8 +201,18 @@ export async function registerIndividualOrganizationWithDeps(
   if (!onboardingDraft && !alternateName) {
     throw new Error('registerIndividualOrganization requires alternateName.');
   }
-  const controllerEmail = String(deps.input.controllerEmail || '').trim();
-  const controllerTelephone = String(deps.input.controllerTelephone || '').trim();
+  const controllerEmail = String(
+    deps.input.controllerEmail
+    || onboardingDraft?.formFields.controllerEmail
+    || onboardingDraft?.claims?.[ClaimsOrganizationSchemaorg.ownerEmail]
+    || '',
+  ).trim();
+  const controllerTelephone = String(
+    deps.input.controllerTelephone
+    || onboardingDraft?.formFields.controllerPhone
+    || onboardingDraft?.claims?.[ClaimsOrganizationSchemaorg.ownerTelephone]
+    || '',
+  ).trim();
   if (!onboardingDraft && !controllerEmail && !controllerTelephone) {
     throw new Error('registerIndividualOrganization requires controllerEmail, or controllerTelephone only for compatibility/extension flows.');
   }
@@ -286,7 +305,10 @@ export async function registerIndividualOrganizationWithDeps(
     offerPreview: deps.getOfferPreviewFromResponse(registration),
     registrationStatus: registrationSummary?.status,
     orderConfirmationRequired: registrationSummary?.status !== 'already_exists',
-    identity: readIndividualOrganizationBootstrapIdentity(registration.poll.body),
+    identity: readIndividualOrganizationBootstrapIdentity(registration.poll.body, {
+      controllerEmail,
+      controllerTelephone,
+    }),
   };
 }
 
@@ -329,6 +351,10 @@ export async function startIndividualOrganizationWithDeps(
  */
 export function readIndividualOrganizationBootstrapIdentity(
   responseBody: unknown,
+  controller?: Readonly<{
+    controllerEmail?: string;
+    controllerTelephone?: string;
+  }>,
 ): IndividualOrganizationBootstrapIdentity | undefined {
   const root = asRecord(responseBody);
   const body = asRecord(root?.body) || root;
@@ -350,16 +376,38 @@ export function readIndividualOrganizationBootstrapIdentity(
     return undefined;
   }
 
+  const subjectDid = buildIndividualDidWeb({
+    providerDidWeb,
+    secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
+    secureIdValueIndividual,
+  });
+  const controllerEmail = String(
+    controller?.controllerEmail || claims[ClaimsOrganizationSchemaorg.ownerEmail] || '',
+  ).trim();
+  const controllerTelephone = String(
+    controller?.controllerTelephone || claims[ClaimsOrganizationSchemaorg.ownerTelephone] || '',
+  ).trim();
+  const controllerActorDid = controllerEmail || controllerTelephone
+    ? buildIndividualMemberDidWebFromPrivateIdentifiers({
+        providerDidWeb,
+        secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
+        privateIdValueIndividual: resourceId,
+        secureIdTypeMember: controllerEmail
+          ? SecureIdTypesIndividual.Email
+          : SecureIdTypesIndividual.Phone,
+        privateIdValueMember: controllerEmail || controllerTelephone,
+        roleType: HL7_CODING_SYSTEM_V3_ROLE_CODE,
+        roleValue: HealthcareActorRoleCodes.Controller,
+      })
+    : undefined;
+
   return {
     resourceId,
     secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
     secureIdValueIndividual,
     providerDidWeb,
-    subjectDid: buildIndividualDidWeb({
-      providerDidWeb,
-      secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
-      secureIdValueIndividual,
-    }),
+    subjectDid,
+    ...(controllerActorDid ? { controllerActorDid } : {}),
   };
 }
 

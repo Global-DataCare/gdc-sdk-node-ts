@@ -598,13 +598,17 @@ export class ServerProfileSessionManager {
     if (!identity) {
       throw new Error('Self individual-controller enrollment requires the registered individual identity.');
     }
+    const controllerActorDid = String(identity.controllerActorDid || '').trim();
+    if (!controllerActorDid) {
+      throw new Error('Self individual-controller enrollment requires the registered controller actor DID.');
+    }
     return this.enroll({
       ownerId: input.ownerId,
       profileId: input.profileId,
       actorKind: ActorKinds.IndividualController,
       actorMode: 'self',
-      actorDid: identity.subjectDid,
-      profileDid: identity.subjectDid,
+      actorDid: controllerActorDid,
+      profileDid: controllerActorDid,
       providerDid: identity.providerDidWeb,
       routeContext: input.routeContext,
       allowedSubjectDids: [identity.subjectDid],
@@ -693,7 +697,14 @@ export class ServerProfileSessionManager {
     const activation = await client.activateProfileDeviceWithActivationRequest(activationRequest);
     const dcrBody = terminalBody(activation.dcr.poll.body);
     const clientId = findText(dcrBody, ['client_id', 'clientId']);
-    if (!clientId) throw new Error('GW DCR did not return client_id.');
+    if (!clientId) {
+      const diagnostics = findText(dcrBody, ['diagnostics', 'details', 'message']);
+      throw new Error(
+        diagnostics
+          ? `GW DCR failed: ${diagnostics}`
+          : 'GW DCR did not return client_id.',
+      );
+    }
     const deviceDid = findText(dcrBody, ['device_did', 'deviceDid', 'did']) || clientId;
     const now = this.now();
     const managedVpToken = input.vpToken || (input.professionalProof

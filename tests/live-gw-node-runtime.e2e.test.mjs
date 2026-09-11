@@ -650,8 +650,8 @@ async function maybeActivateOrganizationFromLegacyIcaProof({
     controller: EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller,
   });
   assert.ok(
-    ['200', '201', '409'].includes(getFirstBatchEntryStatus(activation.poll.body, 'Legacy host activation')),
-    'Legacy host onboarding facade must return an inner activation response.status of 200/201/409.',
+    ['200', '201'].includes(getFirstBatchEntryStatus(activation.poll.body, 'Legacy host activation')),
+    'Legacy host onboarding facade must return an inner activation response.status of 200/201.',
   );
   return activation;
 }

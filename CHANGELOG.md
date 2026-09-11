@@ -2,8 +2,32 @@
 
 ## Unreleased
 
+- Expose the authenticated owner-scoped individual Organization directory,
+  including each returned `resourceId`, alternate name and lifecycle claims.
+  This permits operators to review a local label prefix and then call the
+  existing disable-before-purge lifecycle without an unscoped server scan.
+- Prove hosted operational DID alias binding with executable resolver tests;
+  the release suite no longer leaves those security contracts as TODO tests.
+- Reject HTTP 409 from live activation success assertions, so an expected
+  conflict cannot make a nominal end-to-end journey appear successful.
+- Let the clean live-product wrapper load an explicit ICA environment and
+  override the selected GW ICA jurisdiction, allowing the same neutral SDK
+  gate to exercise isolated product stacks without embedding product policy.
+
 ## 2.9.13 - 2026-09-10
 
+- Fail closed when a live test overrides only GW or only ICA, preventing a
+  product gateway from being tested accidentally against the generic ICA.
+- Derive and return the canonical contact-bound `controllerActorDid` from the
+  exact registered individual UUID and verified controller email/telephone;
+  self-enrollment now sends that member DID as both DCR actor and profile while
+  retaining the individual subject DID as the sole allowed subject.
+- Exercise registration, Order and real encrypted DCR consecutively in the
+  local full-cycle E2E, and type-check the documented common-utils barrel
+  imports for `HealthcareSummarySections`, `SecureIdTypesIndividual` and the
+  individual-member DID builder.
+- Make that no-skip local full-cycle wrapper a mandatory `prepublishOnly` gate
+  so a green mocked unit suite cannot publish the SDK without exercising GW.
 - Let applications pass the high-level individual-onboarding editor draft
   directly to `registerIndividualOrganization(...)`; the SDK owns the GW
   Bundle, KYC boundary and certificate-signed PDF attachment translation.

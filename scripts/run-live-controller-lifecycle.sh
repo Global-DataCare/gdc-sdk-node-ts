@@ -5,6 +5,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SDK_NODE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DEFAULT_WORKSPACE_DIR="$(cd "${SDK_NODE_DIR}/.." && pwd)"
 WORKSPACE_DIR="${GDC_WORKSPACE_DIR:-${DEFAULT_WORKSPACE_DIR}}"
+if { [[ -n "${GW_DIR_OVERRIDE:-}" ]] && [[ -z "${ICA_DIR_OVERRIDE:-}" ]]; } \
+  || { [[ -z "${GW_DIR_OVERRIDE:-}" ]] && [[ -n "${ICA_DIR_OVERRIDE:-}" ]]; }; then
+  echo 'ERROR: GW_DIR_OVERRIDE and ICA_DIR_OVERRIDE must be provided together.' >&2
+  exit 1
+fi
 GW_DIR="${GW_DIR_OVERRIDE:-${WORKSPACE_DIR}/gwtemplate-node-ts}"
 ICA_DIR="${ICA_DIR_OVERRIDE:-${WORKSPACE_DIR}/dataspace-ica-ts}"
 GW_ENV_FILE="${GW_ENV_FILE:-${GW_DIR}/.env.local-demo}"

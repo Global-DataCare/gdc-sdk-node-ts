@@ -11,7 +11,8 @@
  *    organization-controller facade
  * 3. BFF later confirms the legal-organization order returned by `_transaction`
  * 4. organization-controller facade provisions one professional employee
- * 5. individual-controller profile is loaded and boots one individual
+ * 5. the freshly registered individual controller consumes its activation
+ *    code and completes real encrypted DCR enrollment
  * 6. the individual controller ingests clinical data through document
  *    `Bundle` -> `Communication` -> DIDComm/plain
  * 7. the professional requests missing permission as Communication plus draft Consent
@@ -69,6 +70,8 @@ import {
   EXAMPLE_LICENSE_PAYMENT_METHOD_STRIPE,
   EXAMPLE_LIVE_GW_BASE_URL_LOCAL,
   EXAMPLE_PROFILE_APP_TYPE_FAMILY,
+  EXAMPLE_DCR_REDIRECT_URI,
+  EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
   EXAMPLE_PROFILE_KEY_ACCESS_MODE_SERVER,
   EXAMPLE_PROFILE_LOCAL_PIN_PASSWORD_BACKEND,
   EXAMPLE_PROFILE_PROVIDER_DID,
@@ -111,6 +114,7 @@ import {
   createVP,
   createLegalOrganizationOnboardingEditor,
   OrganizationLifecycleEditor,
+  UrnPrefixes,
   readLegalOrganizationVerificationCredentialPairFromResponseBody,
   readLegalOrganizationVerificationTaxIdFromResponseBody,
   readFirstBundleResourceFromResponseBody,
@@ -133,6 +137,8 @@ import {
   OrganizationControllerSdk,
   prepareLoadProfile,
   resolveClinicalCreatorIpsExport,
+  resolveDidWebKeyAgreementJwk,
+  ServerProfileSessionManager,
 } from '../dist/index.js';
 import { extractOfferIdFromResponseBody } from '../dist/order-offer-summary.js';
 import {
@@ -172,13 +178,9 @@ const suiteHostIdentifierValue = env('HOST_ID_VALUE', `live101-host-${runSlug}`)
 const LOCAL_LIVE_POLL_INTERVAL_MS = Math.max(1, Number(env('LIVE_GW_POLL_INTERVAL_MS', '200')));
 const LOCAL_LIVE_POLL_TIMEOUT_MS = Math.max(1000, Number(env('LIVE_GW_POLL_TIMEOUT_MS', '60000')));
 const CONTROLLER_SIGNER_SEED = env('CONTROLLER_SIGNER_SEED', 'organization-controller-seed-001');
-// Immutable identity contained in examples/TEST-A4-Antifraud.pdf. A different
-// signed fixture must provide LIVE_CONTROLLER_ORGANIZATION_TAX_ID explicitly.
-const SIGNED_PDF_ORGANIZATION_TAX_ID = 'VATES-N0377833I';
-const DEFAULT_LIVE_CONTROLLER_ORGANIZATION_TAX_ID = env(
-  'LIVE_CONTROLLER_ORGANIZATION_TAX_ID',
-  SIGNED_PDF_ORGANIZATION_TAX_ID,
-);
+// The wrapper loads both counterparty and verifier identities from the same
+// signed-PDF metadata file so the verifier can never become the tenant.
+const DEFAULT_LIVE_CONTROLLER_ORGANIZATION_TAX_ID = env('LIVE_CONTROLLER_ORGANIZATION_TAX_ID');
 const LIVE_HOST_VERIFICATION_DEFAULT_PDF_PATH = env(
   'LIVE_GW_HOST_VERIFICATION_PDF_PATH',
   path.join(__dirname, '..', '..', 'examples', 'TEST-A4-Antifraud.pdf'),
@@ -239,6 +241,38 @@ function createStepProfiler(debug, scope) {
   };
 }
 
+function createLiveServerProfileState() {
+  const profiles = new Map();
+  const sessions = new Map();
+  return {
+    store: {
+      async listProfiles(ownerId) {
+        return [...profiles.values()].filter((profile) => profile.ownerId === ownerId);
+      },
+      async getProfile(profileId) { return profiles.get(profileId); },
+      async putProfile(profile) { profiles.set(profile.profileId, profile); },
+      async getSession(sessionId) { return sessions.get(sessionId); },
+      async putSession(session) { sessions.set(session.sessionId, session); },
+      async deleteSession(sessionId) { sessions.delete(sessionId); },
+      async deleteSessionsForProfile(profileId) {
+        for (const [sessionId, session] of sessions) {
+          if (session.profileId === profileId) sessions.delete(sessionId);
+        }
+      },
+    },
+    sealer: {
+      async seal(cleartext, aad) {
+        return Buffer.from(JSON.stringify({ aad, cleartext }), 'utf8').toString('base64url');
+      },
+      async unseal(ciphertext, aad) {
+        const decoded = JSON.parse(Buffer.from(ciphertext, 'base64url').toString('utf8'));
+        assert.equal(decoded.aad, aad);
+        return decoded.cleartext;
+      },
+    },
+  };
+}
+
 function signPreparedJwt(prepared, privateJwk, alg) {
   const keyObject = createPrivateKey({ key: privateJwk, format: 'jwk' });
   const digest = alg === 'ES256K' ? 'sha256' : 'sha384';
@@ -293,6 +327,10 @@ async function buildSignedControllerVpToken({
 test('101: LIVE full-cycle backend/BFF runtime flow', {
   skip: !RUN,
 }, async () => {
+  assert.ok(
+    DEFAULT_LIVE_CONTROLLER_ORGANIZATION_TAX_ID,
+    'LIVE_CONTROLLER_ORGANIZATION_TAX_ID must come from the signed-PDF fixture metadata.',
+  );
   const debug = createDebugLogger();
   const profiler = createStepProfiler(debug, 'live-101-full-cycle');
   const baseUrl = env('BASE_URL', EXAMPLE_LIVE_GW_BASE_URL_LOCAL);
@@ -711,7 +749,60 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       assert.ok(invoiceSummary.structuredDocumentId);
     }
 
-    // Step 5: the individual controller ingests clinical data. No professional
+    const registeredIdentity = individualOrganizationRegistration.identity;
+    assert.ok(registeredIdentity?.controllerActorDid, 'Registration must expose the canonical controller member DID required by DCR.');
+    const profileState = createLiveServerProfileState();
+    const profileSessions = new ServerProfileSessionManager({
+      ...profileState,
+      gatewayBaseUrl: baseUrl,
+      resolveRecipientJwk: (recipientDid) => resolveDidWebKeyAgreementJwk(recipientDid, {
+        didDocumentUrl: `${baseUrl}/${suiteTenantRouteId}/cds-${suiteJurisdiction}/v1/${suiteSector}/.well-known/did.json`,
+      }),
+      profileProtection: { cost: 1_024 },
+    });
+    const enrolledControllerProfile = await profiler.run(
+      'individual-controller-enroll-dcr',
+      () => profileSessions.enrollSelfIndividualController({
+        ownerId: individualControllerEmail,
+        profileId: individualControllerEmail,
+        registration: individualOrganizationRegistration,
+        order: individualOrganizationOrder,
+        routeContext: ctx,
+        pin: EXAMPLE_PROFILE_LOCAL_PIN_PASSWORD_BACKEND,
+        idToken: individualControllerIdToken,
+        redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
+        clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
+      }),
+    );
+    assert.equal(enrolledControllerProfile.actorDid, registeredIdentity.controllerActorDid);
+    assert.equal(enrolledControllerProfile.profileDid, registeredIdentity.controllerActorDid);
+    assert.deepEqual(enrolledControllerProfile.allowedSubjectDids, [registeredIdentity.subjectDid]);
+    assert.ok(enrolledControllerProfile.clientId, 'Real GW DCR must return and persist a client id.');
+    const enrolledControllerSession = await profiler.run(
+      'individual-controller-unlock-new-profile',
+      () => profileSessions.unlock({
+        ownerId: individualControllerEmail,
+        profileId: individualControllerEmail,
+        subjectDid: registeredIdentity.subjectDid,
+        scopes: [buildSmartCompositionReadScope({
+          subjectDid: registeredIdentity.subjectDid,
+          sections: consentSection,
+        })],
+        pin: EXAMPLE_PROFILE_LOCAL_PIN_PASSWORD_BACKEND,
+        idToken: individualControllerIdToken,
+      }),
+    );
+    const openedEnrolledController = await profileSessions.openIndividualController({
+      ownerId: individualControllerEmail,
+      sessionId: enrolledControllerSession.sessionId,
+    });
+    assert.equal(openedEnrolledController.profile.clientId, enrolledControllerProfile.clientId);
+    assert.equal(
+      openedEnrolledController.getAttesterUriForDocs(),
+      `${UrnPrefixes.Uuid}${individualOrganizationOrder.controllerRelatedPersonIdentifier}`,
+    );
+
+    // Step 6: the individual controller ingests clinical data. No professional
     // access exists yet, so the following request must remain independent from
     // SMART and must not be made green by pre-granting Consent.
     const observedAt = new Date().toISOString();

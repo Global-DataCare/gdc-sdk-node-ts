@@ -1,3 +1,4 @@
+// Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 /**
  * Complete journey:
  * 1. choose an isolated product GW, ICA and local ports;
@@ -25,6 +26,13 @@ test('live full-cycle wrapper accepts isolated product GW and ICA targets', () =
   assert.match(script, /GW_DIR_OVERRIDE/);
   assert.match(script, /GW_ENV_FILE/);
   assert.match(script, /ICA_DIR_OVERRIDE/);
+  assert.match(script, /ICA_ENV_FILE/);
+  assert.match(script, /GW_DIR_OVERRIDE and ICA_DIR_OVERRIDE must be provided together/);
+  assert.match(script, /LIVE_101_SIGNED_PDF_FIXTURE_ENV/);
+  assert.match(script, /VERIFIERS_VAT_LIST="\$\{VERIFIERS_VAT_LIST\}"/);
+  assert.match(script, /LIVE_CONTROLLER_ORGANIZATION_TAX_ID="\$\{LIVE_CONTROLLER_ORGANIZATION_TAX_ID\}"/);
+  assert.match(script, /GW_ENV_OVERRIDES=\("PORT=\$\{GW_PORT\}"\)/);
+  assert.match(script, /GW_ICA_JURISDICTION_OVERRIDE/);
   assert.match(script, /GW_PORT/);
   assert.match(script, /ICA_PORT/);
   assert.match(script, /PORTS="\$\{GW_PORT\}"/);
@@ -41,6 +49,7 @@ test('live controller wrapper accepts the same isolated service targets', () => 
   assert.match(script, /GDC_WORKSPACE_DIR/);
   assert.match(script, /GW_DIR_OVERRIDE/);
   assert.match(script, /ICA_DIR_OVERRIDE/);
+  assert.match(script, /GW_DIR_OVERRIDE and ICA_DIR_OVERRIDE must be provided together/);
   assert.match(script, /GW_ENV_FILE/);
   assert.match(script, /GW_PORT/);
   assert.match(script, /ICA_PORT/);
@@ -58,6 +67,7 @@ test('live GW wrapper accepts isolated GW and ICA implementations and ports', ()
   assert.match(script, /GDC_WORKSPACE_DIR/);
   assert.match(script, /GW_DIR_OVERRIDE/);
   assert.match(script, /ICA_DIR_OVERRIDE/);
+  assert.match(script, /GW_DIR_OVERRIDE and ICA_DIR_OVERRIDE must be provided together/);
   assert.match(script, /GW_PORT/);
   assert.match(script, /ICA_PORT/);
   assert.match(script, /GW_START_SCRIPT/);
