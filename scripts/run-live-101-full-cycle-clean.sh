@@ -18,7 +18,7 @@ if { [[ -n "${GW_DIR_OVERRIDE:-}" ]] && [[ -z "${ICA_DIR_OVERRIDE:-}" ]]; } \
   echo 'ERROR: GW_DIR_OVERRIDE and ICA_DIR_OVERRIDE must be provided together.' >&2
   exit 1
 fi
-GW_DIR="${GW_DIR_OVERRIDE:-${WORKSPACE_DIR}/custom/vet-gw-node-ts}"
+GW_DIR="${GW_DIR_OVERRIDE:-${WORKSPACE_DIR}/custom/vet-gw-clinic-booking}"
 ICA_DIR="${ICA_DIR_OVERRIDE:-${WORKSPACE_DIR}/connect-ica-ts}"
 ICA_ENV_FILE="${ICA_ENV_FILE:-}"
 GW_ENV_FILE="${GW_ENV_FILE:-${GW_DIR}/.env.local-demo}"

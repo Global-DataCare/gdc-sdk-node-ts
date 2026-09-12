@@ -93,7 +93,7 @@ test('clean full-cycle defaults to GW VET and connect ICA while preserving expli
     'utf8',
   );
 
-  assert.match(runner, /GW_DIR="\$\{GW_DIR_OVERRIDE:-\$\{WORKSPACE_DIR\}\/custom\/vet-gw-node-ts\}"/);
+  assert.match(runner, /GW_DIR="\$\{GW_DIR_OVERRIDE:-\$\{WORKSPACE_DIR\}\/custom\/vet-gw-clinic-booking\}"/);
   assert.match(runner, /ICA_DIR="\$\{ICA_DIR_OVERRIDE:-\$\{WORKSPACE_DIR\}\/connect-ica-ts\}"/);
   assert.doesNotMatch(runner, /ICA_DIR=.*dataspace-ica-ts/);
   assert.match(
