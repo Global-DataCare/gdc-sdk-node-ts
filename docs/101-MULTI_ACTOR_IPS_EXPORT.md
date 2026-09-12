@@ -156,10 +156,15 @@ promoted to author or attester.
 ```ts
 // `externallyAuthoredIpsDocument` is the validated document Bundle received
 // from an organization, EHR or patient portal. Keep its provenance unchanged.
-await individualControllerRuntime.importIpsOrFhirAndUpdateIndex(
+await individualControllerRuntime.updateClinicalSummary(
   individualControllerProfile,
   tenantContext,
-  { compositionPayload: externallyAuthoredIpsDocument, format: 'r4' },
+  {
+    subject: individualDid,
+    sender: individualControllerProfile.session.actorDid,
+    recipient: indexProviderDid,
+    bundle: externallyAuthoredIpsDocument,
+  },
 );
 ```
 

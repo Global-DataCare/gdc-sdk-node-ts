@@ -438,6 +438,10 @@ export type RuntimeClient = {
   bootstrapIndividualOrganization?: (
     input: IndividualOrganizationBootstrapInput,
   ) => Promise<IndividualOrganizationStartResult>;
+  /**
+   * @deprecated Direct Composition compatibility hook. Use the
+   * Communication-backed clinical summary or subject-section hooks.
+   */
   importIpsOrFhirAndUpdateIndex?: (
     ctx: RouteContext,
     input: IpsOrFhirImportInput,

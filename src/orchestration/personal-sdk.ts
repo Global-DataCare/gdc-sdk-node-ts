@@ -74,7 +74,12 @@ export class PersonalSdk {
     );
   }
 
-  /** Imports IPS/FHIR payload and updates document index projections. */
+  /**
+   * Imports IPS/FHIR payload through the direct Composition compatibility path.
+   *
+   * @deprecated Use `updateClinicalSummary(...)` or
+   * `updateSubjectSection(...)`; both use the Communication ingestion flow.
+   */
   public importIpsOrFhirAndUpdateIndex(ctx: RouteContext, input: IpsOrFhirImportInput): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'importIpsOrFhirAndUpdateIndex')(ctx, input);
   }

@@ -141,7 +141,12 @@ export class IndividualControllerBackendRuntime {
     return profile.sdk.getLatestIps(ctx, input);
   }
 
-  /** Imports one IPS/FHIR payload and waits for its derived index update. */
+  /**
+   * Imports one IPS/FHIR payload through the direct Composition compatibility path.
+   *
+   * @deprecated Use the profile SDK's `updateClinicalSummary(...)` or
+   * `updateSubjectSection(...)` Communication-backed operation.
+   */
   public importIpsOrFhirAndUpdateIndex(
     profile: BackendIndividualControllerProfile,
     ctx: RouteContext,
