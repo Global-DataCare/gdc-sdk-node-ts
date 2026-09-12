@@ -268,6 +268,13 @@ export type IndividualMemberLifecycleInput = {
   dataType?: string;
 };
 
+/**
+ * Input retained for the direct Composition compatibility adapter.
+ *
+ * @deprecated Use `ClinicalSummaryUpdateInput` with
+ * `updateClinicalSummary(...)`, or `SubjectSectionUpdateInput` with
+ * `updateSubjectSection(...)`; both use the Communication ingestion flow.
+ */
 export type IpsOrFhirImportInput = {
   /**
    * Server-built IPS/FHIR payload whose original Composition author is
@@ -1362,6 +1369,14 @@ export async function listIndividualLicenseOrdersWithDeps(
   return searchIndividualLicenseOrdersWithDeps(routeCtx, input || {}, deps);
 }
 
+/**
+ * Direct Composition compatibility adapter retained without behavior changes.
+ *
+ * @deprecated Build the appropriate Communication input with
+ * `buildClinicalSummaryUpdateIngestion(...)` or
+ * `buildSubjectSectionUpdateIngestion(...)`, then submit it through
+ * `ingestCommunicationAndUpdateIndexWithDeps(...)`.
+ */
 export async function importIpsOrFhirAndUpdateIndexWithDeps(
   routeCtx: RouteContext,
   input: IpsOrFhirImportInput,

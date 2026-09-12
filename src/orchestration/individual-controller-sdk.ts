@@ -265,6 +265,10 @@ export class IndividualControllerSdk {
    * permission to rewrite or delete it. A correction requires independently
    * verified source provenance; merely resubmitting the same URN is
    * insufficient and unsigned/demo imports remain locally immutable.
+   *
+   * @deprecated Use `updateClinicalSummary(...)` for complete FHIR documents
+   * or `updateSubjectSection(...)` for typed section changes. Both use the
+   * Communication ingestion flow.
    */
   public importIpsOrFhirAndUpdateIndex(ctx: RouteContext, input: IpsOrFhirImportInput): Promise<SubmitAndPollResult> {
     assertFacadeCapability(this.capabilities, ActorCapabilities.IndividualImportIps, ActorKinds.IndividualController, 'importIpsOrFhirAndUpdateIndex');

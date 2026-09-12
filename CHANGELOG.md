@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Deprecate `importIpsOrFhirAndUpdateIndex(...)` and its direct Composition
+  helper/port surfaces without changing their runtime behavior. New document
+  and section writes use the existing Communication-backed
+  `updateClinicalSummary(...)` and `updateSubjectSection(...)` facades.
 - Pin `gdc-common-utils-ts@2.9.14` and `gdc-sdk-core-ts@2.9.9` so individual
   member DIDs expose only the canonical `multibase` discriminator while the
   controller remains bound to the exact licensed contact.

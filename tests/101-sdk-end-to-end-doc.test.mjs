@@ -121,7 +121,8 @@ test('BFF clinical-write 101 separates section CRUD from document import', () =>
   assert.match(clinicalWriteGuide, /\.update\(\)/);
   assert.match(clinicalWriteGuide, /\.delete\(\)/);
   assert.match(clinicalWriteGuide, /Communication\.topic/);
-  assert.match(clinicalWriteGuide, /await individualControllerRuntime\.importIpsOrFhirAndUpdateIndex\(/);
+  assert.match(clinicalWriteGuide, /await individualControllerRuntime\.updateClinicalSummary\(/);
+  assert.match(clinicalWriteGuide, /importIpsOrFhirAndUpdateIndex.*deprecated/is);
   assert.match(clinicalWriteGuide, /Bundle\.type=document/);
   assert.match(clinicalWriteGuide, /Composition.*entry\[0\]/);
   assert.match(clinicalWriteGuide, /must not traverse|does not construct/i);

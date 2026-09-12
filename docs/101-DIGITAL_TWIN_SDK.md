@@ -200,9 +200,11 @@ facts. Repeating the same URN in another payload is not source authentication.
 
 ```ts
 // The BFF may import this document once while preserving its external author.
-await individualController.importIpsOrFhirAndUpdateIndex(ctx, {
-  compositionPayload: externallyAuthoredIps,
-  format: 'r4',
+await individualController.updateClinicalSummary(ctx, {
+  subject: individualDid,
+  sender: individualControllerProfile.session.actorDid,
+  recipient: providerDid,
+  bundle: externallyAuthoredIps,
 });
 
 // Do not expose local edit/delete actions for facts owned by that external

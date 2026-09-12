@@ -261,11 +261,13 @@ export async function importExternalIpsAsIndividualController(input: Readonly<{
 
   // Do not call cloneImportedClinicalDocumentForDemo here. A normal import
   // preserves the external Composition.author and Composition.attester values.
-  const imported = await individualControllerProfile.sdk.importIpsOrFhirAndUpdateIndex(
+  const imported = await individualControllerProfile.sdk.updateClinicalSummary(
     indexProviderRouteContext,
     {
-      compositionPayload: input.externalIpsDocument,
-      format: 'r4',
+      subject: individualDid,
+      sender: controllerActorDid,
+      recipient: indexProviderDid,
+      bundle: input.externalIpsDocument,
     },
   );
   const readback = await individualControllerProfile.sdk.requestClinicalSummary(

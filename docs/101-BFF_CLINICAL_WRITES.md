@@ -29,7 +29,7 @@ operation-selection and authorization reference.
 | --- | --- | --- |
 | Mutate resources in exactly one section | `Bundle.type=batch|collection`; each entry chooses create, update or delete | `updateClinicalSection(...)` |
 | Replace or update one multi-section summary owned by the authenticated actor | `Bundle.type=document`; `Composition` is `entry[0]` | `updateClinicalSummary(...)` |
-| Import an external IPS/FHIR document and preserve its source author | `Bundle.type=document`; `Composition` is `entry[0]` | `importIpsOrFhirAndUpdateIndex(...)` |
+| Import an external IPS/FHIR document and preserve its source author | `Bundle.type=document`; `Composition` is `entry[0]` | `updateClinicalSummary(...)` |
 
 For a section update, the BFF passes one canonical `section`. The SDK places
 that value in the outer `Communication.topic` and attaches the batch or
@@ -262,21 +262,26 @@ or vital-sign section. Use `updateClinicalSection(...)` for that case.
 
 ## Import an externally authored IPS/FHIR document
 
-Use `importIpsOrFhirAndUpdateIndex(...)` for a received document whose original
+Use `updateClinicalSummary(...)` for a received document whose original
 `Composition.author` is source provenance. Importing it does not make the
 controller, member or BFF its author and does not grant them update/delete
 authority over the imported facts.
 
 ```ts
-await individualControllerRuntime.importIpsOrFhirAndUpdateIndex(
+await individualControllerRuntime.updateClinicalSummary(
   individualControllerProfile,
   tenantContext,
   {
-    compositionPayload: externallyAuthoredIpsDocument,
-    format: 'r4',
+    subject: individualDid,
+    sender: individualControllerProfile.session.actorDid,
+    recipient: indexProviderDid,
+    bundle: externallyAuthoredIpsDocument,
   },
 );
 ```
+
+`importIpsOrFhirAndUpdateIndex(...)` is retained unchanged as a deprecated
+direct-Composition compatibility adapter for existing callers.
 
 The imported payload must be a document Bundle with its Composition first and
 valid section references. Do not rewrite the external author to the importing

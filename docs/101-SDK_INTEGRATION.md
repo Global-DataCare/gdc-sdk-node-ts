@@ -410,7 +410,8 @@ Main methods:
 - `registerIndividualOrganization(...)`
 - `confirmIndividualOrganizationOrder(...)`
 - `grantProfessionalAccess(...)`
-- `importIpsOrFhirAndUpdateIndex(...)`
+- `updateClinicalSummary(...)`
+- `updateSubjectSection(...)`
 - `requestSmartToken(...)`
 - `getIdentityVC(...)`
 - `getSubjectVC(...)`
@@ -631,8 +632,12 @@ SDK:
 
 Backend/BFF SDK only:
 
-- `importIpsOrFhirAndUpdateIndex(...)`
+- `updateClinicalSummary(...)` for a complete document
+- `updateSubjectSection(...)` for an explicit section change
 - `ingestCommunicationAndUpdateIndex(...)`
+
+`importIpsOrFhirAndUpdateIndex(...)` remains callable only as a deprecated
+direct-Composition compatibility adapter; its behavior has not changed.
 
 For a direct `updateClinicalSummary(...)`, use the operational
 role-specific loaded profile's `session.actorDid` as `sender`, the real
