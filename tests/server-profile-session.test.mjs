@@ -27,6 +27,8 @@ import {
   EXAMPLE_EMPLOYEE_ACTIVATION_CODE,
   EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
   EXAMPLE_GENERIC_SUBJECT_DID,
+  EXAMPLE_HOSTED_INDIVIDUAL_CONTROLLER_DID,
+  EXAMPLE_HOSTED_INDIVIDUAL_DID,
   EXAMPLE_PROFILE_ID,
   EXAMPLE_PROFILE_PIN,
   EXAMPLE_PROFILE_PROVIDER_DID,
@@ -87,7 +89,8 @@ test('self individual enrollment is SDK-owned and exposes the document attester 
     profileId: EXAMPLE_PROFILE_ID,
     registration: {
       identity: {
-        subjectDid: EXAMPLE_GENERIC_SUBJECT_DID,
+        subjectDid: EXAMPLE_HOSTED_INDIVIDUAL_DID,
+        controllerActorDid: EXAMPLE_HOSTED_INDIVIDUAL_CONTROLLER_DID,
         providerDidWeb: EXAMPLE_PROFILE_PROVIDER_DID,
       },
     },
@@ -104,6 +107,9 @@ test('self individual enrollment is SDK-owned and exposes the document attester 
 
   assert.equal(lowLevelEnrollment.actorKind, ActorKinds.IndividualController);
   assert.equal(lowLevelEnrollment.actorMode, 'self');
+  assert.equal(lowLevelEnrollment.actorDid, EXAMPLE_HOSTED_INDIVIDUAL_CONTROLLER_DID);
+  assert.equal(lowLevelEnrollment.profileDid, EXAMPLE_HOSTED_INDIVIDUAL_CONTROLLER_DID);
+  assert.deepEqual(lowLevelEnrollment.allowedSubjectDids, [EXAMPLE_HOSTED_INDIVIDUAL_DID]);
   assert.equal(lowLevelEnrollment.controllerRelatedPersonIdentifier, ownerIdentifier);
   assert.equal('attester' in lowLevelEnrollment, false);
 
@@ -123,6 +129,71 @@ test('self individual enrollment is SDK-owned and exposes the document attester 
       clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
     }),
     /registered individual identity/,
+  );
+});
+
+test('represented individual enrollment keeps controller and subject identities distinct', async () => {
+  const manager = Object.create(ServerProfileSessionManager.prototype);
+  let lowLevelEnrollment;
+  manager.enroll = async (input) => {
+    lowLevelEnrollment = input;
+    return input;
+  };
+
+  const controllerActorDid = 'did:web:controller.example:member:controller';
+  await manager.enrollIndividualController({
+    ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
+    profileId: EXAMPLE_PROFILE_ID,
+    controllerActorDid,
+    registration: {
+      identity: {
+        subjectDid: EXAMPLE_GENERIC_SUBJECT_DID,
+        providerDidWeb: EXAMPLE_PROFILE_PROVIDER_DID,
+      },
+    },
+    order: {
+      activationCode: EXAMPLE_EMPLOYEE_ACTIVATION_CODE,
+      controllerRelatedPersonIdentifier: EXAMPLE_KYC_CONTROLLER_UUID,
+    },
+    routeContext: EXAMPLE_TENANT_ROUTE_CONTEXT,
+    pin: EXAMPLE_PROFILE_PIN,
+    idToken: EXAMPLE_DEMO_PORTAL_ID_TOKEN,
+    redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
+    clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
+  });
+
+  assert.equal(lowLevelEnrollment.actorMode, 'controller');
+  assert.equal(lowLevelEnrollment.actorDid, controllerActorDid);
+  assert.equal(lowLevelEnrollment.profileDid, controllerActorDid);
+  assert.deepEqual(lowLevelEnrollment.allowedSubjectDids, [EXAMPLE_GENERIC_SUBJECT_DID]);
+  assert.equal(
+    lowLevelEnrollment.controllerRelatedPersonIdentifier,
+    EXAMPLE_KYC_CONTROLLER_UUID,
+  );
+  assert.equal('subjectAlternateName' in lowLevelEnrollment, false);
+
+  await assert.rejects(
+    manager.enrollIndividualController({
+      ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
+      profileId: EXAMPLE_PROFILE_ID,
+      controllerActorDid: '',
+      registration: {
+        identity: {
+          subjectDid: EXAMPLE_GENERIC_SUBJECT_DID,
+          providerDidWeb: EXAMPLE_PROFILE_PROVIDER_DID,
+        },
+      },
+      order: {
+        activationCode: EXAMPLE_EMPLOYEE_ACTIVATION_CODE,
+        controllerRelatedPersonIdentifier: EXAMPLE_KYC_CONTROLLER_UUID,
+      },
+      routeContext: EXAMPLE_TENANT_ROUTE_CONTEXT,
+      pin: EXAMPLE_PROFILE_PIN,
+      idToken: EXAMPLE_DEMO_PORTAL_ID_TOKEN,
+      redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
+      clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
+    }),
+    /requires controllerActorDid/,
   );
 });
 

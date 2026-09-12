@@ -3,10 +3,11 @@
  * Journey:
  * 1. Load one authenticated individual-controller profile on an existing tenant.
  * 2. Register and confirm one individual organization.
- * 3. Ingest one FHIR document through a Communication and read the subject index.
- * 4. Disable and purge only the individual created by this scenario.
- * 5. Close the profile and prove runtime state is no longer readable.
- * Authorization invariant: the authenticated controller DID authors the clinical write.
+ * 3. Enroll the returned member DID by activation-code exchange and DCR.
+ * 4. Ingest one FHIR document and read the exact registered subject index.
+ * 5. Disable and purge only the individual created by this scenario.
+ * 6. Close the bootstrap profile and prove runtime state is no longer readable.
+ * Authorization invariant: protected work uses the registered member DID, never the subject DID or bootstrap provider profile.
  * Persistence invariant: cleanup targets only this journey's individual and profile state.
  *
  * Live actor-profile E2E for the current individual-controller runtime slice.
@@ -29,10 +30,10 @@ import { fileURLToPath } from 'node:url';
 import { IndividualOrganizationLifecycleEditor } from 'gdc-common-utils-ts';
 import {
   EXAMPLE_LIVE_GW_BASE_URL_LOCAL,
+  EXAMPLE_DCR_REDIRECT_URI,
+  EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
   EXAMPLE_JURISDICTION,
   EXAMPLE_PROFILE_APP_TYPE_FAMILY,
-  EXAMPLE_PROFILE_CONNECTION_PIN_PASSWORD,
-  EXAMPLE_PROFILE_CONNECTION_SECRET_KIND_PIN_PASSWORD,
   EXAMPLE_PROFILE_KEY_ACCESS_MODE_SERVER,
   EXAMPLE_PROFILE_LOCAL_PIN_PASSWORD_BACKEND,
   EXAMPLE_PROFILE_PROVIDER_DID,
@@ -44,21 +45,21 @@ import {
 } from 'gdc-common-utils-ts/examples';
 import {
   ActorKinds,
+  ActorCapabilities,
   addFhirResourceToDraft,
-  BackendSubjectIndexReadModes,
   DirectBackendProfileRuntime,
   IndividualControllerBackendRuntime,
+  NodeActorSession,
+  ServerProfileSessionManager,
   closeBackendProfile,
-  connectBackendToSubjectIndex,
   createCommunicationDraft,
   createHeartRateObservation,
   createOutboxJobFromDraft,
-  getBackendSubjectIndexComposition,
-  prepareConnectToSubjectIndex,
-  prepareGetSubjectIndexComposition,
   prepareLoadProfile,
+  resolveDidWebKeyAgreementJwk,
 } from '../dist/index.js';
 import {
+  createLiveServerProfileState,
   createRuntimeClient,
   ensureLiveGwTraceFiles,
 } from './helpers/live-gw-runtime-helpers.mjs';
@@ -167,7 +168,6 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
   const profileRuntime = new DirectBackendProfileRuntime({
     facadeClient: runtimeClient,
     defaultRouteContext: ctx,
-    subjectIndexReadMode: BackendSubjectIndexReadModes.LatestIps,
   });
   const individualRuntime = new IndividualControllerBackendRuntime(profileRuntime);
 
@@ -224,9 +224,57 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
   debug.record('individual-order', { response: individualOrder });
   assertSuccessfulTerminalBundle(individualOrder, 'Individual Order confirmation');
 
+  const registeredIdentity = individualStart.identity;
+  assert.ok(registeredIdentity?.controllerActorDid, 'Registration must expose the licensed controller member DID.');
+  const individualControllerIdToken = buildUnsignedJwt({
+    iss: registeredIdentity.controllerActorDid,
+    sub: registeredIdentity.controllerActorDid,
+    tenant_id: suiteTenantId,
+    email: individualControllerEmail,
+    email_verified: true,
+  });
+  const profileSessions = new ServerProfileSessionManager({
+    ...createLiveServerProfileState(),
+    gatewayBaseUrl: baseUrl,
+    resolveRecipientJwk: (recipientDid) => resolveDidWebKeyAgreementJwk(recipientDid, {
+      didDocumentUrl: `${baseUrl}/${suiteTenantRouteId}/cds-${suiteJurisdiction}/v1/${suiteSector}/.well-known/did.json`,
+    }),
+    profileProtection: { cost: 1_024 },
+  });
+  const enrolledProfile = await profiler.run('individual-controller-enroll-dcr', () => (
+    profileSessions.enrollSelfIndividualController({
+      ownerId: individualControllerEmail,
+      profileId: individualControllerEmail,
+      registration: individualStart,
+      order: individualOrder,
+      routeContext: ctx,
+      pin: EXAMPLE_PROFILE_LOCAL_PIN_PASSWORD_BACKEND,
+      idToken: individualControllerIdToken,
+      redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
+      clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
+    })
+  ));
+  assert.equal(enrolledProfile.actorDid, registeredIdentity.controllerActorDid);
+  assert.deepEqual(enrolledProfile.allowedSubjectDids, [registeredIdentity.subjectDid]);
+  const enrolledControllerClient = createRuntimeClient({
+    baseUrl,
+    ctx,
+    bearerToken: individualControllerIdToken,
+    requestTimeoutMs: 10_000,
+  });
+  const enrolledControllerSdk = new NodeActorSession({
+    actorKind: ActorKinds.IndividualController,
+    actorDid: registeredIdentity.controllerActorDid,
+    capabilities: [
+      ActorCapabilities.IndividualIngestCommunication,
+      ActorCapabilities.IndividualDisable,
+      ActorCapabilities.IndividualPurge,
+    ],
+  }, enrolledControllerClient).asIndividualController();
+
   const observedAt = new Date().toISOString();
   const observation = createHeartRateObservation({
-    subject: suiteSubjectDid,
+    subject: registeredIdentity.subjectDid,
     effectiveDateTime: observedAt,
     value: 72,
   });
@@ -240,7 +288,7 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
           resourceType: 'Composition',
           id: `composition-${randomUUID()}`,
           status: 'final',
-          subject: { reference: suiteSubjectDid },
+          subject: { reference: registeredIdentity.subjectDid },
           date: observedAt,
           type: { coding: [{ system: 'http://loinc.org', code: '60591-5' }] },
           section: [{
@@ -253,14 +301,14 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
     ],
   };
   const draft = addFhirResourceToDraft(createCommunicationDraft({
-    subject: suiteSubjectDid,
-    sender: profile.profile.descriptor.profileDid,
+    subject: registeredIdentity.subjectDid,
+    sender: registeredIdentity.controllerActorDid,
     sent: observedAt,
   }), documentBundle, {
     attachmentTitle: 'ips-document.json',
   });
   const job = createOutboxJobFromDraft(draft);
-  const ingestion = await profiler.run('medication-ingest', () => profile.sdk.ingestCommunicationAndUpdateIndex(
+  const ingestion = await profiler.run('medication-ingest', () => enrolledControllerSdk.ingestCommunicationAndUpdateIndex(
     ctx,
     {
       communicationJob: job,
@@ -271,36 +319,19 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
   debug.record('medication-ingest', { response: ingestion });
   assertSuccessfulTerminalBundle(ingestion, 'Individual clinical ingestion');
 
-  const connection = await profiler.run('connect-subject-index', () => connectBackendToSubjectIndex(
-    profileRuntime,
-    prepareConnectToSubjectIndex({
-      subjectId: suiteSubjectDid,
-      userId: profileDid,
-      userRoleCode: individualControllerRole,
-      secretKind: EXAMPLE_PROFILE_CONNECTION_SECRET_KIND_PIN_PASSWORD,
-      connectionPinPassword: EXAMPLE_PROFILE_CONNECTION_PIN_PASSWORD,
-    }),
-  ));
-  debug.record('connect-subject-index', { response: connection });
-  assert.ok(connection.status === 'connected' || connection.status === 'already-connected');
-
-  const composition = await profiler.run('read-subject-index', () => getBackendSubjectIndexComposition(
-    profileRuntime,
-    prepareGetSubjectIndexComposition({
-      subjectId: suiteSubjectDid,
-      userId: profileDid,
-      userRoleCode: individualControllerRole,
-    }),
-  ));
+  const composition = await profiler.run('read-subject-index', () => enrolledControllerClient.getLatestIps(ctx, {
+    subject: registeredIdentity.subjectDid,
+    pollOptions,
+  }));
   debug.record('read-subject-index', { response: composition });
-  assert.ok(composition.composition);
+  assertSuccessfulTerminalBundle(composition, 'Registered individual subject-index read');
 
   const lifecycleEditor = new IndividualOrganizationLifecycleEditor()
-    .setIdentifier(suiteSubjectDid)
+    .setIdentifier(registeredIdentity.subjectDid)
     .setAlternateName(individualAltName)
     .setOwnerEmail(individualControllerEmail);
 
-  const disableIndividual = await profiler.run('individual-disable', () => profile.sdk.disableIndividualOrganization(
+  const disableIndividual = await profiler.run('individual-disable', () => enrolledControllerSdk.disableIndividualOrganization(
     ctx,
     {
       individualEditor: lifecycleEditor,
@@ -310,7 +341,7 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
   debug.record('individual-disable', { response: disableIndividual });
   assertSuccessfulTerminalBundle(disableIndividual, 'Individual organization disable');
 
-  const purgeIndividual = await profiler.run('individual-purge', () => profile.sdk.purgeIndividualOrganization(
+  const purgeIndividual = await profiler.run('individual-purge', () => enrolledControllerSdk.purgeIndividualOrganization(
     ctx,
     {
       individualEditor: lifecycleEditor,
@@ -322,14 +353,11 @@ test('LIVE individual-controller profile runtime flow on existing tenant', {
 
   await profiler.run('close-profile', () => closeBackendProfile(profileRuntime, profileDid));
   await assert.rejects(
-    () => getBackendSubjectIndexComposition(
-      profileRuntime,
-      prepareGetSubjectIndexComposition({
-        subjectId: suiteSubjectDid,
-        userId: profileDid,
-        userRoleCode: individualControllerRole,
-      }),
-    ),
+    () => profileRuntime.getSubjectIndexComposition({
+      subjectId: registeredIdentity.subjectDid,
+      userId: profileDid,
+      userRoleCode: individualControllerRole,
+    }),
     /has not loaded one backend profile/i,
   );
 

@@ -75,6 +75,8 @@ import {
   EXAMPLE_API_ORGANIZATION_DID,
   EXAMPLE_EMAIL_PROFESSIONAL,
   EXAMPLE_EMAIL_RELATED_PERSON,
+  EXAMPLE_DCR_REDIRECT_URI,
+  EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
   EXAMPLE_HOSTED_PROVIDER_DID,
   EXAMPLE_INDEX_PROVIDER_SECTOR_DID_WEB,
   EXAMPLE_IPS_BUNDLE_NOTE_TEXT,
@@ -138,6 +140,8 @@ import {
   prepareConnectToSubjectIndex,
   prepareGetSubjectIndexComposition,
   prepareLoadProfile,
+  resolveDidWebKeyAgreementJwk,
+  ServerProfileSessionManager,
 } from '../dist/index.js';
 import {
   buildUnsignedJwt,
@@ -175,6 +179,38 @@ import {
 
 function env(name, fallback = '') {
   return String(process.env[name] ?? fallback).trim();
+}
+
+function createLiveServerProfileState() {
+  const profiles = new Map();
+  const sessions = new Map();
+  return {
+    store: {
+      async listProfiles(ownerId) {
+        return [...profiles.values()].filter((profile) => profile.ownerId === ownerId);
+      },
+      async getProfile(profileId) { return profiles.get(profileId); },
+      async putProfile(profile) { profiles.set(profile.profileId, profile); },
+      async getSession(sessionId) { return sessions.get(sessionId); },
+      async putSession(session) { sessions.set(session.sessionId, session); },
+      async deleteSession(sessionId) { sessions.delete(sessionId); },
+      async deleteSessionsForProfile(profileId) {
+        for (const [sessionId, session] of sessions) {
+          if (session.profileId === profileId) sessions.delete(sessionId);
+        }
+      },
+    },
+    sealer: {
+      async seal(cleartext, aad) {
+        return Buffer.from(JSON.stringify({ aad, cleartext }), 'utf8').toString('base64url');
+      },
+      async unseal(ciphertext, aad) {
+        const decoded = JSON.parse(Buffer.from(ciphertext, 'base64url').toString('utf8'));
+        assert.equal(decoded.aad, aad);
+        return decoded.cleartext;
+      },
+    },
+  };
 }
 
 function isEnabledByDefault(name, fallback = '1') {
@@ -259,10 +295,6 @@ const suiteProfessionalSubjectDid = env('SUBJECT_DID', buildIndividualDidWeb({
 const suiteProfileSubjectDid = env('PROFILE_SUBJECT_DID', buildIndividualDidWeb({
   providerDidWeb: EXAMPLE_HOSTED_PROVIDER_DID,
   individualId: `${defaultSuiteSubjectId}profile`,
-}));
-const suiteLifecycleSubjectDid = env('LIFECYCLE_SUBJECT_DID', buildIndividualDidWeb({
-  providerDidWeb: EXAMPLE_HOSTED_PROVIDER_DID,
-  individualId: `${defaultSuiteSubjectId}lifecycle`,
 }));
 const suiteHostIdentifierValue = env('HOST_ID_VALUE', `host-${runSlug}`);
 /**
@@ -650,8 +682,8 @@ async function maybeActivateOrganizationFromLegacyIcaProof({
     controller: EXAMPLE_ACTIVATE_ORGANIZATION_FROM_ICA_PROOF_INPUT.controller,
   });
   assert.ok(
-    ['200', '201', '409'].includes(getFirstBatchEntryStatus(activation.poll.body, 'Legacy host activation')),
-    'Legacy host onboarding facade must return an inner activation response.status of 200/201/409.',
+    ['200', '201'].includes(getFirstBatchEntryStatus(activation.poll.body, 'Legacy host activation')),
+    'Legacy host onboarding facade must return an inner activation response.status of 200/201.',
   );
   return activation;
 }
@@ -1470,7 +1502,6 @@ async function runLiveIndividualLifecycleSuite() {
     'INDIVIDUAL_CONTROLLER_EMAIL',
     `controller+${runSlug}@example.com`,
   );
-  const subjectDid = suiteLifecycleSubjectDid;
   const individualStart = await profiler.run('individual-start', () => individualControllerSession.asIndividualController().registerIndividualOrganization({
     tenantId: tenantRouteId,
     jurisdiction,
@@ -1512,6 +1543,63 @@ async function runLiveIndividualLifecycleSuite() {
     assert.ok(invoiceSummary.pdfDocumentId || projectionIds.pdfDocumentId, 'Individual lifecycle suite must return a PDF invoice projection.');
     assert.ok(invoiceSummary.structuredDocumentId || projectionIds.structuredDocumentId, 'Individual lifecycle suite must return a structured invoice projection.');
   }
+
+  const registeredIdentity = individualStart.identity;
+  assert.ok(
+    registeredIdentity?.controllerActorDid,
+    'Individual lifecycle registration must expose the canonical licensed controller member DID.',
+  );
+  const subjectDid = registeredIdentity.subjectDid;
+  const individualControllerIdToken = buildUnsignedJwt({
+    iss: registeredIdentity.controllerActorDid,
+    sub: registeredIdentity.controllerActorDid,
+    tenant_id: tenantId,
+    email: individualControllerEmail,
+    email_verified: true,
+  });
+  const profileSessions = new ServerProfileSessionManager({
+    ...createLiveServerProfileState(),
+    gatewayBaseUrl: baseUrl,
+    resolveRecipientJwk: (recipientDid) => resolveDidWebKeyAgreementJwk(recipientDid, {
+      didDocumentUrl: `${baseUrl}/${tenantRouteId}/cds-${jurisdiction}/v1/${sector}/.well-known/did.json`,
+    }),
+    profileProtection: { cost: 1_024 },
+  });
+  const enrolledControllerProfile = await profiler.run(
+    'individual-controller-enroll-dcr',
+    () => profileSessions.enrollSelfIndividualController({
+      ownerId: individualControllerEmail,
+      profileId: individualControllerEmail,
+      registration: individualStart,
+      order: individualOrder,
+      routeContext: ctx,
+      pin: EXAMPLE_PROFILE_LOCAL_PIN_PASSWORD_BACKEND,
+      idToken: individualControllerIdToken,
+      redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
+      clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
+    }),
+  );
+  assert.equal(enrolledControllerProfile.actorDid, registeredIdentity.controllerActorDid);
+  assert.equal(enrolledControllerProfile.profileDid, registeredIdentity.controllerActorDid);
+  assert.deepEqual(enrolledControllerProfile.allowedSubjectDids, [subjectDid]);
+
+  const enrolledControllerClient = createRuntimeClient({
+    baseUrl,
+    ctx,
+    bearerToken: individualControllerIdToken,
+    requestTimeoutMs: LOCAL_LIVE_REQUEST_TIMEOUT_MS,
+  });
+  const enrolledIndividualControllerSession = new NodeActorSession(
+    {
+      actorKind: ActorKinds.IndividualController,
+      actorDid: registeredIdentity.controllerActorDid,
+      capabilities: [
+        ActorCapabilities.IndividualDisable,
+        ActorCapabilities.IndividualPurge,
+      ],
+    },
+    enrolledControllerClient,
+  );
 
   const tenantDspaceBeforeDisable = await profiler.run('tenant-dspace-before-disable', () => fetchJsonOrText(baseUrl, buildTenantDspaceVersionPath(ctx), bearerToken));
   debug.record('individual-suite-tenant-dspace-before-disable', tenantDspaceBeforeDisable);
@@ -1783,7 +1871,7 @@ async function runLiveIndividualLifecycleSuite() {
     .setIdentifier(subjectDid)
     .setAlternateName(individualAltName)
     .setOwnerEmail(individualControllerEmail);
-  const disableIndividual = await profiler.run('individual-disable', () => individualControllerSession.asIndividualController().disableIndividualOrganization(
+  const disableIndividual = await profiler.run('individual-disable', () => enrolledIndividualControllerSession.asIndividualController().disableIndividualOrganization(
     ctx,
     {
       individualEditor: individualLifecycleEditor,
@@ -1793,7 +1881,7 @@ async function runLiveIndividualLifecycleSuite() {
   debug.record('individual-suite-disable', { response: disableIndividual });
   assertSuccessfulTerminalBundle(disableIndividual, 'Individual lifecycle suite must disable the hosted individual organization for cleanup.');
 
-  const purgeIndividual = await profiler.run('individual-purge', () => individualControllerSession.asIndividualController().purgeIndividualOrganization(
+  const purgeIndividual = await profiler.run('individual-purge', () => enrolledIndividualControllerSession.asIndividualController().purgeIndividualOrganization(
     ctx,
     {
       individualEditor: individualLifecycleEditor,
@@ -2456,16 +2544,6 @@ async function runLiveProfileRuntimeIndividualSuite() {
     },
     runtimeClient,
   );
-  const individualControllerSession = new NodeActorSession(
-    {
-      actorKind: ActorKinds.IndividualController,
-      capabilities: [
-        ActorCapabilities.IndividualDisable,
-        ActorCapabilities.IndividualPurge,
-      ],
-    },
-    runtimeClient,
-  );
   const profileRuntime = new DirectBackendProfileRuntime({
     facadeClient: runtimeClient,
     defaultRouteContext: ctx,
@@ -2584,13 +2662,69 @@ async function runLiveProfileRuntimeIndividualSuite() {
   debug.record('profile-runtime-suite-order', { response: individualOrder });
   assertSuccessfulTerminalBundle(individualOrder, 'Profile runtime suite must confirm the hosted individual order through the loaded profile facade.');
 
+  const registeredIdentity = individualStart.identity;
+  assert.ok(
+    registeredIdentity?.controllerActorDid,
+    'Profile runtime suite registration must expose the canonical licensed controller member DID.',
+  );
+  const individualControllerIdToken = buildUnsignedJwt({
+    iss: registeredIdentity.controllerActorDid,
+    sub: registeredIdentity.controllerActorDid,
+    tenant_id: tenantId,
+    email: individualControllerEmail,
+    email_verified: true,
+  });
+  const profileSessions = new ServerProfileSessionManager({
+    ...createLiveServerProfileState(),
+    gatewayBaseUrl: baseUrl,
+    resolveRecipientJwk: (recipientDid) => resolveDidWebKeyAgreementJwk(recipientDid, {
+      didDocumentUrl: `${baseUrl}/${tenantRouteId}/cds-${jurisdiction}/v1/${sector}/.well-known/did.json`,
+    }),
+    profileProtection: { cost: 1_024 },
+  });
+  const enrolledControllerProfile = await profiler.run(
+    'individual-controller-enroll-dcr',
+    () => profileSessions.enrollSelfIndividualController({
+      ownerId: individualControllerEmail,
+      profileId: individualControllerEmail,
+      registration: individualStart,
+      order: individualOrder,
+      routeContext: ctx,
+      pin: EXAMPLE_PROFILE_LOCAL_PIN_PASSWORD_BACKEND,
+      idToken: individualControllerIdToken,
+      redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
+      clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
+    }),
+  );
+  assert.equal(enrolledControllerProfile.actorDid, registeredIdentity.controllerActorDid);
+  assert.equal(enrolledControllerProfile.profileDid, registeredIdentity.controllerActorDid);
+  assert.deepEqual(enrolledControllerProfile.allowedSubjectDids, [registeredIdentity.subjectDid]);
+
+  const enrolledControllerClient = createRuntimeClient({
+    baseUrl,
+    ctx,
+    bearerToken: individualControllerIdToken,
+    requestTimeoutMs: LOCAL_LIVE_REQUEST_TIMEOUT_MS,
+  });
+  const enrolledIndividualControllerSession = new NodeActorSession(
+    {
+      actorKind: ActorKinds.IndividualController,
+      actorDid: registeredIdentity.controllerActorDid,
+      capabilities: [
+        ActorCapabilities.IndividualDisable,
+        ActorCapabilities.IndividualPurge,
+      ],
+    },
+    enrolledControllerClient,
+  );
+
   const medication = buildExampleLiveMedicationCases(Date.now())[0];
   const medicationIpsBundle = buildExampleMedicationIpsDocumentBundle({
-    subjectDid,
+    subjectDid: registeredIdentity.subjectDid,
     medication,
   });
   const ingestionPayload = buildExampleCommunicationIngestionPayload({
-    subjectDid,
+    subjectDid: registeredIdentity.subjectDid,
     sent: medication.effectiveDateTime,
     ipsBundleBase64: Buffer.from(JSON.stringify(medicationIpsBundle), 'utf8').toString('base64'),
   });
@@ -2608,7 +2742,7 @@ async function runLiveProfileRuntimeIndividualSuite() {
   const connection = await profiler.run('connect-subject-index', () => connectBackendToSubjectIndex(
     profileRuntime,
     prepareConnectToSubjectIndex({
-      subjectId: subjectDid,
+      subjectId: registeredIdentity.subjectDid,
       userId: profileDid,
       userRoleCode: individualControllerRole,
       secretKind: EXAMPLE_PROFILE_CONNECTION_SECRET_KIND_PIN_PASSWORD,
@@ -2624,7 +2758,7 @@ async function runLiveProfileRuntimeIndividualSuite() {
   const composition = await profiler.run('read-subject-index', () => getBackendSubjectIndexComposition(
     profileRuntime,
     prepareGetSubjectIndexComposition({
-      subjectId: subjectDid,
+      subjectId: registeredIdentity.subjectDid,
       userId: profileDid,
       userRoleCode: individualControllerRole,
     }),
@@ -2636,10 +2770,10 @@ async function runLiveProfileRuntimeIndividualSuite() {
   );
 
   const profileIndividualLifecycleEditor = new IndividualOrganizationLifecycleEditor()
-    .setIdentifier(subjectDid)
+    .setIdentifier(registeredIdentity.subjectDid)
     .setAlternateName(individualAltName)
     .setOwnerEmail(individualControllerEmail);
-  const profileIndividualDisable = await profiler.run('profile-individual-disable', () => individualControllerSession.asIndividualController().disableIndividualOrganization(
+  const profileIndividualDisable = await profiler.run('profile-individual-disable', () => enrolledIndividualControllerSession.asIndividualController().disableIndividualOrganization(
     ctx,
     {
       individualEditor: profileIndividualLifecycleEditor,
@@ -2649,7 +2783,7 @@ async function runLiveProfileRuntimeIndividualSuite() {
   debug.record('profile-runtime-suite-disable', { response: profileIndividualDisable });
   assertSuccessfulTerminalBundle(profileIndividualDisable, 'Profile runtime suite must disable the hosted individual organization during cleanup.');
 
-  const profileIndividualPurge = await profiler.run('profile-individual-purge', () => individualControllerSession.asIndividualController().purgeIndividualOrganization(
+  const profileIndividualPurge = await profiler.run('profile-individual-purge', () => enrolledIndividualControllerSession.asIndividualController().purgeIndividualOrganization(
     ctx,
     {
       individualEditor: profileIndividualLifecycleEditor,

@@ -1,21 +1,86 @@
 // Flow contract: registration projects the SHA3-384 hosted individual DID and exposes the same member builder that GW validates during controller DCR.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { SecureIdTypesIndividual } from 'gdc-common-utils-ts';
 import {
   EXAMPLE_API_ORGANIZATION_DID,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_START_INPUT,
   EXAMPLE_INDIVIDUAL_ORGANIZATION_START_RESPONSE,
+  EXAMPLE_DOCUMENT_REFERENCE_IDENTIFIER,
   EXAMPLE_KYC_CONTROLLER_UUID,
+  EXAMPLE_KYC_CONTROLLER_IDENTIFIER,
+  EXAMPLE_KYC_CONTROLLER_VERIFIED_AT,
+  EXAMPLE_EMAIL_CONTROLLER_INDIVIDUAL,
+  EXAMPLE_INDIVIDUAL_CONTROLLER_ROLE_TYPE,
+  EXAMPLE_INDIVIDUAL_CONTROLLER_ROLE_VALUE,
+  EXAMPLE_PRIVATE_INDIVIDUAL_UUID,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
+  EXAMPLE_SUBJECT_DID,
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
 
 import {
   buildIndividualMemberDidWebFromPrivateIdentifiers,
+  createIndividualOnboardingEditor,
   readIndividualOrganizationBootstrapIdentity,
   registerIndividualOrganizationWithDeps,
   startIndividualOrganizationWithDeps,
 } from '../dist/index.js';
+
+test('registerIndividualOrganizationWithDeps accepts one high-level onboarding draft with KYC and signed PDF evidence', async () => {
+  // Teaching goal: the application supplies one SDK-owned draft; it never
+  // authors the GW Bundle, attachment, Organization.owner or RelatedPerson.
+  const signedPdfBase64 = Buffer.from('certificate-signed-pdf', 'utf8').toString('base64');
+  const onboardingDraft = createIndividualOnboardingEditor()
+    .setKyc({
+      profile: {
+        id_number: EXAMPLE_KYC_CONTROLLER_IDENTIFIER,
+        kyc_verified_at: EXAMPLE_KYC_CONTROLLER_VERIFIED_AT,
+      },
+      controllerEmail: 'controller@example.org',
+      individualAlternateName: 'Charly',
+    }, { self: false })
+    .setControllerAlternateName('Controller example')
+    .setSubjectAlternateName('Charly')
+    .setPdf({
+      subject: EXAMPLE_SUBJECT_DID,
+      identifier: EXAMPLE_DOCUMENT_REFERENCE_IDENTIFIER,
+      contentType: 'application/pdf',
+      contentData: signedPdfBase64,
+    })
+    .buildDraft();
+  const calls = [];
+
+  await registerIndividualOrganizationWithDeps({
+    input: {
+      onboardingDraft,
+      controllerIdentifier: EXAMPLE_KYC_CONTROLLER_UUID,
+    },
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    individualFamilyOrganizationBatchPath: () => '/submit',
+    individualFamilyOrganizationPollPath: () => '/poll',
+    submitAndPoll: async (...args) => {
+      calls.push(args);
+      return cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_START_RESPONSE);
+    },
+    getOfferIdFromResponse: () => 'urn:offer:evidence',
+    getOfferPreviewFromResponse: () => ({ offerId: 'urn:offer:evidence' }),
+  });
+
+  const body = calls[0][2].body;
+  assert.equal(body.resourceType, 'Bundle');
+  assert.equal(body.attachments[0].media_type, 'application/pdf');
+  assert.equal(body.attachments[0].data.base64, signedPdfBase64);
+  assert.equal(body.data[0].resource.meta.kyc.profile.id_number, EXAMPLE_KYC_CONTROLLER_IDENTIFIER);
+  assert.equal(
+    body.data[0].resource.meta.claims['org.schema.Organization.owner.identifier.value'],
+    EXAMPLE_KYC_CONTROLLER_UUID,
+  );
+  assert.equal(body.data[0].resource.meta.claims['org.schema.Service.category'], 'health-care');
+  assert.equal(body.data[0].resource.meta.claims['org.schema.Person.identifier.value'], EXAMPLE_KYC_CONTROLLER_IDENTIFIER);
+  assert.equal(body.data[0].resource.meta.claims.activationCode, undefined);
+  assert.equal(body.data[0].resource.meta.claims.attester, undefined);
+});
 
 test('registerIndividualOrganizationWithDeps builds canonical registration payload and extracts offer', async () => {
   const calls = [];
@@ -71,8 +136,56 @@ test('registerIndividualOrganizationWithDeps builds canonical registration paylo
     secureIdTypeIndividual: 'UUID',
     secureIdValueIndividual: 'zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee',
     providerDidWeb: EXAMPLE_API_ORGANIZATION_DID,
-    subjectDid: `${EXAMPLE_API_ORGANIZATION_DID}:individual:UUID:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee`,
+    subjectDid: `${EXAMPLE_API_ORGANIZATION_DID}:individual:multibase:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee`,
+    controllerActorDid: buildIndividualMemberDidWebFromPrivateIdentifiers({
+      providerDidWeb: EXAMPLE_API_ORGANIZATION_DID,
+      secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
+      privateIdValueIndividual: EXAMPLE_PRIVATE_INDIVIDUAL_UUID,
+      secureIdTypeMember: SecureIdTypesIndividual.Email,
+      privateIdValueMember: EXAMPLE_EMAIL_CONTROLLER_INDIVIDUAL,
+      roleType: EXAMPLE_INDIVIDUAL_CONTROLLER_ROLE_TYPE,
+      roleValue: EXAMPLE_INDIVIDUAL_CONTROLLER_ROLE_VALUE,
+    }),
   });
+});
+
+test('registration requires subjectAlternateName only when no signed PDF can supply it', async () => {
+  const onboardingDraft = createIndividualOnboardingEditor()
+    .setControllerEmail('controller@example.org')
+    .buildDraft();
+
+  await assert.rejects(registerIndividualOrganizationWithDeps({
+    input: { onboardingDraft },
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    individualFamilyOrganizationBatchPath: () => '/submit',
+    individualFamilyOrganizationPollPath: () => '/poll',
+    submitAndPoll: async () => { throw new Error('must not submit'); },
+    getOfferIdFromResponse: () => undefined,
+    getOfferPreviewFromResponse: () => ({}),
+  }), /subjectAlternateName.*required when signed PDF evidence is absent/);
+});
+
+test('registration accepts omitted subjectAlternateName when signed PDF evidence supplies it', async () => {
+  const onboardingDraft = createIndividualOnboardingEditor()
+    .setPdf({
+      subject: EXAMPLE_SUBJECT_DID,
+      identifier: EXAMPLE_DOCUMENT_REFERENCE_IDENTIFIER,
+      contentType: 'application/pdf',
+      contentData: Buffer.from('signed-pdf-with-subject-name').toString('base64'),
+    })
+    .buildDraft();
+
+  const result = await registerIndividualOrganizationWithDeps({
+    input: { onboardingDraft },
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    individualFamilyOrganizationBatchPath: () => '/submit',
+    individualFamilyOrganizationPollPath: () => '/poll',
+    submitAndPoll: async () => cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_START_RESPONSE),
+    getOfferIdFromResponse: () => 'urn:offer:signed-pdf',
+    getOfferPreviewFromResponse: () => ({ offerId: 'urn:offer:signed-pdf' }),
+  });
+
+  assert.equal(result.offerId, 'urn:offer:signed-pdf');
 });
 
 test('registerIndividualOrganizationWithDeps marks an already-active registration as not requiring Order confirmation', async () => {
@@ -151,7 +264,7 @@ test('readIndividualOrganizationBootstrapIdentity preserves the exact hosted pro
   assert.equal(identity?.secureIdTypeIndividual, 'UUID');
   assert.equal(
     identity?.subjectDid,
-    `${providerDidWeb}:individual:UUID:${identity?.secureIdValueIndividual}`,
+    `${providerDidWeb}:individual:multibase:${identity?.secureIdValueIndividual}`,
   );
 });
 
@@ -166,6 +279,6 @@ test('buildIndividualMemberDidWebFromPrivateIdentifiers creates the exact DCR ac
       roleType: 'http://terminology.hl7.org/CodeSystem/v3-RoleCode',
       roleValue: 'RESPRSN',
     }),
-    'did:web:host.example.org:health-care:organization:taxid:VATES-B00112233:individual:UUID:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee:member:zG9DrMLpQW8eoCc9Ay9AFxuMGiswgJePpbUMz9svJCZ8tKjUd4xoExgCPA5jmHc6hPATJ:RESPRSN',
+    'did:web:host.example.org:health-care:organization:taxid:VATES-B00112233:individual:multibase:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee:member:zG9DrMLpQW8eoCc9Ay9AFxuMGiswgJePpbUMz9svJCZ8tKjUd4xoExgCPA5jmHc6hPATJ:RESPRSN',
   );
 });

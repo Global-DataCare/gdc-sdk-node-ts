@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Canonical clean live wrapper for the backend/BFF `101` full-cycle:
-# - starts the selected local ICA and GW implementation on isolated ports
+# - defaults to the GW VET + connect-ica product-neutrality proving ground
+# - preserves paired explicit overrides for later GW CORE/product promotion
 # - runs the live `101` suite
 # - controller lifecycle uses the same VP token for `_activate` and as the
 #   controller-proof bearer fallback for disable/purge when `AUTH_BEARER` is
@@ -12,9 +13,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SDK_NODE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DEFAULT_WORKSPACE_DIR="$(cd "${SDK_NODE_DIR}/.." && pwd)"
 WORKSPACE_DIR="${GDC_WORKSPACE_DIR:-${DEFAULT_WORKSPACE_DIR}}"
-GW_DIR="${GW_DIR_OVERRIDE:-${WORKSPACE_DIR}/gwtemplate-node-ts}"
-ICA_DIR="${ICA_DIR_OVERRIDE:-${WORKSPACE_DIR}/dataspace-ica-ts}"
+if { [[ -n "${GW_DIR_OVERRIDE:-}" ]] && [[ -z "${ICA_DIR_OVERRIDE:-}" ]]; } \
+  || { [[ -z "${GW_DIR_OVERRIDE:-}" ]] && [[ -n "${ICA_DIR_OVERRIDE:-}" ]]; }; then
+  echo 'ERROR: GW_DIR_OVERRIDE and ICA_DIR_OVERRIDE must be provided together.' >&2
+  exit 1
+fi
+GW_DIR="${GW_DIR_OVERRIDE:-${WORKSPACE_DIR}/custom/vet-gw-node-ts}"
+ICA_DIR="${ICA_DIR_OVERRIDE:-${WORKSPACE_DIR}/connect-ica-ts}"
+ICA_ENV_FILE="${ICA_ENV_FILE:-}"
 GW_ENV_FILE="${GW_ENV_FILE:-${GW_DIR}/.env.local-demo}"
+LIVE_101_SIGNED_PDF_FIXTURE_ENV="${LIVE_101_SIGNED_PDF_FIXTURE_ENV:-${SDK_NODE_DIR}/tests/fixtures/live-101-signed-pdf.env}"
+if [[ ! -f "${LIVE_101_SIGNED_PDF_FIXTURE_ENV}" ]]; then
+  echo "ERROR: signed-PDF fixture metadata not found: ${LIVE_101_SIGNED_PDF_FIXTURE_ENV}" >&2
+  exit 1
+fi
+set -a
+# shellcheck disable=SC1090
+source "${LIVE_101_SIGNED_PDF_FIXTURE_ENV}"
+set +a
+: "${LIVE_CONTROLLER_ORGANIZATION_TAX_ID:?signed-PDF fixture metadata must set LIVE_CONTROLLER_ORGANIZATION_TAX_ID}"
+: "${VERIFIERS_VAT_LIST:?signed-PDF fixture metadata must set VERIFIERS_VAT_LIST}"
 
 RUN_ID="${LIVE_101_RUN_ID:-$(date -u +%Y%m%dt%H%M%S)}"
 HOST_ID_VALUE="${HOST_ID_VALUE:-live101-${RUN_ID}-host}"
@@ -23,6 +41,12 @@ TENANT_ROUTE_ID="${TENANT_ROUTE_ID:-${TENANT_ID}}"
 
 GW_PORT="${GW_PORT:-3000}"
 ICA_PORT="${ICA_PORT:-3310}"
+ICA_SUPPORTED_JURISDICTIONS_VALUE="${ICA_SUPPORTED_JURISDICTIONS:-${JURISDICTION:-ES}}"
+GW_ICA_JURISDICTION_VALUE="${GW_ICA_JURISDICTION_OVERRIDE:-${JURISDICTION:-ES}}"
+GW_ENV_OVERRIDES=(
+  "PORT=${GW_PORT}"
+  "ICA_JURISDICTION=${GW_ICA_JURISDICTION_VALUE}"
+)
 GW_BASE_URL="${BASE_URL:-http://127.0.0.1:${GW_PORT}}"
 ICA_BASE_URL="${ICA_BASE_URL:-http://127.0.0.1:${ICA_PORT}}"
 GW_LOG_FILE="${LIVE_GW_LOG_FILE:-${SDK_NODE_DIR}/test-results/live-101-gw-core-${RUN_ID}.log}"
@@ -64,10 +88,21 @@ close_port_if_busy "${ICA_PORT}"
 
 (
   cd "${ICA_DIR}"
-  ICA_API_PORT="${ICA_PORT}" \
-  SECURITY_MODE="${SECURITY_MODE:-demo}" \
-  DEMO_ALLOW_INSECURE_BEARER="${DEMO_ALLOW_INSECURE_BEARER:-true}" \
-  npm run api:local
+  if [[ -n "${ICA_ENV_FILE}" ]]; then
+    ICA_API_PORT="${ICA_PORT}" \
+    ICA_SUPPORTED_JURISDICTIONS="${ICA_SUPPORTED_JURISDICTIONS_VALUE}" \
+    VERIFIERS_VAT_LIST="${VERIFIERS_VAT_LIST}" \
+    SECURITY_MODE="${SECURITY_MODE:-demo}" \
+    DEMO_ALLOW_INSECURE_BEARER="${DEMO_ALLOW_INSECURE_BEARER:-true}" \
+    node --env-file="${ICA_ENV_FILE}" ./src/api/server.ts
+  else
+    ICA_API_PORT="${ICA_PORT}" \
+    ICA_SUPPORTED_JURISDICTIONS="${ICA_SUPPORTED_JURISDICTIONS_VALUE}" \
+    VERIFIERS_VAT_LIST="${VERIFIERS_VAT_LIST}" \
+    SECURITY_MODE="${SECURITY_MODE:-demo}" \
+    DEMO_ALLOW_INSECURE_BEARER="${DEMO_ALLOW_INSECURE_BEARER:-true}" \
+    npm run api:local
+  fi
 ) >"${ICA_LOG_FILE}" 2>&1 &
 
 ICA_PID=$!
@@ -98,6 +133,7 @@ fi
   ICA_URL_EXTERNAL="${ICA_BASE_URL}" \
   npx dotenv -e "${GW_ENV_FILE}" -- \
   env \
+    "${GW_ENV_OVERRIDES[@]}" \
     PORT="${GW_PORT}" \
     HOST_ID_VALUE="${HOST_ID_VALUE}" \
     ICA_URL_INTERNAL="${ICA_BASE_URL}" \
@@ -137,6 +173,7 @@ RUN_LIVE_101_FULL_CYCLE_E2E=1 \
 HOST_ID_VALUE="${HOST_ID_VALUE}" \
 TENANT_ID="${TENANT_ID}" \
 TENANT_ROUTE_ID="${TENANT_ROUTE_ID}" \
+LIVE_CONTROLLER_ORGANIZATION_TAX_ID="${LIVE_CONTROLLER_ORGANIZATION_TAX_ID}" \
 BASE_URL="${GW_BASE_URL}" \
 ICA_BASE_URL="${ICA_BASE_URL}" \
 npm run test:e2e:live-full-cycle:direct

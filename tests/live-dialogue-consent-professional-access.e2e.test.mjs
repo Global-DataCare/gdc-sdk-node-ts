@@ -2,11 +2,12 @@
 /**
  * Journey:
  * 1. Load the authenticated individual-controller profile on an existing tenant.
- * 2. Register an individual and ingest its minimum FHIR clinical document.
- * 3. Grant section-scoped consent to the professional actor DID.
- * 4. Load that professional, obtain SMART access and read only the allowed section.
- * 5. Revoke consent, disable and purge the scenario-owned individual, then close both profiles.
- * Authorization invariant: controller, professional actor, device issuer and clinical subject remain distinct.
+ * 2. Register an individual, confirm its Order, and enroll its returned member DID through DCR.
+ * 3. The enrolled member ingests the minimum FHIR clinical document for the exact returned subject.
+ * 4. Grant section-scoped consent to the professional actor DID.
+ * 5. Load that professional, obtain SMART access and read only the allowed section.
+ * 6. Revoke consent, disable and purge the scenario-owned individual, then close both profiles.
+ * Authorization invariant: protected controller work uses the registered member DID; controller, professional, device issuer and subject remain distinct.
  * Persistence invariant: consent and individual cleanup never purge tenant or unrelated subject state.
  *
  * Live actor-dialogue E2E for controller-to-professional consent access.
@@ -35,8 +36,10 @@ import { HealthcareBasicSections } from 'gdc-common-utils-ts/constants';
 import { ClaimConsent } from 'gdc-common-utils-ts/models/consent-rule';
 import {
   EXAMPLE_DEVICE_CLIENT_ID,
+  EXAMPLE_DCR_REDIRECT_URI,
   EXAMPLE_EMAIL_CONTROLLER_INDIVIDUAL,
   EXAMPLE_EMAIL_PROFESSIONAL,
+  EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
   EXAMPLE_HEALTHCARE_ACTOR_ROLE_PHYSICIAN,
   EXAMPLE_JURISDICTION,
   EXAMPLE_LIVE_CONSENT_GRANT_INPUT,
@@ -60,18 +63,23 @@ import {
 import { buildSmartCompositionReadScope } from 'gdc-common-utils-ts/utils/smart-scope';
 import {
   ActorKinds,
+  ActorCapabilities,
   closeBackendProfile,
   DirectBackendProfileRuntime,
   IndividualControllerBackendRuntime,
+  NodeActorSession,
+  ServerProfileSessionManager,
   loadBackendProfile,
   prepareLoadProfile,
   requireBackendActorSession,
+  resolveDidWebKeyAgreementJwk,
 } from '../dist/index.js';
 import {
   buildUnsignedJwt,
   buildUnsignedProfessionalSmartVpJwt,
 } from './helpers/vp-token-fixture.mjs';
 import {
+  createLiveServerProfileState,
   createRuntimeClient,
   ensureLiveGwTraceFiles,
 } from './helpers/live-gw-runtime-helpers.mjs';
@@ -219,13 +227,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
     'SMART_SCOPE_SECTION',
     HealthcareBasicSections.PatientSummaryDocument.attributeValue,
   );
-  const requestedScope = env(
-    'PROFESSIONAL_SMART_SCOPE',
-    buildSmartCompositionReadScope({
-      subjectDid: suiteSubjectDid,
-      sections: consentSection,
-    }),
-  );
+  let requestedScope;
   const professionalIdToken = env(
     'PROFESSIONAL_ID_TOKEN',
     buildUnsignedJwt({
@@ -291,6 +293,8 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
   let individualCreated = false;
   let consentClaims;
   let controllerProfile;
+  let enrolledControllerSdk;
+  let registeredIdentity;
   let professionalProfile;
 
   try {
@@ -335,17 +339,73 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
     assertSuccessfulTerminalBundle(individualOrder, 'Individual Order confirmation');
     individualCreated = true;
 
+    registeredIdentity = individualStart.identity;
+    assert.ok(registeredIdentity?.controllerActorDid, 'Registration must expose the licensed controller member DID.');
+    requestedScope = env(
+      'PROFESSIONAL_SMART_SCOPE',
+      buildSmartCompositionReadScope({
+        subjectDid: registeredIdentity.subjectDid,
+        sections: consentSection,
+      }),
+    );
+    const individualControllerIdToken = buildUnsignedJwt({
+      iss: registeredIdentity.controllerActorDid,
+      sub: registeredIdentity.controllerActorDid,
+      tenant_id: suiteTenantId,
+      email: individualControllerEmail,
+      email_verified: true,
+    });
+    const profileSessions = new ServerProfileSessionManager({
+      ...createLiveServerProfileState(),
+      gatewayBaseUrl: baseUrl,
+      resolveRecipientJwk: (recipientDid) => resolveDidWebKeyAgreementJwk(recipientDid, {
+        didDocumentUrl: `${baseUrl}/${suiteTenantRouteId}/cds-${suiteJurisdiction}/v1/${suiteSector}/.well-known/did.json`,
+      }),
+      profileProtection: { cost: 1_024 },
+    });
+    const enrolledProfile = await profiler.run('controller-enroll-dcr', () => (
+      profileSessions.enrollSelfIndividualController({
+        ownerId: individualControllerEmail,
+        profileId: individualControllerEmail,
+        registration: individualStart,
+        order: individualOrder,
+        routeContext: ctx,
+        pin: EXAMPLE_PROFILE_LOCAL_PIN_PASSWORD_BACKEND,
+        idToken: individualControllerIdToken,
+        redirectUris: [EXAMPLE_DCR_REDIRECT_URI],
+        clientName: EXAMPLE_EMPLOYEE_DCR_CLIENT_NAME,
+      })
+    ));
+    assert.equal(enrolledProfile.actorDid, registeredIdentity.controllerActorDid);
+    assert.deepEqual(enrolledProfile.allowedSubjectDids, [registeredIdentity.subjectDid]);
+    const enrolledControllerClient = createRuntimeClient({
+      baseUrl,
+      ctx,
+      bearerToken: individualControllerIdToken,
+      requestTimeoutMs: 10_000,
+    });
+    enrolledControllerSdk = new NodeActorSession({
+      actorKind: ActorKinds.IndividualController,
+      actorDid: registeredIdentity.controllerActorDid,
+      capabilities: [
+        ActorCapabilities.IndividualIngestCommunication,
+        ActorCapabilities.ConsentGrantProfessionalAccess,
+        ActorCapabilities.IndividualDisable,
+        ActorCapabilities.IndividualPurge,
+      ],
+    }, enrolledControllerClient).asIndividualController();
+
     const medication = buildExampleLiveMedicationCases(Date.now())[0];
     const medicationIpsBundle = buildExampleMedicationIpsDocumentBundle({
-      subjectDid: suiteSubjectDid,
+      subjectDid: registeredIdentity.subjectDid,
       medication,
     });
     const ingestionPayload = buildExampleCommunicationIngestionPayload({
-      subjectDid: suiteSubjectDid,
+      subjectDid: registeredIdentity.subjectDid,
       sent: medication.effectiveDateTime,
       ipsBundleBase64: Buffer.from(JSON.stringify(medicationIpsBundle), 'utf8').toString('base64'),
     });
-    const ingestion = await profiler.run('controller-medication-ingest', () => controllerProfile.sdk.ingestCommunicationAndUpdateIndex(
+    const ingestion = await profiler.run('controller-medication-ingest', () => enrolledControllerSdk.ingestCommunicationAndUpdateIndex(
       ctx,
       {
         communicationPayload: ingestionPayload,
@@ -356,11 +416,11 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
     debug.record('controller-medication-ingest', { response: ingestion });
     assertSuccessfulTerminalBundle(ingestion, 'Individual clinical ingestion');
 
-    const consent = await profiler.run('controller-grant-consent', () => controllerProfile.sdk.grantProfessionalAccess(
+    const consent = await profiler.run('controller-grant-consent', () => enrolledControllerSdk.grantProfessionalAccess(
       ctx,
       {
         ...cloneExample(EXAMPLE_LIVE_CONSENT_GRANT_INPUT),
-        subjectDid: suiteSubjectDid,
+        subjectDid: registeredIdentity.subjectDid,
         actor: { identifier: professionalActorDid },
         actorRole: professionalRole,
         actions: [consentSection],
@@ -387,7 +447,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
       sector: suiteSector,
       idToken: professionalIdToken,
       actorDid: professionalActorDid,
-      subjectDid: suiteSubjectDid,
+      subjectDid: registeredIdentity.subjectDid,
       clientId: professionalClientId,
       issuer: env('PROFESSIONAL_SMART_ISSUER', professionalClientId),
       audience: env('PROFESSIONAL_SMART_AUDIENCE', 'did:web:api.acme.org'),
@@ -418,7 +478,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
     const professionalRead = await profiler.run('professional-read-latest-ips', () => smartAccessClient.getLatestIps(
       ctx,
       {
-        subject: suiteSubjectDid,
+        subject: registeredIdentity.subjectDid,
         pollOptions,
       },
     ));
@@ -427,9 +487,9 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
     const readEntries = getBatchEntries(professionalRead.poll.body, 'Professional IPS read');
     assert.ok(readEntries[0]?.resource, 'Dialogue suite must return one readable clinical bundle/document resource for the professional actor.');
   } finally {
-    if (consentClaims && controllerProfileLoaded) {
+    if (consentClaims && enrolledControllerSdk) {
       const revokedAt = env('REVOKED_CONSENT_PERIOD_END', '2026-06-01T00:00:00Z');
-      const revokedConsent = await profiler.run('controller-revoke-consent', () => controllerProfile.sdk.submitAndPoll(
+      const revokedConsent = await profiler.run('controller-revoke-consent', () => enrolledControllerSdk.submitAndPoll(
         controllerRuntimeClient.individualConsentR4BatchPath(ctx),
         controllerRuntimeClient.individualConsentR4PollPath(ctx),
         buildConsentLifecyclePayload({
@@ -441,13 +501,13 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
       assertSuccessfulTerminalBundle(revokedConsent, 'Professional consent revocation');
     }
 
-    if (individualCreated && controllerProfileLoaded) {
+    if (individualCreated && enrolledControllerSdk) {
       const lifecycleEditor = new IndividualOrganizationLifecycleEditor()
-        .setIdentifier(suiteSubjectDid)
+        .setIdentifier(registeredIdentity.subjectDid)
         .setAlternateName(individualAltName)
         .setOwnerEmail(individualControllerEmail);
 
-      const disableIndividual = await profiler.run('controller-individual-disable', () => controllerProfile.sdk.disableIndividualOrganization(
+      const disableIndividual = await profiler.run('controller-individual-disable', () => enrolledControllerSdk.disableIndividualOrganization(
         ctx,
         {
           individualEditor: lifecycleEditor,
@@ -457,7 +517,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
       debug.record('controller-individual-disable', { response: disableIndividual });
       assertSuccessfulTerminalBundle(disableIndividual, 'Individual organization disable');
 
-      const purgeIndividual = await profiler.run('controller-individual-purge', () => controllerProfile.sdk.purgeIndividualOrganization(
+      const purgeIndividual = await profiler.run('controller-individual-purge', () => enrolledControllerSdk.purgeIndividualOrganization(
         ctx,
         {
           individualEditor: lifecycleEditor,

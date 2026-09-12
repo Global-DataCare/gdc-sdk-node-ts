@@ -1266,21 +1266,56 @@ activation.
 code must use the explicit `registerIndividualOrganization(...)` name.
 
 ```ts
+import { createIndividualOnboardingEditor } from 'gdc-sdk-node-ts';
+
+// Optional verified KYC payload received by the BFF from its KYC provider.
+// Synthetic example profile.id_number: "CERTIFICATE-SERIAL-EXAMPLE-001".
+// It is not the controller/RESPRSN UUID.
+const onboardingEditor = createIndividualOnboardingEditor()
+  .setKyc(verifiedKycPayload, { self: true })
+  .setSelf(true)
+  .setControllerAlternateName('ana')
+  .setControllerEmail('ana@example.org')
+  .setSubjectAlternateName('ana');
+
+// After the PDF-render and certificate-signing step, pass the resulting bytes
+// back to the editor. The portal does not construct Bundle or attachments[].
+// Example signedPdfBase64 starts with "JVBERi0x...".
+onboardingEditor.setPdf({
+  subject: authenticatedSubjectDid,
+  identifier: signedPdfDocumentIdentifier,
+  contentType: 'application/pdf',
+  contentData: signedPdfBase64,
+});
+
 const individualOrganizationRegistration =
   await individualSdk.registerIndividualOrganization({
     tenantId: tenantContext.tenantId,
     jurisdiction: tenantContext.jurisdiction,
     sector: tenantContext.sector,
-    alternateName: 'ana',
-    // Do not create a RelatedPerson or attester here. When this optional input
-    // is omitted, the SDK generates the stable controller UUID once and sends
-    // it as Organization.owner.identifier.value. Real value shape generated:
+    onboardingDraft: onboardingEditor.buildDraft(),
+
+    // Usually omitted: the SDK generates this stable UUID and sends it as
+    // Organization.owner.identifier.value. GW reuses it for the automatic
+    // RelatedPerson/RESPRSN. Example generated shape:
     // "033ceb35-2528-402e-8385-f22e12f57805".
-    controllerEmail: 'ana.parent@example.org',
+    // controllerIdentifier: existingStableControllerUuid,
     timeoutSeconds: 7,
     intervalSeconds: 2,
   });
 ```
+
+The high-level precedence is explicit: request claims are compatibility and
+routing hints; verified KYC is the audited prefill/fallback; the verified
+certificate-signed PDF is authoritative for the identity/form fields it
+contains. `Person.identifier.value` may therefore contain the signer certificate
+serial, while `Organization.owner.identifier.value` is the distinct stable
+controller/RESPRSN UUID generated or accepted by the SDK.
+
+`subjectAlternateName` is conditionally required during registration: it must
+be present in the editor/KYC input when no signed PDF is supplied. It may be
+omitted from the request when the verified signed PDF contains it. This field
+never belongs to enrollment.
 
 Current CORE note:
 
@@ -1383,6 +1418,31 @@ access token for `Device/_dcr`, registers the wallet public keys, and persists
 the protected profile. The browser never receives the activation code, wallet
 seed, initial access token or private keys.
 
+Use `enrollSelfIndividualController(...)` only when controller and subject are
+the same identity. It derives `actorDid`, `profileDid` and the authorized
+subject from `registration.identity.subjectDid`.
+
+For a child, dependent adult or animal, use the represented-subject operation.
+It requires the real controller/member DID and optionally accepts a
+product-governed subject alias. It does not accept `alternateName` or other
+demographics because those were already resolved during registration:
+
+```ts
+await profileSessions.enrollIndividualController({
+  ownerId: profileAccountId,
+  profileId: individualControllerProfileId,
+  controllerActorDid,
+  subjectDid: representedSubjectDid,
+  registration: individualOrganizationRegistration,
+  order: individualOrganizationOrder,
+  routeContext: tenantContext,
+  pin: profilePin,
+  idToken,
+  redirectUris,
+  clientName,
+});
+```
+
 ### 7.3b Every later login: unlock and open the already enrolled profile
 
 Opening is a later operation. First `unlock(...)` obtains a short-lived,
@@ -1433,6 +1493,46 @@ const controllerAttesterUriForThisDocument =
 // "urn:uuid:033ceb35-2528-402e-8385-f22e12f57805".
 ```
 
+### 7.3c Create one allergy with the high-level Bundle editor
+
+Clinical authoring starts only after the enrolled profile has been unlocked and
+opened. It does not belong to registration, Order confirmation or enrollment.
+
+```ts
+import {
+  BundleEditor,
+  BundleEditableResourceTypes,
+  BundleTypes,
+  HealthcareSummarySections,
+} from 'gdc-common-utils-ts';
+
+// Build one simple allergy after the profile is open. These application values
+// come from the form and terminology selector, not from copied test data.
+const allergyCreateBundle = new BundleEditor()
+  .setBundleType(BundleTypes.batch);
+
+allergyCreateBundle
+  .newEntryAs(
+    BundleEditableResourceTypes.allergyIntolerance,
+    newAllergy.resourceId,
+  )
+  .create()
+  .setIdentifier(newAllergy.identifier)
+  .setSubject(openedIndividualController.profile.profileDid)
+  .setCode(newAllergy.code)
+  .setCodeTextLocal(newAllergy.localText)
+  .setClinicalStatus(newAllergy.clinicalStatus)
+  .doneEntry();
+
+await openedIndividualController.sdk.updateSubjectSection(tenantContext, {
+  subject: openedIndividualController.profile.profileDid,
+  section: HealthcareSummarySections.AllergiesAndIntolerances.attributeValue,
+  dataAuthorReference: controllerAttesterUriForThisDocument,
+  // attester omitted: the opened facade supplies profile.attester.
+  bundle: allergyCreateBundle.build(),
+});
+```
+
 `unlock(...)` is a later authenticated operation: it opens the protected wallet
 and obtains the subject-scoped SMART session. Only then does
 `openIndividualController(...)` return the enrolled high-level facade used for
@@ -1443,7 +1543,7 @@ Offer was already confirmed. Confirming that same Offer again correctly finds
 a non-pending record. For create-or-resume channel flows, prefer
 `ensureFamilyOrganizationRegistration(...)`, which searches before starting.
 
-### 7.3c Identity layers after individual bootstrap
+### 7.3d Identity layers after individual bootstrap
 
 Keep these two layers separate:
 

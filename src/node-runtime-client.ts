@@ -44,7 +44,12 @@ import {
   ensureFamilyOrganizationRegistrationWithDeps,
   type EnsureFamilyOrganizationRegistrationInput,
 } from './family-organization-registration.js';
-import { searchFamilyOrganizationWithDeps, type FamilyOrganizationSearchInput } from './family-organization-search.js';
+import {
+  listOwnedFamilyOrganizationsWithDeps,
+  searchFamilyOrganizationWithDeps,
+  type FamilyOrganizationSearchInput,
+  type OwnedFamilyOrganizationDirectoryInput,
+} from './family-organization-search.js';
 import { requestSmartTokenWithDeps, type SmartTokenRequestInput } from './smart-token.js';
 import {
   activateEmployeeDeviceWithActivationCodeWithDeps,
@@ -1148,6 +1153,20 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
     return searchFamilyOrganizationWithDeps({
       routeCtx: ctx,
       input,
+      defaultTimeoutMs: 20_000,
+      defaultIntervalMs: 1_000,
+      individualFamilyOrganizationSearchPath: this.paths.individualFamilyOrganizationSearchPath.bind(this.paths),
+      individualFamilyOrganizationSearchPollPath: this.paths.individualFamilyOrganizationSearchPollPath.bind(this.paths),
+      submitAndPoll: this.submitAndPoll.bind(this),
+    });
+  }
+
+  /** Lists all individual Organizations owned by one verified account contact. */
+  public async listOwnedFamilyOrganizations(
+    ctx: RouteContext,
+    input: OwnedFamilyOrganizationDirectoryInput,
+  ) {
+    return listOwnedFamilyOrganizationsWithDeps(ctx, input, {
       defaultTimeoutMs: 20_000,
       defaultIntervalMs: 1_000,
       individualFamilyOrganizationSearchPath: this.paths.individualFamilyOrganizationSearchPath.bind(this.paths),

@@ -42,7 +42,7 @@ test('confirmIndividualOrganizationOrderWithDeps builds canonical family order p
               meta: { claims: {
                 '@context': 'org.hl7.fhir.api',
                 'org.hl7.fhir.api.RelatedPerson.identifier': 'urn:uuid:00000000-0000-4000-8000-000000000001',
-                'org.hl7.fhir.api.RelatedPerson.patient': 'did:web:provider.example:individual:UUID:zSubject',
+                'org.hl7.fhir.api.RelatedPerson.patient': 'did:web:provider.example:individual:multibase:zSubject',
                 'org.hl7.fhir.api.RelatedPerson.relationship': 'http://terminology.hl7.org/CodeSystem/v3-RoleCode|RESPRSN',
                 'org.hl7.fhir.api.RelatedPerson.active': 'true',
               } },

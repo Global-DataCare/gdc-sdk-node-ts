@@ -9,6 +9,7 @@
   },
   "include": [
     "./high-level-clinical-profile-writes.ts",
-    "./pdqm-patient-match.ts"
+    "./pdqm-patient-match.ts",
+    "./owned-individual-cleanup.ts"
   ]
 }

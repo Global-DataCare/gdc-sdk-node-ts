@@ -9,6 +9,9 @@ import {
   ClaimsServiceSchemaorg,
 } from 'gdc-common-utils-ts/constants';
 import {
+  HealthcareActorRoleCodes,
+  HL7_CODING_SYSTEM_V3_ROLE_CODE,
+  buildIndividualMemberDidWebFromPrivateIdentifiers,
   buildIndividualDidWeb,
   buildSecureIdValueIndividual,
   extractPrimaryClaims,
@@ -18,6 +21,9 @@ import {
 } from 'gdc-common-utils-ts';
 export { buildIndividualMemberDidWebFromPrivateIdentifiers } from 'gdc-common-utils-ts';
 import type { FamilyRegistrationStatus } from 'gdc-common-utils-ts/utils/family-organization-summary';
+import type { IndividualOnboardingDraftResult } from 'gdc-common-utils-ts/models/individual-onboarding';
+import { DocumentReferenceClaim } from 'gdc-common-utils-ts/models/interoperable-claims/document-reference-claims';
+import { buildIndividualOrganizationRegistrationGatewayRequestFromDraft } from 'gdc-sdk-core-ts';
 import { GwCoreLifecycleRequestType } from './constants/lifecycle.js';
 import { resolvePollOptionsFromSeconds } from './poll-options.js';
 import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
@@ -25,6 +31,14 @@ import type { RouteContext } from './individual-onboarding.js';
 import type { OfferPreview } from './order-offer-summary.js';
 
 export type IndividualOrganizationRegistrationInput = {
+  /**
+   * Preferred high-level input produced by `createIndividualOnboardingEditor()`.
+   *
+   * The SDK converts this draft into the GW Bundle and signed-PDF attachment.
+   * Registration remains separate from Order confirmation, enrollment and
+   * opening a profile.
+   */
+  onboardingDraft?: IndividualOnboardingDraftResult;
   /**
    * Preferred route identifier for the selected personal indexing service provider.
    *
@@ -45,7 +59,7 @@ export type IndividualOrganizationRegistrationInput = {
    * This is not the technical subject identifier. It is the nearby name the
    * controller uses to refer to the person in the UI, for example `Charly`.
    */
-  alternateName: string;
+  alternateName?: string;
   /**
    * CORE-canonical controller contact channel for individual bootstrap.
    *
@@ -121,6 +135,12 @@ export type IndividualOrganizationBootstrapIdentity = {
   providerDidWeb: string;
   /** Canonical child DID built beneath the exact provider DID returned by GW. */
   subjectDid: string;
+  /**
+   * Canonical principal-controller member DID accepted by individual DCR.
+   * Optional only for compatibility with older registration receipts that did
+   * not expose the controller contact needed to derive it.
+   */
+  controllerActorDid?: string;
 };
 
 type RegisterIndividualOrganizationDeps = {
@@ -164,26 +184,50 @@ export async function registerIndividualOrganizationWithDeps(
    * in the payload for compatibility, but the owner claims are the live GW
    * routing/indexing contract for this flow.
    */
+  const onboardingDraft = deps.input.onboardingDraft;
+  if (onboardingDraft && !hasSignedPdfEvidence(onboardingDraft)) {
+    const subjectAlternateName = String(
+      onboardingDraft.formFields.subjectAlternateName
+      || onboardingDraft.claims?.[ClaimsOrganizationSchemaorg.alternateName]
+      || '',
+    ).trim();
+    if (!subjectAlternateName) {
+      throw new Error(
+        'registerIndividualOrganization subjectAlternateName is required when signed PDF evidence is absent.',
+      );
+    }
+  }
   const alternateName = String(deps.input.alternateName || '').trim();
-  if (!alternateName) {
+  if (!onboardingDraft && !alternateName) {
     throw new Error('registerIndividualOrganization requires alternateName.');
   }
-  const controllerEmail = String(deps.input.controllerEmail || '').trim();
-  const controllerTelephone = String(deps.input.controllerTelephone || '').trim();
-  if (!controllerEmail && !controllerTelephone) {
+  const controllerEmail = String(
+    deps.input.controllerEmail
+    || onboardingDraft?.formFields.controllerEmail
+    || onboardingDraft?.claims?.[ClaimsOrganizationSchemaorg.ownerEmail]
+    || '',
+  ).trim();
+  const controllerTelephone = String(
+    deps.input.controllerTelephone
+    || onboardingDraft?.formFields.controllerPhone
+    || onboardingDraft?.claims?.[ClaimsOrganizationSchemaorg.ownerTelephone]
+    || '',
+  ).trim();
+  if (!onboardingDraft && !controllerEmail && !controllerTelephone) {
     throw new Error('registerIndividualOrganization requires controllerEmail, or controllerTelephone only for compatibility/extension flows.');
   }
   const controllerRole = String(deps.input.controllerRole || 'RESPRSN').trim();
   const controllerIdentifier = canonicalControllerUuid(
     deps.input.controllerIdentifier
       || deps.input.additionalClaims?.[ClaimsOrganizationSchemaorg.ownerIdentifierValue]
+      || onboardingDraft?.claims?.[ClaimsOrganizationSchemaorg.ownerIdentifierValue]
       || randomUUID(),
   );
 
   const claims: Record<string, unknown> = {
     '@context': 'org.schema',
     ...(deps.input.additionalClaims || {}),
-    [ClaimsOrganizationSchemaorg.alternateName]: alternateName,
+    ...(alternateName ? { [ClaimsOrganizationSchemaorg.alternateName]: alternateName } : {}),
     [ClaimsOrganizationSchemaorg.ownerIdentifierValue]: controllerIdentifier,
     [ClaimsServiceSchemaorg.category]: deps.routeCtx.sector,
     [ClaimsPersonSchemaorg.hasOccupationalRoleValue]: controllerRole,
@@ -201,18 +245,25 @@ export async function registerIndividualOrganizationWithDeps(
       : {}),
   };
 
+  const registrationBody = onboardingDraft
+    ? buildIndividualOrganizationRegistrationGatewayRequestFromDraft({
+        draft: onboardingDraft,
+        routingClaims: claims,
+      })
+    : {
+        data: [{
+          type: GwCoreLifecycleRequestType.IndividualOrganizationRegistration,
+          resource: { meta: { claims } },
+        }],
+      };
+
   const registrationPayload = {
     jti: `jti-${createRuntimeUuid()}`,
     iss: deps.routeCtx.tenantId,
     aud: deps.routeCtx.tenantId,
     type: 'application/didcomm-plain+json',
     thid: `family-org-${createRuntimeUuid()}`,
-    body: {
-      data: [{
-        type: GwCoreLifecycleRequestType.IndividualOrganizationRegistration,
-        resource: { meta: { claims } },
-      }],
-    },
+    body: registrationBody,
   };
 
   const pollOptions = resolvePollOptionsFromSeconds(
@@ -254,7 +305,10 @@ export async function registerIndividualOrganizationWithDeps(
     offerPreview: deps.getOfferPreviewFromResponse(registration),
     registrationStatus: registrationSummary?.status,
     orderConfirmationRequired: registrationSummary?.status !== 'already_exists',
-    identity: readIndividualOrganizationBootstrapIdentity(registration.poll.body),
+    identity: readIndividualOrganizationBootstrapIdentity(registration.poll.body, {
+      controllerEmail,
+      controllerTelephone,
+    }),
   };
 }
 
@@ -270,6 +324,14 @@ function canonicalControllerUuid(value: unknown): string {
     hexadecimal.slice(16, 20),
     hexadecimal.slice(20),
   ].join('-');
+}
+
+function hasSignedPdfEvidence(draft: IndividualOnboardingDraftResult): boolean {
+  const claims = draft.documentReference?.resource?.meta?.claims;
+  return Boolean(
+    String(claims?.[DocumentReferenceClaim.ContentType] || '').trim()
+    && String(claims?.[DocumentReferenceClaim.ContentData] || '').trim(),
+  );
 }
 
 /** @deprecated Use `registerIndividualOrganizationWithDeps`. */
@@ -289,6 +351,10 @@ export async function startIndividualOrganizationWithDeps(
  */
 export function readIndividualOrganizationBootstrapIdentity(
   responseBody: unknown,
+  controller?: Readonly<{
+    controllerEmail?: string;
+    controllerTelephone?: string;
+  }>,
 ): IndividualOrganizationBootstrapIdentity | undefined {
   const root = asRecord(responseBody);
   const body = asRecord(root?.body) || root;
@@ -310,16 +376,38 @@ export function readIndividualOrganizationBootstrapIdentity(
     return undefined;
   }
 
+  const subjectDid = buildIndividualDidWeb({
+    providerDidWeb,
+    secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
+    secureIdValueIndividual,
+  });
+  const controllerEmail = String(
+    controller?.controllerEmail || claims[ClaimsOrganizationSchemaorg.ownerEmail] || '',
+  ).trim();
+  const controllerTelephone = String(
+    controller?.controllerTelephone || claims[ClaimsOrganizationSchemaorg.ownerTelephone] || '',
+  ).trim();
+  const controllerActorDid = controllerEmail || controllerTelephone
+    ? buildIndividualMemberDidWebFromPrivateIdentifiers({
+        providerDidWeb,
+        secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
+        privateIdValueIndividual: resourceId,
+        secureIdTypeMember: controllerEmail
+          ? SecureIdTypesIndividual.Email
+          : SecureIdTypesIndividual.Phone,
+        privateIdValueMember: controllerEmail || controllerTelephone,
+        roleType: HL7_CODING_SYSTEM_V3_ROLE_CODE,
+        roleValue: HealthcareActorRoleCodes.Controller,
+      })
+    : undefined;
+
   return {
     resourceId,
     secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
     secureIdValueIndividual,
     providerDidWeb,
-    subjectDid: buildIndividualDidWeb({
-      providerDidWeb,
-      secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
-      secureIdValueIndividual,
-    }),
+    subjectDid,
+    ...(controllerActorDid ? { controllerActorDid } : {}),
   };
 }
 

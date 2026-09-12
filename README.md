@@ -533,7 +533,7 @@ const individualControllerDid = buildIndividualMemberDidWebFromPrivateIdentifier
   roleValue: 'RESPRSN',
 });
 
-// did:web:host.example.org:health-care:organization:taxid:VATES-B00112233:individual:UUID:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee:member:zG9DrMLpQW8eoCc9Ay9AFxuMGiswgJePpbUMz9svJCZ8tKjUd4xoExgCPA5jmHc6hPATJ:RESPRSN
+// did:web:host.example.org:health-care:organization:taxid:VATES-B00112233:individual:multibase:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee:member:zG9DrMLpQW8eoCc9Ay9AFxuMGiswgJePpbUMz9svJCZ8tKjUd4xoExgCPA5jmHc6hPATJ:RESPRSN
 ```
 
 ### Use shared invitation contract from Node
