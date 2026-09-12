@@ -80,14 +80,14 @@ const controllerDid = buildIndividualMemberDidWebFromPrivateIdentifiers({
   roleValue: EXAMPLE_INDIVIDUAL_CONTROLLER_ROLE_VALUE,
 });
 
-// did:web:<provider-path>:individual:<secure-id-type>:<secure-id-value>:member:<secure-member-value>:<role-value>
-// did:web:host.example.com:health-care:organization:taxid:ES-B00112233:individual:UUID:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee:member:zG9FEVaXcQgzppJZUe7WwnqbM1mqTLbktoPSbPvMj2T6fj121vncQCbKyqh4BTYtSh2Tj:RESPRSN
+// did:web:<provider-path>:individual:multibase:<secure-id-value>:member:<secure-member-value>:<role-value>
+// did:web:host.example.com:health-care:organization:taxid:ES-B00112233:individual:multibase:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee:member:zG9FEVaXcQgzppJZUe7WwnqbM1mqTLbktoPSbPvMj2T6fj121vncQCbKyqh4BTYtSh2Tj:RESPRSN
 assert.equal(controllerDid, EXAMPLE_HOSTED_INDIVIDUAL_CONTROLLER_DID);
 ```
 
-`secureIdTypeIndividual` is explicit (`UUID`, `EMAIL`, `PHONE`, `DL`, `PPN`,
-etc.). Both secure values are SHA3-384 multihashes encoded as base58btc and
-prefixed with `z`; the private UUID/email/phone/license/passport never appears
+`secureIdTypeIndividual` remains a private builder input and is not exposed in
+the public DID. Both secure values are SHA3-384 multihashes encoded as base58btc
+and prefixed with `z`; the private UUID/email/phone/license/passport never appears
 in the DID. `roleType` is retained in protected authorization data, while only
 `roleValue` is serialized to avoid embedding a long FHIR `system|value` token.
 

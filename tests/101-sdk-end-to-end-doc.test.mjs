@@ -175,7 +175,7 @@ test('multi-actor IPS export 101 numbers the source, attester and aggregate-read
   assert.match(multiActorIpsGuide, /Organization.*Practitioner.*PractitionerRole.*RelatedPerson/is);
   assert.match(multiActorIpsGuide, /Composition\.author.*stable FHIR provenance/is);
   assert.match(multiActorIpsGuide, /did:web:api\.acme\.org:employee:zW1pca8dQVVz2apBk8A1CWJ8VSHgheXpRZoZtqwhnkHjFkV:ISCO-08\|2211/);
-  assert.match(multiActorIpsGuide, /did:web:host\.example\.com:health-care:organization:taxid:ES-B00112233:individual:UUID:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee:member:zG9FEVaXcQgzppJZUe7WwnqbM1mqTLbktoPSbPvMj2T6fj121vncQCbKyqh4BTYtSh2Tj:RESPRSN/);
+  assert.match(multiActorIpsGuide, /did:web:host\.example\.com:health-care:organization:taxid:ES-B00112233:individual:multibase:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee:member:zG9FEVaXcQgzppJZUe7WwnqbM1mqTLbktoPSbPvMj2T6fj121vncQCbKyqh4BTYtSh2Tj:RESPRSN/);
   assert.match(multiActorIpsGuide, /urn:cds-es:v1:organization:tax:ES-B00112233/);
   assert.match(multiActorIpsGuide, /urn:cds-es:v1:organization:tax:ES-B00112233:member:zG9Gjhm4F9WwjUbk4D2sAL1wDj5MWuXsJooWPYDG5XYKURBQa4Q7wXttzusFntw6tXH3F:ISCO-08\|2211/);
   assert.match(multiActorIpsGuide, /urn:cds-<jurisdiction>.*role-license/is);

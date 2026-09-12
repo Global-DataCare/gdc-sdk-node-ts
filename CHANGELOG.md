@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Pin `gdc-common-utils-ts@2.9.14` and `gdc-sdk-core-ts@2.9.9` so individual
+  member DIDs expose only the canonical `multibase` discriminator while the
+  controller remains bound to the exact licensed contact.
 - Require the standalone individual profile and controller-to-professional live
   journeys to enroll the canonical member DID returned by registration before
   clinical, consent or lifecycle work, and target only the returned subject DID.

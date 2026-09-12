@@ -136,7 +136,7 @@ test('registerIndividualOrganizationWithDeps builds canonical registration paylo
     secureIdTypeIndividual: 'UUID',
     secureIdValueIndividual: 'zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee',
     providerDidWeb: EXAMPLE_API_ORGANIZATION_DID,
-    subjectDid: `${EXAMPLE_API_ORGANIZATION_DID}:individual:UUID:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee`,
+    subjectDid: `${EXAMPLE_API_ORGANIZATION_DID}:individual:multibase:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee`,
     controllerActorDid: buildIndividualMemberDidWebFromPrivateIdentifiers({
       providerDidWeb: EXAMPLE_API_ORGANIZATION_DID,
       secureIdTypeIndividual: SecureIdTypesIndividual.Uuid,
@@ -264,7 +264,7 @@ test('readIndividualOrganizationBootstrapIdentity preserves the exact hosted pro
   assert.equal(identity?.secureIdTypeIndividual, 'UUID');
   assert.equal(
     identity?.subjectDid,
-    `${providerDidWeb}:individual:UUID:${identity?.secureIdValueIndividual}`,
+    `${providerDidWeb}:individual:multibase:${identity?.secureIdValueIndividual}`,
   );
 });
 
@@ -279,6 +279,6 @@ test('buildIndividualMemberDidWebFromPrivateIdentifiers creates the exact DCR ac
       roleType: 'http://terminology.hl7.org/CodeSystem/v3-RoleCode',
       roleValue: 'RESPRSN',
     }),
-    'did:web:host.example.org:health-care:organization:taxid:VATES-B00112233:individual:UUID:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee:member:zG9DrMLpQW8eoCc9Ay9AFxuMGiswgJePpbUMz9svJCZ8tKjUd4xoExgCPA5jmHc6hPATJ:RESPRSN',
+    'did:web:host.example.org:health-care:organization:taxid:VATES-B00112233:individual:multibase:zG9H82pae9SCXvec3D4YKqhX8bj8F1mRgzxMEdwXXonT7BWsvsUiP2u52sWQTeESpoMee:member:zG9DrMLpQW8eoCc9Ay9AFxuMGiswgJePpbUMz9svJCZ8tKjUd4xoExgCPA5jmHc6hPATJ:RESPRSN',
   );
 });
