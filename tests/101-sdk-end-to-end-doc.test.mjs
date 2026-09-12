@@ -113,6 +113,30 @@ test('individual onboarding 101 separates registration, Order, enrollment, and p
   assert.match(guide, /does not need[\s\S]*getLicense\(\)/is);
 });
 
+test('individual enrollment 101 traces every input to login, storage, routing, or DCR configuration', () => {
+  assert.match(guide, /Where every enrollment value comes from/);
+  assert.match(guide, /ownerId[\s\S]*authenticated BFF account/is);
+  assert.match(guide, /profileId[\s\S]*created once[\s\S]*persisted/is);
+  assert.match(guide, /registration[\s\S]*registerIndividualOrganization\(\.\.\.\)/is);
+  assert.match(guide, /order[\s\S]*confirmIndividualOrganizationOrder\(\.\.\.\)/is);
+  assert.match(guide, /routeContext[\s\S]*same[\s\S]*registration[\s\S]*Order/is);
+  assert.match(guide, /pin[\s\S]*entered by the user/is);
+  assert.match(guide, /idToken[\s\S]*signed OIDC `id_token`[\s\S]*login/is);
+  assert.match(guide, /redirectUris[\s\S]*OAuth callback/is);
+  assert.match(guide, /clientName[\s\S]*OAuth client application/is);
+  assert.match(guide, /clientName[\s\S]*not[\s\S]*subject/is);
+  assert.match(guide, /deviceName[\s\S]*separate/is);
+  assert.match(guide, /already reached[\s\S]*403[\s\S]*do not change/is);
+  assert.doesNotMatch(
+    guide,
+    /derives `actorDid`, `profileDid` and the authorized subject from `registration\.identity\.subjectDid`/,
+  );
+  assert.match(
+    guide,
+    /registration\.identity\.controllerActorDid[\s\S]*registration\.identity\.subjectDid/is,
+  );
+});
+
 test('BFF clinical-write 101 separates section CRUD from document import', () => {
   assert.match(guide, /101-BFF_CLINICAL_WRITES\.md/);
   assert.match(clinicalWriteGuide, /IndividualControllerBackendRuntime/);
