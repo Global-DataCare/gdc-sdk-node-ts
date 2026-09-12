@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Trace every self-managed individual enrollment input back to its verified
+  login, persisted BFF profile, validated route, registration/Order result or
+  deployed OAuth/DCR configuration in the end-to-end 101. Clarify that
+  `clientName` names the OAuth application rather than the subject/device,
+  `redirectUris` are real registered callbacks, and the controller actor comes
+  from `registration.identity.controllerActorDid`.
 - Deprecate `importIpsOrFhirAndUpdateIndex(...)` and its direct Composition
   helper/port surfaces without changing their runtime behavior. New document
   and section writes use the existing Communication-backed

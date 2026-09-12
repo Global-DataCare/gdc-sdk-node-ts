@@ -1384,6 +1384,34 @@ when a FHIR reference is needed.
 Registration, Order confirmation, enrollment and profile opening are four
 different phases. Keep enrollment separate from normal profile opening:
 
+#### Where every enrollment value comes from
+
+Do not invent any value at this step. The BFF already has four authoritative
+sources: its verified login session, its pending profile record, the selected
+GW route, and its deployed OAuth/DCR application configuration.
+
+| Enrollment field | Exact source | What it is not |
+| --- | --- | --- |
+| `ownerId` | Stable identifier of the authenticated BFF account after the portal has verified the signed login token. Use the same account key that owns the encrypted profiles in the BFF store. | A subject DID, email copied from an unverified request, or GW `client_id`. |
+| `profileId` | Identifier created once for the pending encrypted wallet/profile record and persisted by the BFF before enrollment. Reuse this stored value on every later login. | The registered individual UUID, `RelatedPerson` UUID, or a new value generated on every request. |
+| `registration` | The complete value returned by `registerIndividualOrganization(...)` in step 7.2. | A reconstructed object or selected claims from its Bundle. |
+| `order` | The complete value returned by `confirmIndividualOrganizationOrder(...)` in step 7.3. | Only the activation code or a hand-built `RelatedPerson`. |
+| `routeContext` | The same validated tenant, jurisdiction and sector route used for registration and Order confirmation. | A route inferred from the subject DID. |
+| `pin` | The profile-enrollment PIN entered by the user over the authenticated portal flow. The SDK uses it to protect the wallet seed; it is not sent to GW. | The login password, activation code, subject identifier, or a documentation default. |
+| `idToken` | The signed OIDC `id_token` returned by the portal login provider and verified for the current account. | A VP, SMART token, unsigned JWT, email, or DID. |
+| `redirectUris` | The real OAuth callback URI list from this deployed portal/app's DCR configuration. GW will only redirect to a registered value. | The GW URL, subject URL, arbitrary example URL, or webhook. |
+| `clientName` | Human-readable name of the OAuth client application from the same deployed DCR configuration. | The subject's name or nickname, controller name, role, DID, or device nickname. |
+
+`deviceName` is a separate optional description of one app/device installation.
+The current high-level `enrollSelfIndividualController(...)` surface does not
+ask for it separately, so its DCR adapter uses `clientName` as the fallback
+`device_name`. Do not put the subject's nickname into `clientName` to compensate.
+
+If an integration already reached the GW DCR route and received HTTP 403, it
+already supplied the account, profile, route, login and DCR configuration.
+After upgrading the SDK for the controller-DID fix, do not change those working
+values and do not add a manually built DID.
+
 ```ts
 const enrolledIndividualControllerProfile =
   await profileSessions.enrollSelfIndividualController({
@@ -1419,8 +1447,11 @@ the protected profile. The browser never receives the activation code, wallet
 seed, initial access token or private keys.
 
 Use `enrollSelfIndividualController(...)` only when controller and subject are
-the same identity. It derives `actorDid`, `profileDid` and the authorized
-subject from `registration.identity.subjectDid`.
+the same person. It takes `actorDid` and `profileDid` from
+`registration.identity.controllerActorDid`; it keeps the distinct
+`registration.identity.subjectDid` only as the individual whose data that
+controller profile may manage. The portal passes the complete typed
+registration result and never performs this mapping itself.
 
 For a child, dependent adult or animal, use the represented-subject operation.
 It requires the real controller/member DID and optionally accepts a
