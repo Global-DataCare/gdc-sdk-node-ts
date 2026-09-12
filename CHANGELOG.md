@@ -11,6 +11,10 @@
 - Default the clean full-cycle gate to the canonical
   `custom/vet-gw-clinic-booking` GW VET checkout with `connect-ica-ts`; paired
   explicit GW/ICA overrides remain available for later CORE/product promotion.
+  Its default process configuration is the checked-in local demo example, so
+  the gate cannot inherit staging network mode or omit the host identifier type.
+  Connect ICA receives an explicit local `did:web` authority and may download
+  its official known certificate roots so the signed-PDF verification is real.
 - Resolve the live route, selected GW ICA route and Connect ICA supported
   jurisdictions from the same explicit jurisdiction, preventing a product
   environment file from silently changing only one side of the E2E boundary.

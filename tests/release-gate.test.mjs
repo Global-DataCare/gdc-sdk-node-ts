@@ -95,6 +95,11 @@ test('clean full-cycle defaults to GW VET and connect ICA while preserving expli
 
   assert.match(runner, /GW_DIR="\$\{GW_DIR_OVERRIDE:-\$\{WORKSPACE_DIR\}\/custom\/vet-gw-clinic-booking\}"/);
   assert.match(runner, /ICA_DIR="\$\{ICA_DIR_OVERRIDE:-\$\{WORKSPACE_DIR\}\/connect-ica-ts\}"/);
+  assert.match(runner, /GW_ENV_FILE="\$\{GW_ENV_FILE:-\$\{GW_DIR\}\/env\.local-demo\.example\}"/);
+  assert.match(runner, /SUITE_SECTOR="\$\{SECTOR:-animal-care\}"/);
+  assert.match(runner, /SUITE_EMPLOYEE_ROLE="\$\{EMPLOYEE_ROLE:-ISCO-08\|2250\}"/);
+  assert.match(runner, /ICA_KNOWN_CERTS_AUTO_DOWNLOAD="\$\{ICA_KNOWN_CERTS_AUTO_DOWNLOAD:-true\}"/);
+  assert.match(runner, /DID_WEB_DOMAIN="\$\{DID_WEB_DOMAIN:-127\.0\.0\.1:\$\{ICA_PORT\}\}"/);
   assert.doesNotMatch(runner, /ICA_DIR=.*dataspace-ica-ts/);
   assert.match(
     runner,
