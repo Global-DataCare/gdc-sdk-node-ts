@@ -182,7 +182,8 @@ export function buildAllergyCreate(input: Readonly<{
   resourceId: string;
   identifier: string;
   subjectDid: string;
-  code: string;
+  codeSystem: string;
+  codeValue: string;
 }>) {
   const editor = new BundleEditor().setBundleType(BundleTypes.batch);
   editor
@@ -190,7 +191,7 @@ export function buildAllergyCreate(input: Readonly<{
     .create()
     .setIdentifier(input.identifier)
     .setSubject(input.subjectDid)
-    .setCode(input.code);
+    .setCode(input.codeSystem, input.codeValue);
   return editor.build();
 }
 
@@ -200,7 +201,8 @@ export function buildAllergyUpdate(input: Readonly<{
   currentVersionId: string;
   identifier: string;
   subjectDid: string;
-  code: string;
+  codeSystem: string;
+  codeValue: string;
 }>) {
   const editor = new BundleEditor().setBundleType(BundleTypes.batch);
   editor
@@ -209,7 +211,7 @@ export function buildAllergyUpdate(input: Readonly<{
     .ifMatch(input.currentVersionId)
     .setIdentifier(input.identifier)
     .setSubject(input.subjectDid)
-    .setCode(input.code);
+    .setCode(input.codeSystem, input.codeValue);
   return editor.build();
 }
 

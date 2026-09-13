@@ -159,7 +159,7 @@ allergyChanges
   .create()
   .setIdentifier(newAllergy.identifier)
   .setSubject(subjectDid)
-  .setCode(newAllergy.code)
+  .setCode(newAllergy.codeSystem, newAllergy.codeValue)
   .setCodeTextLocal(newAllergy.localText)
   .setClinicalStatus(newAllergy.clinicalStatus)
   .doneEntry();
@@ -175,10 +175,14 @@ allergyChanges
   .ifMatch(allergyToUpdate.versionId)
   .setIdentifier(allergyToUpdate.identifier)
   .setSubject(subjectDid)
-  .setCode(allergyToUpdate.code)
+  .setCode(allergyToUpdate.codeSystem, allergyToUpdate.codeValue)
   .setCodeTextLocal(allergyToUpdate.newLocalText)
   .setClinicalStatus(allergyToUpdate.clinicalStatus)
   .doneEntry();
+
+// A compact FHIR token remains valid for existing callers:
+// `.setCode(allergyFromLegacyForm.codeToken)` where codeToken is `system|code`
+// or only `code`.
 
 // DELETE -> DELETE AllergyIntolerance/{id}, without a resource body.
 allergyChanges

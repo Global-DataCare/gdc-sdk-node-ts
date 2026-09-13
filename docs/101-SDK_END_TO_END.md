@@ -1550,7 +1550,7 @@ allergyCreateBundle
   .create()
   .setIdentifier(newAllergy.identifier)
   .setSubject(openedIndividualController.profile.profileDid)
-  .setCode(newAllergy.code)
+  .setCode(newAllergy.codeSystem, newAllergy.codeValue)
   .setCodeTextLocal(newAllergy.localText)
   .setClinicalStatus(newAllergy.clinicalStatus)
   .doneEntry();
@@ -1563,6 +1563,11 @@ await openedIndividualController.sdk.updateSubjectSection(tenantContext, {
   bundle: allergyCreateBundle.build(),
 });
 ```
+
+The editor keeps the FHIR token contract without making the UI concatenate it:
+`getCode()` returns only `codeValue`, `getCodeSystem()` returns `codeSystem`,
+and `getSystemAndCode()` returns `system|code`. Existing
+`setCode(systemAndCode)` calls remain valid.
 
 `unlock(...)` is a later authenticated operation: it opens the protected wallet
 and obtains the subject-scoped SMART session. Only then does
