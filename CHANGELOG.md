@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 2.9.16 - 2026-09-13
+
+- Teach Node/BFF callers to pass terminology `codeSystem` and `codeValue`
+  separately while preserving the existing compact FHIR token form.
+
 - Trace every self-managed individual enrollment input back to its verified
   login, persisted BFF profile, validated route, registration/Order result or
   deployed OAuth/DCR configuration in the end-to-end 101. Clarify that
@@ -12,7 +17,7 @@
   helper/port surfaces without changing their runtime behavior. New document
   and section writes use the existing Communication-backed
   `updateClinicalSummary(...)` and `updateSubjectSection(...)` facades.
-- Pin `gdc-common-utils-ts@2.9.14` and `gdc-sdk-core-ts@2.9.9` so individual
+- Pin `gdc-common-utils-ts@2.9.15` and `gdc-sdk-core-ts@2.9.10` so individual
   member DIDs expose only the canonical `multibase` discriminator while the
   controller remains bound to the exact licensed contact.
 - Require the standalone individual profile and controller-to-professional live
