@@ -185,7 +185,7 @@ export async function listOwnedFamilyOrganizationsWithDeps(
     const alternateName = String(resourceClaims[ClaimsOrganizationSchemaorg.alternateName] || '').trim();
     const rawStatus = String(resourceClaims['org.schema.FamilyRegistration.status'] || '').trim();
     const status = isFamilyRegistrationStatus(rawStatus) ? rawStatus : undefined;
-    if (!alternateName && status !== 'draft_saved') return [];
+    if (!alternateName && status !== 'draft_saved' && status !== 'resume_required') return [];
     const birthDate = String(
       resourceClaims[ClaimsPersonSchemaorg.birthDate]
       || resourceClaims['org.schema.Organization.foundingDate']

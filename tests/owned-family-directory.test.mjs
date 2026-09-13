@@ -46,6 +46,15 @@ test('lists every individual Organization for one verified owner without resourc
             } },
             { resource: {
               resourceType: 'Organization',
+              id: 'owned-rolling-private-draft-id',
+              meta: { claims: {
+                [ClaimsOrganizationSchemaorg.ownerEmail]: EXAMPLE_EMAIL_CONTROLLER_INDIVIDUAL,
+                [ClaimsPersonSchemaorg.birthDate]: '1950',
+                'org.schema.FamilyRegistration.status': 'resume_required',
+              } },
+            } },
+            { resource: {
+              resourceType: 'Organization',
               id: 'foreign-private-draft-id',
               meta: { claims: {
                 [ClaimsOrganizationSchemaorg.ownerEmail]: 'another.owner@example.org',
@@ -86,6 +95,16 @@ test('lists every individual Organization for one verified owner without resourc
         [ClaimsPersonSchemaorg.birthDate]: '1942',
         'org.schema.FamilyRegistration.status': 'draft_saved',
         'org.schema.FamilyRegistration.missingFields': ['alternateName', 'sameAs'],
+      },
+    },
+    {
+      resourceId: 'owned-rolling-private-draft-id',
+      status: 'resume_required',
+      birthDate: '1950',
+      claims: {
+        [ClaimsOrganizationSchemaorg.ownerEmail]: EXAMPLE_EMAIL_CONTROLLER_INDIVIDUAL,
+        [ClaimsPersonSchemaorg.birthDate]: '1950',
+        'org.schema.FamilyRegistration.status': 'resume_required',
       },
     },
   ]);
