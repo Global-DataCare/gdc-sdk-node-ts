@@ -7,7 +7,7 @@ test('documents authenticated owner-directory cleanup without requiring resource
   const snippet = readFileSync('docs/snippets/owned-individual-cleanup.ts', 'utf8');
 
   assert.match(snippet, /listOwnedFamilyOrganizations/);
-  assert.match(snippet, /subject\.alternateName\.startsWith\(input\.alternateNamePrefix\)/);
+  assert.match(snippet, /subject\.alternateName\?\.startsWith\(input\.alternateNamePrefix\) === true/);
   assert.match(snippet, /disableIndividual\([\s\S]*organizationClaims: input\.subject\.claims/);
   assert.match(snippet, /purgeIndividual\([\s\S]*organizationClaims: input\.subject\.claims/);
   assert.ok(snippet.indexOf('disableIndividual(') < snippet.indexOf('purgeIndividual('));

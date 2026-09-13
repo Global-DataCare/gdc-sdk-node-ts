@@ -3,8 +3,9 @@
 import {
   readFamilyOrganizationSummaryFromResponseBody,
   type FamilyOrganizationSummary,
+  type FamilyRegistrationStatus,
 } from 'gdc-common-utils-ts/utils/family-organization-summary';
-import { ClaimsOrganizationSchemaorg, ClaimsServiceSchemaorg } from 'gdc-common-utils-ts/constants';
+import { ClaimsOrganizationSchemaorg, ClaimsPersonSchemaorg, ClaimsServiceSchemaorg } from 'gdc-common-utils-ts/constants';
 import { resolvePollOptionsFromSeconds } from './poll-options.js';
 import type { PollOptions, SubmitAndPollResult } from './orchestration/client-port.js';
 import type { RouteContext } from './individual-onboarding.js';
@@ -26,9 +27,13 @@ export type OwnedFamilyOrganizationDirectoryInput = Readonly<{
 
 export type OwnedFamilyOrganizationDirectoryEntry = Readonly<{
   resourceId: string;
-  alternateName: string;
+  /** Missing only for an owner-private registration draft. */
+  alternateName?: string;
+  status?: FamilyRegistrationStatus;
+  birthDate?: string;
+  missingFields?: string[];
   claims: Readonly<Record<string, unknown>>;
-}>;
+}>; 
 
 type SearchFamilyOrganizationWithDeps = {
   routeCtx: RouteContext;
@@ -178,9 +183,36 @@ export async function listOwnedFamilyOrganizationsWithDeps(
     const ownerTelephone = String(resourceClaims[ClaimsOrganizationSchemaorg.ownerTelephone] || '').trim();
     if (!((email && ownerEmail === email) || (telephone && ownerTelephone === telephone))) return [];
     const alternateName = String(resourceClaims[ClaimsOrganizationSchemaorg.alternateName] || '').trim();
-    if (!alternateName) return [];
-    return [{ resourceId: String(resource.id), alternateName, claims: resourceClaims }];
+    const rawStatus = String(resourceClaims['org.schema.FamilyRegistration.status'] || '').trim();
+    const status = isFamilyRegistrationStatus(rawStatus) ? rawStatus : undefined;
+    if (!alternateName && status !== 'draft_saved') return [];
+    const birthDate = String(
+      resourceClaims[ClaimsPersonSchemaorg.birthDate]
+      || resourceClaims['org.schema.Organization.foundingDate']
+      || '',
+    ).trim();
+    const missingFields = Array.isArray(resourceClaims['org.schema.FamilyRegistration.missingFields'])
+      ? resourceClaims['org.schema.FamilyRegistration.missingFields']
+        .map((value: unknown) => String(value || '').trim())
+        .filter(Boolean)
+      : [];
+    return [{
+      resourceId: String(resource.id),
+      ...(alternateName ? { alternateName } : {}),
+      ...(status ? { status } : {}),
+      ...(birthDate ? { birthDate } : {}),
+      ...(missingFields.length ? { missingFields } : {}),
+      claims: resourceClaims,
+    }];
   });
+}
+
+function isFamilyRegistrationStatus(value: string): value is FamilyRegistrationStatus {
+  return value === 'new_created'
+    || value === 'draft_saved'
+    || value === 'resume_required'
+    || value === 'already_exists'
+    || value === 'not_found';
 }
 
 function createRuntimeUuid(): string {

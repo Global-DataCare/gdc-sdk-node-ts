@@ -8,6 +8,9 @@
   Order confirmation, public subject identity or active profile. Return its
   typed private Organization UUID as `draftId` so BFFs do not inspect Bundle
   internals, and fail closed when GW omits that identifier.
+- Include owner-private nameless drafts in the authenticated owner directory
+  with typed lifecycle status, birth date and missing fields, while continuing
+  to exclude foreign-owner and invalid nameless active records.
 
 ## 2.9.16 - 2026-09-13
 
