@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Let authenticated BFF and telephone channels explicitly save a nameless
+  human Individual Organization as an owner-private, cardless draft when a
+  valid `Person.birthDate` was captured. `draft_saved` never requires an Offer,
+  Order confirmation, public subject identity or active profile.
+
 ## 2.9.16 - 2026-09-13
 
 - Teach Node/BFF callers to pass terminology `codeSystem` and `codeValue`

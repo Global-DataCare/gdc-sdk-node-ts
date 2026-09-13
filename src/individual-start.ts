@@ -32,6 +32,14 @@ import type { OfferPreview } from './order-offer-summary.js';
 
 export type IndividualOrganizationRegistrationInput = {
   /**
+   * Explicitly saves an owner-private, cardless registration draft.
+   *
+   * This is intended for accessible channels that captured a birth year/date
+   * but could not reliably capture the subject's name. It never authorizes an
+   * Order or public card by itself.
+   */
+  registrationIntent?: 'activate' | 'save-private-draft';
+  /**
    * Preferred high-level input produced by `createIndividualOnboardingEditor()`.
    *
    * The SDK converts this draft into the GW Bundle and signed-PDF attachment.
@@ -104,8 +112,10 @@ export type IndividualOrganizationBootstrapInput = IndividualOrganizationRegistr
 
 export type IndividualOrganizationRegistrationResult = {
   registration: SubmitAndPollResult;
-  offerId: string;
-  offerPreview: OfferPreview;
+  /** Absent only for an explicitly requested owner-private draft. */
+  offerId?: string;
+  /** Absent only for an explicitly requested owner-private draft. */
+  offerPreview?: OfferPreview;
   /** Lifecycle state returned by GW for this registration receipt. */
   registrationStatus?: FamilyRegistrationStatus;
   /** False when the same family registration is already active. */
@@ -185,7 +195,8 @@ export async function registerIndividualOrganizationWithDeps(
    * routing/indexing contract for this flow.
    */
   const onboardingDraft = deps.input.onboardingDraft;
-  if (onboardingDraft && !hasSignedPdfEvidence(onboardingDraft)) {
+  const savesPrivateDraft = deps.input.registrationIntent === 'save-private-draft';
+  if (onboardingDraft && !hasSignedPdfEvidence(onboardingDraft) && !savesPrivateDraft) {
     const subjectAlternateName = String(
       onboardingDraft.formFields.subjectAlternateName
       || onboardingDraft.claims?.[ClaimsOrganizationSchemaorg.alternateName]
@@ -198,8 +209,15 @@ export async function registerIndividualOrganizationWithDeps(
     }
   }
   const alternateName = String(deps.input.alternateName || '').trim();
-  if (!onboardingDraft && !alternateName) {
+  if (!onboardingDraft && !alternateName && !savesPrivateDraft) {
     throw new Error('registerIndividualOrganization requires alternateName.');
+  }
+  const draftClaims = {
+    ...(onboardingDraft?.claims || {}),
+    ...(deps.input.additionalClaims || {}),
+  };
+  if (!alternateName && savesPrivateDraft && !hasValidHumanBirthDate(draftClaims)) {
+    throw new Error('registerIndividualOrganization private draft requires a valid birth year or date.');
   }
   const controllerEmail = String(
     deps.input.controllerEmail
@@ -284,6 +302,20 @@ export async function registerIndividualOrganizationWithDeps(
 
   deps.assertFirstDidcommEntrySuccess?.(registration, 'registerIndividualOrganization.registration');
 
+  const registrationSummary = readFamilyOrganizationSummaryFromResponseBody(registration.poll.body);
+  const registrationStatus = registrationSummary?.status;
+
+  if (savesPrivateDraft) {
+    if (registrationStatus !== 'draft_saved') {
+      throw new Error('registerIndividualOrganization failed: GW did not preserve the requested private draft.');
+    }
+    return {
+      registration,
+      registrationStatus,
+      orderConfirmationRequired: false,
+    };
+  }
+
   /**
    * Commercial contract for this SDK path:
    * - this helper targets the family/individual commercial bootstrap flow
@@ -298,18 +330,22 @@ export async function registerIndividualOrganizationWithDeps(
     throw new Error('registerIndividualOrganization failed: missing offerId in registration response.');
   }
 
-  const registrationSummary = readFamilyOrganizationSummaryFromResponseBody(registration.poll.body);
   return {
     registration,
     offerId,
     offerPreview: deps.getOfferPreviewFromResponse(registration),
-    registrationStatus: registrationSummary?.status,
+    registrationStatus,
     orderConfirmationRequired: registrationSummary?.status !== 'already_exists',
     identity: readIndividualOrganizationBootstrapIdentity(registration.poll.body, {
       controllerEmail,
       controllerTelephone,
     }),
   };
+}
+
+function hasValidHumanBirthDate(claims: Record<string, unknown> | undefined): boolean {
+  const birthDate = String(claims?.[ClaimsPersonSchemaorg.birthDate] || '').trim();
+  return /^(?:19|20)\d{2}(?:-(?:0[1-9]|1[0-2])(?:-(?:0[1-9]|[12]\d|3[01]))?)?$/.test(birthDate);
 }
 
 function canonicalControllerUuid(value: unknown): string {

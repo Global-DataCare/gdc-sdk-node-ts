@@ -214,6 +214,64 @@ test('registerIndividualOrganizationWithDeps marks an already-active registratio
   assert.equal(result.orderConfirmationRequired, false);
 });
 
+test('registerIndividualOrganizationWithDeps returns an explicit private draft without requiring an Offer', async () => {
+  let offerPreviewReads = 0;
+  const response = cloneExample(EXAMPLE_INDIVIDUAL_ORGANIZATION_START_RESPONSE);
+  response.poll.body = {
+    data: [{
+      resource: {
+        id: 'a87e5b15-aea4-4475-9c7c-40aa88354b6f',
+        meta: { claims: {
+          'org.schema.FamilyRegistration.status': 'draft_saved',
+          'org.schema.Organization.identifier.value': 'a87e5b15-aea4-4475-9c7c-40aa88354b6f',
+          'org.schema.Person.birthDate': '2022-01',
+          'org.schema.FamilyRegistration.missingFields': ['alternateName', 'sameAs'],
+        } },
+      },
+    }],
+  };
+
+  const result = await registerIndividualOrganizationWithDeps({
+    input: {
+      registrationIntent: 'save-private-draft',
+      controllerTelephone: '+16625550199',
+      controllerIdentifier: EXAMPLE_KYC_CONTROLLER_UUID,
+      additionalClaims: {
+        'org.schema.Person.birthDate': '2022-01',
+      },
+    },
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    individualFamilyOrganizationBatchPath: () => '/submit',
+    individualFamilyOrganizationPollPath: () => '/poll',
+    submitAndPoll: async () => response,
+    getOfferIdFromResponse: () => undefined,
+    getOfferPreviewFromResponse: () => { offerPreviewReads += 1; return {}; },
+  });
+
+  assert.equal(result.registrationStatus, 'draft_saved');
+  assert.equal(result.offerId, undefined);
+  assert.equal(result.offerPreview, undefined);
+  assert.equal(result.orderConfirmationRequired, false);
+  assert.equal(result.identity, undefined);
+  assert.equal(offerPreviewReads, 0);
+});
+
+test('private draft registration requires a birth year or date when the name is missing', async () => {
+  await assert.rejects(registerIndividualOrganizationWithDeps({
+    input: {
+      registrationIntent: 'save-private-draft',
+      controllerTelephone: '+16625550199',
+      controllerIdentifier: EXAMPLE_KYC_CONTROLLER_UUID,
+    },
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    individualFamilyOrganizationBatchPath: () => '/submit',
+    individualFamilyOrganizationPollPath: () => '/poll',
+    submitAndPoll: async () => { throw new Error('must not submit'); },
+    getOfferIdFromResponse: () => undefined,
+    getOfferPreviewFromResponse: () => ({}),
+  }), /private draft requires a valid birth year or date/);
+});
+
 test('deprecated startIndividualOrganizationWithDeps delegates and rejects an incomplete registration', async () => {
   await assert.rejects(
     startIndividualOrganizationWithDeps({
