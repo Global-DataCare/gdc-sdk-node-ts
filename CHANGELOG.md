@@ -5,7 +5,9 @@
 - Let authenticated BFF and telephone channels explicitly save a nameless
   human Individual Organization as an owner-private, cardless draft when a
   valid `Person.birthDate` was captured. `draft_saved` never requires an Offer,
-  Order confirmation, public subject identity or active profile.
+  Order confirmation, public subject identity or active profile. Return its
+  typed private Organization UUID as `draftId` so BFFs do not inspect Bundle
+  internals, and fail closed when GW omits that identifier.
 
 ## 2.9.16 - 2026-09-13
 

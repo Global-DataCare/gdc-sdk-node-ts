@@ -112,6 +112,13 @@ export type IndividualOrganizationBootstrapInput = IndividualOrganizationRegistr
 
 export type IndividualOrganizationRegistrationResult = {
   registration: SubmitAndPollResult;
+  /**
+   * Owner-private Organization UUID returned by GW for a saved draft.
+   *
+   * It is not a public card identifier or DID and is present only when
+   * `registrationIntent` was `save-private-draft`.
+   */
+  draftId?: string;
   /** Absent only for an explicitly requested owner-private draft. */
   offerId?: string;
   /** Absent only for an explicitly requested owner-private draft. */
@@ -309,9 +316,14 @@ export async function registerIndividualOrganizationWithDeps(
     if (registrationStatus !== 'draft_saved') {
       throw new Error('registerIndividualOrganization failed: GW did not preserve the requested private draft.');
     }
+    const draftId = String(registrationSummary?.organizationId || '').trim();
+    if (!draftId) {
+      throw new Error('registerIndividualOrganization failed: GW did not return the private draft id.');
+    }
     return {
       registration,
       registrationStatus,
+      draftId,
       orderConfirmationRequired: false,
     };
   }
