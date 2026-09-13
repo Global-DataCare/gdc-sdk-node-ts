@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Let authenticated BFF and telephone channels explicitly save a nameless
+- Let authenticated application backends explicitly save a nameless
   human Individual Organization as an owner-private, cardless draft when a
   valid `Person.birthDate` was captured. `draft_saved` never requires an Offer,
   Order confirmation, public subject identity or active profile. Return its
