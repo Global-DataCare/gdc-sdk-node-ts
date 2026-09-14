@@ -25,7 +25,7 @@ export async function listOwnedIndividualCleanupCandidates(
     { verifiedContact: input.verifiedContact },
   );
   return subjects.filter((subject) => {
-    return subject.alternateName.startsWith(input.alternateNamePrefix);
+    return subject.alternateName?.startsWith(input.alternateNamePrefix) === true;
   });
 }
 
