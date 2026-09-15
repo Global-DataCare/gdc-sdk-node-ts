@@ -47,10 +47,15 @@ import { NodeManagedWallet } from './node-managed-wallet.js';
 import { NodeHttpClient } from './node-runtime-client.js';
 import { OrganizationControllerSdk } from './orchestration/organization-controller-sdk.js';
 import { IndividualControllerSdk } from './orchestration/individual-controller-sdk.js';
+import { IndividualMemberSdk } from './orchestration/individual-member-sdk.js';
 import { ProfessionalSdk } from './orchestration/professional-sdk.js';
 import { DigitalTwinSdk } from './orchestration/digital-twin-sdk.js';
 import type { SmartTokenExchangeResult } from './smart-token.js';
 import type { DigitalTwinSearchInput, DigitalTwinSearchResult } from './digital-twin.js';
+import type {
+  AuthorizedIndividualSubject,
+  AuthorizedSubjectVerifiedContact,
+} from './authorized-subject-directory.js';
 import type {
   IndividualOrganizationOrderResult,
   RouteContext,
@@ -170,11 +175,21 @@ export type ServerProfileSessionRecord = Readonly<{
   sessionId: string;
   ownerId: string;
   profileId: string;
-  subjectDid: string;
+  /** Present only after the unlocked personal actor selects one authorized subject. */
+  subjectDid?: string;
   scopes: string[];
+  /** Exact directory results accepted for this unlocked actor session. */
+  authorizedSubjectDids?: string[];
+  /** Exact relationship projection returned by the encrypted directory. */
+  authorizedSubjects?: ServerAuthorizedSubjectGrant[];
+  /** Relationship used for the currently selected subject. */
+  actorMode?: ServerActorMode;
+  /** Subject-specific RelatedPerson assignment; never copied between cards. */
+  attester?: ServerProfileAttester;
   sealedUnlockedWalletSeed: string;
   sealedUnlockedVpToken?: string;
-  sealedAccessToken: string;
+  /** Present only after subject selection completes SMART authorization. */
+  sealedAccessToken?: string;
   expiresAt: string;
 }>;
 
@@ -350,6 +365,49 @@ export type ServerProfileUnlockInput = Readonly<{
   idToken: string;
 }>;
 
+/** Unlocks one personal actor wallet before choosing any individual card. */
+export type ServerActorProfileUnlockInput = Readonly<{
+  ownerId: string;
+  profileId: string;
+  pin: string;
+}>;
+
+/** Refreshes the actor's exact GW directory through the unlocked DCR wallet. */
+export type ServerAuthorizedSubjectDirectoryInput = Readonly<{
+  ownerId: string;
+  sessionId: string;
+  idToken: string;
+  verifiedContact: AuthorizedSubjectVerifiedContact;
+}>;
+
+/** Selects one server-confirmed subject and exchanges only its SMART scopes. */
+export type ServerAuthorizedSubjectSelectionInput = Readonly<{
+  ownerId: string;
+  sessionId: string;
+  subjectDid: string;
+  scopes: string[];
+  idToken: string;
+}>;
+
+/** Server-owned relationship projection for one directory subject. */
+export type ServerAuthorizedSubjectGrant = Readonly<{
+  subjectDid: string;
+  actorMode: ServerActorMode;
+  attester?: ServerProfileAttester;
+}>;
+
+/** Wallet material available after PIN unlock but before subject selection. */
+export type ResolvedServerActorProfileSession = Readonly<{
+  sessionId: string;
+  profile: ServerProfileRecord;
+  authorizedSubjectDids: string[];
+  secureTransportAdapter: SecureDidcommTransportAdapter;
+  confidentialStorageAdapter: Readonly<{
+    protect(document: Readonly<{ id?: string; content: unknown }>): Promise<unknown>;
+    unprotect(document: Readonly<{ id?: string; jwe: string }>): Promise<unknown>;
+  }>;
+}>;
+
 /** Material available only during an authenticated, unexpired server session. */
 export type ResolvedServerProfileSession = Readonly<{
   sessionId: string;
@@ -357,6 +415,8 @@ export type ResolvedServerProfileSession = Readonly<{
   subjectDid: string;
   scopes: string[];
   accessToken: string;
+  /** Relationship authorization selected for this subject, not for the wallet. */
+  actorMode: ServerActorMode;
   /** Attester bound to this authenticated and unlocked profile. */
   attester?: ServerProfileAttester;
   secureTransportAdapter: SecureDidcommTransportAdapter;
@@ -403,6 +463,14 @@ export type OpenedServerIndividualController = Readonly<{
   profile: ServerProfileRecord;
   sdk: IndividualControllerSdk;
   /** Returns the protected RelatedPerson URI for FHIR document attestation. */
+  getAttesterUriForDocs(): string;
+}>;
+
+/** Session-bound individual-member facade using the same personal actor wallet. */
+export type OpenedServerIndividualMember = Readonly<{
+  session: ResolvedServerProfileSession;
+  profile: ServerProfileRecord;
+  sdk: IndividualMemberSdk;
   getAttesterUriForDocs(): string;
 }>;
 
@@ -1062,6 +1130,239 @@ export class ServerProfileSessionManager {
   }
 
   /**
+   * Unlocks one personal actor wallet without selecting a card or requesting a
+   * subject SMART token. The returned opaque session can refresh the encrypted
+   * authorized-subject directory and then select any exact returned subject.
+   */
+  public async unlockActorProfile(
+    input: ServerActorProfileUnlockInput,
+  ): Promise<ResolvedServerActorProfileSession> {
+    let profile = await this.requireOwnedProfile(input.ownerId, input.profileId);
+    if (profile.actorKind !== ActorKinds.IndividualController) {
+      throw new Error('Actor-first unlock is restricted to personal individual profiles.');
+    }
+    const now = this.now();
+    if (profile.lockedUntil && new Date(profile.lockedUntil) > now) {
+      throw new Error('Profile is temporarily locked after failed PIN attempts.');
+    }
+    let seed: string;
+    let vpToken: string | undefined;
+    try {
+      seed = await openServerProfileSecret(
+        profile.protectedWalletSeed,
+        input.pin,
+        `${profile.profileId}:wallet-seed`,
+        this.options.sealer,
+      );
+      vpToken = profile.protectedVpToken
+        ? await openServerProfileSecret(
+          profile.protectedVpToken,
+          input.pin,
+          `${profile.profileId}:vp-token`,
+          this.options.sealer,
+        )
+        : undefined;
+    } catch (reason) {
+      if (!(reason instanceof ProfilePinRejectedError)) throw reason;
+      const failures = profile.failedUnlocks + 1;
+      const max = this.options.maxFailedUnlocks ?? 5;
+      const lockedUntil = failures >= max
+        ? new Date(now.getTime() + (this.options.lockSeconds ?? 300) * 1000).toISOString()
+        : undefined;
+      await this.options.store.putProfile({
+        ...profile,
+        failedUnlocks: failures,
+        lockedUntil,
+        updatedAt: now.toISOString(),
+      });
+      throw new Error('Profile PIN rejected.');
+    }
+    profile = await this.ensureRequiredStorageProfile(profile, seed);
+    const sessionId = randomBytes(32).toString('base64url');
+    await this.options.store.putProfile({
+      ...profile,
+      failedUnlocks: 0,
+      lockedUntil: undefined,
+      updatedAt: now.toISOString(),
+    });
+    await this.options.store.putSession({
+      sessionId,
+      ownerId: input.ownerId,
+      profileId: profile.profileId,
+      scopes: [],
+      authorizedSubjectDids: [],
+      sealedUnlockedWalletSeed: await this.options.sealer.seal(
+        seed,
+        `${sessionId}:unlocked-wallet-seed`,
+      ),
+      ...(vpToken ? {
+        sealedUnlockedVpToken: await this.options.sealer.seal(
+          vpToken,
+          `${sessionId}:unlocked-vp-token`,
+        ),
+      } : {}),
+      expiresAt: new Date(
+        now.getTime() + (this.options.sessionTtlSeconds ?? 300) * 1000,
+      ).toISOString(),
+    });
+    return this.resolveActorSession(input.ownerId, sessionId);
+  }
+
+  /**
+   * Uses the already-unlocked registered wallet for the encrypted directory
+   * request, then replaces the session/profile subject list with exact GW
+   * results. The verified contact must come from the signed OpenID token.
+   */
+  public async refreshAuthorizedSubjects(
+    input: ServerAuthorizedSubjectDirectoryInput,
+  ): Promise<Readonly<{
+    session: ResolvedServerActorProfileSession;
+    subjects: AuthorizedIndividualSubject[];
+  }>> {
+    const actorSession = await this.resolveActorSession(input.ownerId, input.sessionId);
+    const idToken = String(input.idToken || '').trim();
+    if (!idToken) throw new Error('Authorized-subject directory requires idToken.');
+    const walletState = await this.resolveWalletState(input.ownerId, input.sessionId);
+    const client = this.createRegisteredProfileClient(
+      walletState.profile,
+      walletState.wallet,
+      walletState.context,
+      idToken,
+    );
+    const subjects = await client.listAuthorizedIndividualSubjects(
+      walletState.profile.routeContext,
+      { verifiedContact: input.verifiedContact },
+    );
+    const authorizedSubjectDids = unique(subjects.map((subject) => subject.subjectDid));
+    const authorizedSubjects = subjects.map(toServerAuthorizedSubjectGrant);
+    const updatedProfile: ServerProfileRecord = {
+      ...actorSession.profile,
+      allowedSubjectDids: authorizedSubjectDids,
+      updatedAt: this.now().toISOString(),
+    };
+    await this.options.store.putProfile(updatedProfile);
+    const stored = await this.options.store.getSession(input.sessionId);
+    if (!stored || stored.ownerId !== input.ownerId) throw new Error('Profile session not found.');
+    const {
+      subjectDid: _previousSubjectDid,
+      actorMode: _previousActorMode,
+      attester: _previousAttester,
+      sealedAccessToken: _previousAccessToken,
+      ...actorOnlySession
+    } = stored;
+    await this.options.store.putSession({
+      ...actorOnlySession,
+      authorizedSubjectDids,
+      authorizedSubjects,
+      scopes: [],
+    });
+    return {
+      session: await this.resolveActorSession(input.ownerId, input.sessionId),
+      subjects,
+    };
+  }
+
+  /**
+   * Exchanges SMART authorization for one subject returned by the encrypted
+   * directory. It reuses the same unlocked seed, profile, DCR client and
+   * opaque session; this operation deliberately accepts no PIN.
+   */
+  public async selectAuthorizedSubject(
+    input: ServerAuthorizedSubjectSelectionInput,
+  ): Promise<ResolvedServerProfileSession> {
+    const stored = await this.options.store.getSession(input.sessionId);
+    if (!stored || stored.ownerId !== input.ownerId) throw new Error('Profile session not found.');
+    const subjectDid = String(input.subjectDid || '').trim();
+    if (!subjectDid || !(stored.authorizedSubjectDids || []).includes(subjectDid)) {
+      throw new Error('Subject is not authorized for this personal actor profile.');
+    }
+    const selectedGrant = stored.authorizedSubjects?.find((grant) => grant.subjectDid === subjectDid);
+    if (!selectedGrant) {
+      throw new Error('Subject relationship metadata is missing from this personal actor session.');
+    }
+    const idToken = String(input.idToken || '').trim();
+    if (!idToken) throw new Error('Subject selection requires idToken.');
+    const scopes = unique(input.scopes);
+    if (!scopes.length) throw new Error('Subject selection requires scopes.');
+    const walletState = await this.resolveWalletState(input.ownerId, input.sessionId);
+    const vpToken = stored.sealedUnlockedVpToken
+      ? await this.options.sealer.unseal(
+        stored.sealedUnlockedVpToken,
+        `${input.sessionId}:unlocked-vp-token`,
+      )
+      : undefined;
+    const smartTokenEndpoint = [
+      this.options.gatewayBaseUrl.replace(/\/+$/, ''),
+      buildIdentityOpenIdSmartTokenPath(walletState.profile.routeContext),
+    ].join('');
+    const assertion = await buildWalletClientAssertion(
+      walletState.wallet,
+      walletState.profile,
+      smartTokenEndpoint,
+      this.now(),
+    );
+    const token = await this.createRegisteredProfileClient(
+      walletState.profile,
+      walletState.wallet,
+      walletState.context,
+      idToken,
+    ).requestSmartToken({
+      ...walletState.profile.routeContext,
+      actorDid: walletState.profile.actorDid,
+      subjectDid,
+      clientId: walletState.profile.clientId,
+      issuer: walletState.profile.clientId,
+      audience: smartTokenEndpoint,
+      idToken,
+      vpToken,
+      vpTokenFallback: vpToken ? undefined : 'omit',
+      clientAssertion: assertion,
+      clientAssertionType: 'private_key_jwt',
+      smartTokenKind: 'openid-smart',
+      acrValues: profileSmartAcrValues(walletState.profile.actorKind),
+      scopes,
+      tokenCacheKey: `profile:${walletState.profile.profileId}:${subjectDid}:${scopes.join(',')}`,
+    });
+    if (token.status !== 'fetched' || !token.accessToken) {
+      throw new Error('SMART token exchange failed.');
+    }
+    const { attester: _previousSelectedAttester, ...sessionWithoutAttester } = stored;
+    await this.options.store.putSession({
+      ...sessionWithoutAttester,
+      subjectDid,
+      actorMode: selectedGrant.actorMode,
+      ...(selectedGrant.attester ? { attester: selectedGrant.attester } : {}),
+      scopes,
+      sealedAccessToken: await this.options.sealer.seal(
+        token.accessToken,
+        `${input.sessionId}:access-token`,
+      ),
+    });
+    return this.resolveSession(input.ownerId, input.sessionId);
+  }
+
+  /** Resolves an unlocked actor wallet whether or not a card is selected. */
+  public async resolveActorSession(
+    ownerId: string,
+    sessionId: string,
+  ): Promise<ResolvedServerActorProfileSession> {
+    const stored = await this.options.store.getSession(sessionId);
+    if (!stored || stored.ownerId !== ownerId) throw new Error('Profile session not found.');
+    if (new Date(stored.expiresAt) <= this.now()) {
+      await this.options.store.deleteSession(sessionId);
+      throw new Error('Profile session expired.');
+    }
+    const state = await this.resolveWalletState(ownerId, sessionId);
+    return {
+      sessionId,
+      profile: state.profile,
+      authorizedSubjectDids: [...(stored.authorizedSubjectDids || [])],
+      secureTransportAdapter: state.secureTransportAdapter,
+      confidentialStorageAdapter: state.confidentialStorageAdapter,
+    };
+  }
+
+  /**
    * Renews the short SMART bearer while retaining the already-open server
    * wallet session. The caller must supply a fresh authenticated account
    * token; neither the PIN nor wallet keys return to the browser.
@@ -1076,6 +1377,9 @@ export class ServerProfileSessionManager {
     const normalizedIdToken = String(idToken || '').trim();
     if (!normalizedIdToken) throw new Error('Profile session refresh requires idToken.');
     const profile = await this.requireOwnedProfile(ownerId, session.profileId);
+    if (!session.subjectDid || !session.sealedAccessToken) {
+      throw new Error('Profile session has no selected subject.');
+    }
     this.requireSubject(profile, session.subjectDid);
     const seed = await this.options.sealer.unseal(
       session.sealedUnlockedWalletSeed,
@@ -1125,30 +1429,22 @@ export class ServerProfileSessionManager {
       await this.options.store.deleteSession(sessionId);
       throw new Error('Profile session expired.');
     }
-    const profile = await this.requireOwnedProfile(ownerId, session.profileId);
-    const seed = await this.options.sealer.unseal(session.sealedUnlockedWalletSeed, `${sessionId}:unlocked-wallet-seed`);
-    const walletKeyDerivationId = profile.walletKeyDerivationId || profile.profileId;
-    const wallet = await this.createWallet(walletKeyDerivationId, seed);
-    const context = walletContext(walletKeyDerivationId);
+    if (!session.subjectDid || !session.sealedAccessToken) {
+      throw new Error('Profile session has no selected subject.');
+    }
+    const state = await this.resolveWalletState(ownerId, sessionId);
     return {
       sessionId,
-      profile,
+      profile: state.profile,
       subjectDid: session.subjectDid,
       scopes: session.scopes,
       accessToken: await this.options.sealer.unseal(session.sealedAccessToken, `${sessionId}:access-token`),
-      ...(profile.attester ? { attester: profile.attester } : {}),
-      secureTransportAdapter: {
-        pack: (message) => wallet.packForRecipientWithContext!(
-          bindTransportActor(message, profile.actorDid, profile.clientId),
-          profile.providerDid,
-          { context },
-        ),
-        unpack: async (jwe) => (await wallet.unpackWithContext!(jwe, { context })).content,
-      },
-      confidentialStorageAdapter: {
-        protect: (document) => wallet.protectManagedConfidentialData!(document, context),
-        unprotect: (document) => wallet.unprotectManagedConfidentialData!(document, context),
-      },
+      actorMode: session.actorMode ?? state.profile.actorMode,
+      ...(session.attester
+        ? { attester: session.attester }
+        : (!session.authorizedSubjects && state.profile.attester ? { attester: state.profile.attester } : {})),
+      secureTransportAdapter: state.secureTransportAdapter,
+      confidentialStorageAdapter: state.confidentialStorageAdapter,
     };
   }
 
@@ -1164,10 +1460,10 @@ export class ServerProfileSessionManager {
     const session = await this.resolveSession(input.ownerId, input.sessionId);
     const profile = session.profile;
     if (profile.actorKind !== ActorKinds.IndividualController
-      || (profile.actorMode !== 'self' && profile.actorMode !== 'controller')) {
+      || (session.actorMode !== 'self' && session.actorMode !== 'controller')) {
       throw new Error('Profile is not an individual controller.');
     }
-    const profileAttester = profile.attester;
+    const profileAttester = session.attester;
     if (!profileAttester) {
       throw new Error('The opened individual-controller profile has no RelatedPerson attester.');
     }
@@ -1193,6 +1489,35 @@ export class ServerProfileSessionManager {
         }
         return reference;
       },
+    };
+  }
+
+  /** Opens an accepted caregiver/member relationship after exact subject selection. */
+  public async openIndividualMember(
+    input: ServerIndividualControllerOpenInput,
+  ): Promise<OpenedServerIndividualMember> {
+    const session = await this.resolveSession(input.ownerId, input.sessionId);
+    if (session.profile.actorKind !== ActorKinds.IndividualController || session.actorMode !== 'member') {
+      throw new Error('Selected subject relationship is not an individual member.');
+    }
+    const attester = session.attester;
+    if (!attester) {
+      throw new Error('The selected individual-member relationship has no RelatedPerson attester.');
+    }
+    const client = new NodeHttpClient({
+      baseUrl: this.options.gatewayBaseUrl,
+      ctx: session.profile.routeContext,
+      bearerToken: session.accessToken,
+      fetchImpl: this.options.fetchImpl,
+      appInfo: this.options.appInfo,
+      transportProfile: TransportProfiles.DidcommEncryptedForm,
+      secureTransportAdapter: session.secureTransportAdapter,
+    });
+    return {
+      session,
+      profile: session.profile,
+      sdk: new IndividualMemberSdk(client),
+      getAttesterUriForDocs: () => attester.party.reference,
     };
   }
 
@@ -1434,6 +1759,43 @@ export class ServerProfileSessionManager {
     return wallet;
   }
 
+  private async resolveWalletState(ownerId: string, sessionId: string) {
+    const session = await this.options.store.getSession(sessionId);
+    if (!session || session.ownerId !== ownerId) throw new Error('Profile session not found.');
+    if (new Date(session.expiresAt) <= this.now()) {
+      await this.options.store.deleteSession(sessionId);
+      throw new Error('Profile session expired.');
+    }
+    const profile = await this.requireOwnedProfile(ownerId, session.profileId);
+    const seed = await this.options.sealer.unseal(
+      session.sealedUnlockedWalletSeed,
+      `${sessionId}:unlocked-wallet-seed`,
+    );
+    const walletKeyDerivationId = profile.walletKeyDerivationId || profile.profileId;
+    const wallet = await this.createWallet(walletKeyDerivationId, seed);
+    const context = walletContext(walletKeyDerivationId);
+    await requireRegisteredProfileKeys(wallet, context, profile);
+    return {
+      profile,
+      wallet,
+      context,
+      secureTransportAdapter: {
+        pack: (message: Record<string, unknown>) => wallet.packForRecipientWithContext!(
+          bindTransportActor(message, profile.actorDid, profile.clientId),
+          profile.providerDid,
+          { context },
+        ),
+        unpack: async (jwe: string) => (await wallet.unpackWithContext!(jwe, { context })).content,
+      } satisfies SecureDidcommTransportAdapter,
+      confidentialStorageAdapter: {
+        protect: (document: Readonly<{ id?: string; content: unknown }>) =>
+          wallet.protectManagedConfidentialData!(document, context),
+        unprotect: (document: Readonly<{ id?: string; jwe: string }>) =>
+          wallet.unprotectManagedConfidentialData!(document, context),
+      },
+    };
+  }
+
   /**
    * Upgrade legacy profiles deterministically after successful PIN unlock.
    * The protected seed already owns the storage pair, so migration neither
@@ -1515,9 +1877,28 @@ async function requireRegisteredProfileKeys(
   if (!registeredKids.length || registeredKids.some((kid) => !derivedKids.has(kid))) {
     throw new Error('Authorized wallet seed does not match registered profile keys.');
   }
-  if (profile.clientInstanceId && !derivedKids.has(profile.clientInstanceId)) {
-    throw new Error('Authorized wallet seed does not match the registered client instance.');
-  }
+}
+
+function toServerAuthorizedSubjectGrant(
+  subject: AuthorizedIndividualSubject,
+): ServerAuthorizedSubjectGrant {
+  const role = String(subject.role || '').trim().toUpperCase().split(/[|/#:]/).at(-1) || '';
+  const actorMode: ServerActorMode = role === 'ONESELF'
+    ? 'self'
+    : role === 'RESPRSN'
+      ? 'controller'
+      : 'member';
+  const relatedPersonId = String(subject.relatedPersonId || '').trim();
+  return {
+    subjectDid: subject.subjectDid,
+    actorMode,
+    ...(relatedPersonId ? {
+      attester: buildProfileAttester({
+        assignmentIdentifier: relatedPersonId,
+        mode: CompositionAttesterModes.Personal,
+      }),
+    } : {}),
+  };
 }
 
 /** Keeps the OpenID proof class aligned with the durable actor profile. */

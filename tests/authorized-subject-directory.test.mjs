@@ -23,11 +23,12 @@ const routeContext = {
   sector: 'health-care',
 };
 
-test('101 uses only canonical profile app families for directory clients', async () => {
+test('101 keeps one personal actor wallet across every authorized subject', async () => {
   const doc = await readFile(new URL('../docs/101-AUTHORIZED_SUBJECT_DIRECTORY.md', import.meta.url), 'utf8');
-  assert.doesNotMatch(doc, /appType:\s*['"]Emergency['"]/);
-  assert.match(doc, /appType:\s*['"]Family['"]/);
-  assert.match(doc, /professional.*Organization/is);
+  assert.match(doc, /unlockActorProfile/);
+  assert.match(doc, /refreshAuthorizedSubjects/);
+  assert.match(doc, /selectAuthorizedSubject/);
+  assert.match(doc, /Do not create a wallet per subject/);
 });
 
 test('authors and resolves the contact-bound authorized-subject directory inside the SDK', async () => {
@@ -40,6 +41,7 @@ test('authors and resolves the contact-bound authorized-subject directory inside
           meta: {
             authorizedSubjectDid: 'did:web:index.example:card:1',
             identifier: 'urn:uuid:evidence-1',
+            relatedPersonId: 'urn:uuid:00000000-0000-4000-8000-000000000031',
             issuerDid: 'did:web:index.example',
             claims: {
               'RelatedPerson.role': 'CAREGIVER',
@@ -50,11 +52,11 @@ test('authors and resolves the contact-bound authorized-subject directory inside
       };
     }
     return {
-      poll: { body: { data: [{ meta: { claims: {
+      poll: { body: { data: [{ resource: { id: 'authorized-subject-id', meta: { claims: {
         '@context': 'org.schema',
         'org.schema.Organization.sameAs': 'did:web:index.example:card:1',
         'org.schema.Organization.legalName': 'Authorized subject',
-      } } }] } },
+      } } } }] } },
     };
   };
 
@@ -70,12 +72,14 @@ test('authors and resolves the contact-bound authorized-subject directory inside
 
   assert.deepEqual(result, [{
     subjectDid: 'did:web:index.example:card:1',
+    organizationId: 'authorized-subject-id',
     role: 'CAREGIVER',
     grantClaims: {
       'RelatedPerson.role': 'CAREGIVER',
       'org.schema.Person.hasOccupation.identifier.value': 'ISCO-08|5322',
     },
     authorizationEvidenceId: 'urn:uuid:evidence-1',
+    relatedPersonId: 'urn:uuid:00000000-0000-4000-8000-000000000031',
     issuerDid: 'did:web:index.example',
     subjectClaims: {
       '@context': 'org.schema',
@@ -118,6 +122,7 @@ test('recovers owner-indexed cards even when a legacy card has no accepted Licen
             'org.schema.Organization.alternateName': 'My legacy card',
             'org.schema.Organization.member.role': 'ONESELF',
             'org.schema.Organization.owner.email': 'person@example.org',
+            'org.schema.Organization.owner.identifier.value': 'urn:uuid:00000000-0000-4000-8000-000000000021',
           } },
         } }] } }] } } };
       }
@@ -127,7 +132,9 @@ test('recovers owner-indexed cards even when a legacy card has no accepted Licen
 
   assert.deepEqual(result, [{
     subjectDid: 'did:web:index.example:card:legacy',
+    organizationId: 'legacy-owner-card',
     role: 'ONESELF',
+    relatedPersonId: 'urn:uuid:00000000-0000-4000-8000-000000000021',
     grantClaims: {},
     subjectClaims: {
       '@context': 'org.schema',
@@ -135,6 +142,7 @@ test('recovers owner-indexed cards even when a legacy card has no accepted Licen
       'org.schema.Organization.alternateName': 'My legacy card',
       'org.schema.Organization.member.role': 'ONESELF',
       'org.schema.Organization.owner.email': 'person@example.org',
+      'org.schema.Organization.owner.identifier.value': 'urn:uuid:00000000-0000-4000-8000-000000000021',
     },
   }]);
   assert.equal(submissions[0].submitPath, '/tenant/individual/org.schema/Organization/_search');
@@ -142,6 +150,34 @@ test('recovers owner-indexed cards even when a legacy card has no accepted Licen
     submissions[0].payload.body.data[0].resource.meta.claims['org.schema.Organization.owner.email'],
     'person@example.org',
   );
+});
+
+test('animal-care owner directory keeps animal ONESELF separate from human RESPRSN authority', async () => {
+  const result = await listAuthorizedIndividualSubjectsWithDeps({
+    ...routeContext,
+    sector: 'animal-care',
+  }, {
+    verifiedContact: { telephone: '+12365550101' },
+  }, {
+    individualLicenseSearchPath: () => '/license',
+    individualLicenseSearchPollPath: () => '/license-response',
+    individualOrganizationSearchPath: () => '/organization',
+    individualOrganizationSearchPollPath: () => '/organization-response',
+    submitAndPoll: async (path) => path === '/organization'
+      ? { poll: { body: { data: [{ resource: { resourceType: 'Bundle', entry: [{ resource: {
+        id: 'animal-org',
+        meta: { claims: {
+          'org.schema.Organization.sameAs': 'did:web:animal.example:card:nala',
+          'org.schema.Organization.member.role': 'ONESELF',
+          'org.schema.Organization.owner.telephone': '+12365550101',
+          'org.schema.Organization.owner.identifier.value': 'urn:uuid:00000000-0000-4000-8000-000000000051',
+        } },
+      } }] } }] } } }
+      : { poll: { body: { data: [{ resource: { data: [] } }] } } },
+  });
+
+  assert.equal(result[0].role, 'RESPRSN');
+  assert.equal(result[0].subjectClaims['org.schema.Organization.member.role'], 'ONESELF');
 });
 
 test('requires a verified contact and rejects a mismatched subject projection', async () => {

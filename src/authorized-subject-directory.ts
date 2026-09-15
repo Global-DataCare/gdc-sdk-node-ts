@@ -13,6 +13,7 @@ const CLAIM_PERSON_TELEPHONE = 'org.schema.Person.telephone';
 const CLAIM_ORGANIZATION_SAME_AS = 'org.schema.Organization.sameAs';
 const CLAIM_ORGANIZATION_OWNER_EMAIL = 'org.schema.Organization.owner.email';
 const CLAIM_ORGANIZATION_OWNER_TELEPHONE = 'org.schema.Organization.owner.telephone';
+const CLAIM_ORGANIZATION_OWNER_IDENTIFIER = 'org.schema.Organization.owner.identifier.value';
 const CLAIM_ORGANIZATION_MEMBER_ROLE = 'org.schema.Organization.member.role';
 const CLAIM_RELATED_PERSON_ROLE = 'RelatedPerson.role';
 const CLAIM_OCCUPATION_IDENTIFIER = 'org.schema.Person.hasOccupation.identifier.value';
@@ -36,10 +37,14 @@ export type AuthorizedIndividualSubjectDirectoryInput = Readonly<{
 /** One exact subject projection paired with its accepted grant metadata. */
 export type AuthorizedIndividualSubject = Readonly<{
   subjectDid: string;
+  /** Opaque provider resource id required for exact lifecycle operations. */
+  organizationId?: string;
   role?: string;
   /** Accepted provider grant claims; descriptive metadata, never action authority. */
   grantClaims: Readonly<Record<string, unknown>>;
   authorizationEvidenceId?: string;
+  /** Governed RelatedPerson identifier used as this subject relationship's attester. */
+  relatedPersonId?: string;
   issuerDid?: string;
   subjectClaims: Readonly<Record<string, unknown>>;
 }>;
@@ -62,6 +67,7 @@ type AcceptedLicenseRow = Readonly<{
   role?: string;
   grantClaims: Readonly<Record<string, unknown>>;
   authorizationEvidenceId?: string;
+  relatedPersonId?: string;
   issuerDid?: string;
 }>;
 
@@ -105,7 +111,11 @@ export async function listAuthorizedIndividualSubjectsWithDeps(
     },
     input.pollOptions,
   );
-  const ownedSubjects = readOwnedSubjects(ownerResult, { email, telephone });
+  const ownedSubjects = readOwnedSubjects(ownerResult, {
+    email,
+    telephone,
+    ownerRole: routeContext.sector === 'animal-care' ? 'RESPRSN' : undefined,
+  });
   const subjectsByDid = new Map(ownedSubjects.map((subject) => [subject.subjectDid, subject]));
 
   const licenseClaims: Record<string, unknown> = {
@@ -155,17 +165,19 @@ export async function listAuthorizedIndividualSubjectsWithDeps(
       },
       input.pollOptions,
     );
-    const subjectClaims = readFirstClaims(organizationResult);
+    const { claims: subjectClaims, organizationId } = readFirstOrganization(organizationResult);
     if (String(subjectClaims[CLAIM_ORGANIZATION_SAME_AS] || '').trim() !== license.subjectDid) {
       return undefined;
     }
     return {
       subjectDid: license.subjectDid,
+      ...(organizationId ? { organizationId } : {}),
       ...(license.role ? { role: license.role } : {}),
       grantClaims: license.grantClaims,
       ...(license.authorizationEvidenceId
         ? { authorizationEvidenceId: license.authorizationEvidenceId }
         : {}),
+      ...(license.relatedPersonId ? { relatedPersonId: license.relatedPersonId } : {}),
       ...(license.issuerDid ? { issuerDid: license.issuerDid } : {}),
       subjectClaims,
     } satisfies AuthorizedIndividualSubject;
@@ -179,7 +191,7 @@ export async function listAuthorizedIndividualSubjectsWithDeps(
 
 function readOwnedSubjects(
   result: SubmitAndPollResult,
-  verified: Readonly<{ email: string; telephone: string }>,
+  verified: Readonly<{ email: string; telephone: string; ownerRole?: string }>,
 ): AuthorizedIndividualSubject[] {
   const resources = readData(result).flatMap((entry: any) => {
     if (entry?.resource?.resourceType === 'Bundle' && Array.isArray(entry.resource.entry)) {
@@ -197,10 +209,14 @@ function readOwnedSubjects(
     }
     const subjectDid = String(claims[CLAIM_ORGANIZATION_SAME_AS] || '').trim();
     if (!subjectDid) return [];
-    const role = String(claims[CLAIM_ORGANIZATION_MEMBER_ROLE] || '').trim();
+    const role = verified.ownerRole
+      || String(claims[CLAIM_ORGANIZATION_MEMBER_ROLE] || '').trim();
+    const relatedPersonId = String(claims[CLAIM_ORGANIZATION_OWNER_IDENTIFIER] || '').trim();
     return [{
       subjectDid,
+      ...(String(resource?.id || '').trim() ? { organizationId: String(resource.id).trim() } : {}),
       ...(role ? { role } : {}),
+      ...(relatedPersonId ? { relatedPersonId } : {}),
       grantClaims: {},
       subjectClaims: claims as Readonly<Record<string, unknown>>,
     }];
@@ -220,21 +236,32 @@ function readAcceptedLicenses(result: SubmitAndPollResult): AcceptedLicenseRow[]
       .map((value) => value.trim().toUpperCase())
       .filter(Boolean);
     const occupation = String(claims[CLAIM_OCCUPATION_IDENTIFIER] || '').trim();
-    const role = relatedRoles.includes('CAREGIVER') ? 'CAREGIVER' : occupation;
+    const role = relatedRoles.includes('CAREGIVER')
+      ? 'CAREGIVER'
+      : relatedRoles[0] || occupation;
+    const relatedPersonId = String(meta.relatedPersonId || '').trim();
     return [{
       subjectDid,
       ...(role ? { role } : {}),
       grantClaims: claims,
       ...(meta.identifier ? { authorizationEvidenceId: String(meta.identifier) } : {}),
+      ...(relatedPersonId ? { relatedPersonId } : {}),
       ...(meta.issuerDid ? { issuerDid: String(meta.issuerDid) } : {}),
     }];
   });
 }
 
-function readFirstClaims(result: SubmitAndPollResult): Record<string, unknown> {
+function readFirstOrganization(result: SubmitAndPollResult): Readonly<{
+  claims: Record<string, unknown>;
+  organizationId?: string;
+}> {
   const entry = readData(result)[0];
   const claims = entry?.resource?.meta?.claims || entry?.meta?.claims;
-  return claims && typeof claims === 'object' ? claims : {};
+  const organizationId = String(entry?.resource?.id || entry?.id || '').trim();
+  return {
+    claims: claims && typeof claims === 'object' ? claims : {},
+    ...(organizationId ? { organizationId } : {}),
+  };
 }
 
 function readData(result: SubmitAndPollResult): any[] {

@@ -67,7 +67,10 @@ test('wallet custody 101 uses role-neutral user wallet names', () => {
 });
 
 test('authorized-subject 101 separates signed OpenID discovery from VP and SMART authority', () => {
-  assert.match(authorizedSubjectGuide, /listAuthorizedIndividualSubjects/);
+  assert.match(authorizedSubjectGuide, /unlockActorProfile/);
+  assert.match(authorizedSubjectGuide, /refreshAuthorizedSubjects/);
+  assert.match(authorizedSubjectGuide, /selectAuthorizedSubject/);
+  assert.match(authorizedSubjectGuide, /one real[\s\S]*wallet/i);
   assert.match(authorizedSubjectGuide, /signed `id_token`/);
   assert.match(authorizedSubjectGuide, /does not prove a professional role/i);
   assert.match(authorizedSubjectGuide, /ServerProfileSessionManager/);

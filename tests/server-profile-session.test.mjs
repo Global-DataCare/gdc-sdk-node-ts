@@ -252,6 +252,186 @@ function memoryDeps() {
   };
 }
 
+test('one personal actor profile unlocks before directory discovery and selects multiple subjects without another PIN', async () => {
+  // Step 1. Persist one DCR-registered personal actor wallet. Subject cards are
+  // authorizations of that actor; they are not separate wallets or PINs.
+  const deps = memoryDeps();
+  const walletSeed = Buffer.alloc(32, 31).toString('base64url');
+  const walletKeyDerivationId = 'personal-actor-profile';
+  const wallet = new NodeManagedWallet();
+  const context = {
+    profile: { profileId: walletKeyDerivationId },
+    runtime: { runtimeId: `${walletKeyDerivationId}:server-runtime`, runtimeType: 'backend-service' },
+  };
+  await wallet.provisionManagedKeys(context, {
+    ownerScope: 'profile', purposes: ['actor-signing', 'document-at-rest'], mode: 'deterministic', seedMaterial: walletSeed,
+  });
+  await wallet.provisionManagedKeys(context, {
+    ownerScope: 'runtime', purposes: ['openid-id-token-signing', 'vp-token-signing', 'comm-signing', 'comm-encryption'], mode: 'deterministic', seedMaterial: walletSeed,
+  });
+  const publicJwks = (await wallet.getPublicJwks(context, {}))
+    .filter((entry) => entry.purpose !== 'document-at-rest')
+    .map((entry) => entry.publicJwk);
+  const [profileEncryptionKey] = await wallet.getPublicJwks(context, {
+    ownerScope: 'runtime', purpose: 'comm-encryption',
+  });
+  deps.profiles.set(walletKeyDerivationId, {
+    profileId: walletKeyDerivationId,
+    walletKeyDerivationId,
+    ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
+    actorKind: ActorKinds.IndividualController,
+    actorMode: 'self',
+    actorDid: EXAMPLE_HOSTED_INDIVIDUAL_CONTROLLER_DID,
+    profileDid: EXAMPLE_HOSTED_INDIVIDUAL_CONTROLLER_DID,
+    providerDid: EXAMPLE_PROFILE_PROVIDER_DID,
+    routeContext: EXAMPLE_TENANT_ROUTE_CONTEXT,
+    allowedSubjectDids: [EXAMPLE_HOSTED_INDIVIDUAL_DID],
+    clientId: 'personal-dcr-client',
+    deviceDid: 'did:key:personal-device',
+    publicJwks,
+    protectedWalletSeed: await protectServerProfileSecret(
+      walletSeed,
+      EXAMPLE_PROFILE_PIN,
+      `${walletKeyDerivationId}:wallet-seed`,
+      deps.sealer,
+      { cost: 1_024 },
+    ),
+    failedUnlocks: 0,
+    createdAt: '2026-09-15T00:00:00.000Z',
+    updatedAt: '2026-09-15T00:00:00.000Z',
+  });
+
+  const representedSubjectDid = EXAMPLE_GENERIC_SUBJECT_DID;
+  const calls = [];
+  const ownerDirectoryResponse = {
+    body: {
+      data: [{
+        resource: {
+          resourceType: 'Bundle',
+          entry: [{
+            resource: {
+              id: 'own-subject',
+              meta: { claims: {
+                '@context': 'org.schema',
+                'org.schema.Organization.owner.email': 'person@example.org',
+                'org.schema.Organization.sameAs': EXAMPLE_HOSTED_INDIVIDUAL_DID,
+                'org.schema.Organization.member.role': 'ONESELF',
+                'org.schema.Organization.owner.identifier.value': 'urn:uuid:00000000-0000-4000-8000-000000000041',
+              } },
+            },
+          }],
+        },
+      }],
+    },
+  };
+  const licenseDirectoryResponse = {
+    body: { data: [{ resource: { data: [{ meta: {
+      authorizedSubjectDid: representedSubjectDid,
+      relatedPersonId: 'urn:uuid:00000000-0000-4000-8000-000000000042',
+      claims: { 'RelatedPerson.role': 'RESPRSN' },
+    } }] } }] },
+  };
+  const representedSubjectResponse = {
+    body: { data: [{ meta: { claims: {
+      '@context': 'org.schema',
+      'org.schema.Organization.sameAs': representedSubjectDid,
+    } } }] },
+  };
+  const transport = await createGatewayTransport([
+    new Response('', { status: 202 }),
+    Response.json(ownerDirectoryResponse),
+    new Response('', { status: 202 }),
+    Response.json(licenseDirectoryResponse),
+    new Response('', { status: 202 }),
+    Response.json(representedSubjectResponse),
+    new Response('', { status: 202 }),
+    Response.json({ access_token: `token-for:${EXAMPLE_HOSTED_INDIVIDUAL_DID}` }),
+    new Response('', { status: 202 }),
+    Response.json({ access_token: `token-for:${representedSubjectDid}` }),
+  ], calls);
+  transport.setResponseRecipientJwk(profileEncryptionKey.publicJwk);
+  const manager = new ServerProfileSessionManager({
+    ...deps,
+    gatewayBaseUrl: 'https://gw.example',
+    resolveRecipientJwk: transport.resolveRecipientJwk,
+    fetchImpl: transport.fetchImpl,
+    profileProtection: { cost: 1_024 },
+  });
+
+  // Step 2. The PIN unlocks the actor wallet before any card is selected. The
+  // encrypted directory refresh then records both exact GW-authorized cards.
+  const actorSession = await manager.unlockActorProfile({
+    ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
+    profileId: walletKeyDerivationId,
+    pin: EXAMPLE_PROFILE_PIN,
+  });
+  assert.equal(actorSession.profile.profileId, walletKeyDerivationId);
+  assert.equal('subjectDid' in actorSession, false);
+  const directory = await manager.refreshAuthorizedSubjects({
+    ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
+    sessionId: actorSession.sessionId,
+    idToken: EXAMPLE_DEMO_PORTAL_ID_TOKEN,
+    verifiedContact: { email: 'person@example.org' },
+  });
+  assert.deepEqual(directory.subjects.map((subject) => subject.subjectDid), [
+    EXAMPLE_HOSTED_INDIVIDUAL_DID,
+    representedSubjectDid,
+  ]);
+  assert.equal(directory.subjects[0].organizationId, 'own-subject');
+  assert.equal(
+    Object.values(deps.sessions.get(actorSession.sessionId)).includes(undefined),
+    false,
+    'Firestore-compatible actor sessions omit cleared optional fields',
+  );
+
+  // Step 3. Selecting either card exchanges only its SMART authorization. The
+  // wallet, profile id, DCR client and unlocked session remain the same and no
+  // second PIN is accepted by this operation.
+  const own = await manager.selectAuthorizedSubject({
+    ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
+    sessionId: actorSession.sessionId,
+    subjectDid: EXAMPLE_HOSTED_INDIVIDUAL_DID,
+    scopes: ['patient/Composition.rs'],
+    idToken: EXAMPLE_DEMO_PORTAL_ID_TOKEN,
+  });
+  const represented = await manager.selectAuthorizedSubject({
+    ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
+    sessionId: actorSession.sessionId,
+    subjectDid: representedSubjectDid,
+    scopes: ['patient/Composition.rs'],
+    idToken: EXAMPLE_DEMO_PORTAL_ID_TOKEN,
+  });
+  assert.equal(own.profile.profileId, represented.profile.profileId);
+  assert.equal(own.profile.clientId, represented.profile.clientId);
+  assert.equal(own.sessionId, represented.sessionId);
+  assert.equal(own.accessToken, `token-for:${EXAMPLE_HOSTED_INDIVIDUAL_DID}`);
+  assert.equal(represented.accessToken, `token-for:${representedSubjectDid}`);
+  assert.equal(own.actorMode, 'self');
+  assert.equal(
+    own.attester?.party.reference,
+    'urn:uuid:00000000-0000-4000-8000-000000000041',
+  );
+  assert.equal(represented.actorMode, 'controller');
+  assert.equal(
+    represented.attester?.party.reference,
+    'urn:uuid:00000000-0000-4000-8000-000000000042',
+  );
+  assert.equal(calls.length, 10);
+  for (const call of calls) {
+    assert.equal(
+      new Headers(call.init.headers).get('content-type'),
+      TransportProfiles.DidcommEncryptedForm,
+    );
+  }
+  await assert.rejects(manager.selectAuthorizedSubject({
+    ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
+    sessionId: actorSession.sessionId,
+    subjectDid: 'did:web:not-authorized.example',
+    scopes: ['patient/Composition.rs'],
+    idToken: EXAMPLE_DEMO_PORTAL_ID_TOKEN,
+  }), /not authorized for this personal actor profile/i);
+});
+
 async function createGatewayTransport(responses, calls = []) {
   let responseRecipientJwk;
   const wallet = new NodeManagedWallet();

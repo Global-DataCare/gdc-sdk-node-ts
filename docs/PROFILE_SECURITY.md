@@ -8,9 +8,10 @@ Profile creation and Gateway authorization are separate operations.
 2. It protects private material locally.
 3. It publishes public keys through device registration and receives a stable
    `client_id`/device DID.
-4. An unlock reconstructs the wallet long enough to sign `client_assertion`,
-   present the required `vp_token`, and obtain a subject-and-scope-bound SMART
-   token.
+4. A personal unlock reconstructs one actor wallet before subject selection.
+   Its encrypted directory returns the exact cards authorized for that actor.
+5. Selecting a card reuses the same wallet to sign `client_assertion`, present
+   any required `vp_token`, and obtain a subject-and-scope-bound SMART token.
 
 Firebase login, caller ID, a selected card, and a FHIR `RelatedPerson` are
 identity or relationship inputs. None of them alone grants clinical access.
@@ -35,9 +36,11 @@ IAM must permit only the production service account and audit every decrypt.
 AAD binds each ciphertext to its profile, purpose and session so records cannot
 be copied between fields or users.
 
-After unlock, the server creates a bounded HttpOnly session containing a
-host-sealed copy of the unlocked seed and current SMART token. This deliberately
-lets normal requests proceed without resending the PIN. A BFF may call
+After actor unlock, the server creates a bounded HttpOnly session containing a
+host-sealed copy of the unlocked seed. Directory refresh stores only exact GW
+subject results; selecting one subject adds its current SMART token to that
+same session. This deliberately lets card changes and normal requests proceed
+without resending the PIN or creating another DCR wallet. A BFF may call
 `refreshSession(ownerId, sessionId, idToken)` with a freshly authenticated
 account token to renew the shorter SMART bearer without reopening the durable
 PIN envelope. Lock or wallet-session expiry deletes the temporary seed copy;
@@ -64,6 +67,8 @@ Actor and subject fields are not arbitrary request data:
 - `providerDid` and route context come from provider configuration/discovery.
 - `actorMode` comes from the verified profile/relationship grant.
 - `allowedSubjectDids` come from accepted consent or controller authority.
+- the selected subject's `RelatedPerson` identifier supplies its attester;
+  changing cards never reuses another subject's attester.
 
 A portal or Twilio handler may select among already-authorized records. It must
 not create controller/member authority from a browser field, caller number or

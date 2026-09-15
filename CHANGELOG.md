@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add actor-first personal profile sessions: one PIN unlocks one registered
+  wallet, the encrypted directory refreshes every exact authorized subject,
+  and later card selection exchanges subject-scoped SMART authorization
+  without creating another wallet or asking for the PIN again.
 - Let authenticated application backends explicitly save a nameless
   human Individual Organization as an owner-private, cardless draft when a
   valid `Person.birthDate` was captured. `draft_saved` never requires an Offer,
@@ -82,6 +86,9 @@
 - Add separate high-level enrollment for a represented subject: the controller
   DID owns the wallet/DCR profile while the registered subject DID remains the
   only authorized clinical subject.
+- Bind each actor-first personal card selection to the exact directory role and
+  governed RelatedPerson attester while retaining one PIN, seed and DCR client
+  across self, controller and caregiver/member relationships.
 - Require `subjectAlternateName` at registration only when signed PDF evidence
   cannot supply it, and document a simple post-login allergy write using the
   high-level `BundleEditor` plus the protected default profile attester.

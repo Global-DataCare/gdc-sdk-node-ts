@@ -176,7 +176,11 @@ Common-utils inputs usually reused here:
 Use one protected individual-controller profile to:
 
 - resume or create the family/individual registration
-- choose one managed profile from a neutral list
+- unlock the personal actor before listing cards
+- refresh every exact controller/member relationship through the registered
+  encrypted DCR transport
+- choose one authorized subject and exchange only that subject's SMART scopes
+- switch between managed subjects without another PIN, seed or DCR client
 - inspect consent summaries and clinical summaries
 - add new clinical data through editors
 - grant/revoke professional access
