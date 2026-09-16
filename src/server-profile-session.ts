@@ -152,7 +152,11 @@ export type ServerProfileRecord = Readonly<{
   clientId: string;
   /** Stable non-secret id of the browser/app installation registered by DCR. */
   clientInstanceId?: string;
-  /** Profile identity used as Composition attester; never a per-write author. */
+  /**
+   * Authorized attester assignment retained for legacy profile/session
+   * compatibility. Every new document still carries its own explicit
+   * `Composition.attester` value.
+   */
   attester?: ServerProfileAttester;
   /** Stable FHIR creator/permission identity; channel and device values are aliases only. */
   clinicalCreatorBinding?: ClinicalCreatorBinding;
@@ -417,7 +421,7 @@ export type ResolvedServerProfileSession = Readonly<{
   accessToken: string;
   /** Relationship authorization selected for this subject, not for the wallet. */
   actorMode: ServerActorMode;
-  /** Attester bound to this authenticated and unlocked profile. */
+  /** Attester selected for this subject relationship and current session. */
   attester?: ServerProfileAttester;
   secureTransportAdapter: SecureDidcommTransportAdapter;
   /** Storage adapter available only while the PIN-unlocked session is alive. */
@@ -464,6 +468,8 @@ export type OpenedServerIndividualController = Readonly<{
   sdk: IndividualControllerSdk;
   /** Returns the protected RelatedPerson URI for FHIR document attestation. */
   getAttesterUriForDocs(): string;
+  /** Returns the selected relationship to place explicitly on this document. */
+  getDocumentAttester(): ServerProfileAttester;
 }>;
 
 /** Session-bound individual-member facade using the same personal actor wallet. */
@@ -1489,6 +1495,7 @@ export class ServerProfileSessionManager {
         }
         return reference;
       },
+      getDocumentAttester: () => profileAttester,
     };
   }
 

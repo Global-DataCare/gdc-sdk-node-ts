@@ -108,7 +108,11 @@ test('individual onboarding 101 separates registration, Order, enrollment, and p
   assert.match(guide, /getAttesterUriForDocs\(\)/);
   assert.match(guide, /new BundleEditor\(\)[\s\S]*BundleEditableResourceTypes\.allergyIntolerance/);
   assert.match(guide, /HealthcareSummarySections\.AllergiesAndIntolerances\.attributeValue/);
-  assert.match(guide, /attester omitted: the opened facade supplies profile\.attester/i);
+  assert.match(guide, /const\s+documentAttester\s*=\s*openedIndividualController\.getDocumentAttester\(\)/);
+  assert.match(guide, /attester:\s*documentAttester/);
+  assert.doesNotMatch(guide, /attester omitted: the opened facade supplies profile\.attester/i);
+  assert.match(guide, /const\s+individualControllerScopes\s*=\s*\[/);
+  assert.match(guide, /buildScopeSmartCompositionAccess\(\{/);
   assert.doesNotMatch(guide, /IDCES-[0-9]{8}[A-Z]/);
   assert.doesNotMatch(guide, /controllerRelationship\.id|clinicalCreatorBinding:\s*\{/);
   assert.match(guide, /does not create[\s\S]*wallet[\s\S]*does not register[\s\S]*DCR/is);

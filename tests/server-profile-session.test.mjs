@@ -646,6 +646,10 @@ test('production profile flow enrolls DCR, unlocks with registered-key assertion
     openedIndividual.getAttesterUriForDocs(),
     `${UrnPrefixes.Uuid}${EXAMPLE_KYC_CONTROLLER_UUID}`,
   );
+  assert.deepEqual(
+    openedIndividual.getDocumentAttester(),
+    enrolled.attester,
+  );
   assert.equal(
     new Headers(calls[4].init.headers).get('content-type'),
     TransportProfiles.DidcommEncryptedForm,

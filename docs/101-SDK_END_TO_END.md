@@ -221,7 +221,7 @@ import {
   buildOrganizationDidWeb,
   buildProfessionalDidWeb,
   buildIndividualDidWeb,
-  buildSmartCompositionReadScope,
+  buildScopeSmartCompositionAccess,
 } from 'gdc-common-utils-ts';
 import {
   isEuCountryCode,
@@ -1196,7 +1196,7 @@ const token = await professionalSdk.requestSmartToken({
   purpose: HealthcareConsentPurposes.Treatment,
   smartTokenKind: 'openid-smart',
   scopes: [
-    buildSmartCompositionReadScope({
+    buildScopeSmartCompositionAccess({
       subjectDid,
       sections: consentActions,
     }),
@@ -1497,6 +1497,13 @@ if (!selectedSubjectDid) {
   throw new Error('The enrolled profile has no authorized subject.');
 }
 
+const individualControllerScopes = [
+  buildScopeSmartCompositionAccess({
+    subjectDid: selectedSubjectDid,
+    accessVerb: 'cruds',
+  }),
+];
+
 const individualControllerSession = await profileSessions.unlock({
   ownerId: profileAccountId,
   profileId: storedIndividualControllerProfile.profileId,
@@ -1520,6 +1527,7 @@ const openedIndividualController =
 // This applies to any supported FHIR Bundle; it is not restricted to IPS.
 const controllerAttesterUriForThisDocument =
   openedIndividualController.getAttesterUriForDocs();
+const documentAttester = openedIndividualController.getDocumentAttester();
 // Example derived from Organization.owner.identifier.value:
 // "urn:uuid:033ceb35-2528-402e-8385-f22e12f57805".
 ```
@@ -1559,7 +1567,7 @@ await openedIndividualController.sdk.updateSubjectSection(tenantContext, {
   subject: openedIndividualController.profile.profileDid,
   section: HealthcareSummarySections.AllergiesAndIntolerances.attributeValue,
   dataAuthorReference: controllerAttesterUriForThisDocument,
-  // attester omitted: the opened facade supplies profile.attester.
+  attester: documentAttester,
   bundle: allergyCreateBundle.build(),
 });
 ```

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Add `getDocumentAttester()` to opened individual-controller sessions so new
+  section/document writes place the selected relationship explicitly in that
+  document. Keep the previous opened-facade default as a compatibility path,
+  so existing integrations continue to run unchanged.
+- Define the individual-controller `cruds` scope in the end-to-end guide with
+  canonical `buildScopeSmartCompositionAccess(...)`, while the former helper
+  name remains available from `gdc-common-utils-ts` as a deprecated alias.
+- Pin `gdc-common-utils-ts@2.9.18`, whose root barrel exposes the documented
+  healthcare-section, secure-identifier and individual-DID symbols.
 - Add actor-first personal profile sessions: one PIN unlocks one registered
   wallet, the encrypted directory refreshes every exact authorized subject,
   and later card selection exchanges subject-scoped SMART authorization
