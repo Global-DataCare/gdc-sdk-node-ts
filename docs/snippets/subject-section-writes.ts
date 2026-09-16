@@ -144,15 +144,13 @@ type OpenedSubjectSectionWriter = Readonly<{
 /**
  * Writes any supported subject section with independent author and attester.
  * `input.dataAuthorReference` identifies the author/source of this write;
- * the unlocked profile contributes the stable attester and authenticated sender.
+ * the selected relationship supplies the attester for this exact document.
  */
 export async function updateSubjectSection(
   openedProfile: OpenedSubjectSectionWriter,
   tenantContext: RouteContext,
   input: IndividualControllerSubjectSectionUpdateInput,
 ) {
-  // openIndividualController() binds the protected RESPRSN attester to this
-  // facade. Application code does not repeat it on each section mutation.
   return openedProfile.sdk.updateSubjectSection(tenantContext, input);
 }
 
@@ -166,13 +164,14 @@ export async function updateSelfAuthoredAllergySection(
   allergyCreateBundle: Record<string, unknown>,
 ) {
   const controllerReference = openedProfile.getAttesterUriForDocs();
+  const documentAttester = openedProfile.getDocumentAttester();
   // Example controllerReference:
   // "urn:uuid:033ceb35-2528-402e-8385-f22e12f57805".
   return openedProfile.sdk.updateSubjectSection(tenantContext, {
     subject: openedProfile.profile.profileDid,
     section: HealthcareSummarySections.AllergiesAndIntolerances.attributeValue,
     dataAuthorReference: controllerReference,
-    // `attester` is omitted: the opened facade supplies profile.attester.
+    attester: documentAttester,
     bundle: allergyCreateBundle,
   });
 }

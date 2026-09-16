@@ -65,14 +65,21 @@ import type {
 } from '../resource-operations.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 
-/** Profile-owned defaults applied to subject-section mutations after unlock. */
+/**
+ * Legacy compatibility default applied after unlock.
+ *
+ * New writes should pass the selected relationship explicitly as the
+ * document's `attester`; this default is retained so existing integrations do
+ * not break during the transition.
+ */
 export type IndividualControllerProfileDefaults = Readonly<{
   attester: SubjectSectionUpdateInput['attester'];
 }>;
 
 /**
- * High-level section input. An opened controller profile supplies its own
- * protected RESPRSN attester; standalone facades must still provide one.
+ * High-level section input. New writes pass the document attester explicitly.
+ * The optional shape remains compatible with opened facades created by older
+ * integrations, which still supply their protected RESPRSN assignment.
  */
 export type IndividualControllerSubjectSectionUpdateInput =
   Omit<SubjectSectionUpdateInput, 'attester'> &

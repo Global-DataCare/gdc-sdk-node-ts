@@ -26,9 +26,9 @@ test('pins the shared identity, activation-licence and draft-Consent contracts',
   }
 });
 
-test('private-draft release pins the canonical summary reader and core contracts', () => {
+test('document-attester release pins the canonical SMART and core contracts', () => {
   const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-  assert.equal(packageJson.version, '2.9.18');
-  assert.equal(packageJson.dependencies['gdc-common-utils-ts'], '2.9.16');
+  assert.equal(packageJson.version, '2.9.19');
+  assert.equal(packageJson.dependencies['gdc-common-utils-ts'], '2.9.18');
   assert.equal(packageJson.dependencies['gdc-sdk-core-ts'], '2.9.10');
 });

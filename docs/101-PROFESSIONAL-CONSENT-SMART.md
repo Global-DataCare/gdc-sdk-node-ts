@@ -285,7 +285,7 @@ alias.
 ```ts
 import {
   buildProfessionalDidWeb,
-  buildSmartCompositionReadScope,
+  buildScopeSmartCompositionAccess,
   HealthcareActorRoles,
   HealthcareConsentActions,
   HealthcareConsentPurposes,
@@ -365,7 +365,7 @@ the same `professionalActorDid`.
 ## 10. Request only the consented clinical scope
 
 ```ts
-const clinicalScope = buildSmartCompositionReadScope({
+const clinicalScope = buildScopeSmartCompositionAccess({
   subjectDid,
   sections: consentActions,
 });
