@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Ignore locally packed npm tarballs so release verification artifacts cannot
+  be staged accidentally.
 - Add `getDocumentAttester()` to opened individual-controller sessions so new
   section/document writes place the selected relationship explicitly in that
   document. Keep the previous opened-facade default as a compatibility path,
