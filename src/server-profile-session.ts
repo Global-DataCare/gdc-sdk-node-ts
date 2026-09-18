@@ -6,6 +6,7 @@ import type { ActorKind } from 'gdc-common-utils-ts/models/actor-session';
 import { ActorKinds } from 'gdc-common-utils-ts/constants/actor-session';
 import { UrnPrefixes } from 'gdc-common-utils-ts/constants/urn';
 import { normalizeUuid } from 'gdc-common-utils-ts/utils/normalize-uuid';
+import { parseIndividualMemberDidWeb } from 'gdc-common-utils-ts/utils/did';
 import {
   selectRelatedPersonListRecord,
   type RelatedPersonListSelection,
@@ -396,6 +397,8 @@ export type ServerAuthorizedSubjectSelectionInput = Readonly<{
 /** Server-owned relationship projection for one directory subject. */
 export type ServerAuthorizedSubjectGrant = Readonly<{
   subjectDid: string;
+  /** Canonical private subject used for SMART when the directory exposes a public card alias. */
+  transportSubjectDid?: string;
   actorMode: ServerActorMode;
   attester?: ServerProfileAttester;
 }>;
@@ -1239,8 +1242,26 @@ export class ServerProfileSessionManager {
       walletState.profile.routeContext,
       { verifiedContact: input.verifiedContact },
     );
-    const authorizedSubjectDids = unique(subjects.map((subject) => subject.subjectDid));
-    const authorizedSubjects = subjects.map(toServerAuthorizedSubjectGrant);
+    const directoryGrants = subjects.map(toServerAuthorizedSubjectGrant);
+    const canonicalControllerSubject = canonicalIndividualControllerSubject(actorSession.profile);
+    const enrolledSubjects = new Set(actorSession.profile.allowedSubjectDids);
+    const ownPublicGrant = canonicalControllerSubject && enrolledSubjects.has(canonicalControllerSubject)
+      ? directoryGrants.find((grant) =>
+          grant.subjectDid !== canonicalControllerSubject
+          && enrolledSubjects.has(grant.subjectDid)
+          && (grant.actorMode === 'self' || grant.actorMode === 'controller'))
+      : undefined;
+    const authorizedSubjects = ownPublicGrant && canonicalControllerSubject
+      ? [
+          ...directoryGrants.map((grant) => grant === ownPublicGrant
+            ? { ...grant, transportSubjectDid: canonicalControllerSubject }
+            : grant),
+          ...(directoryGrants.some((grant) => grant.subjectDid === canonicalControllerSubject)
+            ? []
+            : [{ ...ownPublicGrant, subjectDid: canonicalControllerSubject }]),
+        ]
+      : directoryGrants;
+    const authorizedSubjectDids = unique(authorizedSubjects.map((subject) => subject.subjectDid));
     const updatedProfile: ServerProfileRecord = {
       ...actorSession.profile,
       allowedSubjectDids: authorizedSubjectDids,
@@ -1278,17 +1299,22 @@ export class ServerProfileSessionManager {
   ): Promise<ResolvedServerProfileSession> {
     const stored = await this.options.store.getSession(input.sessionId);
     if (!stored || stored.ownerId !== input.ownerId) throw new Error('Profile session not found.');
-    const subjectDid = String(input.subjectDid || '').trim();
-    if (!subjectDid || !(stored.authorizedSubjectDids || []).includes(subjectDid)) {
+    const requestedSubjectDid = String(input.subjectDid || '').trim();
+    if (!requestedSubjectDid || !(stored.authorizedSubjectDids || []).includes(requestedSubjectDid)) {
       throw new Error('Subject is not authorized for this personal actor profile.');
     }
-    const selectedGrant = stored.authorizedSubjects?.find((grant) => grant.subjectDid === subjectDid);
+    const selectedGrant = stored.authorizedSubjects?.find((grant) => grant.subjectDid === requestedSubjectDid);
     if (!selectedGrant) {
       throw new Error('Subject relationship metadata is missing from this personal actor session.');
     }
     const idToken = String(input.idToken || '').trim();
     if (!idToken) throw new Error('Subject selection requires idToken.');
-    const scopes = unique(input.scopes);
+    const subjectDid = String(selectedGrant.transportSubjectDid || requestedSubjectDid).trim();
+    const scopes = unique(input.scopes).map((scope) => rewriteSmartScopeSubject(
+      scope,
+      requestedSubjectDid,
+      subjectDid,
+    ));
     if (!scopes.length) throw new Error('Subject selection requires scopes.');
     const walletState = await this.resolveWalletState(input.ownerId, input.sessionId);
     const vpToken = stored.sealedUnlockedVpToken
@@ -1842,6 +1868,33 @@ export class ServerProfileSessionManager {
   }
 
   private now(): Date { return this.options.now?.() || new Date(); }
+}
+
+/** Resolves the private individual DID rooted in one registered controller actor. */
+function canonicalIndividualControllerSubject(profile: ServerProfileRecord): string | undefined {
+  if (profile.actorKind !== ActorKinds.IndividualController) return undefined;
+  try {
+    return parseIndividualMemberDidWeb(profile.actorDid).individualDidWeb;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Rebinds a selected public card alias to its canonical SMART subject. */
+function rewriteSmartScopeSubject(
+  scope: string,
+  requestedSubjectDid: string,
+  transportSubjectDid: string,
+): string {
+  const value = String(scope || '').trim();
+  if (!value || requestedSubjectDid === transportSubjectDid) return value;
+  const [permission, query = ''] = value.split('?', 2);
+  const parameters = new URLSearchParams(query);
+  if (parameters.get('subject') !== requestedSubjectDid) {
+    throw new Error('Every SMART scope must be bound to the selected public subject alias.');
+  }
+  parameters.set('subject', transportSubjectDid);
+  return `${permission}?${parameters.toString()}`;
 }
 
 /**
