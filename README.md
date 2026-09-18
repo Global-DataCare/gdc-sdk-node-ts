@@ -663,6 +663,48 @@ export async function GET(request: Request) {
 The application validates which systems are allowed for the specific coded
 form field. This MVP service performs no external terminology request.
 
+### Governed ValueSet options through the terminology service
+
+For creation controls, the authenticated BFF can resolve the ValueSet bound to
+a canonical flat claim without exposing its service token or terminology
+server to the browser:
+
+```ts
+import {
+  AllergyIntoleranceClaim,
+  MemoryTerminologyValueSetCache,
+  TerminologyServiceClient,
+} from 'gdc-sdk-node-ts';
+
+const terminology = new TerminologyServiceClient({
+  baseUrl: process.env.TERMINOLOGY_SERVICE_URL!,
+  serviceToken: process.env.TERMINOLOGY_SERVICE_TOKEN!,
+  cache: new MemoryTerminologyValueSetCache(),
+});
+
+const { document, cacheStatus } = await terminology.expandValueSetForClaim({
+  sector: 'health-care',
+  resourceType: 'AllergyIntolerance',
+  claim: AllergyIntoleranceClaim.Manifestation,
+  // Optional: language, jurisdiction, version, fhirVersion, offset and count.
+});
+```
+
+Omission means English, international/default terminology, the latest
+installed terminology version and FHIR R4. Jurisdiction is a SNOMED edition
+selector; it does not become part of LOINC or WHO ATC identity. The cache key
+still separates language, SNOMED edition/version, claim and page.
+
+`MemoryTerminologyValueSetCache.prime(...)` accepts immutable startup
+snapshots. This permits an application to ship or load the English IPS page
+from private storage and render it without a live terminology call. A local
+language page is preferred when cached; if refresh fails, an English cached
+page is returned with `cacheStatus: 'english-fallback-cache'`. Complete
+catalogs and the service bearer credential remain server-side. A BFF may
+replace the memory implementation with a GCS, Firestore or PostgreSQL adapter
+implementing `TerminologyValueSetCache`; large complete catalogs should not be
+stored in one Firestore document.
+
 ## API Index
 
 ## Full Public Surface
