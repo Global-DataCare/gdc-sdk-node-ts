@@ -1,7 +1,7 @@
 /** Input resolved by an authenticated application BFF, never directly by a browser. */
 export type TerminologyValueSetInput = Readonly<{
-  sector: string;
-  resourceType: string;
+  /** Optional per-request override. Dedicated BFFs normally configure this once on the client. */
+  sector?: string;
   claim: string;
   fhirVersion?: 'R4';
   language?: string;
@@ -11,6 +11,8 @@ export type TerminologyValueSetInput = Readonly<{
   offset?: number;
   count?: number;
 }>;
+
+export type TerminologyValueSetCodeListInput = Omit<TerminologyValueSetInput, 'offset' | 'count'>;
 
 export type TerminologyValueSetOption = Readonly<{
   system: string;
@@ -55,11 +57,9 @@ const DEFAULT_TTL_MS = 5 * 60 * 1000;
 
 function normalizedInput(input: TerminologyValueSetInput): Required<Pick<
   TerminologyValueSetInput,
-  'sector' | 'resourceType' | 'claim' | 'fhirVersion' | 'language' | 'offset' | 'count'
+  'claim' | 'fhirVersion' | 'language' | 'offset' | 'count'
 >> & Pick<TerminologyValueSetInput, 'jurisdiction' | 'version'> {
   return {
-    sector: input.sector.trim().toLowerCase(),
-    resourceType: input.resourceType.trim(),
     claim: input.claim.trim(),
     fhirVersion: input.fhirVersion ?? 'R4',
     language: (input.language?.trim() || 'en').replace(/_/g, '-').toLowerCase(),
@@ -72,12 +72,27 @@ function normalizedInput(input: TerminologyValueSetInput): Required<Pick<
 
 /** Stable key usable by in-memory, GCS, Firestore or PostgreSQL cache adapters. */
 export function terminologyValueSetCacheKey(input: TerminologyValueSetInput): string {
-  const value = normalizedInput(input);
+  const normalizedTerminologyContext = normalizedInput(input);
   return JSON.stringify([
-    value.fhirVersion, value.sector, value.resourceType, value.claim,
-    value.language, value.jurisdiction ?? '', value.version ?? 'latest',
-    value.offset, value.count,
+    normalizedTerminologyContext.fhirVersion,
+    input.sector?.trim().toLowerCase() ?? '',
+    normalizedTerminologyContext.claim,
+    normalizedTerminologyContext.language,
+    normalizedTerminologyContext.jurisdiction ?? '',
+    normalizedTerminologyContext.version ?? 'latest',
+    normalizedTerminologyContext.offset,
+    normalizedTerminologyContext.count,
   ]);
+}
+
+function resourceTypeFromClaim(claim: string): string {
+  const canonicalClaim = claim.trim();
+  const separatorIndex = canonicalClaim.indexOf('.');
+  const resourceType = canonicalClaim.slice(0, separatorIndex);
+  if (separatorIndex < 1 || !/^[A-Z][A-Za-z0-9]*$/.test(resourceType)) {
+    throw new Error('claim must start with its FHIR resource type');
+  }
+  return resourceType;
 }
 
 /** Process-local cache suitable for warm BFF instances and immutable startup snapshots. */
@@ -106,10 +121,22 @@ export type TerminologyValueSetResult = Readonly<{
   cacheStatus: 'remote' | 'fresh-cache' | 'stale-cache' | 'english-fallback-cache';
 }>;
 
+/** Frontend-ready code list. Coding system and code remain separate FHIR Coding values. */
+export type TerminologyValueSetCodeList = Readonly<{
+  codingSystem: string;
+  codeToDisplay: Readonly<Record<string, string>>;
+  requestedLanguage: string;
+  resolvedLanguage: string;
+  fallbackUsed: boolean;
+  valueSet: TerminologyValueSetDocument['meta']['valueSet'];
+  terminologyVersions?: Readonly<Record<string, string>>;
+}>;
+
 /** Server-only client for a product-neutral terminology service. */
 export class TerminologyServiceClient {
   readonly #baseUrl: string;
   readonly #serviceToken: string | undefined;
+  readonly #sector: string | undefined;
   readonly #fetch: typeof fetch;
   readonly #cache: TerminologyValueSetCache;
   readonly #cacheTtlMs: number;
@@ -118,6 +145,8 @@ export class TerminologyServiceClient {
 
   public constructor(options: Readonly<{
     baseUrl: string;
+    /** Default sector for a dedicated human-health or animal-health BFF. */
+    sector?: string;
     serviceToken?: string;
     fetchImplementation?: typeof fetch;
     cache?: TerminologyValueSetCache;
@@ -127,6 +156,7 @@ export class TerminologyServiceClient {
   }>) {
     this.#baseUrl = options.baseUrl.replace(/\/$/, '');
     this.#serviceToken = options.serviceToken?.trim() || undefined;
+    this.#sector = options.sector?.trim() || undefined;
     this.#fetch = options.fetchImplementation ?? fetch;
     this.#cache = options.cache ?? new MemoryTerminologyValueSetCache();
     this.#cacheTtlMs = options.cacheTtlMs ?? DEFAULT_TTL_MS;
@@ -139,14 +169,18 @@ export class TerminologyServiceClient {
     input: TerminologyValueSetInput,
   ): Promise<TerminologyValueSetResult> {
     this.#validateInput(input);
-    const key = terminologyValueSetCacheKey(input);
+    const resolvedTerminologyContext = {
+      ...input,
+      sector: input.sector?.trim() || this.#sector,
+    };
+    const key = terminologyValueSetCacheKey(resolvedTerminologyContext);
     const cached = await this.#cache.get(key);
     if (cached && this.#now() - cached.storedAt <= this.#cacheTtlMs) {
       return { document: cached.document, cacheStatus: 'fresh-cache' };
     }
 
     try {
-      const document = await this.#request(input);
+      const document = await this.#request(resolvedTerminologyContext);
       await this.#cache.set(key, { document, storedAt: this.#now() });
       return { document, cacheStatus: 'remote' };
     } catch (error) {
@@ -155,7 +189,10 @@ export class TerminologyServiceClient {
       }
       const requestedLanguage = input.language?.trim().toLowerCase();
       if (this.#staleIfError && requestedLanguage && requestedLanguage !== 'en') {
-        const english = await this.#cache.get(terminologyValueSetCacheKey({ ...input, language: 'en' }));
+        const english = await this.#cache.get(terminologyValueSetCacheKey({
+          ...resolvedTerminologyContext,
+          language: 'en',
+        }));
         if (english) {
           return { document: english.document, cacheStatus: 'english-fallback-cache' };
         }
@@ -164,10 +201,65 @@ export class TerminologyServiceClient {
     }
   }
 
+  /** Resolves every page and returns the simple code-to-display object expected by forms. */
+  public async getValueSetCodeListForClaim(
+    input: TerminologyValueSetCodeListInput,
+  ): Promise<TerminologyValueSetCodeList> {
+    const pageSize = 100;
+    let nextOffset = 0;
+    let totalOptionCount = 0;
+    let codingSystem = '';
+    let resolvedLanguage = '';
+    let fallbackUsed = false;
+    let resolvedValueSet: TerminologyValueSetDocument['meta']['valueSet'] | undefined;
+    let terminologyVersions: Readonly<Record<string, string>> | undefined;
+    const codeToDisplay: Record<string, string> = {};
+
+    do {
+      const valueSetPage = await this.expandValueSetForClaim({
+        ...input,
+        offset: nextOffset,
+        count: pageSize,
+      });
+      const { document } = valueSetPage;
+      totalOptionCount = document.meta.total;
+      resolvedLanguage ||= document.meta.language;
+      resolvedValueSet ??= document.meta.valueSet;
+      terminologyVersions ??= document.meta.terminologyVersions;
+
+      if (resolvedValueSet.system !== document.meta.valueSet.system) {
+        throw new Error('Terminology service returned inconsistent ValueSet pages');
+      }
+      for (const terminologyOptionResource of document.data) {
+        const terminologyOption = terminologyOptionResource.attributes;
+        if (codingSystem && codingSystem !== terminologyOption.system) {
+          throw new Error('Terminology ValueSet contains more than one coding system');
+        }
+        codingSystem ||= terminologyOption.system;
+        codeToDisplay[terminologyOption.code] = terminologyOption.localizedDisplay;
+        fallbackUsed ||= terminologyOption.fallbackUsed;
+      }
+      if (document.data.length === 0 && nextOffset < totalOptionCount) {
+        throw new Error('Terminology service returned an incomplete ValueSet page');
+      }
+      nextOffset += document.data.length;
+    } while (nextOffset < totalOptionCount);
+
+    if (!resolvedValueSet) throw new Error('Terminology service returned no ValueSet metadata');
+    return {
+      codingSystem: codingSystem || resolvedValueSet.system,
+      codeToDisplay,
+      requestedLanguage: (input.language?.trim() || 'en').replace(/_/g, '-').toLowerCase(),
+      resolvedLanguage: resolvedLanguage || 'en',
+      fallbackUsed,
+      valueSet: resolvedValueSet,
+      ...(terminologyVersions ? { terminologyVersions } : {}),
+    };
+  }
+
   async #request(input: TerminologyValueSetInput): Promise<TerminologyValueSetDocument> {
     const url = new URL(`${this.#baseUrl}/v1/terminology/value-set-options`);
-    url.searchParams.set('sector', input.sector.trim());
-    url.searchParams.set('resourceType', input.resourceType.trim());
+    url.searchParams.set('sector', input.sector?.trim() || this.#sector || '');
     url.searchParams.set('claim', input.claim.trim());
     url.searchParams.set('offset', String(input.offset ?? 0));
     url.searchParams.set('count', String(input.count ?? 50));
@@ -188,9 +280,9 @@ export class TerminologyServiceClient {
   }
 
   #validateInput(input: TerminologyValueSetInput): void {
-    if (!input.sector.trim()) throw new Error('sector is required');
-    if (!input.resourceType.trim()) throw new Error('resourceType is required');
+    if (!(input.sector?.trim() || this.#sector)) throw new Error('sector is required');
     if (!input.claim.trim()) throw new Error('claim is required');
+    resourceTypeFromClaim(input.claim);
     if (input.offset !== undefined && (!Number.isInteger(input.offset) || input.offset < 0)) {
       throw new Error('offset must be a non-negative integer');
     }
@@ -203,7 +295,7 @@ export class TerminologyServiceClient {
     if (!value || typeof value !== 'object') return false;
     const document = value as Partial<TerminologyValueSetDocument>;
     if (document.jsonapi?.version !== '1.1' || !Array.isArray(document.data) || !document.meta) return false;
-    if (document.meta.resourceType !== input.resourceType.trim() || document.meta.claim !== input.claim.trim()) return false;
+    if (document.meta.resourceType !== resourceTypeFromClaim(input.claim) || document.meta.claim !== input.claim.trim()) return false;
     return document.data.every((resource) => (
       resource?.type === 'terminology-option'
       && typeof resource.id === 'string'
