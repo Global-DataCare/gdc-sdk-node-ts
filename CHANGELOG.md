@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add a server-only terminology client that resolves a governed ValueSet from
+  a canonical claim, keeps English and localized displays explicit, and never
+  exposes the terminology service token to browsers.
+- Add pluggable and in-memory ValueSet page caches with exact locale,
+  jurisdiction/version, claim and pagination keys, including stale-page and
+  English-snapshot fallback for temporary terminology outages.
+- Consume `gdc-common-utils-ts@2.9.19` and explicitly expose the canonical
+  `AllergyIntolerance.manifestation` claim for typed callers.
 - Preserve a personal subject's public card alias in the account directory
   while binding SMART exchange and scopes to the canonical private individual
   DID registered by DCR. The alias is accepted only when both identities were

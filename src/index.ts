@@ -1,6 +1,8 @@
 // Copyright 2026 Antifraud Services Inc. under the Apache License, Version 2.0.
 
 export * from 'gdc-sdk-core-ts';
+// Explicitly use the direct common-utils release for newly promoted canonical claims.
+export { AllergyIntoleranceClaim } from 'gdc-common-utils-ts/models/interoperable-claims/allergy-intolerance-claims';
 export * from './runtime-contracts.js';
 export * from './identity-bootstrap.js';
 export * from './async-polling.js';
@@ -53,4 +55,5 @@ export * from './orchestration/professional-sdk.js';
 export * from './orchestration/digital-twin-sdk.js';
 export * from './legacy-compat.js';
 export * from './local-terminology-bff.js';
+export * from './terminology-service-client.js';
 export * from './pdqm-patient-match.js';
