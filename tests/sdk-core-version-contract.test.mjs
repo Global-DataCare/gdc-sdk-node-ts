@@ -26,9 +26,9 @@ test('pins the shared identity, activation-licence and draft-Consent contracts',
   }
 });
 
-test('terminology-cache release pins the canonical claim and core contracts', () => {
+test('terminology code-list release pins the canonical claim and separate Coding setter contracts', () => {
   const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-  assert.equal(packageJson.version, '2.9.20');
-  assert.equal(packageJson.dependencies['gdc-common-utils-ts'], '2.9.19');
+  assert.equal(packageJson.version, '2.9.21');
+  assert.equal(packageJson.dependencies['gdc-common-utils-ts'], '2.9.20');
   assert.equal(packageJson.dependencies['gdc-sdk-core-ts'], '2.9.10');
 });

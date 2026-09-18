@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Let a dedicated BFF configure its healthcare sector once, derive the FHIR
+  resource type from the canonical claim, and request a complete frontend-ready
+  `codeToDisplay` map without concatenating the coding system and code value.
+- Consume `gdc-common-utils-ts@2.9.20`, whose allergy manifestation editor
+  accepts the coding system and code value as separate typed arguments.
 - Add a server-only terminology client that resolves a governed ValueSet from
   a canonical claim, keeps English and localized displays explicit, and never
   exposes the terminology service token to browsers.
