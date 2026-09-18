@@ -285,7 +285,9 @@ test('one personal actor profile unlocks before directory discovery and selects 
     profileDid: EXAMPLE_HOSTED_INDIVIDUAL_CONTROLLER_DID,
     providerDid: EXAMPLE_PROFILE_PROVIDER_DID,
     routeContext: EXAMPLE_TENANT_ROUTE_CONTEXT,
-    allowedSubjectDids: [EXAMPLE_HOSTED_INDIVIDUAL_DID],
+    // The enrollment grant binds both the private canonical subject used by
+    // DCR/SMART and the public card alias shown by the portal directory.
+    allowedSubjectDids: [EXAMPLE_HOSTED_INDIVIDUAL_DID, EXAMPLE_GENERIC_SUBJECT_DID],
     clientId: 'personal-dcr-client',
     deviceDid: 'did:key:personal-device',
     publicJwks,
@@ -301,7 +303,8 @@ test('one personal actor profile unlocks before directory discovery and selects 
     updatedAt: '2026-09-15T00:00:00.000Z',
   });
 
-  const representedSubjectDid = EXAMPLE_GENERIC_SUBJECT_DID;
+  const publicOwnCardDid = EXAMPLE_GENERIC_SUBJECT_DID;
+  const representedSubjectDid = EXAMPLE_SUBJECT_DID;
   const calls = [];
   const ownerDirectoryResponse = {
     body: {
@@ -314,7 +317,7 @@ test('one personal actor profile unlocks before directory discovery and selects 
               meta: { claims: {
                 '@context': 'org.schema',
                 'org.schema.Organization.owner.email': 'person@example.org',
-                'org.schema.Organization.sameAs': EXAMPLE_HOSTED_INDIVIDUAL_DID,
+                'org.schema.Organization.sameAs': publicOwnCardDid,
                 'org.schema.Organization.member.role': 'ONESELF',
                 'org.schema.Organization.owner.identifier.value': 'urn:uuid:00000000-0000-4000-8000-000000000041',
               } },
@@ -374,7 +377,7 @@ test('one personal actor profile unlocks before directory discovery and selects 
     verifiedContact: { email: 'person@example.org' },
   });
   assert.deepEqual(directory.subjects.map((subject) => subject.subjectDid), [
-    EXAMPLE_HOSTED_INDIVIDUAL_DID,
+    publicOwnCardDid,
     representedSubjectDid,
   ]);
   assert.equal(directory.subjects[0].organizationId, 'own-subject');
@@ -390,8 +393,8 @@ test('one personal actor profile unlocks before directory discovery and selects 
   const own = await manager.selectAuthorizedSubject({
     ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
     sessionId: actorSession.sessionId,
-    subjectDid: EXAMPLE_HOSTED_INDIVIDUAL_DID,
-    scopes: ['patient/Composition.rs'],
+    subjectDid: publicOwnCardDid,
+    scopes: [`organization/Composition.rs?subject=${encodeURIComponent(publicOwnCardDid)}`],
     idToken: EXAMPLE_DEMO_PORTAL_ID_TOKEN,
   });
   const represented = await manager.selectAuthorizedSubject({
@@ -417,6 +420,13 @@ test('one personal actor profile unlocks before directory discovery and selects 
     'urn:uuid:00000000-0000-4000-8000-000000000042',
   );
   assert.equal(calls.length, 10);
+  const ownSmartRequest = calls.find((call) =>
+    /\/identity\/openid\/smart\/token$/.test(new URL(String(call.url)).pathname)
+    && call.decodedRequest)?.decodedRequest;
+  assert.ok(ownSmartRequest, JSON.stringify(calls.map((call) => String(call.url))));
+  assert.equal(ownSmartRequest.body.sub, EXAMPLE_HOSTED_INDIVIDUAL_CONTROLLER_DID);
+  assert.match(ownSmartRequest.body.scope, new RegExp(`subject=${encodeURIComponent(EXAMPLE_HOSTED_INDIVIDUAL_DID)}`));
+  assert.doesNotMatch(ownSmartRequest.body.scope, new RegExp(encodeURIComponent(publicOwnCardDid)));
   for (const call of calls) {
     assert.equal(
       new Headers(call.init.headers).get('content-type'),
@@ -453,13 +463,16 @@ async function createGatewayTransport(responses, calls = []) {
     setResponseRecipientJwk(value) { responseRecipientJwk = value; },
     resolveRecipientJwk: async () => recipientKey.publicJwk,
     fetchImpl: async (url, init) => {
-      calls.push({ url, init });
+      const call = { url, init };
+      calls.push(call);
       const response = responses.shift();
       if (!response) throw new Error('Gateway test transport has no queued response.');
       const isEncrypted = new Headers(init.headers).get('content-type') === TransportProfiles.DidcommEncryptedForm;
-      if (!isEncrypted || response.status === 202) return response;
+      if (!isEncrypted) return response;
       const requestJwe = new URLSearchParams(String(init.body)).get('request');
       assert.ok(requestJwe);
+      call.decodedRequest = (await wallet.unpackWithContext(requestJwe, { context })).content;
+      if (response.status === 202) return response;
       const requestHeader = JSON.parse(Buffer.from(requestJwe.split('.')[0], 'base64url').toString());
       const recipientJwk = requestHeader.jwk || responseRecipientJwk;
       assert.ok(recipientJwk);

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Preserve a personal subject's public card alias in the account directory
+  while binding SMART exchange and scopes to the canonical private individual
+  DID registered by DCR. The alias is accepted only when both identities were
+  already present in the trusted enrollment grant; represented subjects are
+  never rewritten.
 - Ignore locally packed npm tarballs so release verification artifacts cannot
   be staged accidentally.
 - Add `getDocumentAttester()` to opened individual-controller sessions so new
