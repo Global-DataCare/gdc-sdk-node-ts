@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Omit the optional `lockedUntil` field when a successful PIN unlock clears a
+  profile lock, and when a failed attempt has not yet reached the lock
+  threshold. Persistent Firestore-backed profile stores therefore receive no
+  `undefined` values during personal or subject-scoped wallet unlock.
+
 - Let a dedicated BFF configure its healthcare sector once, derive the FHIR
   resource type from the canonical claim, and request a complete frontend-ready
   `codeToDisplay` map without concatenating the coding system and code value.

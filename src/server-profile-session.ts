@@ -1041,8 +1041,7 @@ export class ServerProfileSessionManager {
     );
     const wallet = await this.createWallet(walletKeyDerivationId, seed);
     await requireRegisteredProfileKeys(wallet, walletContext(walletKeyDerivationId), profile);
-    const updated: ServerProfileRecord = {
-      ...profile,
+    const updated: ServerProfileRecord = withProfileUnlockState(profile, {
       protectedWalletSeed: await protectServerProfileSecret(
         seed,
         input.newPin,
@@ -1060,9 +1059,8 @@ export class ServerProfileSessionManager {
         ),
       } : {}),
       failedUnlocks: 0,
-      lockedUntil: undefined,
       updatedAt: this.now().toISOString(),
-    };
+    });
     await this.options.store.putProfile(updated);
     await this.options.store.deleteSessionsForProfile(profile.profileId);
     return updated;
@@ -1089,7 +1087,11 @@ export class ServerProfileSessionManager {
       const lockedUntil = failures >= max
         ? new Date(now.getTime() + (this.options.lockSeconds ?? 300) * 1000).toISOString()
         : undefined;
-      await this.options.store.putProfile({ ...profile, failedUnlocks: failures, lockedUntil, updatedAt: now.toISOString() });
+      await this.options.store.putProfile(withProfileUnlockState(profile, {
+        failedUnlocks: failures,
+        lockedUntil,
+        updatedAt: now.toISOString(),
+      }));
       throw new Error('Profile PIN rejected.');
     }
     profile = await this.ensureRequiredStorageProfile(profile, seed);
@@ -1121,7 +1123,10 @@ export class ServerProfileSessionManager {
     if (token.status !== 'fetched' || !token.accessToken) throw new Error('SMART token exchange failed.');
     const sessionId = randomBytes(32).toString('base64url');
     const expiresAt = new Date(now.getTime() + (this.options.sessionTtlSeconds ?? 300) * 1000);
-    await this.options.store.putProfile({ ...profile, failedUnlocks: 0, lockedUntil: undefined, updatedAt: now.toISOString() });
+    await this.options.store.putProfile(withProfileUnlockState(profile, {
+      failedUnlocks: 0,
+      updatedAt: now.toISOString(),
+    }));
     await this.options.store.putSession({
       sessionId,
       ownerId: input.ownerId,
@@ -1178,22 +1183,19 @@ export class ServerProfileSessionManager {
       const lockedUntil = failures >= max
         ? new Date(now.getTime() + (this.options.lockSeconds ?? 300) * 1000).toISOString()
         : undefined;
-      await this.options.store.putProfile({
-        ...profile,
+      await this.options.store.putProfile(withProfileUnlockState(profile, {
         failedUnlocks: failures,
         lockedUntil,
         updatedAt: now.toISOString(),
-      });
+      }));
       throw new Error('Profile PIN rejected.');
     }
     profile = await this.ensureRequiredStorageProfile(profile, seed);
     const sessionId = randomBytes(32).toString('base64url');
-    await this.options.store.putProfile({
-      ...profile,
+    await this.options.store.putProfile(withProfileUnlockState(profile, {
       failedUnlocks: 0,
-      lockedUntil: undefined,
       updatedAt: now.toISOString(),
-    });
+    }));
     await this.options.store.putSession({
       sessionId,
       ownerId: input.ownerId,
@@ -2111,6 +2113,28 @@ function sameGovernedRole(left: string, right: string): boolean {
     && leftRole.codingSystem === rightRole.codingSystem
     && leftRole.code === rightRole.code,
   );
+}
+
+/**
+ * Resets or advances the persisted PIN lock state without writing an
+ * `undefined` optional property. Firestore rejects `undefined`, so durable
+ * adapters must receive an omitted `lockedUntil` field when no lock exists.
+ */
+function withProfileUnlockState(
+  profile: ServerProfileRecord,
+  updates: Partial<ServerProfileRecord> & Readonly<{
+    failedUnlocks: number;
+    lockedUntil?: string;
+    updatedAt: string;
+  }>,
+): ServerProfileRecord {
+  const { lockedUntil: _previousLock, ...unlockedProfile } = profile;
+  const { lockedUntil, ...definedUpdates } = updates;
+  return {
+    ...unlockedProfile,
+    ...definedUpdates,
+    ...(lockedUntil ? { lockedUntil } : {}),
+  } as ServerProfileRecord;
 }
 
 function unique(values: readonly string[]): string[] {
