@@ -2117,8 +2117,8 @@ function sameGovernedRole(left: string, right: string): boolean {
 
 /**
  * Resets or advances the persisted PIN lock state without writing an
- * `undefined` optional property. Firestore rejects `undefined`, so durable
- * adapters must receive an omitted `lockedUntil` field when no lock exists.
+ * `undefined` optional property. Durable store adapters receive an omitted
+ * `lockedUntil` field when no lock exists.
  */
 function withProfileUnlockState(
   profile: ServerProfileRecord,
