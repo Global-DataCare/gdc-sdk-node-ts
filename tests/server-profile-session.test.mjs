@@ -391,7 +391,7 @@ test('one personal actor profile unlocks before directory discovery and selects 
   assert.equal(
     Object.values(deps.sessions.get(actorSession.sessionId)).includes(undefined),
     false,
-    'Firestore-compatible actor sessions omit cleared optional fields',
+    'persistent actor sessions omit cleared optional fields',
   );
 
   // Step 3. Selecting either card exchanges only its SMART authorization. The
