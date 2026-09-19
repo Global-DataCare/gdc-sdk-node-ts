@@ -231,7 +231,14 @@ function memoryDeps() {
     store: {
       async listProfiles(ownerId) { return [...profiles.values()].filter((value) => value.ownerId === ownerId); },
       async getProfile(id) { return profiles.get(id); },
-      async putProfile(value) { profiles.set(value.profileId, value); },
+      async putProfile(value) {
+        assert.equal(
+          Object.hasOwn(value, 'lockedUntil') && value.lockedUntil === undefined,
+          false,
+          'persistent profile records must omit undefined lockedUntil values',
+        );
+        profiles.set(value.profileId, value);
+      },
       async getSession(id) { return sessions.get(id); },
       async putSession(value) { sessions.set(value.sessionId, value); },
       async deleteSession(id) { sessions.delete(id); },
