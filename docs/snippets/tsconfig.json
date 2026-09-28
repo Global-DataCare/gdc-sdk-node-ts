@@ -8,6 +8,7 @@
     }
   },
   "include": [
+    "./clinical-entry-getters-setters.ts",
     "./high-level-clinical-profile-writes.ts",
     "./pdqm-patient-match.ts",
     "./owned-individual-cleanup.ts"

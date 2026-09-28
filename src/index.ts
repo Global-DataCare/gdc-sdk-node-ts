@@ -6,10 +6,27 @@ export {
   AllergyIntoleranceClaim,
   AllergyIntoleranceReactionSeverities,
 } from 'gdc-common-utils-ts/models/interoperable-claims/allergy-intolerance-claims';
+export { BundleEditor } from 'gdc-common-utils-ts/utils/bundle-editor-core';
+export { BundleReader } from 'gdc-common-utils-ts/utils/bundle-reader';
 export { AllergyIntoleranceEntryEditor } from 'gdc-common-utils-ts/utils/allergy-intolerance-entry-editor';
+export { CarePlanEntryEditor } from 'gdc-common-utils-ts/utils/care-plan-entry-editor';
+export { ClinicalImpressionEntryEditor } from 'gdc-common-utils-ts/utils/clinical-impression-entry-editor';
+export { ConditionEntryEditor } from 'gdc-common-utils-ts/utils/condition-entry-editor';
+export { ConsentEntryEditor } from 'gdc-common-utils-ts/utils/consent-entry-editor';
+export { CoverageEntryEditor } from 'gdc-common-utils-ts/utils/coverage-entry-editor';
+export { DeviceEntryEditor } from 'gdc-common-utils-ts/utils/device-entry-editor';
+export { DeviceUseStatementEntryEditor } from 'gdc-common-utils-ts/utils/device-use-statement-entry-editor';
+export { DiagnosticReportEntryEditor } from 'gdc-common-utils-ts/utils/diagnostic-report-entry-editor';
+export { DocumentReferenceEntryEditor } from 'gdc-common-utils-ts/utils/document-reference-entry-editor';
+export { EmployeeEntryEditor } from 'gdc-common-utils-ts/utils/employee-entry-editor';
+export { EncounterEntryEditor } from 'gdc-common-utils-ts/utils/encounter-entry-editor';
+export { FlagEntryEditor } from 'gdc-common-utils-ts/utils/flag-entry-editor';
 export { ImmunizationEntryEditor } from 'gdc-common-utils-ts/utils/immunization-entry-editor';
 export { MedicationStatementEntryEditor } from 'gdc-common-utils-ts/utils/medication-statement-entry-editor';
 export { ObservationEntryEditor } from 'gdc-common-utils-ts/utils/observation-entry-editor';
+export { ProcedureEntryEditor } from 'gdc-common-utils-ts/utils/procedure-entry-editor';
+export { RelatedPersonEntryEditor } from 'gdc-common-utils-ts/utils/related-person-entry-editor';
+export { VitalSignEntryEditor } from 'gdc-common-utils-ts/utils/vital-sign-entry-editor';
 export * from './runtime-contracts.js';
 export * from './identity-bootstrap.js';
 export * from './async-polling.js';
