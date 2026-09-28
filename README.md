@@ -663,6 +663,25 @@ export async function GET(request: Request) {
 The application validates which systems are allowed for the specific coded
 form field. This MVP service performs no external terminology request.
 
+### Typed clinical detail editors
+
+Applications can import the clinical editors from `gdc-sdk-node-ts`; they do
+not need `setClaim(...)`, private claim names or deep package imports for these
+FHIR fields:
+
+- `AllergyIntoleranceEntryEditor`: `setReactionManifestation(system, code)`,
+  `setReactionSeverity(...)` and their matching getters. Reaction severity is
+  distinct from future-risk `criticality`.
+- `MedicationStatementEntryEditor`: `setEffectivePeriodStart(...)`,
+  `setEffectivePeriodEnd(...)` and their matching getters.
+- `ImmunizationEntryEditor`: `setRoute(system, code)`, `setSite(system, code)`
+  and their component/token getters.
+- `ObservationEntryEditor`: `setReferenceRangeText(...)` and
+  `getReferenceRangeText()`.
+
+`BundleEditor` returns those typed editors through `asAllergy()`,
+`asMedicationStatement()`, `asImmunization()` and `asObservation()`.
+
 ### Governed ValueSet options through the terminology service
 
 For creation controls, the authenticated BFF can resolve the ValueSet bound to

@@ -381,6 +381,12 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
   const bootstrapClient = new NodeHttpClient({
     baseUrl,
     ctx,
+    bearerToken: env('HOST_ONBOARDING_AUTH_BEARER', buildUnsignedJwt({
+      sub: controllerEmail,
+      tenant_id: suiteHostIdentifierValue,
+      email: controllerEmail,
+      email_verified: true,
+    })),
     requestTimeoutMs: 10_000,
   });
   const hostSdk = new HostOnboardingSdk(bootstrapClient, [

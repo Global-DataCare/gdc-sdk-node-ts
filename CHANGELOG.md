@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Export the typed allergy, medication, immunization and observation entry
+  editors from the Node SDK root, including the canonical allergy reaction
+  severity values. Applications can use the standard getters and setters
+  without private claims or deep imports into shared packages.
 - Omit the optional `lockedUntil` field when a successful PIN unlock clears a
   profile lock, and when a failed attempt has not yet reached the lock
   threshold. Persistent store adapters therefore receive records without

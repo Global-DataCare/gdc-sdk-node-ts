@@ -2,7 +2,14 @@
 
 export * from 'gdc-sdk-core-ts';
 // Explicitly use the direct common-utils release for newly promoted canonical claims.
-export { AllergyIntoleranceClaim } from 'gdc-common-utils-ts/models/interoperable-claims/allergy-intolerance-claims';
+export {
+  AllergyIntoleranceClaim,
+  AllergyIntoleranceReactionSeverities,
+} from 'gdc-common-utils-ts/models/interoperable-claims/allergy-intolerance-claims';
+export { AllergyIntoleranceEntryEditor } from 'gdc-common-utils-ts/utils/allergy-intolerance-entry-editor';
+export { ImmunizationEntryEditor } from 'gdc-common-utils-ts/utils/immunization-entry-editor';
+export { MedicationStatementEntryEditor } from 'gdc-common-utils-ts/utils/medication-statement-entry-editor';
+export { ObservationEntryEditor } from 'gdc-common-utils-ts/utils/observation-entry-editor';
 export * from './runtime-contracts.js';
 export * from './identity-bootstrap.js';
 export * from './async-polling.js';
