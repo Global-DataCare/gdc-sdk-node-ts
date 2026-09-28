@@ -682,6 +682,13 @@ FHIR fields:
 `BundleEditor` returns those typed editors through `asAllergy()`,
 `asMedicationStatement()`, `asImmunization()` and `asObservation()`.
 
+All registered clinical editor families are exported from the SDK root. A
+received Bundle stays read-only in `BundleReader`; call
+`reader.toBundleEditor()` to create a detached clone before using typed
+resource getters or setters. See
+[Clinical Bundle Getters And Setters 101](docs/101-CLINICAL-ENTRY-GETTERS-SETTERS.md)
+for the complete resource table and examples.
+
 ### Governed ValueSet options through the terminology service
 
 For creation controls, the authenticated BFF can resolve the ValueSet bound to

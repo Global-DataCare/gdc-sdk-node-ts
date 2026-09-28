@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Expose every registered typed clinical entry editor from the Node SDK root
+  and document the read-only `BundleReader` to detached `BundleEditor` handoff
+  for FHIR-style and JSON-API-style received Bundles.
+- Consume `gdc-common-utils-ts@2.9.24`, which adds the reader-to-editor clone,
+  positional reopen and missing employee organization getters while enforcing
+  scalar getter/setter symmetry across all typed resource editors.
 - Export the typed allergy, medication, immunization and observation entry
   editors from the Node SDK root, including the canonical allergy reaction
   severity values. Applications can use the standard getters and setters
