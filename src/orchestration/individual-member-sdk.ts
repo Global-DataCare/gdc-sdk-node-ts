@@ -8,7 +8,11 @@ import {
   type IndividualMemberCredentialInput,
   type IndividualMemberVpPayloadInput,
 } from 'gdc-common-utils-ts';
-import { requireClientMethod, type NodeRuntimeClient } from './client-port.js';
+import {
+  requireClientMethod,
+  type NodeRuntimeClient,
+  type SubmitAndPollResult,
+} from './client-port.js';
 import type { SmartTokenExchangeResult, SmartTokenRequestInput } from '../smart-token.js';
 import type { RouteContext } from '../individual-onboarding.js';
 import type {
@@ -34,7 +38,7 @@ export class IndividualMemberSdk {
   public acceptMemberInvitation(
     ctx: RouteContext,
     input: IndividualMemberLicenseTransitionInput,
-  ) {
+  ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'transitionIndividualMemberLicense')(
       ctx,
       '_accept',
@@ -48,7 +52,10 @@ export class IndividualMemberSdk {
    * @deprecated Author a typed RelatedPerson Bundle, attach it to a
    * Communication outbox job, and call `ingestCommunicationAndUpdateIndex(...)`.
    */
-  public upsertRelatedPersonAndPoll(ctx: RouteContext, input: RelatedPersonUpsertInput) {
+  public upsertRelatedPersonAndPoll(
+    ctx: RouteContext,
+    input: RelatedPersonUpsertInput,
+  ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'upsertRelatedPersonAndPoll')(ctx, input);
   }
 
@@ -67,22 +74,31 @@ export class IndividualMemberSdk {
   public ingestCommunicationAndUpdateIndex(
     ctx: RouteContext,
     input: CommunicationIngestionInput,
-  ) {
+  ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
   }
 
   /** Updates one authorized clinical section through a scoped batch/collection. */
-  public updateClinicalSection(ctx: RouteContext, input: ClinicalSectionUpdateInput) {
+  public updateClinicalSection(
+    ctx: RouteContext,
+    input: ClinicalSectionUpdateInput,
+  ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'updateClinicalSection')(ctx, input);
   }
 
   /** Updates one authorized subject-owned section with its profile attester. */
-  public updateSubjectSection(ctx: RouteContext, input: SubjectSectionUpdateInput) {
+  public updateSubjectSection(
+    ctx: RouteContext,
+    input: SubjectSectionUpdateInput,
+  ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'updateSubjectSection')(ctx, input);
   }
 
   /** Updates an authorized multi-section summary document. */
-  public updateClinicalSummary(ctx: RouteContext, input: ClinicalSummaryUpdateInput) {
+  public updateClinicalSummary(
+    ctx: RouteContext,
+    input: ClinicalSummaryUpdateInput,
+  ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'updateClinicalSummary')(ctx, input);
   }
 
@@ -95,7 +111,10 @@ export class IndividualMemberSdk {
   }
 
   /** Reads subject-scoped clinical documents permitted to this member. */
-  public searchClinicalBundle(ctx: RouteContext, input: ClinicalBundleSearchInput) {
+  public searchClinicalBundle(
+    ctx: RouteContext,
+    input: ClinicalBundleSearchInput,
+  ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'searchClinicalBundle')(ctx, input);
   }
 
@@ -103,7 +122,7 @@ export class IndividualMemberSdk {
   public getLatestIps(
     ctx: RouteContext,
     input: Omit<ClinicalBundleSearchInput, 'includedTypes'>,
-  ) {
+  ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'getLatestIps')(ctx, input);
   }
 
