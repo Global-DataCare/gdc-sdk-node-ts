@@ -6,9 +6,9 @@ import test from 'node:test';
 test('profile lock persistence documentation remains storage-provider neutral', () => {
   const source = readFileSync(new URL('../src/server-profile-session.ts', import.meta.url), 'utf8');
   const changelog = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
-  const unreleased = changelog.split('\n## ')[1] || '';
+  const currentRelease = changelog.split('\n## 2.9.26')[1]?.split('\n## ')[0] || '';
 
   assert.match(source, /Durable store adapters receive an omitted/);
-  assert.match(unreleased, /Persistent store adapters therefore receive records without/);
-  assert.doesNotMatch(unreleased, /-backed profile stores/i);
+  assert.match(currentRelease, /Persistent store adapters therefore receive records without/);
+  assert.doesNotMatch(currentRelease, /-backed profile stores/i);
 });
