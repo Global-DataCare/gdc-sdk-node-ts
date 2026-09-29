@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.9.27 - 2026-09-29
+
+- Keep every generated public declaration on the `gdc-sdk-core-ts` package
+  root. Clean consumers no longer need the unpublished internal
+  `gdc-sdk-core-ts/polling-model.js` path to compile the individual-member
+  facade.
+
 ## 2.9.26 - 2026-09-29
 
 - Align direct and SDK Core dependencies on `gdc-common-utils-ts@2.9.25` and
