@@ -2,10 +2,15 @@
 
 ## Unreleased
 
+## 2.9.26 - 2026-09-29
+
+- Align direct and SDK Core dependencies on `gdc-common-utils-ts@2.9.25` and
+  consume `gdc-sdk-core-ts@2.9.11`, preventing clean Node SDK installations
+  from loading two incompatible Common Utils versions.
 - Expose every registered typed clinical entry editor from the Node SDK root
   and document the read-only `BundleReader` to detached `BundleEditor` handoff
   for FHIR-style and JSON-API-style received Bundles.
-- Consume `gdc-common-utils-ts@2.9.24`, which adds the reader-to-editor clone,
+- Consume `gdc-common-utils-ts@2.9.25`, which adds the reader-to-editor clone,
   positional reopen and missing employee organization getters while enforcing
   scalar getter/setter symmetry across all typed resource editors.
 - Export the typed allergy, medication, immunization and observation entry
