@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Make the live organization-controller lifecycle usable against protected
+  remote gateways: authenticate onboarding and credential reissuance with the
+  controller ID token, keep the signed VP for tenant administration, avoid
+  remote host teardown, and recover/purge a tenant left by an interrupted run.
+
 ## 2.9.28 - 2026-09-30
 
 - Consume `gdc-common-utils-ts@2.9.26` and `gdc-sdk-core-ts@2.9.12` so tenant

@@ -1,11 +1,13 @@
 // Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 /**
- * Journey: 1) submit organization verification, 2) confirm its Order,
- * 3) reissue and activate the controller device, 4) disable and purge the
- * tenant, and 5) remove the host after no tenant remains.
- * Authorization invariant: only the reviewed controller proof authorizes the
- * tenant lifecycle. Persistence invariant: purge removes tenant state before
- * host cleanup is allowed.
+ * Journey: 1) authenticate and submit organization verification, 2) confirm
+ * its Order, 3) reissue and activate the controller device with its ID token,
+ * 4) disable and purge the tenant with its signed VP, and 5) remove only a
+ * locally owned host after no tenant remains.
+ * Authorization invariant: ID-token identity authorizes controller reissuance
+ * while only the reviewed controller proof authorizes tenant lifecycle.
+ * Persistence invariant: purge removes tenant state before local host cleanup;
+ * remote runs never disable the shared host.
  */
 /**
  * 101 note:
@@ -211,6 +213,11 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
   const hostCtx = { jurisdiction: suiteJurisdiction, hostNetwork: suiteHostSector };
   const tenantCtx = { tenantId: suiteTenantRouteId, jurisdiction: suiteJurisdiction, sector: suiteSector };
   const controllerEmail = env('CONTROLLER_EMAIL', `controller+${runSlug}@example.com`);
+  const existingTenantDid = env('LIVE_CONTROLLER_EXISTING_TENANT_DID');
+  const allowHostTeardown = isEnabledByDefault(
+    'LIVE_GW_ALLOW_HOST_TEARDOWN',
+    /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::|\/|$)/i.test(baseUrl) ? '1' : '0',
+  );
   const serviceIdentifierDid = env('SERVICE_IDENTIFIER_DID', 'did:web:provider.example.org');
   const serviceUrl = env('SERVICE_URL', 'https://provider.example.org');
   const serviceType = serializeServiceCapabilityTokens([
@@ -227,6 +234,12 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
   const bootstrapClient = new NodeHttpClient({
     baseUrl,
     ctx: tenantCtx,
+    bearerToken: env('HOST_ONBOARDING_AUTH_BEARER', buildDemoIdToken({
+      sub: controllerEmail,
+      tenant_id: suiteHostIdentifierValue,
+      email: controllerEmail,
+      email_verified: true,
+    })),
     requestTimeoutMs: 10_000,
   });
   const hostSdk = new HostOnboardingSdk(bootstrapClient, [
@@ -284,7 +297,9 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
   let runtimeClient;
   let organizationControllerSdk;
   let tenantDisabled = false;
+  let tenantPurged = false;
   let hostActivated = false;
+  let hostedTenantDid;
   let journeyError;
 
   try {
@@ -311,7 +326,10 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
     // its own ServiceControllerCredential.
     const resolvedTaxId = readLegalOrganizationVerificationTaxIdFromResponseBody(verification.poll.body || {});
     const offerId = extractOfferIdFromResponseBody(verification.poll.body);
-    assert.ok(offerId, 'Host verification transaction must expose one offer identifier before order confirmation.');
+    assert.ok(
+      offerId || existingTenantDid,
+      'A fresh verification must expose an offer; recovery requires LIVE_CONTROLLER_EXISTING_TENANT_DID.',
+    );
 
     const controllerVpToken = await buildSignedControllerVpToken({
       signer: controllerSigner,
@@ -328,15 +346,20 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
       resolvedTaxId,
     });
 
-    const legalOrder = await profiler.run('confirm-legal-order', () => hostSdk.confirmLegalOrganizationOrder(
-      hostCtx,
-      { offerId },
-      pollOptions,
-    ));
-    debug.record('confirm-legal-order', { response: legalOrder, offerId });
-    assertSuccessfulTerminalBundle(legalOrder, 'Legal-organization Order confirmation');
-    const hostedTenantDid = readHostedTenantDidFromResponseBody(legalOrder.poll.body);
-    assert.ok(hostedTenantDid, 'Order confirmation must return the registered hosted tenant DID.');
+    if (offerId) {
+      const legalOrder = await profiler.run('confirm-legal-order', () => hostSdk.confirmLegalOrganizationOrder(
+        hostCtx,
+        { offerId },
+        pollOptions,
+      ));
+      debug.record('confirm-legal-order', { response: legalOrder, offerId });
+      assertSuccessfulTerminalBundle(legalOrder, 'Legal-organization Order confirmation');
+      hostedTenantDid = readHostedTenantDidFromResponseBody(legalOrder.poll.body);
+    } else {
+      hostedTenantDid = existingTenantDid;
+      debug.record('reuse-existing-hosted-tenant', { hostedTenantDid });
+    }
+    assert.ok(hostedTenantDid, 'The lifecycle must use the exact registered hosted tenant DID.');
     hostActivated = true;
 
     runtimeClient = new NodeHttpClient({
@@ -350,11 +373,27 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
       ActorCapabilities.OrganizationPurgeTenant,
     ]);
 
+    const controllerIdToken = buildDemoIdToken({
+      sub: `controller:${controllerEmail}`,
+      tenant_id: suiteTenantRouteId,
+      email: controllerEmail,
+      email_verified: true,
+    });
+    const credentialReissuanceSdk = new OrganizationControllerSdk(new NodeHttpClient({
+      baseUrl,
+      ctx: tenantCtx,
+      bearerToken: controllerIdToken,
+      requestTimeoutMs: 10_000,
+    }), [
+      ActorCapabilities.OrganizationDisableTenant,
+      ActorCapabilities.OrganizationPurgeTenant,
+    ]);
+
     // Reissue the already accredited controller's seat without attempting a
     // controller mutation. A second PDF-designated controller is a separate
     // E2E fixture because ICA must first issue that actor's own controller VC.
     const credentialReissuance = await profiler.run('reissue-current-controller-credentials', () =>
-      organizationControllerSdk.submitLegalOrganizationCredentialReissuance(
+      credentialReissuanceSdk.submitLegalOrganizationCredentialReissuance(
         hostCtx,
         {
           ...verificationRequest,
@@ -367,12 +406,6 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
     const activationCode = readLegalOrganizationCredentialReissuanceActivationCode(credentialReissuance);
     assert.ok(activationCode, 'Organization/_issue must expose the current controller activation code.');
 
-    const controllerIdToken = buildDemoIdToken({
-      sub: `controller:${controllerEmail}`,
-      tenant_id: suiteTenantRouteId,
-      email: controllerEmail,
-      email_verified: true,
-    });
     const controllerDeviceRequest = createProfileDeviceActivationRequest({
         tenantId: suiteTenantRouteId,
         jurisdiction: suiteJurisdiction,
@@ -421,6 +454,7 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
     debug.record('purge-tenant-with-controller-proof-bearer', { response: purgedTenant });
     assertSuccessfulTerminalBundle(purgedTenant, 'Hosted tenant purge');
     tenantDisabled = false;
+    tenantPurged = true;
   } catch (error) {
     journeyError = error;
     debug.record('organization-controller-lifecycle-error', {
@@ -432,8 +466,21 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
         organizationEditor: new OrganizationLifecycleEditor()
           .setIdentifierValue(suiteHostIdentifierValue),
       };
-      if (tenantDisabled && organizationControllerSdk) {
+      if (!tenantPurged && organizationControllerSdk && hostedTenantDid) {
         try {
+          if (!tenantDisabled) {
+            const cleanupDisable = await profiler.run('cleanup-disable-tenant-after-failure', () => organizationControllerSdk.disableTenant(
+              hostCtx,
+              {
+                organizationEditor: new OrganizationLifecycleEditor()
+                  .setIdentifierValue(controllerOrganizationTaxId)
+                  .setTenantDid(hostedTenantDid)
+                  .setTaxId(controllerOrganizationTaxId),
+              },
+              pollOptions,
+            ));
+            assertSuccessfulTerminalBundle(cleanupDisable, 'Cleanup hosted tenant disable');
+          }
           await profiler.run('cleanup-purge-tenant-after-failure', () => organizationControllerSdk.purgeTenant(
             hostCtx,
             {
@@ -451,7 +498,7 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
         }
       }
 
-      try {
+      if (allowHostTeardown) try {
         const disableHost = await profiler.run('cleanup-disable-host', () => hostSdk.disableHost(
           hostCtx,
           hostLifecycleInput,
