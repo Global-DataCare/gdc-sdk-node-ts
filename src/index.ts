@@ -30,6 +30,7 @@ export { VitalSignEntryEditor } from 'gdc-common-utils-ts/utils/vital-sign-entry
 export * from './runtime-contracts.js';
 export * from './identity-bootstrap.js';
 export * from './async-polling.js';
+export * from './gateway-submit-error.js';
 export * from './backend-profile-runtime.js';
 export * from './server-profile-session.js';
 export * from './profile-recovery-envelope.js';

@@ -1,5 +1,6 @@
 // Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 // Both organization-controller lifecycles send exchange and DCR fields in the canonical DIDComm body.
+// A rejected initial submit is terminal; it must never be replaced by a later poll failure.
 /**
  * 101 note:
  * - `gdc-common-utils-ts` owns the canonical step-by-step editors/readers and payload examples.

@@ -106,6 +106,17 @@ It owns:
 
 It does not own the canonical business contract by itself.
 
+Every asynchronous call has two distinct HTTP boundaries. The initial submit
+must return a successful `2xx` before the SDK polls. If that first request is
+rejected, for example with `401`, the SDK throws `GatewaySubmitError` with the
+original `status`, `body`, `location` and `OperationOutcome`; it makes no poll
+request. Catch that error at the BFF boundary and report the original
+authentication/authorization failure. A later `404` from a response endpoint
+must never replace it.
+Applications can use `error instanceof GatewaySubmitError`, then read
+`error.status` and `error.body`; no route, thread identifier or polling URL has
+to be reconstructed by the application.
+
 Those responsibilities are split like this:
 
 - `gdc-sdk-node-ts`

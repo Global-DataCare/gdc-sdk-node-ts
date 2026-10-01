@@ -56,6 +56,11 @@ description: Enforce branch, TDD, fixture, test-layer, product-neutrality, chang
   operation count. Negative journeys must instead require the exact terminal
   `OperationOutcome`; never traverse `data[]`, `entry[]` or `issue[]` manually
   in a high-level E2E, portal BFF or telephone-service test.
+- Capture and validate the complete initial submit response before polling. A
+  non-`2xx` submit is terminal: preserve its HTTP status, headers/location and
+  body or FHIR `OperationOutcome`, surface that original failure, and prove
+  that the poll endpoint was called zero times. Never let a secondary poll
+  `404` mask a submit `401`, `403`, `409` or `5xx`.
 - Do not make high-level examples green by embedding internal plumbing. Move
   that proof to the correct lower-level suite and leave the high-level example
   copyable.

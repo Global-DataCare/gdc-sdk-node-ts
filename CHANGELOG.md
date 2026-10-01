@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Preserve rejected asynchronous submit responses as `GatewaySubmitError` and
+  stop before polling, so an original `401`, `403`, `409` or `5xx` and its
+  `OperationOutcome` cannot be hidden by a secondary response-endpoint `404`.
 - Make the live organization-controller lifecycle usable against protected
   remote gateways: authenticate onboarding and credential reissuance with the
   controller ID token, keep the signed VP for tenant administration, avoid
