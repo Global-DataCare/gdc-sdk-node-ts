@@ -324,6 +324,35 @@ allowance over their backwards-compatible local default.
 7. `disableTenant(...)`
 8. `purgeTenant(...)`
 
+When one legal organization has more than one hosted sector tenant, every
+lifecycle call must select the exact registered tenant DID. Read it from the
+successful order/activation response; do not reconstruct it from a domain,
+tenant alias, sector or legal identifier:
+
+```ts
+const hostedTenantDid = readHostedTenantDidFromResponseBody(
+  legalOrder.poll.body,
+);
+if (!hostedTenantDid) {
+  throw new Error('GW did not return the registered hosted tenant DID');
+}
+
+const organizationEditor = new OrganizationLifecycleEditor()
+  .setIdentifierType(registeredOrganizationIdentifierType)
+  .setIdentifierValue(registeredOrganizationIdentifierValue)
+  .setTenantDid(hostedTenantDid);
+
+await organizationControllerSdk.disableTenant(
+  hostContext,
+  { organizationEditor },
+);
+```
+
+`setIdentifierValue(...)` identifies the legal organization.
+`setTenantDid(...)` identifies its exact sector tenant. If several tenants have
+the same legal identifier and the DID is omitted, GW returns `409` and changes
+none of them.
+
 ## Add a second controller without rotating the first
 
 This is an additive controller operation. Use these names consistently:

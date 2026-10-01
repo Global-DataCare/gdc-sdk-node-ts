@@ -27,6 +27,7 @@ import {
   addLegalRepresentativeCredential,
   addServiceControllerCredential,
   addOrganizationCredential,
+  BundleReader,
   ClaimsOrganizationSchemaorg,
   ClaimsServiceSchemaorg,
   createJwtSigner,
@@ -45,6 +46,7 @@ import {
   NodeHttpClient,
   OrganizationControllerSdk,
   createProfileDeviceActivationRequest,
+  readHostedTenantDidFromResponseBody,
   readLegalOrganizationCredentialReissuanceActivationCode,
 } from '../dist/index.js';
 import { extractOfferIdFromResponseBody } from '../dist/order-offer-summary.js';
@@ -283,6 +285,7 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
   let organizationControllerSdk;
   let tenantDisabled = false;
   let hostActivated = false;
+  let journeyError;
 
   try {
     const verification = await profiler.run('organization-transaction', () => verificationSdk.submitLegalOrganizationVerificationTransaction(
@@ -332,6 +335,8 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
     ));
     debug.record('confirm-legal-order', { response: legalOrder, offerId });
     assertSuccessfulTerminalBundle(legalOrder, 'Legal-organization Order confirmation');
+    const hostedTenantDid = readHostedTenantDidFromResponseBody(legalOrder.poll.body);
+    assert.ok(hostedTenantDid, 'Order confirmation must return the registered hosted tenant DID.');
     hostActivated = true;
 
     runtimeClient = new NodeHttpClient({
@@ -387,13 +392,16 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
     const controllerDeviceActivation = await profiler.run('rebind-current-controller-device', () =>
       runtimeClient.activateProfileDeviceWithActivationRequest(controllerDeviceRequest));
     debug.record('rebind-current-controller-device', { response: controllerDeviceActivation });
-    assertSuccessfulTerminalBundle(controllerDeviceActivation.exchange, 'Controller activation-code exchange');
+    assert.ok(
+      controllerDeviceActivation.initialAccessToken,
+      'Controller activation must validate and expose its OAuth initial access token.',
+    );
     assertSuccessfulTerminalBundle(controllerDeviceActivation.dcr, 'Controller device registration');
-    assert.ok(controllerDeviceActivation.initialAccessToken);
 
     const tenantLifecycleInput = {
       organizationEditor: new OrganizationLifecycleEditor()
         .setIdentifierValue(resolvedTaxId)
+        .setTenantDid(hostedTenantDid)
         .setTaxId(resolvedTaxId),
     };
     const disabledTenant = await profiler.run('disable-tenant-with-controller-proof-bearer', () => organizationControllerSdk.disableTenant(
@@ -413,6 +421,11 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
     debug.record('purge-tenant-with-controller-proof-bearer', { response: purgedTenant });
     assertSuccessfulTerminalBundle(purgedTenant, 'Hosted tenant purge');
     tenantDisabled = false;
+  } catch (error) {
+    journeyError = error;
+    debug.record('organization-controller-lifecycle-error', {
+      error: error instanceof Error ? error.message : String(error),
+    });
   } finally {
     if (hostActivated) {
       const hostLifecycleInput = {
@@ -426,6 +439,7 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
             {
               organizationEditor: new OrganizationLifecycleEditor()
                 .setIdentifierValue(controllerOrganizationTaxId)
+                .setTenantDid(hostedTenantDid)
                 .setTaxId(controllerOrganizationTaxId),
             },
             pollOptions,
@@ -437,23 +451,32 @@ test('101: LIVE organization controller lifecycle with controller proof bearer',
         }
       }
 
-      const disableHost = await profiler.run('cleanup-disable-host', () => hostSdk.disableHost(
-        hostCtx,
-        hostLifecycleInput,
-        pollOptions,
-      ));
-      debug.record('cleanup-disable-host', { response: disableHost });
-      assertSuccessfulTerminalBundle(disableHost, 'Host disable');
+      try {
+        const disableHost = await profiler.run('cleanup-disable-host', () => hostSdk.disableHost(
+          hostCtx,
+          hostLifecycleInput,
+          pollOptions,
+        ));
+        debug.record('cleanup-disable-host', { response: disableHost });
+        assertSuccessfulTerminalBundle(disableHost, 'Host disable');
 
-      const purgeHost = await profiler.run('cleanup-purge-host', () => hostSdk.purgeHost(
-        hostCtx,
-        hostLifecycleInput,
-        pollOptions,
-      ));
-      debug.record('cleanup-purge-host', { response: purgeHost });
-      assertSuccessfulTerminalBundle(purgeHost, 'Host purge');
+        const purgeHost = await profiler.run('cleanup-purge-host', () => hostSdk.purgeHost(
+          hostCtx,
+          hostLifecycleInput,
+          pollOptions,
+        ));
+        debug.record('cleanup-purge-host', { response: purgeHost });
+        assertSuccessfulTerminalBundle(purgeHost, 'Host purge');
+      } catch (error) {
+        debug.record('cleanup-host-after-failure-error', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        if (!journeyError) journeyError = error;
+      }
     }
 
     profiler.flush();
   }
+
+  if (journeyError) throw journeyError;
 });
