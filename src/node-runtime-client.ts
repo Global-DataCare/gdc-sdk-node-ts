@@ -19,6 +19,7 @@ import {
 } from 'gdc-sdk-core-ts';
 
 import { pollUntilCompleteWithMethod } from './async-polling.js';
+import { requireSuccessfulGatewaySubmit } from './gateway-submit-error.js';
 import {
   confirmLegalOrganizationOrderWithDeps,
   HostLifecycleRequestType,
@@ -428,6 +429,11 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
 
   /**
    * Convenience wrapper that performs submit and poll in sequence.
+   *
+   * Polling begins only after a successful `2xx` submit. A rejected submit is
+   * terminal: this method throws `GatewaySubmitError`, preserving its HTTP
+   * status, response body and any FHIR `OperationOutcome`, and never calls the
+   * response endpoint.
    *
    * A terminal HTTP 200/201 means polling completed; it does not guarantee the
    * business operation succeeded. Consumers and E2E tests must inspect
@@ -1742,6 +1748,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       },
     );
     const submit = await postRenderedWithRuntimeConfig(this.transportConfig, submitPath, renderedSubmit);
+    requireSuccessfulGatewaySubmit(submit);
     const poll = await pollUntilCompleteWithMethod(
       async (path, request) => {
         const renderedPoll = await renderTransportPollRequest(request.thid, profile, this.secureTransportAdapter);
@@ -1787,6 +1794,7 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
       : this.transportConfig;
     const renderedSubmit = await renderGatewayMessageRequest(payload, profile, this.secureTransportAdapter);
     const submit = await postRenderedWithRuntimeConfig(transportConfig, submitPath, renderedSubmit);
+    requireSuccessfulGatewaySubmit(submit);
     const poll = await pollUntilCompleteWithMethod(
       async (path, request) => {
         const renderedPoll = profile === TransportProfiles.DidcommEncryptedForm

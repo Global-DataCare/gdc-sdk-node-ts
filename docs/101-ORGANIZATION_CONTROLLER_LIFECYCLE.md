@@ -197,6 +197,23 @@ that shape only as a legacy compatibility fallback; it is not the canonical
 diagnostic array for errors/warnings and has no relationship to either `_issue`
 operation name.
 
+### Authentication used at each boundary
+
+Do not reuse one bearer merely because the same person performs the complete
+journey:
+
+| Operation | Authorization proof |
+| --- | --- |
+| `Organization/_transaction` and `Organization/_issue` | The authenticated controller ID token expected by the configured GW identity provider |
+| `Token/_exchange` and `Device/_dcr` | The activation and initial-token material returned by the preceding steps |
+| Tenant `disable`, `enable` and `purge` | The signed controller VP that proves the registered controller binding |
+
+The submit and poll requests for one operation use the same selected bearer.
+If the submit is rejected, `GatewaySubmitError` preserves that response and no
+poll is attempted. This distinction matters in `compat` and production modes:
+a demo environment may accept missing identity evidence and therefore cannot
+prove that the correct bearer was used.
+
 ## What the lifecycle test protects
 
 The test checks more than the presence of a value in the `_issue` response.

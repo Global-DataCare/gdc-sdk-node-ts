@@ -6,6 +6,8 @@
  * locally owned host after no tenant remains.
  * Authorization invariant: ID-token identity authorizes controller reissuance
  * while only the reviewed controller proof authorizes tenant lifecycle.
+ * Transport invariant: a rejected submit preserves its original response and
+ * ends the operation without calling the corresponding poll endpoint.
  * Persistence invariant: purge removes tenant state before local host cleanup;
  * remote runs never disable the shared host.
  */

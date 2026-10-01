@@ -18,6 +18,7 @@ import type {
   SubmitPayload,
   SubmitResponse,
 } from 'gdc-sdk-core-ts';
+import { requireSuccessfulGatewaySubmit } from '../gateway-submit-error.js';
 export type {
   AsyncPollRequest,
   PollOptions,
@@ -529,6 +530,7 @@ export async function submitAndPollWithMethods(
 ): Promise<SubmitAndPollResult> {
   const thid = requireSubmitPayloadThid(payload);
   const submit = await requireClientMethod(methods, 'submitBatch')(submitPath, payload);
+  requireSuccessfulGatewaySubmit(submit);
   const poll = await requireClientMethod(methods, 'pollUntilComplete')(pollPath, { thid }, pollOptions);
   return { submit, poll };
 }

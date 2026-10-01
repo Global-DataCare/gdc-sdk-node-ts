@@ -125,6 +125,34 @@ test('NodeHttpClient can reuse runtimeVpToken as the default Authorization Beare
   }
 });
 
+test('NodeHttpClient preserves a rejected submit response and never polls after HTTP 401', async () => {
+  const requests = [];
+  // HTTP 401 and its diagnostic are the exact rejected-submit contract under test.
+  const outcome = {
+    resourceType: 'OperationOutcome',
+    issue: [{ severity: 'error', code: 'login', diagnostics: 'Missing or invalid Bearer token' }],
+  };
+  const client = new NodeHttpClient({
+    baseUrl: 'https://gw.example.org',
+    fetchImpl: async (url) => {
+      requests.push(url);
+      return Response.json(outcome, { status: 401 });
+    },
+  });
+
+  await assert.rejects(
+    client.submitAndPoll('/submit', '/submit-response', { thid: 'rejected-submit-001' }),
+    (error) => {
+      assert.equal(error.name, 'GatewaySubmitError');
+      assert.equal(error.status, 401);
+      assert.deepEqual(error.body, outcome);
+      assert.match(error.message, /HTTP 401/);
+      return true;
+    },
+  );
+  assert.deepEqual(requests, ['https://gw.example.org/submit']);
+});
+
 test('NodeHttpClient exposes current GW CORE lifecycle paths for individual and employee flows', () => {
   const client = new NodeHttpClient({
     baseUrl: 'https://gw.example.org',

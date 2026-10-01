@@ -779,3 +779,34 @@ test('submitAndPollWithMethods rejects payloads without thid before submitting',
 
   assert.equal(calls.length, 0);
 });
+
+test('submitAndPollWithMethods preserves a rejected submit and does not call the poll method', async () => {
+  const calls = [];
+  // HTTP 401 and its diagnostic are the exact rejected-submit contract under test.
+  const outcome = {
+    resourceType: 'OperationOutcome',
+    issue: [{ severity: 'error', code: 'login', diagnostics: 'Bearer token rejected' }],
+  };
+
+  await assert.rejects(
+    submitAndPollWithMethods({
+      submitBatch: async (...args) => {
+        calls.push(['submitBatch', args]);
+        return { status: 401, body: outcome };
+      },
+      pollUntilComplete: async () => {
+        calls.push(['pollUntilComplete']);
+        return { status: 200, body: {}, attempts: 1 };
+      },
+    }, '/submit', '/poll', { thid: 'rejected-submit-002' }, { timeoutMs: 1000 }),
+    (error) => {
+      assert.equal(error.name, 'GatewaySubmitError');
+      assert.equal(error.status, 401);
+      assert.deepEqual(error.body, outcome);
+      assert.match(error.message, /Bearer token rejected/);
+      return true;
+    },
+  );
+
+  assert.deepEqual(calls.map(([name]) => name), ['submitBatch']);
+});
