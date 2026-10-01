@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 2.9.28 - 2026-09-30
+
+- Consume `gdc-common-utils-ts@2.9.26` and `gdc-sdk-core-ts@2.9.12` so tenant
+  disable, enable and purge select the exact registered hosted tenant DID.
+- Expose the high-level activation-response reader used to obtain that DID;
+  callers no longer reconstruct it from domains, tenant aliases or sectors.
+- Extend the live organization-controller lifecycle journey to carry the DID
+  returned by registration through disable and purge.
+
 ## 2.9.27 - 2026-09-29
 
 - Keep every generated public declaration on the `gdc-sdk-core-ts` package

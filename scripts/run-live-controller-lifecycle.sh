@@ -26,6 +26,15 @@ ICA_BASE_URL="${ICA_BASE_URL:-http://127.0.0.1:${ICA_PORT}}"
 GW_LOG_FILE="${LIVE_GW_LOG_FILE:-${SDK_NODE_DIR}/test-results/live-controller-gw-${RUN_ID}.log}"
 ICA_LOG_FILE="${LIVE_ICA_LOG_FILE:-${SDK_NODE_DIR}/test-results/live-controller-ica-${RUN_ID}.log}"
 PDF_PATH="${LIVE_GW_HOST_VERIFICATION_PDF_PATH:-${WORKSPACE_DIR}/examples/TEST-A4-Antifraud.pdf}"
+# This is the legal organization certified by the bundled TEST-A4-Antifraud
+# fixture. A caller replacing the PDF must provide the matching identifier.
+if [[ -n "${LIVE_GW_HOST_VERIFICATION_PDF_PATH:-}" ]] \
+  && [[ "${PDF_PATH}" != "${WORKSPACE_DIR}/examples/TEST-A4-Antifraud.pdf" ]] \
+  && [[ -z "${LIVE_CONTROLLER_ORGANIZATION_TAX_ID:-}" ]]; then
+  echo 'ERROR: LIVE_CONTROLLER_ORGANIZATION_TAX_ID is required when using a custom verification PDF.' >&2
+  exit 1
+fi
+CONTROLLER_ORGANIZATION_TAX_ID="${LIVE_CONTROLLER_ORGANIZATION_TAX_ID:-VATES-N0377833I}"
 
 mkdir -p "${SDK_NODE_DIR}/test-results"
 
@@ -138,4 +147,5 @@ TENANT_ROUTE_ID="${TENANT_ROUTE_ID}" \
 BASE_URL="${GW_BASE_URL}" \
 ICA_BASE_URL="${ICA_BASE_URL}" \
 LIVE_GW_HOST_VERIFICATION_PDF_PATH="${PDF_PATH}" \
+LIVE_CONTROLLER_ORGANIZATION_TAX_ID="${CONTROLLER_ORGANIZATION_TAX_ID}" \
 npm run test:e2e:live-controller-lifecycle:direct

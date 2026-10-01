@@ -46,6 +46,7 @@ import {
   EXAMPLE_LICENSE_LIST_RESPONSE_BODY,
   EXAMPLE_LICENSE_SEAT_UUID_SECONDARY,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
+  EXAMPLE_TENANT_SERVICE_DID,
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
 
@@ -168,6 +169,7 @@ async function exerciseOrganizationControllerLifecycle({ mode }) {
         input.organizationEditor.getState().identifierValue,
         tenantLifecycleInput.organizationEditor.getState().identifierValue,
       );
+      assert.equal(input.organizationEditor.getTenantDid(), EXAMPLE_TENANT_SERVICE_DID);
       return buildAcceptedLifecycleResponse({ status: 'disabled' });
     },
     async enableTenant(ctx) {
@@ -384,6 +386,7 @@ function buildTenantLifecycleInput(claims) {
   return {
     organizationEditor: new OrganizationLifecycleEditor()
       .setIdentifierValue(String(claims[ClaimsOrganizationSchemaorg.identifierValue]))
+      .setTenantDid(EXAMPLE_TENANT_SERVICE_DID)
       .setTaxId(String(claims[ClaimsOrganizationSchemaorg.taxId])),
   };
 }
