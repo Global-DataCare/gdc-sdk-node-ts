@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Allow server-owned professional profile enrollment to use either an
+  activation code or the portable employee authorization URN. The sector stays
+  in `routeContext`; the exchange and DCR helpers keep the resolved licence code
+  inside the gateway token instead of returning it to the portal.
+
 - Preserve rejected asynchronous submit responses as `GatewaySubmitError` and
   stop before polling, so an original `401`, `403`, `409` or `5xx` and its
   `OperationOutcome` cannot be hidden by a secondary response-endpoint `404`.

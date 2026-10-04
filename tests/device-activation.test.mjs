@@ -112,6 +112,39 @@ test('activateEmployeeDeviceWithActivationCodeWithDeps performs exchange then dc
   assert.equal(result.initialAccessToken, 'initial-access-001');
 });
 
+test('professional device activation sends the portable employee URN with the separately routed sector and keeps the licence code server-side', async () => {
+  const employeeAuthorizationUrn = 'urn:cds-ca-bc:v1:organization:bn:Example-123:member:zJJPb9sJCAcnFLu8tVHGF4c:2250';
+  const calls = [];
+
+  await activateEmployeeDeviceWithActivationCodeWithDeps({
+    routeCtx: cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    input: {
+      employeeAuthorizationUrn,
+      idToken: 'verified-professional-id-token',
+      dcrPayload: {
+        ext_device_info: { device_id: 'soschain-browser-installation' },
+        redirect_uris: ['https://professional.example.org/auth/callback'],
+        jwks: { keys: [{ kid: 'soschain-browser-key' }] },
+      },
+    },
+    identityTokenExchangePath: () => '/exchange',
+    identityTokenExchangePollPath: () => '/exchange-response',
+    identityDeviceDcrPath: () => '/dcr',
+    identityDeviceDcrPollPath: () => '/dcr-response',
+    submitAndPollWithBearerToken: async (bearerToken, submitPath, pollPath, payload) => {
+      calls.push({ bearerToken, submitPath, pollPath, payload });
+      return submitPath === '/exchange'
+        ? cloneExample(EXAMPLE_EMPLOYEE_DEVICE_EXCHANGE_RESPONSE)
+        : cloneExample(EXAMPLE_EMPLOYEE_DEVICE_DCR_RESPONSE);
+    },
+  });
+
+  assert.equal(calls[0].payload.body.employee_authorization_urn, employeeAuthorizationUrn);
+  assert.equal('subject_token' in calls[0].payload.body, false);
+  assert.equal(calls[0].payload.body.client_instance_id, 'soschain-browser-installation');
+  assert.equal('code' in calls[1].payload.body, false);
+});
+
 test('activateEmployeeDeviceWithActivationRequestWithDeps maps seconds-based poll options', async () => {
   const calls = [];
   const result = await activateEmployeeDeviceWithActivationRequestWithDeps({

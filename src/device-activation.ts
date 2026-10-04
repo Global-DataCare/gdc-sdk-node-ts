@@ -13,7 +13,10 @@ import type { PollOptions, SubmitAndPollResult } from './orchestration/client-po
 import type { RouteContext } from './individual-onboarding.js';
 
 export type EmployeeDeviceActivationInput = {
-  activationCode: string;
+  /** Existing invitation credential. Mutually exclusive with `employeeAuthorizationUrn`. */
+  activationCode?: string;
+  /** Existing licensed organization/member/role identity; sector comes from `routeCtx`. */
+  employeeAuthorizationUrn?: string;
   idToken: string;
   dcrPayload: Record<string, unknown>;
   pollOptions?: PollOptions;
@@ -23,7 +26,10 @@ export type EmployeeDeviceActivationRequestInput = {
   tenantId?: string;
   jurisdiction?: string;
   sector?: string;
-  activationCode: string;
+  /** Existing invitation credential. Mutually exclusive with `employeeAuthorizationUrn`. */
+  activationCode?: string;
+  /** Existing licensed organization/member/role identity; sector comes from the route context. */
+  employeeAuthorizationUrn?: string;
   idToken: string;
   /** Canonical high-level description converted to OpenID DCR metadata by the SDK. */
   deviceRegistration?: ProfileDeviceRegistrationInput;
@@ -73,13 +79,18 @@ export interface ProfileDeviceActivationDraft {
  * exists for runtimes that already own and select the profile public keys.
  */
 export function createProfileDeviceActivationRequest(input: Readonly<{
-  activationCode: string;
+  activationCode?: string;
+  employeeAuthorizationUrn?: string;
   idToken: string;
   tenantId?: string;
   jurisdiction?: string;
   sector?: string;
 }>): ProfileDeviceActivationDraft {
-  const activationCode = requiredText(input.activationCode, 'activation code');
+  const activationCode = normalizedText(input.activationCode);
+  const employeeAuthorizationUrn = normalizedText(input.employeeAuthorizationUrn);
+  if (Boolean(activationCode) === Boolean(employeeAuthorizationUrn)) {
+    throw new Error('Device activation requires exactly one activation code or employee authorization URN.');
+  }
   const idToken = requiredText(input.idToken, 'signed identity token');
   let clientInstanceId = '';
   let clientName = '';
@@ -119,7 +130,7 @@ export function createProfileDeviceActivationRequest(input: Readonly<{
       };
       return {
         ...input,
-        activationCode,
+        ...(activationCode ? { activationCode } : { employeeAuthorizationUrn }),
         idToken,
         deviceRegistration: registration,
         ...(timeoutSeconds !== undefined ? { timeoutSeconds } : {}),
@@ -265,7 +276,12 @@ export async function activateEmployeeDeviceWithActivationCodeWithDeps(
   const exchangePayload = {
     thid: `exchange-${createRuntimeUuid()}`,
     body: {
-      [IdentityAuthRequestFields.SubjectToken]: deps.input.activationCode,
+      ...(deps.input.activationCode
+        ? { [IdentityAuthRequestFields.SubjectToken]: deps.input.activationCode }
+        : { [IdentityAuthRequestFields.EmployeeAuthorizationUrn]: requiredText(
+          deps.input.employeeAuthorizationUrn,
+          'employee authorization URN',
+        ) }),
       [IdentityAuthRequestFields.ClientInstanceId]: clientInstanceId,
     },
   };
@@ -303,7 +319,7 @@ export async function activateEmployeeDeviceWithActivationCodeWithDeps(
   const dcrPayload = {
     thid: `dcr-${createRuntimeUuid()}`,
     body: {
-      [IdentityAuthRequestFields.Code]: deps.input.activationCode,
+      ...(deps.input.activationCode ? { [IdentityAuthRequestFields.Code]: deps.input.activationCode } : {}),
       ...deps.input.dcrPayload,
     },
   };
@@ -336,7 +352,9 @@ export async function activateEmployeeDeviceWithActivationRequestWithDeps(
   );
 
   return deps.activateEmployeeDeviceWithActivationCode(deps.routeCtx, {
-    activationCode: deps.input.activationCode,
+    ...(deps.input.activationCode
+      ? { activationCode: deps.input.activationCode }
+      : { employeeAuthorizationUrn: deps.input.employeeAuthorizationUrn }),
     idToken: deps.input.idToken,
     dcrPayload: resolveDcrPayload(deps.input),
     pollOptions,
