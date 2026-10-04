@@ -26,9 +26,9 @@ test('pins the shared identity, activation-licence and draft-Consent contracts',
   }
 });
 
-test('submit-error preservation release retains the canonical shared dependency pins', () => {
+test('portable professional DCR release retains the canonical shared dependency pins', () => {
   const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-  assert.equal(packageJson.version, '2.9.29');
-  assert.equal(packageJson.dependencies['gdc-common-utils-ts'], '2.9.26');
+  assert.equal(packageJson.version, '2.9.30');
+  assert.equal(packageJson.dependencies['gdc-common-utils-ts'], '2.9.29');
   assert.equal(packageJson.dependencies['gdc-sdk-core-ts'], '2.9.12');
 });

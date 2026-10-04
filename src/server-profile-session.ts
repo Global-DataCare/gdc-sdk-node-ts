@@ -264,7 +264,9 @@ export type ServerProfileEnrollmentInput = Readonly<{
    */
   idToken: string;
   /** One-time code returned by the completed organization flow or employee `License/_issue`. */
-  activationCode: string;
+  activationCode?: string;
+  /** Existing neutral organization/member/role URN; the route context still supplies the sector. */
+  employeeAuthorizationUrn?: string;
   /**
    * Principal controller identifier projected by the SDK from
    * `Organization.owner.identifier.value` and the matching automatic
@@ -756,7 +758,9 @@ export class ServerProfileSessionManager {
     const redirectUris = input.redirectUris || input.dcrRedirectUris || [];
     const clientName = String(input.clientName || input.dcrClientName || '').trim();
     const activationDraft = createProfileDeviceActivationRequest({
-      activationCode: input.activationCode,
+      ...(input.activationCode
+        ? { activationCode: input.activationCode }
+        : { employeeAuthorizationUrn: input.employeeAuthorizationUrn }),
       idToken,
       ...input.routeContext,
     })
@@ -2081,9 +2085,11 @@ function requireEnrollment(input: ServerProfileEnrollmentInput): void {
     actorDid: input.actorDid,
     profileDid: input.profileDid,
     providerDid: input.providerDid,
-    activationCode: input.activationCode,
     idToken: input.idToken,
   })) if (!String(value || '').trim()) throw new Error(`Profile enrollment requires ${name}.`);
+  if (Boolean(String(input.activationCode || '').trim()) === Boolean(String(input.employeeAuthorizationUrn || '').trim())) {
+    throw new Error('Profile enrollment requires exactly one activationCode or employeeAuthorizationUrn.');
+  }
   if (input.actorKind !== ActorKinds.IndividualController
     && !String(input.vpToken || '').trim()
     && !input.professionalProof) {
