@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Expose the canonical subject-scoped `Communication` participant search on
+  `IndividualMemberSdk`, matching the personal and controller actor facades so
+  an authorized caregiver can use the same durable service conversation.
+- Expose the professional wallet's confidential-storage adapter only for the
+  lifetime of an authorized server-side opening, allowing product BFFs to
+  protect rebuildable per-profile channel materializations with the same
+  wallet custody as other confidential profile documents.
+- Preserve `selectedSubjectDid` separately from the governed SMART transport
+  subject in resolved personal sessions, so BFF routes can authorize the exact
+  card the user selected without confusing its public alias with another
+  subject.
+
 - Allow server-owned professional profile enrollment to use either an
   activation code or the portable employee authorization URN. The sector stays
   in `routeContext`; the exchange and DCR helpers keep the resolved licence code
