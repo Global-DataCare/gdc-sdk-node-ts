@@ -342,14 +342,16 @@ test('IndividualMemberSdk delegates consent-scoped clinical operations to the sh
   const calls = [];
   const sdk = new IndividualMemberSdk({
     async ingestCommunicationAndUpdateIndex(...args) { calls.push(['ingest', args]); return { ok: true }; },
+    async searchCommunicationParticipants(...args) { calls.push(['communications', args]); return { ok: true }; },
     async searchClinicalBundle(...args) { calls.push(['search', args]); return { ok: true }; },
     async getLatestIps(...args) { calls.push(['latest', args]); return { ok: true }; },
   });
   const ctx = { tenantId: 'VATES-TEST', jurisdiction: 'ES', sector: 'health-care' };
   await sdk.ingestCommunicationAndUpdateIndex(ctx, { communicationPayload: { subject: 'did:web:subject.example' } });
+  await sdk.searchCommunicationParticipants(ctx, { subject: 'did:web:subject.example' });
   await sdk.searchClinicalBundle(ctx, { subject: 'did:web:subject.example' });
   await sdk.getLatestIps(ctx, { subject: 'did:web:subject.example' });
-  assert.deepEqual(calls.map(([name]) => name), ['ingest', 'search', 'latest']);
+  assert.deepEqual(calls.map(([name]) => name), ['ingest', 'communications', 'search', 'latest']);
 });
 
 test('PersonalSdk delegates to the runtime client', async () => {

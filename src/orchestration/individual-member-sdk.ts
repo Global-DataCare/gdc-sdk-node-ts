@@ -23,6 +23,7 @@ import type {
   ClinicalSummaryRequestInput,
   ClinicalSummaryUpdateInput,
   CommunicationIngestionInput,
+  CommunicationParticipantRuntimeSearchInput,
   IndividualMemberLicenseTransitionInput,
   RelatedPersonUpsertInput,
 } from '../resource-operations.js';
@@ -76,6 +77,14 @@ export class IndividualMemberSdk {
     input: CommunicationIngestionInput,
   ): Promise<SubmitAndPollResult> {
     return requireClientMethod(this.client, 'ingestCommunicationAndUpdateIndex')(ctx, input);
+  }
+
+  /** Reads subject-scoped Communications visible to this authorized member. */
+  public searchCommunicationParticipants(
+    ctx: RouteContext,
+    input: CommunicationParticipantRuntimeSearchInput,
+  ): Promise<SubmitAndPollResult> {
+    return requireClientMethod(this.client, 'searchCommunicationParticipants')(ctx, input);
   }
 
   /** Updates one authorized clinical section through a scoped batch/collection. */

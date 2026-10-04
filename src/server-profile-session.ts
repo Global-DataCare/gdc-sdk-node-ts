@@ -182,6 +182,8 @@ export type ServerProfileSessionRecord = Readonly<{
   profileId: string;
   /** Present only after the unlocked personal actor selects one authorized subject. */
   subjectDid?: string;
+  /** Portal-facing subject/card selected before any transport alias is applied. */
+  selectedSubjectDid?: string;
   scopes: string[];
   /** Exact directory results accepted for this unlocked actor session. */
   authorizedSubjectDids?: string[];
@@ -422,6 +424,8 @@ export type ResolvedServerProfileSession = Readonly<{
   sessionId: string;
   profile: ServerProfileRecord;
   subjectDid: string;
+  /** Exact directory subject selected by the user; subjectDid may be its governed transport alias. */
+  selectedSubjectDid: string;
   scopes: string[];
   accessToken: string;
   /** Relationship authorization selected for this subject, not for the wallet. */
@@ -568,6 +572,11 @@ export type OpenedServerProfessional = Readonly<{
   profile: ServerProfileRecord;
   sdk: ProfessionalSdk;
   digitalTwin: DigitalTwinSdk;
+  /** Storage adapter available only while the authorized professional wallet is open. */
+  confidentialStorageAdapter: Readonly<{
+    protect(document: Readonly<{ id?: string; content: unknown }>): Promise<unknown>;
+    unprotect(document: Readonly<{ id?: string; jwe: string }>): Promise<unknown>;
+  }>;
   requestSmartToken(input: ServerProfessionalSmartTokenInput): Promise<SmartTokenExchangeResult>;
   requestDigitalTwinSmartToken(input: ServerProfessionalSmartTokenInput): Promise<SmartTokenExchangeResult>;
   searchDigitalTwins(input: Omit<DigitalTwinSearchInput, 'accessToken'>): Promise<DigitalTwinSearchResult>;
@@ -1368,6 +1377,7 @@ export class ServerProfileSessionManager {
     await this.options.store.putSession({
       ...sessionWithoutAttester,
       subjectDid,
+      selectedSubjectDid: requestedSubjectDid,
       actorMode: selectedGrant.actorMode,
       ...(selectedGrant.attester ? { attester: selectedGrant.attester } : {}),
       scopes,
@@ -1475,6 +1485,7 @@ export class ServerProfileSessionManager {
       sessionId,
       profile: state.profile,
       subjectDid: session.subjectDid,
+      selectedSubjectDid: session.selectedSubjectDid || session.subjectDid,
       scopes: session.scopes,
       accessToken: await this.options.sealer.unseal(session.sealedAccessToken, `${sessionId}:access-token`),
       actorMode: session.actorMode ?? state.profile.actorMode,
@@ -1728,6 +1739,12 @@ export class ServerProfileSessionManager {
       profile,
       sdk,
       digitalTwin,
+      confidentialStorageAdapter: {
+        protect: (document: Readonly<{ id?: string; content: unknown }>) =>
+          wallet.protectManagedConfidentialData!(document, context),
+        unprotect: (document: Readonly<{ id?: string; jwe: string }>) =>
+          wallet.unprotectManagedConfidentialData!(document, context),
+      },
       requestSmartToken: request,
       requestDigitalTwinSmartToken: async (smart) => {
         const result = await request(smart);

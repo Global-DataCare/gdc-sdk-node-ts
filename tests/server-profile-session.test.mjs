@@ -416,6 +416,9 @@ test('one personal actor profile unlocks before directory discovery and selects 
   assert.equal(own.sessionId, represented.sessionId);
   assert.equal(own.accessToken, `token-for:${EXAMPLE_HOSTED_INDIVIDUAL_DID}`);
   assert.equal(represented.accessToken, `token-for:${representedSubjectDid}`);
+  assert.equal(own.subjectDid, EXAMPLE_HOSTED_INDIVIDUAL_DID);
+  assert.equal(own.selectedSubjectDid, publicOwnCardDid);
+  assert.equal(represented.selectedSubjectDid, representedSubjectDid);
   assert.equal(own.actorMode, 'self');
   assert.equal(
     own.attester?.party.reference,
@@ -1386,6 +1389,14 @@ test('high-level manager opens a professional and owns SMART proof plumbing', as
 
   assert.ok(opened.sdk instanceof ProfessionalSdk);
   assert.ok(opened.digitalTwin instanceof DigitalTwinSdk);
+  const cachedChannel = await opened.confidentialStorageAdapter.protect({
+    id: 'channel-cache-1', content: { messages: [{ id: 'message-1', text: 'private' }] },
+  });
+  assert.equal(JSON.stringify(cachedChannel).includes('private'), false);
+  assert.deepEqual(
+    await opened.confidentialStorageAdapter.unprotect(cachedChannel),
+    { id: 'channel-cache-1', content: { messages: [{ id: 'message-1', text: 'private' }] } },
+  );
   // The opened professional authors clinical data with the registered employee
   // wallet. Its high-level SDK must therefore use the same encrypted DIDComm
   // transport as the Digital Twin facade; plain transport is never a fallback.
