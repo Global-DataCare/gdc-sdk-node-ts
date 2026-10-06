@@ -1364,12 +1364,39 @@ registerSelectedLiveTest(
   assert.ok(smart.accessToken, 'Individual controller facade must obtain a SMART token.');
 
   if (RUN_INDIVIDUAL_LIFECYCLE) {
+    const lifecycleControllerDid = String(individualStart.identity?.controllerActorDid || '').trim();
+    assert.ok(
+      lifecycleControllerDid,
+      'Professional lifecycle cleanup requires the registered individual controller DID.',
+    );
+    const lifecycleControllerToken = buildUnsignedJwt({
+      iss: lifecycleControllerDid,
+      sub: lifecycleControllerDid,
+      tenant_id: tenantId,
+      email: individualControllerEmail,
+      email_verified: true,
+    });
+    const lifecycleControllerSession = new NodeActorSession(
+      {
+        actorKind: ActorKinds.IndividualController,
+        capabilities: [
+          ActorCapabilities.IndividualDisable,
+          ActorCapabilities.IndividualPurge,
+        ],
+      },
+      createRuntimeClient({
+        baseUrl,
+        ctx,
+        bearerToken: lifecycleControllerToken,
+        requestTimeoutMs: LOCAL_LIVE_REQUEST_TIMEOUT_MS,
+      }),
+    );
     const individualLifecycleEditor = new IndividualOrganizationLifecycleEditor()
       .setIdentifier(patientSubjectDid)
       .setAlternateName(individualAltName)
       .setOwnerEmail(individualControllerEmail);
 
-    const disable = await individualControllerSession.asIndividualController().disableIndividualOrganization(
+    const disable = await lifecycleControllerSession.asIndividualController().disableIndividualOrganization(
       ctx,
       {
         individualEditor: individualLifecycleEditor,
@@ -1379,7 +1406,7 @@ registerSelectedLiveTest(
     debug.record('individual-disable', { response: disable });
     assertSuccessfulTerminalBundle(disable, 'Individual controller facade must disable the hosted subject organization.');
 
-    const purge = await individualControllerSession.asIndividualController().purgeIndividualOrganization(
+    const purge = await lifecycleControllerSession.asIndividualController().purgeIndividualOrganization(
       ctx,
       {
         individualEditor: individualLifecycleEditor,

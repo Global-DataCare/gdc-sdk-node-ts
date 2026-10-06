@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Re-authenticate the optional professional live-E2E subject cleanup as the
+  controller DID returned by registration, so the release gate proves the
+  owner authorization boundary instead of attempting lifecycle writes with a
+  professional token.
 - Expose the canonical subject-scoped `Communication` participant search on
   `IndividualMemberSdk`, matching the personal and controller actor facades so
   an authorized caregiver can use the same durable service conversation.
