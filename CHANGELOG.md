@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Expose organization-employee reactivation through the controller facade,
+  preserving the suspended employee's technical identity and assigned licence.
 - Re-authenticate the optional professional live-E2E subject cleanup as the
   controller DID returned by registration, so the release gate proves the
   owner authorization boundary instead of attempting lifecycle writes with a

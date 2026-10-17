@@ -424,6 +424,7 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
     submitLegalOrganizationCredentialReissuance: async (...args) => { calls.push(['submitLegalOrganizationCredentialReissuance', args]); return { ok: true }; },
     submitOrganizationDidBinding: async (...args) => { calls.push(['submitOrganizationDidBinding', args]); return { ok: true }; },
     createOrganizationEmployee: async (...args) => { calls.push(['createOrganizationEmployee', args]); return { ok: true }; },
+    reactivateEmployee: async (...args) => { calls.push(['reactivateEmployee', args]); return { ok: true }; },
     issueOrganizationEmployeeLicense: async (...args) => { calls.push(['issueOrganizationEmployeeLicense', args]); return { ok: true }; },
     revokeEmployeeDevice: async (...args) => { calls.push(['revokeEmployeeDevice', args]); return { ok: true }; },
     searchOrganizationEmployees: async (...args) => { calls.push(['searchOrganizationEmployees', args]); return { ok: true }; },
@@ -446,6 +447,7 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   await sdk.submitLegalOrganizationCredentialReissuance({}, { claims: {}, controller: {} });
   await sdk.submitOrganizationDidBinding({}, { organization: { url: 'https://provider.example.org' } });
   await sdk.createOrganizationEmployee({}, {});
+  await sdk.reactivateEmployee({}, { resourceId: 'urn:uuid:employee-1', employeeClaims: {} });
   await sdk.issueOrganizationEmployeeLicense({}, {
     email: 'doctor@example.org',
     role: 'ISCO-08|2211',
@@ -463,7 +465,7 @@ test('NodeActorSession materializes role-scoped facades from the runtime client'
   await sdk.confirmOrganizationLicenseOrder({}, { offerId: 'urn:cds:offer:test' });
   await sdk.disableEmployee({}, { resourceId: 'urn:uuid:employee-1', employeeClaims: {} });
   await sdk.disableOrganizationEmployee({}, { resourceId: 'urn:uuid:employee-1', employeeClaims: {} });
-  assert.equal(calls.length, 16);
+  assert.equal(calls.length, 17);
 });
 
 test('OrganizationControllerSdk preserves the runtime client receiver for credential reissuance', async () => {

@@ -224,6 +224,11 @@ export type RuntimeClient = {
     input: OrganizationEmployeeCreationInput,
     pollOptions?: PollOptions,
   ) => Promise<SubmitAndPollResult>;
+  reactivateEmployee?: (
+    ctx: RouteContext,
+    input: OrganizationEmployeeLifecycleInput,
+    pollOptions?: PollOptions,
+  ) => Promise<SubmitAndPollResult>;
   provisionOrganizationEmployee?: (
     ctx: RouteContext,
     input: OrganizationEmployeeProvisioningInput,

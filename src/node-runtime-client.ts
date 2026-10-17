@@ -71,6 +71,7 @@ import { confirmOrganizationLicenseOrderWithDeps, type OrganizationLicenseOrderC
 import { registerIndividualOrganizationWithDeps, type IndividualOrganizationRegistrationInput, type IndividualOrganizationRegistrationResult } from './individual-start.js';
 import {
   createOrganizationEmployeeWithDeps,
+  reactivateOrganizationEmployeeWithDeps,
   issueOrganizationEmployeeLicenseWithDeps,
   disableIndividualMemberWithDeps,
   disableIndividualOrganizationWithDeps,
@@ -862,6 +863,20 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    */
   public async createOrganizationEmployee(ctx: RouteContext, input: OrganizationEmployeeCreationInput, pollOptions?: PollOptions): Promise<SubmitAndPollResult> {
     return createOrganizationEmployeeWithDeps(ctx, input, pollOptions, {
+      employeeBatchPath: this.paths.employeeBatchPath.bind(this.paths),
+      employeePollPath: this.paths.employeePollPath.bind(this.paths),
+      submitAndPoll: (submitPath, pollPath, payload, options) => this.submitAndPoll(
+        submitPath,
+        pollPath,
+        prepareEmployeeLifecycleMessageForTransport(payload, this.transportProfile),
+        options,
+      ),
+    });
+  }
+
+  /** Re-enables one suspended employee while preserving its resource id and licence. */
+  public async reactivateEmployee(ctx: RouteContext, input: OrganizationEmployeeLifecycleInput, pollOptions?: PollOptions): Promise<SubmitAndPollResult> {
+    return reactivateOrganizationEmployeeWithDeps(ctx, input, pollOptions, {
       employeeBatchPath: this.paths.employeeBatchPath.bind(this.paths),
       employeePollPath: this.paths.employeePollPath.bind(this.paths),
       submitAndPoll: (submitPath, pollPath, payload, options) => this.submitAndPoll(

@@ -725,6 +725,39 @@ export async function createOrganizationEmployeeWithDeps(
   );
 }
 
+/** Re-enables one suspended employee without replacing its technical identity or licence. */
+export async function reactivateOrganizationEmployeeWithDeps(
+  routeCtx: RouteContext,
+  input: OrganizationEmployeeLifecycleInput,
+  options: { timeoutMs?: number; intervalMs?: number } | undefined,
+  deps: {
+    employeeBatchPath: (ctx: RouteContext) => string;
+    employeePollPath: (ctx: RouteContext) => string;
+    submitAndPoll: (
+      submitPath: string,
+      pollPath: string,
+      payload: { thid?: string } & Record<string, unknown>,
+      pollOptions?: { timeoutMs?: number; intervalMs?: number },
+    ) => Promise<SubmitAndPollResult>;
+  },
+): Promise<SubmitAndPollResult> {
+  assertEmployeeLifecycleResourceId(input.resourceId, 'reactivateEmployee');
+  const payload = buildEmployeeLifecyclePayload({
+    routeCtx,
+    requestType: input.dataType || GwCoreLifecycleRequestType.EmployeeCreate,
+    requestMethod: GwCoreLifecycleRequestMethod.Post,
+    employeeClaims: input.employeeClaims,
+    resourceId: input.resourceId,
+    thidPrefix: 'employee-reactivate',
+  });
+  return deps.submitAndPoll(
+    deps.employeeBatchPath(routeCtx),
+    deps.employeePollPath(routeCtx),
+    payload,
+    options,
+  );
+}
+
 /**
  * Issues the activation credential for an employee already created under the
  * tenant. The credential belongs to that employee seat and can authorize its
@@ -844,7 +877,7 @@ export async function purgeOrganizationEmployeeWithDeps(
   );
 }
 
-function assertEmployeeLifecycleResourceId(resourceId: string, operation: 'disableEmployee' | 'purgeEmployee'): void {
+function assertEmployeeLifecycleResourceId(resourceId: string, operation: 'disableEmployee' | 'reactivateEmployee' | 'purgeEmployee'): void {
   const normalized = String(resourceId || '').trim();
   if (!normalized) {
     throw new Error(`${operation}: resourceId is required and must be the current GW technical employee id (resource.id).`);

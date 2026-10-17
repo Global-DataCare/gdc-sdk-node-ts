@@ -51,6 +51,7 @@ import { buildGrantProfessionalAccessClaimsWithCid } from '../dist/runtime-conse
 import {
   EmployeeDraft,
   createOrganizationEmployeeWithDeps,
+  reactivateOrganizationEmployeeWithDeps,
   prepareEmployeeLifecycleMessageForTransport,
   TransportProfiles,
   disableIndividualMemberWithDeps,
@@ -213,6 +214,31 @@ test('createOrganizationEmployeeWithDeps builds employee batch payload', async (
   assert.equal(calls[0][2].body.data[0].resource.resourceType, 'Employee');
   assert.match(calls[0][2].body.data[0].resource.id, /^urn:uuid:/);
   assert.equal(calls[0][2].body.data[0].fullUrl, calls[0][2].body.data[0].resource.id);
+});
+
+test('reactivateOrganizationEmployeeWithDeps posts the same technical employee identity', async () => {
+  const calls = [];
+  const employeeClaims = cloneExample(EXAMPLE_ORGANIZATION_EMPLOYEE_INPUT.employeeClaims);
+  const resourceId = 'urn:uuid:employee-reactivate';
+  await reactivateOrganizationEmployeeWithDeps(
+    cloneExample(EXAMPLE_TENANT_ROUTE_CONTEXT),
+    { resourceId, employeeClaims },
+    { timeoutMs: 1000, intervalMs: 1 },
+    {
+      employeeBatchPath: () => EMPLOYEE_BATCH_PATH,
+      employeePollPath: () => EMPLOYEE_BATCH_POLL_PATH,
+      submitAndPoll: async (...args) => {
+        calls.push(args);
+        return { submit: { status: 202, body: {} }, poll: { status: 200, body: {}, attempts: 1 } };
+      },
+    },
+  );
+  assert.equal(calls[0][2].body.data[0].resource.id, resourceId);
+  assert.equal(calls[0][2].body.data[0].request.method, EmployeeBundleMethods.create);
+  assert.equal(
+    calls[0][2].body.data[0].resource.meta.claims[ClaimsPersonSchemaorg.email],
+    employeeClaims[ClaimsPersonSchemaorg.email],
+  );
 });
 
 test('employee lifecycle keeps BundleEditor data in DIDComm and maps only FHIR transport to Bundle.entry', () => {

@@ -129,6 +129,16 @@ export class OrganizationControllerSdk {
     return requireClientMethod(this.client, 'createOrganizationEmployee')(ctx, input, pollOptions);
   }
 
+  /** Re-enables one suspended employee while retaining its identity and assigned licence. */
+  public reactivateEmployee(
+    ctx: RouteContext,
+    input: OrganizationEmployeeLifecycleInput,
+    pollOptions?: PollOptions,
+  ): Promise<SubmitAndPollResult> {
+    assertFacadeCapability(this.capabilities, ActorCapabilities.OrganizationCreateEmployee, ActorKinds.OrganizationController, 'reactivateEmployee');
+    return requireClientMethod(this.client, 'reactivateEmployee')(ctx, input, pollOptions);
+  }
+
   /** Creates the employee and issues its reusable multi-installation credential. */
   public provisionOrganizationEmployee(
     ctx: RouteContext,
