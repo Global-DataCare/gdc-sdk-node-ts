@@ -1,10 +1,5 @@
 # Changelog
 
-## 2.9.33 - 2026-10-21
-
-- Add a provider-neutral server passkey profile service with one-time profile-secret grants.
-- Allow a verified server-side factor to open the same personal actor session as PIN unlock after registered-key validation.
-
 ## Unreleased
 
 - Expose organization-employee reactivation through the controller facade,

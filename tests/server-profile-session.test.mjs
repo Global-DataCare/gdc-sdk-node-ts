@@ -377,22 +377,6 @@ test('one personal actor profile unlocks before directory discovery and selects 
   });
   assert.equal(actorSession.profile.profileId, walletKeyDerivationId);
   assert.equal('subjectDid' in actorSession, false);
-  const passkeyActorSession = await manager.unlockActorProfileWithAuthorizedSecrets({
-    ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
-    profileId: walletKeyDerivationId,
-    authorizedWalletSeed: walletSeed,
-  });
-  assert.equal(passkeyActorSession.profile.profileId, walletKeyDerivationId);
-  assert.equal('subjectDid' in passkeyActorSession, false);
-  assert.notEqual(passkeyActorSession.sessionId, actorSession.sessionId);
-  await assert.rejects(
-    manager.unlockActorProfileWithAuthorizedSecrets({
-      ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
-      profileId: walletKeyDerivationId,
-      authorizedWalletSeed: Buffer.alloc(32, 9).toString('base64url'),
-    }),
-    /does not match registered profile keys/,
-  );
   const directory = await manager.refreshAuthorizedSubjects({
     ownerId: EXAMPLE_ACCOUNT_OWNER_ID,
     sessionId: actorSession.sessionId,
