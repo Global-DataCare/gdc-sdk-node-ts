@@ -87,15 +87,15 @@ test('standalone individual live journeys enroll the registered member before pr
   }
 });
 
-test('clean full-cycle defaults to GW VET and connect ICA while preserving explicit overrides', async () => {
+test('clean full-cycle defaults to the shared SOS Gateway and connect ICA while preserving explicit overrides', async () => {
   const runner = await readFile(
     new URL('../scripts/run-live-101-full-cycle-clean.sh', import.meta.url),
     'utf8',
   );
 
-  assert.match(runner, /GW_DIR="\$\{GW_DIR_OVERRIDE:-\$\{WORKSPACE_DIR\}\/custom\/vet-gw-clinic-booking\}"/);
+  assert.match(runner, /GW_DIR="\$\{GW_DIR_OVERRIDE:-\$\{WORKSPACE_DIR\}\/custom\/sos-gw-node-ts\}"/);
   assert.match(runner, /ICA_DIR="\$\{ICA_DIR_OVERRIDE:-\$\{WORKSPACE_DIR\}\/connect-ica-ts\}"/);
-  assert.match(runner, /GW_ENV_FILE="\$\{GW_ENV_FILE:-\$\{GW_DIR\}\/env\.local-demo\.example\}"/);
+  assert.match(runner, /GW_ENV_FILE="\$\{GW_ENV_FILE:-\$\{GW_DIR\}\/\.env\.local-demo-vet\}"/);
   assert.match(runner, /SUITE_SECTOR="\$\{SECTOR:-animal-care\}"/);
   assert.match(runner, /SUITE_EMPLOYEE_ROLE="\$\{EMPLOYEE_ROLE:-ISCO-08\|2250\}"/);
   assert.match(runner, /ICA_KNOWN_CERTS_AUTO_DOWNLOAD="\$\{ICA_KNOWN_CERTS_AUTO_DOWNLOAD:-true\}"/);

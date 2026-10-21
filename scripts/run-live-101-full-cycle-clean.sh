@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Canonical clean live wrapper for the backend/BFF `101` full-cycle:
-# - defaults to the GW VET + connect-ica product-neutrality proving ground
+# - defaults to the shared SOS Gateway + connect-ica product-neutrality proving ground
 # - preserves paired explicit overrides for later GW CORE/product promotion
 # - runs the live `101` suite
 # - controller lifecycle uses the same VP token for `_activate` and as the
@@ -18,10 +18,10 @@ if { [[ -n "${GW_DIR_OVERRIDE:-}" ]] && [[ -z "${ICA_DIR_OVERRIDE:-}" ]]; } \
   echo 'ERROR: GW_DIR_OVERRIDE and ICA_DIR_OVERRIDE must be provided together.' >&2
   exit 1
 fi
-GW_DIR="${GW_DIR_OVERRIDE:-${WORKSPACE_DIR}/custom/vet-gw-clinic-booking}"
+GW_DIR="${GW_DIR_OVERRIDE:-${WORKSPACE_DIR}/custom/sos-gw-node-ts}"
 ICA_DIR="${ICA_DIR_OVERRIDE:-${WORKSPACE_DIR}/connect-ica-ts}"
 ICA_ENV_FILE="${ICA_ENV_FILE:-}"
-GW_ENV_FILE="${GW_ENV_FILE:-${GW_DIR}/env.local-demo.example}"
+GW_ENV_FILE="${GW_ENV_FILE:-${GW_DIR}/.env.local-demo-vet}"
 LIVE_101_SIGNED_PDF_FIXTURE_ENV="${LIVE_101_SIGNED_PDF_FIXTURE_ENV:-${SDK_NODE_DIR}/tests/fixtures/live-101-signed-pdf.env}"
 if [[ ! -f "${LIVE_101_SIGNED_PDF_FIXTURE_ENV}" ]]; then
   echo "ERROR: signed-PDF fixture metadata not found: ${LIVE_101_SIGNED_PDF_FIXTURE_ENV}" >&2
