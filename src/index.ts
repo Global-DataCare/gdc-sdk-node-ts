@@ -33,6 +33,7 @@ export * from './async-polling.js';
 export * from './gateway-submit-error.js';
 export * from './backend-profile-runtime.js';
 export * from './server-profile-session.js';
+export * from './server-passkey-profile.js';
 export * from './profile-recovery-envelope.js';
 export * from './server-profile-protection.js';
 export * from './backend-profile-workspace.js';

@@ -381,6 +381,18 @@ export type ServerActorProfileUnlockInput = Readonly<{
   pin: string;
 }>;
 
+/**
+ * Opens one personal actor after a separate server-side authenticator has
+ * released the exact registered secrets. These values must never cross an
+ * untrusted browser or public API boundary.
+ */
+export type ServerAuthorizedActorProfileUnlockInput = Readonly<{
+  ownerId: string;
+  profileId: string;
+  authorizedWalletSeed: string;
+  authorizedVpToken?: string;
+}>;
+
 /** Refreshes the actor's exact GW directory through the unlocked DCR wallet. */
 export type ServerAuthorizedSubjectDirectoryInput = Readonly<{
   ownerId: string;
@@ -1222,6 +1234,59 @@ export class ServerProfileSessionManager {
       ...(vpToken ? {
         sealedUnlockedVpToken: await this.options.sealer.seal(
           vpToken,
+          `${sessionId}:unlocked-vp-token`,
+        ),
+      } : {}),
+      expiresAt: new Date(
+        now.getTime() + (this.options.sessionTtlSeconds ?? 300) * 1000,
+      ).toISOString(),
+    });
+    return this.resolveActorSession(input.ownerId, sessionId);
+  }
+
+  /**
+   * Opens the same actor session as PIN unlock after a trusted server-side
+   * factor (for example a verified passkey assertion) releases the registered
+   * wallet secrets. The derived public keys must still match the DCR profile.
+   */
+  public async unlockActorProfileWithAuthorizedSecrets(
+    input: ServerAuthorizedActorProfileUnlockInput,
+  ): Promise<ResolvedServerActorProfileSession> {
+    let profile = await this.requireOwnedProfile(input.ownerId, input.profileId);
+    if (profile.actorKind !== ActorKinds.IndividualController) {
+      throw new Error('Actor-first unlock is restricted to personal individual profiles.');
+    }
+    const seed = String(input.authorizedWalletSeed || '').trim();
+    requireBase64UrlSeed32(seed);
+    if (profile.protectedVpToken && !String(input.authorizedVpToken || '').trim()) {
+      throw new Error('Authorized actor unlock requires the registered VP token.');
+    }
+    const walletKeyDerivationId = normalizedWalletKeyDerivationId(
+      profile.walletKeyDerivationId,
+      profile.profileId,
+    );
+    const wallet = await this.createWallet(walletKeyDerivationId, seed);
+    await requireRegisteredProfileKeys(wallet, walletContext(walletKeyDerivationId), profile);
+    profile = await this.ensureRequiredStorageProfile(profile, seed);
+    const now = this.now();
+    const sessionId = randomBytes(32).toString('base64url');
+    await this.options.store.putProfile(withProfileUnlockState(profile, {
+      failedUnlocks: 0,
+      updatedAt: now.toISOString(),
+    }));
+    await this.options.store.putSession({
+      sessionId,
+      ownerId: input.ownerId,
+      profileId: profile.profileId,
+      scopes: [],
+      authorizedSubjectDids: [],
+      sealedUnlockedWalletSeed: await this.options.sealer.seal(
+        seed,
+        `${sessionId}:unlocked-wallet-seed`,
+      ),
+      ...(input.authorizedVpToken ? {
+        sealedUnlockedVpToken: await this.options.sealer.seal(
+          input.authorizedVpToken,
           `${sessionId}:unlocked-vp-token`,
         ),
       } : {}),
