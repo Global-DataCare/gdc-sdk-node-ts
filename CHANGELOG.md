@@ -4,7 +4,6 @@
 
 - Add a provider-neutral server passkey profile service with one-time profile-secret grants.
 - Allow a verified server-side factor to open the same personal actor session as PIN unlock after registered-key validation.
-- Run the release journey against the shared SOS Gateway and reject controller attempts to claim professional clinical authorship.
 
 ## Unreleased
 

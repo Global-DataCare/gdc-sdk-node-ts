@@ -1030,9 +1030,56 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
       },
     ));
     debug.record('controller-submit-professional-authored-vital-sign', { response: delegatedCreate });
+    assertSuccessfulTerminalBundle(delegatedCreate, 'Delegated professional vital-sign create');
+
+    const delegatedUpdateBundle = new BundleEditor().setBundleType(BundleTypes.batch);
+    delegatedUpdateBundle
+      .newEntryAs(BundleEditableResourceTypes.observation, delegatedObservationId)
+      .update()
+      .setSubject(suiteSubjectDid)
+      .setStatus('final')
+      .setDate(new Date().toISOString())
+      .setHeartRate(75)
+      .ensureIdentifier();
+    const delegatedUpdate = await profiler.run('controller-cannot-update-submitted-professional-fact', () => individualControllerSdk.updateClinicalSection(
+      ctx,
+      {
+        subject: suiteSubjectDid,
+        sender: individualControllerLoadRequest.profileDid,
+        clinicalCreator: professionalClinicalCreator,
+        recipient: EXAMPLE_PROFILE_PROVIDER_DID,
+        section: HealthcareBasicSections.VitalSigns.attributeValue,
+        bundle: delegatedUpdateBundle.buildJsonApi(),
+        clinicalFormat: 'r4',
+        pollOptions,
+      },
+    ));
     assertTerminalBundleFailure(
-      delegatedCreate,
-      'Controller claiming professional authorship',
+      delegatedUpdate,
+      'Delegated submitter update',
+      /authenticated (?:author|creator)|registered creator/i,
+    );
+
+    const delegatedDeleteBundle = new BundleEditor().setBundleType(BundleTypes.batch);
+    delegatedDeleteBundle
+      .newEntryAs(BundleEditableResourceTypes.observation, delegatedObservationId)
+      .delete();
+    const delegatedDelete = await profiler.run('controller-cannot-delete-submitted-professional-fact', () => individualControllerSdk.updateClinicalSection(
+      ctx,
+      {
+        subject: suiteSubjectDid,
+        sender: individualControllerLoadRequest.profileDid,
+        clinicalCreator: professionalClinicalCreator,
+        recipient: EXAMPLE_PROFILE_PROVIDER_DID,
+        section: HealthcareBasicSections.VitalSigns.attributeValue,
+        bundle: delegatedDeleteBundle.buildJsonApi(),
+        clinicalFormat: 'r4',
+        pollOptions,
+      },
+    ));
+    assertTerminalBundleFailure(
+      delegatedDelete,
+      'Delegated submitter delete',
       /authenticated (?:author|creator)|registered creator/i,
     );
 
@@ -1057,6 +1104,20 @@ test('101: LIVE full-cycle backend/BFF runtime flow', {
     const deleteAnalysis = assertSuccessfulTerminalBundle(professionalDelete, 'Professional vital-sign delete');
     assert.ok(deleteAnalysis.successfulOperations >= 1, 'The author-owned DELETE must return one successful batch operation.');
 
+    const professionalDelegatedDelete = await profiler.run('professional-delete-delegated-fact', () => professionalProfile.sdk.updateClinicalSection(
+      ctx,
+      {
+        subject: suiteSubjectDid,
+        sender: professionalActorDid,
+        clinicalCreator: professionalClinicalCreator,
+        recipient: EXAMPLE_PROFILE_PROVIDER_DID,
+        section: HealthcareBasicSections.VitalSigns.attributeValue,
+        bundle: delegatedDeleteBundle.buildJsonApi(),
+        clinicalFormat: 'r4',
+        pollOptions,
+      },
+    ));
+    assertSuccessfulTerminalBundle(professionalDelegatedDelete, 'Professional deletes delegated fact');
   } finally {
     // Cleanup runs in reverse business order so the suite can be used as a
     // real full-cycle tutorial without leaving live local state behind.
