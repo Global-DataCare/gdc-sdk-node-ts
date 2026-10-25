@@ -342,7 +342,11 @@ export class IndividualControllerSdk {
    * `Communication -> Subject/$summary -> FHIR Parameters`.
    *
    * The returned `BundleReader` navigates the authoritative GW document by
-   * section. This method never ingests resources or updates the index.
+   * section. `filterSections` is only the requested subset; the returned
+   * `getDocumentSections()` value is the SMART-authorized intersection; match
+   * each requested token with `getDocumentSectionByCode(...)` before asking
+   * for missing permissions. This
+   * method never ingests resources or updates the index.
    */
   public requestClinicalSummary(
     ctx: RouteContext,

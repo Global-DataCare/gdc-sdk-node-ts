@@ -115,6 +115,18 @@ and the runtime submits `Communication/_batch`. There is still no generic
 belong to the product/provider integration until that separate public contract
 exists.
 
+For a section-limited SMART token, `requestClinicalSummary(...)` returns only
+the authorized intersection. If the application requested several sections,
+enumerate the disclosed set with `summary.reader.getDocumentSections()` and
+test each requested FHIR token with `getDocumentSectionByCode(...)` before
+offering the ordinary Consent flow for the missing ones. Do not compare plain
+`.code` with `system|code`, do not interpret a missing section as missing clinical data and
+do not add a client-side authorization bypass. A `DocumentReference` may be a
+direct section child or may be reached transitively through another resource,
+such as `Composition -> Consent -> DocumentReference`; both are valid members
+of the authorized document graph. An unrelated Communication attachment/index
+wrapper is not.
+
 The selected context is an operation destination, not the professional's
 identity or runtime home. The employer GW remains the professional's outbound
 gateway and routes the protected request to the recipient/provider identified

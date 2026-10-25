@@ -118,7 +118,12 @@ export class ProfessionalSdk {
     return requireClientMethod(this.client, 'searchClinicalBundle')(ctx, input);
   }
 
-  /** Reads the consent-authorized clinical `$summary` document without ingestion. */
+  /**
+   * Reads the consent-authorized clinical summary without ingestion.
+   * `filterSections` selects a requested subset and never widens SMART access;
+   * enumerate `result.reader.getDocumentSections()` and match requested tokens
+   * with `getDocumentSectionByCode(...)` before requesting additional Consent.
+   */
   public requestClinicalSummary(
     ctx: RouteContext,
     input: ClinicalSummaryRequestInput,

@@ -1729,7 +1729,14 @@ export class HttpRuntimeClient implements NodeRuntimeClient {
    *
    * Unlike `ingestCommunicationAndUpdateIndex(...)`, this method does not
    * represent a write or projection lifecycle. It returns the GW document and
-   * a `BundleReader` for section-by-section navigation.
+   * a `BundleReader` for section-by-section navigation. `filterSections`
+   * selects the requested subset but cannot widen the SMART token. Read
+   * `BundleReader.getDocumentSections()` to enumerate the disclosed
+   * intersection and match requested FHIR tokens through
+   * `getDocumentSectionByCode(...)` before asking for additional Consent.
+   * DocumentReferences may belong to that graph directly
+   * or transitively through another FHIR resource; unrelated Communication
+   * attachment/index records are not returned by a section-limited summary.
    */
   public async requestClinicalSummary(
     ctx: RouteContext,

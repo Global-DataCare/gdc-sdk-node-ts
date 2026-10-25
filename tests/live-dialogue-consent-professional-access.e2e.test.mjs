@@ -3,7 +3,7 @@
  * Journey:
  * 1. Load the authenticated individual-controller profile on an existing tenant.
  * 2. Register an individual, confirm its Order, and enroll its returned member DID through DCR.
- * 3. The enrolled member ingests the minimum FHIR clinical document for the exact returned subject.
+ * 3. The enrolled member ingests the canonical all-sections IPS document for the exact returned subject.
  * 4. Grant section-scoped consent to the professional actor DID.
  * 5. Load that professional, obtain SMART access and read only the allowed section.
  * 6. Revoke consent, disable and purge the scenario-owned individual, then close both profiles.
@@ -30,6 +30,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { IndividualOrganizationLifecycleEditor } from 'gdc-common-utils-ts';
 import { HealthcareBasicSections } from 'gdc-common-utils-ts/constants';
@@ -56,8 +57,6 @@ import {
   EXAMPLE_SUBJECT_DID,
   EXAMPLE_TENANT_IDENTIFIER,
   buildExampleCommunicationIngestionPayload,
-  buildExampleLiveMedicationCases,
-  buildExampleMedicationIpsDocumentBundle,
   cloneExample,
 } from 'gdc-common-utils-ts/examples';
 import { buildSmartCompositionReadScope } from 'gdc-common-utils-ts/utils/smart-scope';
@@ -173,6 +172,24 @@ function runtimeUuid() {
   const fromCrypto = globalThis.crypto?.randomUUID?.();
   if (fromCrypto) return fromCrypto;
   return `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function loadCanonicalAllSectionsIps(subjectDid) {
+  const fixturePath = path.join(
+    process.cwd(),
+    'node_modules',
+    'gdc-common-utils-ts',
+    'fixtures',
+    'fhir-ips-bundle-all-sections.json',
+  );
+  const bundle = JSON.parse(readFileSync(fixturePath, 'utf8'));
+  for (const entry of Array.isArray(bundle?.entry) ? bundle.entry : []) {
+    const resource = entry?.resource;
+    if (!resource || typeof resource !== 'object') continue;
+    if (resource?.subject?.reference) resource.subject.reference = subjectDid;
+    if (resource?.patient?.reference) resource.patient.reference = subjectDid;
+  }
+  return bundle;
 }
 
 function buildConsentLifecyclePayload({ consentClaims }) {
@@ -395,17 +412,14 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
       ],
     }, enrolledControllerClient).asIndividualController();
 
-    const medication = buildExampleLiveMedicationCases(Date.now())[0];
-    const medicationIpsBundle = buildExampleMedicationIpsDocumentBundle({
-      subjectDid: registeredIdentity.subjectDid,
-      medication,
-    });
+    const allSectionsIpsBundle = loadCanonicalAllSectionsIps(registeredIdentity.subjectDid);
+    const ingestionSent = new Date().toISOString();
     const ingestionPayload = buildExampleCommunicationIngestionPayload({
       subjectDid: registeredIdentity.subjectDid,
-      sent: medication.effectiveDateTime,
-      ipsBundleBase64: Buffer.from(JSON.stringify(medicationIpsBundle), 'utf8').toString('base64'),
+      sent: ingestionSent,
+      ipsBundleBase64: Buffer.from(JSON.stringify(allSectionsIpsBundle), 'utf8').toString('base64'),
     });
-    const ingestion = await profiler.run('controller-medication-ingest', () => enrolledControllerSdk.ingestCommunicationAndUpdateIndex(
+    const ingestion = await profiler.run('controller-all-sections-ips-ingest', () => enrolledControllerSdk.ingestCommunicationAndUpdateIndex(
       ctx,
       {
         communicationPayload: ingestionPayload,
@@ -413,7 +427,7 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
         pollOptions,
       },
     ));
-    debug.record('controller-medication-ingest', { response: ingestion });
+    debug.record('controller-all-sections-ips-ingest', { response: ingestion });
     assertSuccessfulTerminalBundle(ingestion, 'Individual clinical ingestion');
 
     const consent = await profiler.run('controller-grant-consent', () => enrolledControllerSdk.grantProfessionalAccess(
@@ -475,17 +489,37 @@ test('LIVE controller-to-professional consent dialogue on existing tenant', {
       bearerToken: smart.accessToken,
       requestTimeoutMs: 10_000,
     });
-    const professionalRead = await profiler.run('professional-read-latest-ips', () => smartAccessClient.getLatestIps(
+    const professionalRead = await profiler.run('professional-read-clinical-summary', () => smartAccessClient.requestClinicalSummary(
       ctx,
       {
-        subject: registeredIdentity.subjectDid,
+        subjectId: registeredIdentity.subjectDid,
+        requesterId: professionalActorDid,
         pollOptions,
       },
     ));
-    debug.record('professional-read-latest-ips', { response: professionalRead });
-    assertSuccessfulTerminalBundle(professionalRead, 'Professional IPS read');
-    const readEntries = getBatchEntries(professionalRead.poll.body, 'Professional IPS read');
-    assert.ok(readEntries[0]?.resource, 'Dialogue suite must return one readable clinical bundle/document resource for the professional actor.');
+    debug.record('professional-read-clinical-summary', { response: professionalRead.operation });
+    assertSuccessfulTerminalBundle(professionalRead.operation, 'Professional IPS summary read');
+    const summaryBundle = professionalRead.bundle;
+    assert.ok(summaryBundle, 'Dialogue suite must return one readable clinical bundle/document resource for the professional actor.');
+    const composition = summaryBundle.entry
+      ?.find((entry) => entry?.resource?.resourceType === 'Composition')
+      ?.resource;
+    const authorizedCode = String(consentSection).split('|').pop();
+    const returnedSectionCodes = (composition?.section || [])
+      .map((section) => section?.code?.coding?.[0]?.code)
+      .sort();
+    assert.deepEqual(
+      returnedSectionCodes,
+      [authorizedCode],
+      'The GW must enforce the SMART section set even when getLatestIps omits an application section filter.',
+    );
+    const returnedResourceTypes = (summaryBundle.entry || [])
+      .map((entry) => entry?.resource?.resourceType);
+    assert.equal(
+      returnedResourceTypes.includes('DocumentReference'),
+      false,
+      'A section-limited SMART read must not expose DocumentReferences from another or unrelated section graph.',
+    );
   } finally {
     if (consentClaims && enrolledControllerSdk) {
       const revokedAt = env('REVOKED_CONSENT_PERIOD_END', '2026-06-01T00:00:00Z');

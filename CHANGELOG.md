@@ -8,6 +8,12 @@
   controller DID returned by registration, so the release gate proves the
   owner authorization boundary instead of attempting lifecycle writes with a
   professional token.
+- Document and prove section-scoped clinical-summary reads: application
+  `filterSections` is intersected with SMART authorization, returned
+  `Composition.section`/`BundleReader` getters expose the disclosed set for
+  missing-permission UX, and direct or transitive authorized
+  `DocumentReference` graph members remain distinct from unrelated
+  Communication attachment/index wrappers.
 - Expose the canonical subject-scoped `Communication` participant search on
   `IndividualMemberSdk`, matching the personal and controller actor facades so
   an authorized caregiver can use the same durable service conversation.

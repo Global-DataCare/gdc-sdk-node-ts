@@ -2023,14 +2023,17 @@ Scope note:
 ```ts
 const allergySectionCode =
   HealthcareBasicSections.AllergiesAndIntolerances.attributeValue;
+const medicationSectionCode =
+  HealthcareBasicSections.HistoryOfMedicationUse.attributeValue;
+const requestedSectionCodes = [allergySectionCode, medicationSectionCode];
 
 const summary = await individualControllerProfile.sdk.requestClinicalSummary(
   tenantContext,
   {
     subjectId: subjectDid,
     requesterId: actorDid,
-    // Omit filterSections when the screen needs every available section.
-    filterSections: [allergySectionCode],
+    // This sets what the screen requests. It never widens SMART authorization.
+    filterSections: requestedSectionCodes,
   },
 );
 
@@ -2074,6 +2077,22 @@ const allergiesContainingIbuprofen =
     ResourceTypesFhirR4.AllergyIntolerance,
     'ibuprofeno',
   );
+
+// Composition.section is the exact set disclosed by GW after SMART
+// authorization. Compare it with the requested set before offering a normal
+// permission request for any missing section.
+const returnedSectionCodes = summary.reader
+  .getDocumentSections()
+  .map((section) => section.claim ?? section.code);
+const missingSectionCodes = requestedSectionCodes.filter(
+  (requested) => !summary.reader.getDocumentSectionByCode(requested),
+);
+
+// Only documents belonging to the authorized document graph are present.
+// That membership may be direct or transitive through another FHIR resource.
+const authorizedDocuments = summary.document.getResources(
+  ResourceTypesFhirR4.DocumentReference,
+);
 ```
 
 This is the canonical 101 read flow:
@@ -2086,6 +2105,22 @@ All-sections rule:
 - do not send `filterSections: ['*']`
 - `section=*` is the SMART permission wildcard; it is not the application-level
   `$summary` section selector
+
+Authorization rule:
+
+- omitting `filterSections` returns every section authorized by the SMART
+  token, not every section stored for the subject
+- supplying `filterSections` returns `requested ∩ authorized`
+- the returned `Composition.section`/`getDocumentSections()` result is the
+  disclosed set; compare it with the requested set to identify permissions
+  that must be requested separately
+- use `getDocumentSectionByCode(requestedToken)` for that comparison because it
+  normalizes `LOINC|code` and `http://loinc.org|code`; do not compare a plain
+  `.code` field with a `system|code` token
+- an empty intersection or a token for another subject fails with `403`
+- there is deliberately no `setAuthorizedSections(...)`: Consent and the SMART
+  token establish authorization, while `filterSections` only selects the
+  requested subset
 
 It does not call `ingestCommunicationAndUpdateIndex(...)`. That method is
 reserved for writes whose resources must be persisted/projected. The summary
@@ -2118,6 +2153,19 @@ All reader/facade calls after `requestClinicalSummary(...)` are local reads over
 `summary.bundle`. They do not trigger more GW requests. Missing sections
 produce `undefined`, `0` or `[]` as appropriate, so the UI can render an empty
 state without inventing a section.
+
+Document graph rule:
+
+- absence from the immediate `Composition.section[].entry[]` does not by itself
+  make a Bundle resource orphaned
+- GW follows references transitively; for example,
+  `Composition -> Consent -> DocumentReference` keeps that document in the
+  originating authorized section
+- the returned Composition re-links authorized section documents so
+  `getDocumentSectionResourceEntries(...)` remains useful to high-level code
+- a separate DocumentReference created for a Communication attachment is an
+  index/transport record; it is returned only if the clinical document graph
+  establishes membership in an authorized section
 
 Use `summary.document.resetFilters()` to return to an unfiltered immutable
 document view. `clearFilters()` remains available as a compatibility alias.
