@@ -1,12 +1,12 @@
 import { BundleReader } from 'gdc-common-utils-ts';
 import type {
   NodeHttpClient,
-  OwnedFamilyOrganizationDirectoryEntry,
+  OwnedIndividualOrganizationDirectoryEntry,
   RouteContext,
 } from 'gdc-sdk-node-ts';
 
 type OwnedCleanupDirectoryInput = Readonly<{
-  sdk: Pick<NodeHttpClient, 'listOwnedFamilyOrganizations'>;
+  sdk: Pick<NodeHttpClient, 'listOwnedIndividualOrganizations'>;
   routeContext: RouteContext;
   verifiedContact: Readonly<{ email?: string; telephone?: string }>;
   alternateNamePrefix: string;
@@ -19,8 +19,8 @@ type OwnedCleanupDirectoryInput = Readonly<{
  */
 export async function listOwnedIndividualCleanupCandidates(
   input: OwnedCleanupDirectoryInput,
-): Promise<OwnedFamilyOrganizationDirectoryEntry[]> {
-  const subjects = await input.sdk.listOwnedFamilyOrganizations(
+): Promise<OwnedIndividualOrganizationDirectoryEntry[]> {
+  const subjects = await input.sdk.listOwnedIndividualOrganizations(
     input.routeContext,
     { verifiedContact: input.verifiedContact },
   );
@@ -32,7 +32,7 @@ export async function listOwnedIndividualCleanupCandidates(
 type ConfirmedCleanupInput = Readonly<{
   sdk: Pick<NodeHttpClient, 'disableIndividual' | 'purgeIndividual'>;
   routeContext: RouteContext;
-  subject: OwnedFamilyOrganizationDirectoryEntry;
+  subject: OwnedIndividualOrganizationDirectoryEntry;
   /** Exact label reviewed by the operator after listing candidates. */
   confirmedAlternateName: string;
 }>;

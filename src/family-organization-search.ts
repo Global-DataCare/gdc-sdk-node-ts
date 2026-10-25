@@ -17,14 +17,14 @@ export type FamilyOrganizationSearchInput = Readonly<{
   intervalSeconds?: number;
 }>;
 
-export type OwnedFamilyOrganizationDirectoryInput = Readonly<{
+export type OwnedIndividualOrganizationDirectoryInput = Readonly<{
   verifiedContact: Readonly<{ email?: string; telephone?: string }>;
   requestThid?: string;
   timeoutSeconds?: number;
   intervalSeconds?: number;
 }>;
 
-export type OwnedFamilyOrganizationDirectoryEntry = Readonly<{
+export type OwnedIndividualOrganizationDirectoryEntry = Readonly<{
   resourceId: string;
   alternateName: string;
   claims: Readonly<Record<string, unknown>>;
@@ -118,16 +118,16 @@ export async function searchFamilyOrganizationWithDeps(
  * global or prefix scan. Callers may filter the returned alternate names only
  * after this authenticated directory boundary.
  */
-export async function listOwnedFamilyOrganizationsWithDeps(
+export async function listOwnedIndividualOrganizationsWithDeps(
   routeCtx: RouteContext,
-  input: OwnedFamilyOrganizationDirectoryInput,
+  input: OwnedIndividualOrganizationDirectoryInput,
   deps: Pick<SearchFamilyOrganizationWithDeps,
     'individualFamilyOrganizationSearchPath'
     | 'individualFamilyOrganizationSearchPollPath'
     | 'submitAndPoll'
     | 'defaultTimeoutMs'
     | 'defaultIntervalMs'>,
-): Promise<OwnedFamilyOrganizationDirectoryEntry[]> {
+): Promise<OwnedIndividualOrganizationDirectoryEntry[]> {
   const email = String(input.verifiedContact?.email || '').trim().toLowerCase();
   const telephone = String(input.verifiedContact?.telephone || '').trim();
   if (!email && !telephone) {
@@ -182,6 +182,15 @@ export async function listOwnedFamilyOrganizationsWithDeps(
     return [{ resourceId: String(resource.id), alternateName, claims: resourceClaims }];
   });
 }
+
+/** @deprecated Use `OwnedIndividualOrganizationDirectoryInput`. */
+export type OwnedFamilyOrganizationDirectoryInput = OwnedIndividualOrganizationDirectoryInput;
+
+/** @deprecated Use `OwnedIndividualOrganizationDirectoryEntry`. */
+export type OwnedFamilyOrganizationDirectoryEntry = OwnedIndividualOrganizationDirectoryEntry;
+
+/** @deprecated Use `listOwnedIndividualOrganizationsWithDeps`. */
+export const listOwnedFamilyOrganizationsWithDeps = listOwnedIndividualOrganizationsWithDeps;
 
 function createRuntimeUuid(): string {
   const fromCrypto = globalThis.crypto?.randomUUID?.();

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Make `listOwnedIndividualOrganizations(...)` and the corresponding directory
+  types the canonical owner-scoped API. The historical `Family` names remain
+  deprecated aliases so existing consumers keep working.
 - Deprecate `importIpsOrFhirAndUpdateIndex(...)` and its direct Composition
   helper/port surfaces without changing their runtime behavior. New document
   and section writes use the existing Communication-backed
