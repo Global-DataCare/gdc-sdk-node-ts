@@ -10,11 +10,11 @@ import {
   EXAMPLE_REGISTERED_SUBJECT_ALTERNATE_NAME,
   EXAMPLE_TENANT_ROUTE_CONTEXT,
 } from 'gdc-common-utils-ts/examples';
-import { listOwnedFamilyOrganizationsWithDeps } from '../dist/index.js';
+import { listOwnedIndividualOrganizationsWithDeps } from '../dist/index.js';
 
 test('lists every individual Organization for one verified owner without resourceId input', async () => {
   const calls = [];
-  const result = await listOwnedFamilyOrganizationsWithDeps(
+  const result = await listOwnedIndividualOrganizationsWithDeps(
     EXAMPLE_TENANT_ROUTE_CONTEXT,
     { verifiedContact: { email: EXAMPLE_EMAIL_CONTROLLER_INDIVIDUAL } },
     {
