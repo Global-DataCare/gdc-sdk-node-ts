@@ -65,6 +65,28 @@ description: Enforce branch, TDD, fixture, test-layer, product-neutrality, chang
   that proof to the correct lower-level suite and leave the high-level example
   copyable.
 
+## Preserve consent-scoped clinical summary reads
+
+- Applications read the current clinical document only through the public
+  actor facade `requestClinicalSummary(...)`. They may set optional
+  `filterSections`; they never construct the internal `Subject/$summary` URL.
+- `filterSections` selects what the application wants and never widens SMART
+  authorization. GW returns the intersection with the token-authorized section
+  set; a subject mismatch or empty intersection is `403`.
+- Teach callers to enumerate the disclosed set with
+  `summary.reader.getDocumentSections()` and match requested FHIR tokens with
+  `getDocumentSectionByCode(...)` before starting a separate Consent request
+  for missing ones. Never compare plain `.code` with `system|code`, and do not
+  invent a proprietary denied-sections response field.
+- A resource is not orphaned merely because it is absent from the immediate
+  `Composition.section[].entry[]`. Preserve the complete authorized FHIR
+  reference graph, including `Composition -> Consent -> DocumentReference`.
+  Unrelated Communication attachment/index wrappers are not clinical-section
+  members and must not appear in a section-limited result.
+- Keep public JSDoc, the end-to-end 101, copyable snippets and real E2E journey
+  comments aligned. Examples use `BundleReader` and `FhirDocumentFacade`
+  getters only; BFF filtering is presentation logic, not security evidence.
+
 ## Preserve the release-gate order and identity boundary
 
 - Use `test -> local-network -> test-network -> network`. Finish package tests

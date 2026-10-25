@@ -104,7 +104,12 @@ export class PersonalSdk {
     return requireClientMethod(this.client, 'updateClinicalSummary')(ctx, input);
   }
 
-  /** Reads the current subject through Communication `$summary`; it performs no ingestion. */
+  /**
+   * Reads the current subject through Communication `$summary`; it performs no
+   * ingestion. `input.sections` is a request selector, not an authorization
+   * setter. Use the returned reader's `getDocumentSections()` and
+   * `getDocumentSectionByCode(systemAndCode)` methods to inspect the result.
+   */
   public requestClinicalSummary(
     ctx: RouteContext,
     input: ClinicalSummaryRequestInput,

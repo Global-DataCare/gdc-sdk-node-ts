@@ -119,7 +119,10 @@ export async function updateEditableSummaryAsProfessional(input: Readonly<{
   );
 
   // Read back the authoritative document instead of treating an optimistic UI
-  // update or an accepted asynchronous request as proof of persistence.
+  // update or an accepted asynchronous request as proof of persistence. When
+  // filterSections is used, enumerate getDocumentSections() and match each
+  // requested token with getDocumentSectionByCode(...): the returned set is
+  // the SMART-authorized intersection.
   const readback = await professionalProfile.sdk.requestClinicalSummary(
     indexProviderRouteContext,
     {

@@ -1,3 +1,4 @@
+// Flow contract: public summary getters expose only the SMART-authorized document graph and never replace GW authorization with UI filtering.
 /**
  * Teaching goal:
  * - read the clinical data currently available for one individual
@@ -27,6 +28,8 @@ import {
 
 test('101: individual controller requests and reads the available clinical summary', async () => {
   const section = HealthcareBasicSections.AllergiesAndIntolerances.attributeValue;
+  const unavailableSection = HealthcareBasicSections.HistoryOfMedicationUse.attributeValue;
+  const requestedSections = [section, unavailableSection];
   const calls = [];
   const sdk = new IndividualControllerSdk({
     async requestClinicalSummary(ctx, input) {
@@ -85,12 +88,18 @@ test('101: individual controller requests and reads the available clinical summa
     {
       subjectId: EXAMPLE_SUBJECT_DID,
       requesterId: EXAMPLE_SUBJECT_DID,
-      filterSections: [section],
+      filterSections: requestedSections,
     },
   );
 
   // Step 2. Build the section navigation and its unfiltered count badge.
   const sections = summary.reader.getDocumentSections();
+  const returnedSections = sections.map(
+    (returnedSection) => returnedSection.claim || returnedSection.code,
+  );
+  const missingSections = requestedSections.filter(
+    (requestedSection) => !summary.reader.getDocumentSectionByCode(requestedSection),
+  );
   const allergies = summary.reader.getDocumentSectionByCode(section);
   const declaredCount =
     summary.reader.getDocumentSectionResourceCount(section);
@@ -120,10 +129,12 @@ test('101: individual controller requests and reads the available clinical summa
   const filteredCount = allergyView.getResourceCount();
 
   assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0].input.filterSections, [section]);
+  assert.deepEqual(calls[0].input.filterSections, requestedSections);
   assert.equal(summary.bundle.type, 'document');
   assert.equal(summary.reader.getDocumentSectionCount(), 1);
   assert.equal(sections.length, 1);
+  assert.deepEqual(returnedSections, ['http://loinc.org|48765-2']);
+  assert.deepEqual(missingSections, [unavailableSection]);
   assert.deepEqual(allergies?.entryReferences, ['urn:uuid:allergy-summary-1']);
   assert.equal(declaredCount, 1);
   assert.deepEqual(references, ['urn:uuid:allergy-summary-1']);

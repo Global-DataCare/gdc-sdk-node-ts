@@ -111,7 +111,15 @@ export class IndividualMemberSdk {
     return requireClientMethod(this.client, 'updateClinicalSummary')(ctx, input);
   }
 
-  /** Reads the member-authorized `$summary` document without mutating the subject index. */
+  /**
+   * Reads the member-authorized `$summary` without mutating the subject index.
+   *
+   * `input.sections`, when present, only narrows the SMART token authorization;
+   * it cannot grant access. Inspect the returned Composition with
+   * `result.reader.getDocumentSections()` and resolve a FHIR `system|code`
+   * token with `result.reader.getDocumentSectionByCode(token)`. Do not compare
+   * a returned section's plain `.code` directly with a token.
+   */
   public requestClinicalSummary(
     ctx: RouteContext,
     input: ClinicalSummaryRequestInput,

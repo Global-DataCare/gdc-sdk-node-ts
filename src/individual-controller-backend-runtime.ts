@@ -108,6 +108,10 @@ export class IndividualControllerBackendRuntime {
   /**
    * Reads the authoritative subject document through the canonical
    * `Communication -> Subject/$summary -> FHIR Parameters` lifecycle.
+   * The optional section selector only narrows the profile's SMART grant. Use
+   * the returned `BundleReader` getters to inspect what the Gateway actually
+   * returned; missing requested sections remain distinguishable from returned
+   * sections and do not imply that authorization was widened.
    */
   public requestClinicalSummary(
     profile: BackendIndividualControllerProfile,

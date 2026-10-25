@@ -689,6 +689,19 @@ resource getters or setters. See
 [Clinical Bundle Getters And Setters 101](docs/101-CLINICAL-ENTRY-GETTERS-SETTERS.md)
 for the complete resource table and examples.
 
+For a SMART-authorized summary, the section list sent by the application is a
+request selector, never an authorization grant. The Gateway returns only the
+intersection of requested, token-authorized and available Composition
+sections. Use `result.reader.getDocumentSections()` to enumerate the returned
+sections and `result.reader.getDocumentSectionByCode('LOINC|10160-0')` to test a
+FHIR token; do not compare the plain `.code` field directly with
+`system|code`. There is intentionally no `setAuthorizedSections(...)`: consent
+and the issued SMART token are authoritative. Directly and transitively linked
+section resources are retained, while unrelated Communication wrapper/index
+`DocumentReference` resources are not section content. See
+[Professional Consent And SMART 101](docs/101-PROFESSIONAL-CONSENT-SMART.md)
+and [SDK End To End 101](docs/101-SDK_END_TO_END.md).
+
 ### Governed ValueSet options through the terminology service
 
 For creation controls, the authenticated BFF can resolve the ValueSet bound to
