@@ -1175,6 +1175,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Load the canonical signed-PDF organization and verifier metadata before the real controller lifecycle test starts ICA; preserve explicit fixture overrides.
+
 ## [2.9.9] - 2026-09-08
 
 - Add the generic `updateSubjectSection(...)` facade while retaining
