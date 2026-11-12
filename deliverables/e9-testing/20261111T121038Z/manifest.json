@@ -15,8 +15,9 @@
     },
     "gwtemplate-node-ts": {
       "repository": "gwtemplate-node-ts",
-      "version": "1.25.34",
-      "commit": "ea8abae0f8c13e817d9241881f169e9400833d9a"
+      "version": "1.25.33",
+      "commit": "ea8abae0f8c13e817d9241881f169e9400833d9a",
+      "recordedVersion": "1.25.34"
     }
   },
   "suites": [
@@ -122,8 +123,9 @@
       "id": "sdk-node-gw-and-consent",
       "source": {
         "repository": "gwtemplate-node-ts",
-        "version": "1.25.34",
-        "commit": "ea8abae0f8c13e817d9241881f169e9400833d9a"
+        "version": "1.25.33",
+        "commit": "ea8abae0f8c13e817d9241881f169e9400833d9a",
+        "recordedVersion": "1.25.34"
       },
       "node": "v26.13.0",
       "npm": "11.20.0",
@@ -418,5 +420,11 @@
     "gitBranch": "main",
     "npmPublish": "not performed",
     "imagesOrDeployment": "not performed"
+  },
+  "versionCorrection": {
+    "repository": "gwtemplate-node-ts",
+    "version": "1.25.33",
+    "recordedVersion": "1.25.34",
+    "reason": "Correction of package version metadata only; original execution logs, dates, commits and package hashes preserved."
   }
 }

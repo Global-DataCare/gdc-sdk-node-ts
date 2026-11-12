@@ -18,7 +18,7 @@
   "npm": "11.20.0",
   "commit": "ea8abae0f8c13e817d9241881f169e9400833d9a",
   "working_tree": "",
-  "version": "1.25.34",
+  "version": "1.25.33",
   "related_sources": {
     "gdc-common-utils-ts": {
       "commit": "7f2caba88bd5ac8cc0e9a1fd90efce76110ea551",
@@ -52,8 +52,9 @@
     },
     "gwtemplate-node-ts": {
       "commit": "ea8abae0f8c13e817d9241881f169e9400833d9a",
-      "version": "1.25.34",
-      "working_tree": ""
+      "version": "1.25.33",
+      "working_tree": "",
+      "recordedVersion": "1.25.34"
     }
   },
   "package.json_sha256": "78ba4094d5cd71c7e576b1ec0ebc0e4c90aa966ed4d97a2185f72526c95e5e5b",
@@ -61,5 +62,6 @@
   "exit_code": 0,
   "elapsed_seconds": 115.928,
   "finished_at": "2026-11-11T12:46:45.969853+00:00",
-  "log_sha256": "3f15cd218140b25b2faac7bb832b6c811419b2af8bee51b0ccb545c22cfbb1fd"
+  "log_sha256": "3f15cd218140b25b2faac7bb832b6c811419b2af8bee51b0ccb545c22cfbb1fd",
+  "recordedVersion": "1.25.34"
 }
