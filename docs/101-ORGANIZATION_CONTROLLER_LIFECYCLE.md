@@ -313,21 +313,10 @@ Technical-slice note:
 
 ## Same controller, additional portal/device
 
-A second portal can register a separate device for the existing controller,
-with its own wallet and keys, without creating another controller or copying
-the first portal's private key. Do not use controller substitution or OTP key
-replacement for this purpose.
-
-Follow the complete numbered BFF walkthrough, including imports and public SDK
-types, in [Add the same controller from a second portal](./101-SDK_END_TO_END.md#add-the-same-controller-from-a-second-portal-keep-both-devices).
-It explains the existing licence authorization, trusted OpenID proof, profile
-storage/KMS adapters, `ServerProfileSessionManager.enroll(...)` and readback.
-
-The gateway defaults to five active devices when the licence omits
-`maxDevices`; an explicit licence value overrides the default. Each added
-installation needs a distinct `clientInstanceId`. Normally let the SDK derive
-it from the new wallet. Reusing an existing installation id with new keys is
-replacement, not addition. Reopening an enrolled profile does not repeat DCR.
+The numbered procedure and its code sample are maintained in one place:
+[Node BFF additional-device walkthrough](./101-SDK_END_TO_END.md#add-the-same-controller-from-a-second-portal-keep-both-devices).
+For the original proof-first onboarding, use the separate
+[legacy PDF / ICA verification / host activation walkthrough](./101-SDK_END_TO_END.md#legacy-pdf-verify-activate).
 
 ## Minimal sequence for a BFF
 

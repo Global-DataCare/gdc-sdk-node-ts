@@ -567,6 +567,8 @@ DCR. A separately designated technical controller still completes its own
 `_issue`, activation-code exchange and device registration; the historical
 representative key is never copied to that actor.
 
+<a id="legacy-pdf-verify-activate"></a>
+
 #### 6.2.1 Legacy `_activate` input
 
 Use this when the integrator already has:
@@ -1188,6 +1190,15 @@ Use this sequence when an organization controller already uses one portal and
 wants to use another portal with its own managed wallet. The organization and
 the controller remain the same. You are adding a technical installation, not
 creating another controller or transferring the first portal's private key.
+
+**If the first portal uses legacy PDF -> ICA `_verify` -> host `_activate`:**
+keep that original onboarding. Its initial representative binding is already
+registered by `_activate`; do not enroll it again just to reopen the first
+portal. See [the complete legacy input and wallet example](#legacy-pdf-verify-activate).
+An additional installation is a separate enrollment only after the existing
+controller has valid licence/device enrollment authority for it, as required
+in step 2 below. The initial VP or possession of the old wallet alone is not
+that additional-device grant.
 
 1. **Resolve the existing authority on the server.** After verified OpenID login,
    resolve the existing organization, controller role DID and licence belonging
