@@ -311,6 +311,24 @@ Technical-slice note:
 - Do not teach it as the first public integration surface; app/BFF docs should
   start from `OrganizationControllerSdk` and `HostOnboardingSdk`.
 
+## Same controller, additional portal/device
+
+A second portal can register a separate device for the existing controller,
+with its own wallet and keys, without creating another controller or copying
+the first portal's private key. Do not use controller substitution or OTP key
+replacement for this purpose.
+
+Follow the complete numbered BFF walkthrough, including imports and public SDK
+types, in [Add the same controller from a second portal](./101-SDK_END_TO_END.md#add-the-same-controller-from-a-second-portal-keep-both-devices).
+It explains the existing licence authorization, trusted OpenID proof, profile
+storage/KMS adapters, `ServerProfileSessionManager.enroll(...)` and readback.
+
+The gateway defaults to five active devices when the licence omits
+`maxDevices`; an explicit licence value overrides the default. Each added
+installation needs a distinct `clientInstanceId`. Normally let the SDK derive
+it from the new wallet. Reusing an existing installation id with new keys is
+replacement, not addition. Reopening an enrolled profile does not repeat DCR.
+
 ## Minimal sequence for a BFF
 
 For interactive employee creation, pass the `licenseOrder` continuation to

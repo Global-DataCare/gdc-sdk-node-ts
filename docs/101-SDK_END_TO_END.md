@@ -1182,6 +1182,140 @@ employee; actor kind, mode and activation-code origin are the business
 differences. The historical representative bound by legacy `_activate` is the
 explicit exception and is not enrolled again.
 
+#### Add the same controller from a second portal (keep both devices)
+
+Use this sequence when an organization controller already uses one portal and
+wants to use another portal with its own managed wallet. The organization and
+the controller remain the same. You are adding a technical installation, not
+creating another controller or transferring the first portal's private key.
+
+1. **Resolve the existing authority on the server.** After verified OpenID login,
+   resolve the existing organization, controller role DID and licence belonging
+   to that authenticated contact. The same email is account evidence, not a
+   controller grant. Keep the exact gateway-returned tenant, jurisdiction,
+   sector and provider DID; a different portal does not create a different
+   tenant. A genuinely different service sector requires its own authorized
+   routing and policy, not a string substitution in the BFF.
+2. **Obtain device enrollment authority for that existing licence.** Use a valid
+   activation code from the existing licensed lifecycle, or the existing
+   `employeeAuthorizationUrn` supported by the gateway. Supply exactly one.
+   Neither is a new randomly generated identifier. Do not repeat the commercial
+   Offer/Order or organization registration merely to open another portal.
+   Recovery through `Organization/_issue` is a separate evidence-renewal path.
+3. **Prepare this portal's storage and account proof.** Configure the durable
+   profile store, the KMS-backed `ServerProfileSealer`, the gateway URL and the
+   trusted recipient-key resolver. Obtain a fresh signed OpenID `idToken` whose
+   issuer, audience and verification keys the gateway trusts. Do not use the
+   controller VP as that token. Follow the PIN ownership rules above.
+4. **Create a new local profile and wallet.** Use a new `profileId` for the new
+   portal installation. Do not import the other portal's wallet seed, private
+   keys or `clientInstanceId`. Normally omit `clientInstanceId`, `walletSeed` and
+   `walletKeyDerivationId`: the SDK creates fresh wallet material and derives
+   its stable installation identity. Persist the returned profile for reuse.
+5. **Enroll through the SDK.** `ServerProfileSessionManager.enroll(...)` owns
+   `Token/_exchange`, the initial access token, `Device/_dcr`, public-key
+   registration and protected local profile persistence. Do not implement
+   those HTTP requests or JWT/JWK payloads again in the portal. The same
+   enrollment service handles a service controller and an employee; select the
+   real actor kind and pass the server-resolved proof for that actor.
+6. **Respect capacity.** The gateway default is five active devices per licence
+   when that licence has no explicit `maxDevices`. An explicit value takes
+   precedence, including an older value of two. The SDK/portal must use the
+   effective licence allowance, not hard-code five. The gateway checks capacity
+   during token exchange and DCR and rejects an additional installation when
+   full. A constant in an older shared SDK helper is not permission to bypass
+   the gateway. Do not change ICA credential status just to add a device.
+7. **Check both installations.** Retain the returned `clientId` and
+   `clientInstanceId` in their protected profile. Confirm that each portal can
+   reopen its own stored profile and perform its authorized operation. A new
+   login to an already enrolled profile unlocks that profile; it does not call
+   `enroll(...)` again. Revoking one device must not retire the controller or
+   the other device.
+
+**Addition versus replacement:** a different installation has a different
+`clientInstanceId`. Reusing the previous installation id with different keys
+selects replacement behavior. The `rotateEmployeeProfileWithOtp(...)` recovery
+helper deliberately replaces that installation and must not be used to add a
+second portal. Do not use a human email or organization DID as a shared
+installation id. The same portal can also have multiple separately authorized
+installations, each within the licence capacity.
+
+The following BFF helper includes all imports. It uses public SDK types and
+values, not invented DIDs, role strings, activation tokens or raw DCR JSON.
+Its arguments are dependencies and verified data that your BFF supplies from
+steps 1 to 3. `professionalProof` means the server-resolved licensed role and
+actor binding, including the controller role when appropriate; never fill it
+from arbitrary browser fields. This SDK path signs the managed role proof
+with the enrolled wallet after DCR. Do not substitute another controller's
+ICA credential or assume a credential bound to one key is bound to all keys.
+
+```ts
+import { randomUUID } from 'node:crypto';
+import {
+  ActorKinds,
+  ServerProfileSessionManager,
+  type ServerProfileEnrollmentInput,
+  type ServerProfileRecord,
+  type ServerProfileSessionManagerOptions,
+} from 'gdc-sdk-node-ts';
+
+type ExistingControllerAuthority = Pick<
+  ServerProfileEnrollmentInput,
+  'ownerId' | 'actorDid' | 'providerDid' | 'routeContext' | 'allowedSubjectDids'
+> & {
+  professionalProof: NonNullable<ServerProfileEnrollmentInput['professionalProof']>;
+};
+
+type ExistingLicenceAuthorization =
+  | { activationCode: string; employeeAuthorizationUrn?: never }
+  | { employeeAuthorizationUrn: string; activationCode?: never };
+
+export async function enrollAdditionalControllerInstallation(input: Readonly<{
+  options: ServerProfileSessionManagerOptions;
+  authority: ExistingControllerAuthority;
+  authorization: ExistingLicenceAuthorization;
+  idToken: string;
+  pin: string;
+  redirectUris: string[];
+  clientName: string;
+}>): Promise<ServerProfileRecord> {
+  const manager = new ServerProfileSessionManager(input.options);
+  return manager.enroll({
+    ...input.authority,
+    ...input.authorization,
+    profileId: randomUUID(), // New local record; persist and reuse the result.
+    actorKind: ActorKinds.OrganizationController,
+    actorMode: 'self',
+    profileDid: input.authority.actorDid,
+    idToken: input.idToken,
+    pin: input.pin,
+    redirectUris: input.redirectUris,
+    clientName: input.clientName,
+    // Omit clientInstanceId and wallet recovery inputs for an added device.
+    // The SDK generates fresh keys; private keys are not sent to the gateway.
+  });
+}
+```
+
+`options.store` and `options.sealer` are this portal's durable storage and
+KMS-sealing adapters; they are not credentials submitted by the browser.
+`options.gatewayBaseUrl`, `options.resolveRecipientJwk` and `options.appInfo`
+come from approved server configuration, as in the manager example above.
+`authority.ownerId` is the local authenticated account id; `actorDid` is the
+existing controller role DID. `authorization` comes from the licensed
+onboarding/invitation flow or the existing role authorization. `idToken` is
+the fresh trusted account proof. `pin` follows the chosen user-managed or
+service-managed secret policy. Redirect URIs and the client name belong to
+this portal. Return only the product's permitted view to the browser, not the
+protected profile, tokens or wallet material.
+
+For manual low-level integrations, preserve the same rules when using
+`createProfileDeviceActivationRequest(...)` and
+`activateProfileDeviceWithActivationRequest(...)`; they are not necessary for
+this high-level example. Neither successful DCR nor a matching email alone
+proves that the controller can perform every later protected operation.
+Verify the role proof and current device binding in the receiving gateway.
+
 ### 6.6 Request a SMART token for subject access
 
 ```ts
