@@ -79,7 +79,7 @@ If you need lower-level runtime details after this guide, open:
 2. [What package to open for each question](#2-what-package-to-open-for-each-question)
 3. [The two main journeys](#3-the-two-main-journeys)
 4. [Install and imports](#4-install-and-imports)
-5. [Runtime bootstrap](#5-runtime-bootstrap)
+5. [Backend communication bootstrap](#5-backend-communication-bootstrap)
 6. [Journey A: Legal organization to professional access](#6-journey-a-legal-organization-to-professional-access)
 7. [Journey B: Individual subject to IPS import and search](#7-journey-b-individual-subject-to-ips-import-and-search)
 8. [Permissions and invitation model](#8-permissions-and-invitation-model)
@@ -1051,7 +1051,7 @@ const registeredControllerProfile = await profileSessions.enroll({
 
   // Authority already established for this profile. This is server-owned
   // state and must not be an arbitrary value accepted from the browser.
-  actorMode: 'self', // self-managed subject; controller role is still RESPRSN
+  actorMode: 'controller', // Organization controller, not an individual-self profile.
 
   // Exact professional-role/controller DID bound by the controller VC and
   // registered device. It represents the role, not the human personally.
@@ -1184,12 +1184,56 @@ employee; actor kind, mode and activation-code origin are the business
 differences. The historical representative bound by legacy `_activate` is the
 explicit exception and is not enrolled again.
 
+#### Same portal: reopen one BFF wallet across browsers and computers
+
+For a server-managed wallet, opening the same portal on another computer does
+not create another gateway device. If both browsers use the same account's
+protected BFF profile, durable store and KMS custody, reuse that profile's keys,
+`clientId` and `clientInstanceId`:
+
+1. Authenticate the account again and select its existing server-owned profile.
+2. Unlock that profile with its PIN, or the BFF's authorized passkey/session path.
+3. Call `openOrganizationController(...)`; do not call `enroll(...)` again.
+4. Perform the operation through its returned `sdk`; current GW authorization
+   still applies.
+
+```ts
+import {
+  ServerProfileSessionManager,
+  type ServerOrganizationControllerOpenInput,
+  type ServerProfileSessionManagerOptions,
+} from 'gdc-sdk-node-ts';
+
+export async function reopenControllerInThisBff(
+  options: ServerProfileSessionManagerOptions,
+  input: Pick<ServerOrganizationControllerOpenInput,
+    'ownerId' | 'profileId' | 'idToken'> & { pin: string },
+) {
+  return new ServerProfileSessionManager(options).openOrganizationController(input);
+}
+```
+
+`options` is the same BFF's configured storage/KMS/gateway/key-resolver boundary
+from section 6.1. `ownerId` is the authenticated local account, `profileId` is
+its existing protected record, `idToken` is fresh trusted OpenID account proof,
+and `pin` unlocks that record. Return the permitted operation result to the
+browser, not the profile's protected wallet material. This example reopens an
+already-enrolled modern organization-controller profile (`actorMode: 'controller'`).
+The legacy representative created by `_activate` instead retains its original
+bootstrap wallet and context, as explained in the [legacy walkthrough](#legacy-pdf-verify-activate).
+
+Different portal URLs alone do not establish independent custody. Use the next
+section when the second portal actually has a separate BFF wallet/store, or
+when the product deliberately authorizes a separate installation. Browser-local
+wallets have their own device-custody lifecycle; they are not this BFF example.
+
 #### Add the same controller from a second portal (keep both devices)
 
 Use this sequence when an organization controller already uses one portal and
-wants to use another portal with its own managed wallet. The organization and
-the controller remain the same. You are adding a technical installation, not
-creating another controller or transferring the first portal's private key.
+wants to use another portal with its own independent managed wallet. When both
+portals target the same provider DID, route and licensed role, you add a technical
+installation to that existing binding. Do not copy the first portal's private
+keys, seed or installation id.
 
 **If the first portal uses legacy PDF -> ICA `_verify` -> host `_activate`:**
 keep that original onboarding. Its initial representative binding is already
@@ -1205,8 +1249,13 @@ that additional-device grant.
    to that authenticated contact. The same email is account evidence, not a
    controller grant. Keep the exact gateway-returned tenant, jurisdiction,
    sector and provider DID; a different portal does not create a different
-   tenant. A genuinely different service sector requires its own authorized
-   routing and policy, not a string substitution in the BFF.
+   tenant merely because another URL is used. If the second portal uses a
+   different sector or hosted organization, first resolve its actual provider
+   DID, controller role DID and authorized route. The same legal company id
+   does not make those bindings interchangeable. Its role licence must have
+   active policy for that target sector; one existing licence covers both only
+   when the gateway's actual policy authorizes both. Do not substitute a sector
+   string or reuse another route's activation code to establish that authority.
 2. **Obtain device enrollment authority for that existing licence.** Use a valid
    activation code from the existing licensed lifecycle, or the existing
    `employeeAuthorizationUrn` supported by the gateway. Supply exactly one.
@@ -1296,7 +1345,7 @@ export async function enrollAdditionalControllerInstallation(input: Readonly<{
     ...input.authorization,
     profileId: randomUUID(), // New local record; persist and reuse the result.
     actorKind: ActorKinds.OrganizationController,
-    actorMode: 'self',
+    actorMode: 'controller',
     profileDid: input.authority.actorDid,
     idToken: input.idToken,
     pin: input.pin,
@@ -1326,6 +1375,16 @@ For manual low-level integrations, preserve the same rules when using
 this high-level example. Neither successful DCR nor a matching email alone
 proves that the controller can perform every later protected operation.
 Verify the role proof and current device binding in the receiving gateway.
+
+The additional-installation mechanism also applies to professionals, with their
+own employment, role and licence authority. The ICA's signed controller key
+commitment is evidence of the issuing verification, not a synchronized device
+inventory. The host maintains current DCR/DID/device state and, in a
+Fabric-backed deployment, its public key/binding status on the ledger. A new
+installation coexists with the first; replacement of the same installation
+revokes that installation's previous keys. Do not reissue the ICA credential
+merely because another operational wallet was added. See the
+[shared device and credential lifecycle explanation](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/ARCHITECTURE_CONTROLLER_DEVICE_LIFECYCLES.md#additional-device-for-the-same-controller-or-professional).
 
 ### 6.6 Request a SMART token for subject access
 
