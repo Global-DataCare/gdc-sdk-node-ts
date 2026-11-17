@@ -1256,12 +1256,16 @@ that additional-device grant.
    active policy for that target sector; one existing licence covers both only
    when the gateway's actual policy authorizes both. Do not substitute a sector
    string or reuse another route's activation code to establish that authority.
-2. **Obtain device enrollment authority for that existing licence.** Use a valid
-   activation code from the existing licensed lifecycle, or the existing
-   `employeeAuthorizationUrn` supported by the gateway. Supply exactly one.
-   Neither is a new randomly generated identifier. Do not repeat the commercial
-   Offer/Order or organization registration merely to open another portal.
-   Recovery through `Organization/_issue` is a separate evidence-renewal path.
+2. **Use the actual code issued for that existing licence.** The original
+   `provisionOrganizationEmployee(...)` result has `.activationCode`; original
+   organization Order replies are read with `readActivationCode(...)`, and
+   `License/_issue` replies with `readEmployeeActivationCode(...)`. The issuing
+   BFF must retain/deliver that real credential under its custody. Current GW
+   permits the same code for an active multi-device seat while it is valid,
+   bound to the verified contact and within the device allowance. Do not repeat
+   the commercial Order, provision another employee or create another seat
+   merely to add a portal. If the code is unavailable/expired, authorized
+   reissuance or recovery is a separate operation, not an email-based getter.
 3. **Prepare this portal's storage and account proof.** Configure the durable
    profile store, the KMS-backed `ServerProfileSealer`, the gateway URL and the
    trusted recipient-key resolver. Obtain a fresh signed OpenID `idToken` whose
@@ -1291,6 +1295,57 @@ that additional-device grant.
    login to an already enrolled profile unlocks that profile; it does not call
    `enroll(...)` again. Revoking one device must not retire the controller or
    the other device.
+
+**Where the helper inputs come from:**
+
+- The original completed `HostOnboardingSdk.confirmLegalOrganizationOrder(...)`
+  reply supplies the controller's code through
+  `readActivationCode(order)` from `gdc-sdk-core-ts`. Read the Offer first with
+  `readCommercialOfferId(organizationActivation)`; both readers accept the
+  complete submit/poll result. This is the original Order, not a new Order for
+  every device. The separate `_issue` recovery/reverification reply uses
+  `readLegalOrganizationCredentialReissuanceActivationCode(...)` from
+  `gdc-sdk-node-ts` (`readOrganizationIssueActivationCode` is its older alias).
+- The original professional invitation supplies
+  `OrganizationControllerSdk.provisionOrganizationEmployee(...).activationCode`,
+  or a `License/_issue` reply supplies
+  `readEmployeeActivationCode(reply.poll.body)` from `gdc-common-utils-ts`.
+  Neither method should be repeated just to add a second installation.
+- The original successful `enroll(...)` returns a `ServerProfileRecord` with
+  `actorDid`, `profileDid`, `providerDid`, `routeContext` and `allowedSubjectDids`.
+  The authorized issuing BFF can provide that **public binding only** to the
+  additional BFF. Do not transfer the complete record, its protected seed/VP,
+  private keys or its old installation identity.
+- A professional's role/contact proof comes from the original verified grant,
+  such as `EmployeeActivationGrant` created by `createEmployeeActivationGrant(...)`.
+  That grant contains `employeeDid`, `employeeRoleCode`,
+  `employeeActorIdentifier`, `providerDid` and `routeContext`. A controller uses
+  its verified designation and licence/contact binding; the canonical role
+  constant is `HealthcareActorRoles.Controller` from
+  `gdc-common-utils-ts/constants/healthcare`. A constant itself grants no role.
+- `ServerProfileRecord` contains **neither** `professionalProof` **nor**
+  `activationCode`. Retain those original grant/credential inputs separately
+  under BFF custody. Do not decode a protected VP without authorization or
+  assume an email yields all these values.
+- The new BFF supplies its own authenticated `ownerId`, fresh signed `idToken`,
+  new profile id, PIN and approved redirects. `options` supplies its configured
+  store, KMS sealer, gateway, public-key resolver and application identity.
+
+Current GW Core `IdentityTokenManager` requires `subject_token` (the real code)
+for `Token/_exchange`. The SDK also declares an `employeeAuthorizationUrn`
+input, but that alternative is not handled by the current gateway exchange;
+it is not an operational replacement for the code in this walkthrough.
+There is no public GDC method that discovers every existing actor/licence input
+from an email. The integrating BFF must obtain its governed binding and original
+credential through its organization/invitation integration. The
+[shared input provenance table and original Order example](https://github.com/Global-DataCare/gdc-sdk-core-ts/blob/main/docs/ARCHITECTURE_CONTROLLER_DEVICE_LIFECYCLES.md#where-each-enrollment-input-comes-from)
+show each field and its owning API explicitly.
+
+`ServerActorMode` is the exported TypeScript union
+`'self' | 'controller' | 'member'`; no enum is exported. Use the declared
+`'controller'` mode for an organization controller and `'member'` for a
+professional/employee. These mode selectors do not replace verified role
+and licence authority.
 
 **Addition versus replacement:** a different installation has a different
 `clientInstanceId`. Reusing the previous installation id with different keys
@@ -1326,14 +1381,11 @@ type ExistingControllerAuthority = Pick<
   professionalProof: NonNullable<ServerProfileEnrollmentInput['professionalProof']>;
 };
 
-type ExistingLicenceAuthorization =
-  | { activationCode: string; employeeAuthorizationUrn?: never }
-  | { employeeAuthorizationUrn: string; activationCode?: never };
 
 export async function enrollAdditionalControllerInstallation(input: Readonly<{
   options: ServerProfileSessionManagerOptions;
   authority: ExistingControllerAuthority;
-  authorization: ExistingLicenceAuthorization;
+  activationCode: string;
   idToken: string;
   pin: string;
   redirectUris: string[];
@@ -1342,7 +1394,7 @@ export async function enrollAdditionalControllerInstallation(input: Readonly<{
   const manager = new ServerProfileSessionManager(input.options);
   return manager.enroll({
     ...input.authority,
-    ...input.authorization,
+    activationCode: input.activationCode,
     profileId: randomUUID(), // New local record; persist and reuse the result.
     actorKind: ActorKinds.OrganizationController,
     actorMode: 'controller',
@@ -1362,8 +1414,8 @@ KMS-sealing adapters; they are not credentials submitted by the browser.
 `options.gatewayBaseUrl`, `options.resolveRecipientJwk` and `options.appInfo`
 come from approved server configuration, as in the manager example above.
 `authority.ownerId` is the local authenticated account id; `actorDid` is the
-existing controller role DID. `authorization` comes from the licensed
-onboarding/invitation flow or the existing role authorization. `idToken` is
+existing controller role DID. `activationCode` is the actual credential returned by the original
+onboarding/invitation flow and retained by the issuing BFF. `idToken` is
 the fresh trusted account proof. `pin` follows the chosen user-managed or
 service-managed secret policy. Redirect URIs and the client name belong to
 this portal. Return only the product's permitted view to the browser, not the
