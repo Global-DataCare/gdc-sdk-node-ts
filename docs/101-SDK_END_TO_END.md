@@ -1198,26 +1198,34 @@ protected BFF profile, durable store and KMS custody, reuse that profile's keys,
    still applies.
 
 ```ts
-import {
-  ServerProfileSessionManager,
-  type ServerOrganizationControllerOpenInput,
-  type ServerProfileSessionManagerOptions,
-} from 'gdc-sdk-node-ts';
+import { ServerProfileSessionManager } from 'gdc-sdk-node-ts';
 
-export async function reopenControllerInThisBff(
-  options: ServerProfileSessionManagerOptions,
-  input: Pick<ServerOrganizationControllerOpenInput,
-    'ownerId' | 'profileId' | 'idToken'> & { pin: string },
-) {
-  return new ServerProfileSessionManager(options).openOrganizationController(input);
-}
+const profileSessions = new ServerProfileSessionManager({
+  store: profileStore,
+  sealer: profileSealer,
+  gatewayBaseUrl,
+  resolveRecipientJwk,
+  appInfo,
+});
+
+const { profile, sdk: controllerSdk } = await profileSessions.openOrganizationController({
+  ownerId: authenticatedPortalAccountId,
+  profileId: storedControllerProfileId,
+  idToken: signedEmailProofIdToken,
+  pin: profilePin,
+});
+
+const employees = await controllerSdk.listOrganizationEmployeeLifecycle(profile.routeContext);
 ```
 
-`options` is the same BFF's configured storage/KMS/gateway/key-resolver boundary
-from section 6.1. `ownerId` is the authenticated local account, `profileId` is
-its existing protected record, `idToken` is fresh trusted OpenID account proof,
-and `pin` unlocks that record. Return the permitted operation result to the
-browser, not the profile's protected wallet material. This example reopens an
+`profileStore`, `profileSealer`, `gatewayBaseUrl`, `resolveRecipientJwk` and
+`appInfo` are the BFF infrastructure configured in section 6.1.
+`authenticatedPortalAccountId` and `signedEmailProofIdToken` come from the fresh
+verified login. `storedControllerProfileId` is selected from that account's
+stored records; `profilePin` unlocks it. The returned `controllerSdk` reads the
+employee lifecycle list through the profile's stored route. `employees` is the
+operation result; return only its permitted product view to the browser.
+Keep the protected profile and wallet material on the server. This example reopens an
 already-enrolled modern organization-controller profile (`actorMode: 'controller'`).
 The legacy representative created by `_activate` instead retains its original
 bootstrap wallet and context, as explained in the [legacy walkthrough](#legacy-pdf-verify-activate).
@@ -1296,7 +1304,7 @@ that additional-device grant.
    `enroll(...)` again. Revoking one device must not retire the controller or
    the other device.
 
-**Where the helper inputs come from:**
+**Where the enrollment inputs come from:**
 
 - The original completed `HostOnboardingSdk.confirmLegalOrganizationOrder(...)`
   reply supplies the controller's code through
@@ -1328,8 +1336,9 @@ that additional-device grant.
   under BFF custody. Do not decode a protected VP without authorization or
   assume an email yields all these values.
 - The new BFF supplies its own authenticated `ownerId`, fresh signed `idToken`,
-  new profile id, PIN and approved redirects. `options` supplies its configured
-  store, KMS sealer, gateway, public-key resolver and application identity.
+  new profile id, PIN and approved redirects. Its configured `profileStore`,
+  `profileSealer`, gateway, public-key resolver and application identity belong
+  to this BFF.
 
 Current GW Core `IdentityTokenManager` requires `subject_token` (the real code)
 for `Token/_exchange`. The SDK also declares an `employeeAuthorizationUrn`
@@ -1355,71 +1364,72 @@ second portal. Do not use a human email or organization DID as a shared
 installation id. The same portal can also have multiple separately authorized
 installations, each within the licence capacity.
 
-The following BFF helper includes all imports. It uses public SDK types and
-values, not invented DIDs, role strings, activation tokens or raw DCR JSON.
-Its arguments are dependencies and verified data that your BFF supplies from
-steps 1 to 3. `professionalProof` means the server-resolved licensed role and
-actor binding, including the controller role when appropriate; never fill it
-from arbitrary browser fields. This SDK path signs the managed role proof
-with the enrolled wallet after DCR. Do not substitute another controller's
-ICA credential or assume a credential bound to one key is bound to all keys.
+Call the SDK directly with the verified values from steps 1 to 3.
+`controllerBinding` contains only the authorized public actor/provider/route/
+subject projection from the original profile. `verifiedControllerProof` is the
+separately verified controller designation and licence/contact proof, including
+the canonical role and verified contact; it supplies `professionalProof`.
+Never fill either from arbitrary browser fields. This SDK path signs the
+managed role proof with the enrolled wallet after DCR. Do not substitute
+another controller's ICA credential or assume a credential bound to one key
+is bound to all keys.
 
 ```ts
 import { randomUUID } from 'node:crypto';
-import {
-  ActorKinds,
-  ServerProfileSessionManager,
-  type ServerProfileEnrollmentInput,
-  type ServerProfileRecord,
-  type ServerProfileSessionManagerOptions,
-} from 'gdc-sdk-node-ts';
+import { ActorKinds, ServerProfileSessionManager } from 'gdc-sdk-node-ts';
 
-type ExistingControllerAuthority = Pick<
-  ServerProfileEnrollmentInput,
-  'ownerId' | 'actorDid' | 'providerDid' | 'routeContext' | 'allowedSubjectDids'
-> & {
-  professionalProof: NonNullable<ServerProfileEnrollmentInput['professionalProof']>;
-};
+const profileSessions = new ServerProfileSessionManager({
+  store: profileStore,
+  sealer: profileSealer,
+  gatewayBaseUrl,
+  resolveRecipientJwk,
+  appInfo,
+});
 
+const additionalControllerProfile = await profileSessions.enroll({
+  ownerId: authenticatedPortalAccountId,
+  profileId: randomUUID(),
+  actorKind: ActorKinds.OrganizationController,
+  actorMode: 'controller',
+  actorDid: controllerBinding.actorDid,
+  profileDid: controllerBinding.actorDid,
+  providerDid: controllerBinding.providerDid,
+  routeContext: controllerBinding.routeContext,
+  allowedSubjectDids: controllerBinding.allowedSubjectDids,
+  professionalProof: verifiedControllerProof,
+  activationCode,
+  idToken: signedEmailProofIdToken,
+  pin: profilePin,
+  redirectUris: portalRedirectUris,
+  clientName: portalClientName,
+});
 
-export async function enrollAdditionalControllerInstallation(input: Readonly<{
-  options: ServerProfileSessionManagerOptions;
-  authority: ExistingControllerAuthority;
-  activationCode: string;
-  idToken: string;
-  pin: string;
-  redirectUris: string[];
-  clientName: string;
-}>): Promise<ServerProfileRecord> {
-  const manager = new ServerProfileSessionManager(input.options);
-  return manager.enroll({
-    ...input.authority,
-    activationCode: input.activationCode,
-    profileId: randomUUID(), // New local record; persist and reuse the result.
-    actorKind: ActorKinds.OrganizationController,
-    actorMode: 'controller',
-    profileDid: input.authority.actorDid,
-    idToken: input.idToken,
-    pin: input.pin,
-    redirectUris: input.redirectUris,
-    clientName: input.clientName,
-    // Omit clientInstanceId and wallet recovery inputs for an added device.
-    // The SDK generates fresh keys; private keys are not sent to the gateway.
-  });
-}
+// enroll has stored this portal's protected profile through profileStore.
+// Use its id on later logins; do not enroll again.
+const { profile, sdk: controllerSdk } = await profileSessions.openOrganizationController({
+  ownerId: authenticatedPortalAccountId,
+  profileId: additionalControllerProfile.profileId,
+  idToken: signedEmailProofIdToken,
+  pin: profilePin,
+});
+
+const employees = await controllerSdk.listOrganizationEmployeeLifecycle(profile.routeContext);
 ```
 
-`options.store` and `options.sealer` are this portal's durable storage and
-KMS-sealing adapters; they are not credentials submitted by the browser.
-`options.gatewayBaseUrl`, `options.resolveRecipientJwk` and `options.appInfo`
-come from approved server configuration, as in the manager example above.
-`authority.ownerId` is the local authenticated account id; `actorDid` is the
-existing controller role DID. `activationCode` is the actual credential returned by the original
-onboarding/invitation flow and retained by the issuing BFF. `idToken` is
-the fresh trusted account proof. `pin` follows the chosen user-managed or
-service-managed secret policy. Redirect URIs and the client name belong to
-this portal. Return only the product's permitted view to the browser, not the
-protected profile, tokens or wallet material.
+`profileStore` and `profileSealer` are this portal's durable storage and
+KMS-sealing adapters. `gatewayBaseUrl`, `resolveRecipientJwk` and `appInfo` come
+from its approved server configuration, as in section 6.1.
+`authenticatedPortalAccountId` belongs to the new BFF's verified account;
+`signedEmailProofIdToken` is its fresh trusted OpenID proof. `activationCode`
+is the real credential retained by the issuing BFF. `profilePin` follows the
+chosen user-managed or service-managed secret policy. `portalRedirectUris`
+and `portalClientName` come from this portal's approved application configuration.
+
+The SDK persists `additionalControllerProfile` through `profileStore`; reuse its
+`profileId` on later logins. Opening it returns the role-scoped `controllerSdk`;
+the example uses it to read `employees`. Return only the product's permitted
+operation result to the browser, not the protected profile, tokens or wallet
+material. The first portal keeps using its own existing profile.
 
 For manual low-level integrations, preserve the same rules when using
 `createProfileDeviceActivationRequest(...)` and
