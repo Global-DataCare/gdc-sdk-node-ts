@@ -2,30 +2,30 @@
 
 Use `BundleReader` to inspect a Bundle returned by the GW. It is intentionally
 read-only. To call resource-specific getters or setters, create a detached
-editable clone and select the typed resource editor:
+editable clone and select the typed resource editor.
+
+Here `receivedBundle` is the Bundle returned by the authorized SDK read,
+and `entryIndex` is the selected allergy entry's array index. This example
+sets its reaction severity to the SDK's canonical `Moderate` value. A form can
+supply another validated selection from `AllergyIntoleranceReactionSeverities`.
 
 ```ts
-import { BundleReader } from 'gdc-sdk-node-ts';
+import { AllergyIntoleranceReactionSeverities, BundleReader } from 'gdc-sdk-node-ts';
 
-export function updateAllergySeverity(
-  receivedBundle: unknown,
-  entryIndex: number,
-  reactionSeverity: string,
-) {
-  const editableBundle = new BundleReader(receivedBundle).toBundleEditor();
-  const allergy = editableBundle
-    .openEntryByArrayIndex(entryIndex)
-    .asAllergy();
+const editableBundle = new BundleReader(receivedBundle).toBundleEditor();
+const allergy = editableBundle
+  .openEntryByArrayIndex(entryIndex)
+  .asAllergy();
 
-  const previousSeverity = allergy.getReactionSeverity();
-  allergy.setReactionSeverity(reactionSeverity);
-
-  return {
-    previousSeverity,
-    updatedBundle: editableBundle.build(),
-  };
-}
+const previousSeverity = allergy.getReactionSeverity();
+allergy.setReactionSeverity(AllergyIntoleranceReactionSeverities.Moderate);
+const updatedBundle = editableBundle.build();
 ```
+
+`previousSeverity` is the value before editing; `updatedBundle` is the detached
+Bundle containing the change. Pass that Bundle to the authorized clinical-write
+flow when saving; building it alone does not persist anything. See
+[high-level clinical profile writes](./101-HIGH_LEVEL_CLINICAL_PROFILE_WRITES.md).
 
 This works with both FHIR-style `entry[]` and JSON-API-style `data[]` Bundles.
 The input held by `BundleReader` is not mutated. If the resource has a stable

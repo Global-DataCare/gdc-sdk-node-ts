@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Replace controller wallet and onboarding documentation wrappers with direct
+  SDK calls, explicit input provenance and an authorized operation result.
+- Show clinical Bundle editing directly, separating the returned edited
+  Bundle from the subsequent authorized persistence flow.
+
+
 - Expose organization-employee reactivation through the controller facade,
   preserving the suspended employee's technical identity and assigned licence.
 - Re-authenticate the optional professional live-E2E subject cleanup as the
